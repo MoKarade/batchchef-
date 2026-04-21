@@ -1,3 +1,4 @@
+from __future__ import annotations
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 from app.schemas.recipe import RecipeBrief
@@ -16,8 +17,8 @@ class ShoppingItemOut(BaseModel):
     from_inventory_qty: float = 0.0
     is_purchased: bool = False
     purchased_at: datetime | None = None
-    ingredient: "IngredientBrief | None" = None
-    store: "StoreBrief | None" = None
+    ingredient: IngredientBrief | None = None
+    store: StoreBrief | None = None
 
 
 class IngredientBrief(BaseModel):
@@ -55,9 +56,6 @@ class BatchOut(BaseModel):
     shopping_items: list[ShoppingItemOut] = []
 
 
-ShoppingItemOut.model_rebuild()
-
-
 class BatchGenerateRequest(BaseModel):
     target_portions: int = 20
     num_recipes: int = 3
@@ -69,3 +67,51 @@ class BatchGenerateRequest(BaseModel):
     health_score_min: float | None = None
     include_recipe_ids: list[int] | None = None
     exclude_recipe_ids: list[int] | None = None
+
+
+class RecipePreview(BaseModel):
+    id: int
+    title: str
+    image_url: str | None = None
+    meal_type: str | None = None
+    health_score: float | None = None
+    estimated_cost_per_portion: float | None = None
+    is_vegetarian: bool = False
+    is_vegan: bool = False
+    portions: int
+
+
+class ShoppingItemPreview(BaseModel):
+    ingredient_master_id: int
+    quantity_needed: float
+    unit: str
+    format_qty: float | None = None
+    format_unit: str | None = None
+    packages_to_buy: int = 1
+    estimated_cost: float | None = None
+    from_inventory_qty: float = 0.0
+    ingredient: IngredientBrief | None = None
+    store: StoreBrief | None = None
+
+
+class BatchPreviewOut(BaseModel):
+    target_portions: int
+    total_portions: int
+    total_estimated_cost: float
+    recipes: list[RecipePreview]
+    shopping_items: list[ShoppingItemPreview]
+
+
+class RecipeSlot(BaseModel):
+    recipe_id: int
+    portions: int
+
+
+class BatchAcceptRequest(BaseModel):
+    target_portions: int
+    recipes: list[RecipeSlot]
+    name: str | None = None
+
+
+class BulkPurchaseRequest(BaseModel):
+    item_ids: list[int]

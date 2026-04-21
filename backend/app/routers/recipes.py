@@ -28,6 +28,9 @@ async def list_recipes(
     meal_type: str | None = Query(None),
     tag: str | None = Query(None),
     status: str | None = Query(None),
+    max_cost_per_portion: float | None = Query(None),
+    prep_time_max_min: int | None = Query(None),
+    health_score_min: float | None = Query(None),
     sort: Literal["id_desc", "id_asc", "health_desc", "cost_asc", "calories_asc", "title_asc"] = "id_desc",
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -44,6 +47,18 @@ async def list_recipes(
         q = q.where(Recipe.is_vegetarian == True)  # noqa: E712
     elif tag == "vegan":
         q = q.where(Recipe.is_vegan == True)  # noqa: E712
+    if max_cost_per_portion is not None:
+        q = q.where(
+            (Recipe.estimated_cost_per_portion.is_(None))
+            | (Recipe.estimated_cost_per_portion <= max_cost_per_portion)
+        )
+    if prep_time_max_min is not None:
+        q = q.where(
+            (Recipe.prep_time_min.is_(None))
+            | (Recipe.prep_time_min <= prep_time_max_min)
+        )
+    if health_score_min is not None:
+        q = q.where(Recipe.health_score >= health_score_min)
 
     count_q = select(func.count()).select_from(q.subquery())
     total = (await db.execute(count_q)).scalar_one()

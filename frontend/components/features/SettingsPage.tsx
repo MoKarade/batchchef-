@@ -23,6 +23,9 @@ import {
   Sparkles,
   ShieldCheck,
   X,
+  ChevronDown,
+  ChevronRight,
+  Wrench,
 } from "lucide-react";
 
 function ProgressBar({ value, max }: { value: number; max: number }) {
@@ -453,18 +456,16 @@ function ClassifyPanel() {
 }
 
 export function SettingsPage() {
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Paramètres</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Gestion des prix, mapping des ingrédients et configuration.
+          Variables d&apos;environnement et outils manuels (les imports cascadent automatiquement).
         </p>
       </div>
-
-      <PriceMappingPanel />
-      <FruiteriePanel />
-      <ClassifyPanel />
 
       <div className="rounded-xl border bg-card p-5 space-y-3">
         <h2 className="font-semibold">Variables d&apos;environnement</h2>
@@ -478,6 +479,31 @@ export function SettingsPage() {
           <li><code className="text-xs bg-muted px-1 rounded">SCRAPE_CONCURRENCY</code> — Pages Playwright parallèles</li>
           <li><code className="text-xs bg-muted px-1 rounded">COSTCO_ENABLED</code> — Active le scraper Costco</li>
         </ul>
+      </div>
+
+      <div className="rounded-xl border bg-card">
+        <button
+          onClick={() => setAdvancedOpen((v) => !v)}
+          className="w-full flex items-center gap-2 p-5 text-left hover:bg-accent/30"
+        >
+          {advancedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          <Wrench className="h-4 w-4 text-muted-foreground" />
+          <span className="font-semibold">Outils avancés</span>
+          <span className="text-xs text-muted-foreground ml-auto">
+            (déclenchés automatiquement après chaque import)
+          </span>
+        </button>
+        {advancedOpen && (
+          <div className="p-5 pt-0 space-y-6">
+            <p className="text-xs text-muted-foreground italic">
+              Ces actions sont normalement déclenchées automatiquement lors d&apos;un import Marmiton.
+              Utilise-les seulement pour forcer un remap après une édition manuelle d&apos;ingrédient.
+            </p>
+            <PriceMappingPanel />
+            <FruiteriePanel />
+            <ClassifyPanel />
+          </div>
+        )}
       </div>
     </div>
   );

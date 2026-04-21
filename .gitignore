@@ -145,3 +145,7 @@ backend/.venv/
 
 # Playwright
 backend/playwright-report/
+
+# Redis dump
+backend/dump.rdb
+dump.rdb

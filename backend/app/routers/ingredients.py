@@ -1,6 +1,6 @@
 import json
 import re
-from datetime import datetime
+from app.utils.time import utcnow
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, or_, func, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -216,7 +216,7 @@ async def sanitize_display_names(
         task = run_clean_display_names.delay(job.id, ingredient_ids)
         job.celery_task_id = task.id
         job.status = "running"
-        job.started_at = datetime.utcnow()
+        job.started_at = utcnow()
     except Exception as e:
         job.status = "failed"
         job.error_log = json.dumps([str(e)])

@@ -13,9 +13,10 @@ class ConnectionManager:
         self._connections[job_id].append(ws)
 
     def disconnect(self, job_id: str, ws: WebSocket):
-        self._connections[job_id].remove(ws)
-        if not self._connections[job_id]:
-            del self._connections[job_id]
+        if ws in self._connections.get(job_id, []):
+            self._connections[job_id].remove(ws)
+        if not self._connections.get(job_id):
+            self._connections.pop(job_id, None)
 
     async def broadcast(self, job_id: str, data: dict):
         payload = json.dumps(data)

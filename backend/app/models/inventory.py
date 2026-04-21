@@ -20,7 +20,7 @@ class InventoryItem(Base):
 
     ingredient: Mapped["IngredientMaster"] = relationship(back_populates="inventory_items")  # noqa
     source_product: Mapped["StoreProduct | None"] = relationship()  # noqa
-    movements: Mapped[list["InventoryMovement"]] = relationship(back_populates="item")
+    movements: Mapped[list["InventoryMovement"]] = relationship(back_populates="item", cascade="all, delete-orphan")
 
 
 class InventoryMovement(Base):

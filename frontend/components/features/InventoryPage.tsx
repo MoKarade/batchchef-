@@ -1,13 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { inventoryApi, type InventoryItem } from "@/lib/api";
+import { inventoryApi } from "@/lib/api";
 import { Trash2, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { AddInventoryItemModal } from "./AddInventoryItemModal";
 
-export function InventoryPageComponent() {
+export function InventoryPage() {
   const qc = useQueryClient();
+  const [addOpen, setAddOpen] = useState(false);
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["inventory"],
@@ -29,6 +32,12 @@ export function InventoryPageComponent() {
             {items.length} articles en stock
           </p>
         </div>
+        <button
+          onClick={() => setAddOpen(true)}
+          className="inline-flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 h-9 text-sm font-medium hover:bg-primary/90"
+        >
+          <Plus className="h-4 w-4" /> Ajouter un ingrédient
+        </button>
       </div>
 
       <div className="rounded-xl border bg-card overflow-hidden">
@@ -76,6 +85,8 @@ export function InventoryPageComponent() {
           </tbody>
         </table>
       </div>
+
+      <AddInventoryItemModal open={addOpen} onClose={() => setAddOpen(false)} />
     </div>
   );
 }

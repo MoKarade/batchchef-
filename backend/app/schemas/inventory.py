@@ -1,3 +1,4 @@
+from __future__ import annotations
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
@@ -12,7 +13,7 @@ class InventoryItemOut(BaseModel):
     expires_at: datetime | None = None
     notes: str | None = None
     updated_at: datetime
-    ingredient: "IngredientRef | None" = None
+    ingredient: IngredientRef | None = None
 
 
 class IngredientRef(BaseModel):
@@ -20,9 +21,6 @@ class IngredientRef(BaseModel):
     id: int
     canonical_name: str
     display_name_fr: str
-
-
-InventoryItemOut.model_rebuild()
 
 
 class InventoryItemCreate(BaseModel):

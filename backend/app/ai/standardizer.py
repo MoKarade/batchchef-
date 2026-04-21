@@ -6,13 +6,29 @@ Returns structured results: {"canonical": str, "variant": str | None}
   - variant   = Level-2 specific form when a container/preparation is detected
                 (e.g. "thon_en_boite", "ail_en_poudre"), else null
 """
+import asyncio
 import json
 import logging
 import re
+import time
 from app.ai.client import get_client
+from app.ai.utils import parse_gemini_json
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Proactive rate limiter: max 12 req/min (stays safely under free tier 15 RPM)
+_GEMINI_MIN_INTERVAL = 5.0  # seconds between calls
+_last_call_time: float = 0.0
+
+
+async def _gemini_throttle():
+    global _last_call_time
+    now = time.monotonic()
+    wait = _GEMINI_MIN_INTERVAL - (now - _last_call_time)
+    if wait > 0:
+        await asyncio.sleep(wait)
+    _last_call_time = time.monotonic()
 
 SYSTEM_PROMPT = """Tu es un expert culinaire. Pour chaque ingrédient brut reçu, retourne un objet JSON avec :
 - "canonical" : le nom générique de l'ingrédient (Level-1), singulier, sans adjectif, sans quantité, sans conditionnement.
@@ -55,40 +71,46 @@ class StandardizeResult:
 async def standardize_batch(raw_names: list[str]) -> list[StandardizeResult]:
     """
     Returns StandardizeResult for each raw_name.
-    Falls back to basic cleaning if AI fails.
+    Retries up to 5 times with exponential backoff on rate limits.
+    Falls back to basic cleaning only after all retries exhausted.
     """
     if not raw_names:
         return []
 
+    import asyncio
     client = get_client()
     prompt = SYSTEM_PROMPT + f"\n\nInput: {json.dumps(raw_names, ensure_ascii=False)}"
 
-    try:
-        response = client.models.generate_content(
-            model=settings.GEMINI_MODEL,
-            contents=prompt,
-        )
-        text = response.text.strip()
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        result = json.loads(text)
-        if isinstance(result, list) and len(result) == len(raw_names):
-            out = []
-            for r in result:
-                if isinstance(r, dict):
-                    canonical = _sanitize_canonical(str(r.get("canonical", "")))
-                    raw_variant = r.get("variant")
-                    variant = _sanitize_canonical(str(raw_variant)) if raw_variant else None
-                    if variant == canonical:
-                        variant = None
-                    out.append(StandardizeResult(canonical, variant))
-                else:
-                    out.append(StandardizeResult(_sanitize_canonical(str(r))))
-            return out
-    except Exception as e:
-        logger.warning(f"Standardizer error: {e}")
+    for attempt in range(5):
+        try:
+            await asyncio.sleep(4)  # respect ~15 RPM free-tier limit
+            response = client.models.generate_content(
+                model=settings.GEMINI_MODEL,
+                contents=prompt,
+            )
+            result = parse_gemini_json(response.text)
+            if isinstance(result, list) and len(result) == len(raw_names):
+                out = []
+                for r in result:
+                    if isinstance(r, dict):
+                        canonical = _sanitize_canonical(str(r.get("canonical", "")))
+                        raw_variant = r.get("variant")
+                        variant = _sanitize_canonical(str(raw_variant)) if raw_variant else None
+                        if variant == canonical:
+                            variant = None
+                        out.append(StandardizeResult(canonical, variant))
+                    else:
+                        out.append(StandardizeResult(_sanitize_canonical(str(r))))
+                return out
+            raise ValueError(f"Unexpected response length: {len(result)} vs {len(raw_names)}")
+        except Exception as e:
+            is_rate_limit = "429" in str(e) or "quota" in str(e).lower() or "rate" in str(e).lower()
+            if attempt < 4:
+                wait = min(60 * (2 ** attempt), 300) if is_rate_limit else 5
+                logger.warning(f"Standardizer attempt {attempt + 1}/5 failed ({e}), retrying in {wait}s")
+                await asyncio.sleep(wait)
+            else:
+                logger.warning(f"Standardizer failed after 5 attempts: {e}")
 
     return [StandardizeResult(_basic_clean(n)) for n in raw_names]
 

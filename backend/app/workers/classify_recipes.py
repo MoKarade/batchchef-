@@ -5,9 +5,9 @@ Celery task: retroactively classify recipes that are in 'scraped' status
 import asyncio
 import json
 import logging
-from datetime import datetime
 
 from app.workers.celery_app import celery_app
+from app.utils.time import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ async def _run(job_id: int, recipe_ids: list[int] | None):
         if not job:
             return
 
-        if recipe_ids:
+        if recipe_ids is not None:
             q = select(Recipe).where(Recipe.id.in_(recipe_ids))
         else:
             q = select(Recipe).where(Recipe.status == "scraped")
@@ -42,7 +42,7 @@ async def _run(job_id: int, recipe_ids: list[int] | None):
         total = len(recipes)
 
         job.status = "running"
-        job.started_at = datetime.utcnow()
+        job.started_at = utcnow()
         job.progress_total = total
         job.progress_current = 0
         await db.commit()
@@ -100,7 +100,7 @@ async def _run(job_id: int, recipe_ids: list[int] | None):
                     if cls.get("health_score") is not None:
                         r_full.health_score = float(cls["health_score"])
                     r_full.status = "ai_done"
-                    r_full.ai_processed_at = datetime.utcnow()
+                    r_full.ai_processed_at = utcnow()
                     await db.commit()
 
         except Exception as e:
@@ -123,7 +123,7 @@ async def _run(job_id: int, recipe_ids: list[int] | None):
         job = await db.get(ImportJob, job_id)
         if job:
             job.status = "completed"
-            job.finished_at = datetime.utcnow()
+            job.finished_at = utcnow()
             job.progress_current = done
             job.error_log = json.dumps(errors[:50])
             await db.commit()

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { batchesApi } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
@@ -7,8 +8,11 @@ import { ArrowLeft, ChefHat, ShoppingCart, Users } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { RecipeModal } from "./RecipeModal";
 
 export function BatchDetailPage({ batchId }: { batchId: number }) {
+  const [openRecipeId, setOpenRecipeId] = useState<number | null>(null);
+
   const { data: batch, isLoading } = useQuery({
     queryKey: ["batch", batchId],
     queryFn: () => batchesApi.get(batchId).then((r) => r.data),
@@ -72,13 +76,22 @@ export function BatchDetailPage({ batchId }: { batchId: number }) {
                 <p className="text-sm font-medium">{br.recipe?.title ?? `Recette #${br.recipe_id}`}</p>
                 <p className="text-xs text-muted-foreground">{br.portions} portions</p>
               </div>
-              <Link href={`/recipes/${br.recipe_id}`}>
-                <button className="text-xs px-3 h-7 rounded-md border hover:bg-accent">Voir</button>
-              </Link>
+              <button
+                onClick={() => setOpenRecipeId(br.recipe_id)}
+                className="text-xs px-3 h-7 rounded-md border hover:bg-accent"
+              >
+                Voir
+              </button>
             </li>
           ))}
         </ul>
       </div>
+
+      <RecipeModal
+        recipeId={openRecipeId}
+        portions={batch.batch_recipes.find((br) => br.recipe_id === openRecipeId)?.portions ?? 1}
+        onClose={() => setOpenRecipeId(null)}
+      />
     </div>
   );
 }

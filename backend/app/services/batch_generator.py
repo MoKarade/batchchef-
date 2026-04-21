@@ -1,8 +1,14 @@
 """
 Batch cooking generator:
-  - Picks 3 diverse recipes (different meal_type / categories)
+  - Picks N diverse recipes (different meal_type / categories)
   - Distributes target_portions as [ceil, ceil, floor]  (e.g. 20 → 7+7+6)
   - Builds the ShoppingListItem list for the batch
+
+Public surface:
+  - select_recipes(...)             — pure recipe selection (no DB writes)
+  - compute_batch_preview(...)      — preview as dict, no persistence
+  - persist_batch_from_slots(...)   — create Batch from explicit recipe slots
+  - generate_batch(...)             — legacy: select + persist in one shot
 """
 import math
 import random
@@ -12,13 +18,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.recipe import Recipe, RecipeIngredient
 from app.models.batch import Batch, BatchRecipe, ShoppingListItem
 from app.models.store import StoreProduct, Store
+from app.models.ingredient import IngredientMaster
 from app.models.inventory import InventoryItem
-from app.services.unit_converter import get_scale_factor, to_base
+from app.services.unit_converter import get_scale_factor
 
 
-async def generate_batch(
+def _split_portions(target_portions: int, n: int) -> list[int]:
+    base = target_portions // n
+    remainder = target_portions % n
+    return [base + (1 if i < remainder else 0) for i in range(n)]
+
+
+async def select_recipes(
     db: AsyncSession,
-    target_portions: int = 20,
     exclude_ids: list[int] | None = None,
     num_recipes: int = 3,
     meal_type_sequence: list[str] | None = None,
@@ -28,7 +40,10 @@ async def generate_batch(
     prep_time_max_min: int | None = None,
     health_score_min: float | None = None,
     include_recipe_ids: list[int] | None = None,
-) -> Batch:
+) -> list[Recipe]:
+    """Pure selection. Returns list of Recipe ORM objects with ingredients eager-loaded.
+    No DB writes. Raises ValueError if not enough recipes match.
+    """
     exclude_ids = list(exclude_ids or [])
     include_recipe_ids = list(include_recipe_ids or [])
     num_recipes = max(1, min(5, num_recipes))
@@ -55,7 +70,6 @@ async def generate_batch(
 
     load_opts = selectinload(Recipe.ingredients).selectinload(RecipeIngredient.ingredient)
 
-    # Forced recipes (always included if available, bypass filters)
     forced: list[Recipe] = []
     if include_recipe_ids:
         forced_q = (
@@ -66,7 +80,6 @@ async def generate_batch(
         forced = list((await db.execute(forced_q)).scalars().all())
         exclude_ids.extend([r.id for r in forced])
 
-    # Candidate pool with filters
     q = _apply_filters(
         select(Recipe)
         .options(load_opts)
@@ -75,7 +88,6 @@ async def generate_batch(
     candidates = list((await db.execute(q)).scalars().all())
 
     if len(candidates) + len(forced) < num_recipes:
-        # Relax status filter
         q2 = _apply_filters(
             select(Recipe)
             .options(load_opts)
@@ -92,7 +104,6 @@ async def generate_batch(
     selected: list[Recipe] = list(forced)
 
     if meal_type_sequence:
-        # Fill by meal_type order, fallback random when none match
         by_type: dict[str, list[Recipe]] = {}
         for c in candidates:
             by_type.setdefault(c.meal_type or "plat", []).append(c)
@@ -121,7 +132,6 @@ async def generate_batch(
             if len(selected) >= num_recipes:
                 break
 
-    # Fallback fill if still short
     if len(selected) < num_recipes:
         used = {r.id for r in selected}
         for r in candidates:
@@ -131,34 +141,284 @@ async def generate_batch(
             if len(selected) >= num_recipes:
                 break
 
-    selected = selected[:num_recipes]
-    n = len(selected)
+    return selected[:num_recipes]
 
-    # Portion split: e.g. 20 portions / 3 recipes → [7, 7, 6]
-    base = target_portions // n
-    remainder = target_portions % n
-    portions_split = [base + (1 if i < remainder else 0) for i in range(n)]
+
+async def _aggregate_needs(recipe_portions: list[tuple[Recipe, int]]) -> dict[int, dict[str, float]]:
+    """Aggregate recipe ingredients into needs by ingredient_master_id and unit.
+    Variants (e.g. 'beurre_fondu') roll up to their parent (e.g. 'beurre').
+    """
+    needs: dict[int, dict[str, float]] = {}
+    for recipe, portions in recipe_portions:
+        for ri in recipe.ingredients:
+            if not ri.ingredient_master_id or not ri.quantity_per_portion:
+                continue
+            uid = (
+                ri.ingredient.parent_id
+                if ri.ingredient and ri.ingredient.parent_id
+                else ri.ingredient_master_id
+            )
+            unit = ri.unit or "unite"
+            needs.setdefault(uid, {}).setdefault(unit, 0)
+            needs[uid][unit] += ri.quantity_per_portion * portions
+    return needs
+
+
+async def _resolve_inventory_and_products(
+    db: AsyncSession, ingredient_ids: list[int]
+) -> tuple[dict[int, list[InventoryItem]], dict[int, StoreProduct]]:
+    inventory_q = (
+        select(InventoryItem)
+        .where(InventoryItem.ingredient_master_id.in_(ingredient_ids))
+        .order_by(InventoryItem.purchased_at.asc().nullslast())
+    )
+    inventory_items = list((await db.execute(inventory_q)).scalars().all())
+    inv_by_ingredient: dict[int, list[InventoryItem]] = {}
+    for item in inventory_items:
+        inv_by_ingredient.setdefault(item.ingredient_master_id, []).append(item)
+
+    products_q = (
+        select(StoreProduct)
+        .where(
+            StoreProduct.ingredient_master_id.in_(ingredient_ids),
+            StoreProduct.is_validated == True,  # noqa: E712
+            StoreProduct.price.isnot(None),
+        )
+        .order_by(StoreProduct.ingredient_master_id, StoreProduct.price.asc())
+    )
+    all_products = list((await db.execute(products_q)).scalars().all())
+    best_product: dict[int, StoreProduct] = {}
+    for p in all_products:
+        if p.ingredient_master_id not in best_product:
+            best_product[p.ingredient_master_id] = p
+    return inv_by_ingredient, best_product
+
+
+def _compute_shopping_row(
+    ingredient_id: int,
+    unit: str,
+    total_needed: float,
+    inv_items: list[InventoryItem],
+    product: StoreProduct | None,
+) -> dict:
+    from_inv = 0.0
+    for inv_item in inv_items:
+        if inv_item.unit == unit and inv_item.quantity > 0:
+            take = min(inv_item.quantity, total_needed - from_inv)
+            from_inv += take
+
+    qty_to_buy = max(0.0, total_needed - from_inv)
+    estimated_cost: float | None = None
+    packages = 1
+    format_qty: float | None = None
+    format_unit: str | None = None
+
+    if product and product.price and product.format_qty and qty_to_buy > 0:
+        scale = get_scale_factor(qty_to_buy, unit, product.format_qty, product.format_unit or unit)
+        if scale > 0:
+            packages = math.ceil(scale)
+            estimated_cost = round(product.price * packages, 2)
+            format_qty = product.format_qty
+            format_unit = product.format_unit
+
+    return {
+        "ingredient_master_id": ingredient_id,
+        "store_id": product.store_id if product else None,
+        "store_product_id": product.id if product else None,
+        "quantity_needed": round(qty_to_buy, 3),
+        "unit": unit,
+        "format_qty": format_qty,
+        "format_unit": format_unit,
+        "packages_to_buy": packages,
+        "estimated_cost": estimated_cost,
+        "from_inventory_qty": round(from_inv, 3),
+    }
+
+
+async def _build_shopping_list(
+    db: AsyncSession,
+    batch_id: int,
+    recipe_portions: list[tuple[Recipe, int]],
+) -> list[ShoppingListItem]:
+    needs = await _aggregate_needs(recipe_portions)
+    inv_by_ingredient, best_product = await _resolve_inventory_and_products(db, list(needs.keys()))
+
+    items: list[ShoppingListItem] = []
+    for ingredient_id, unit_map in needs.items():
+        for unit, total_needed in unit_map.items():
+            row = _compute_shopping_row(
+                ingredient_id,
+                unit,
+                total_needed,
+                inv_by_ingredient.get(ingredient_id, []),
+                best_product.get(ingredient_id),
+            )
+            sli = ShoppingListItem(batch_id=batch_id, **row)
+            db.add(sli)
+            items.append(sli)
+    return items
+
+
+async def _build_shopping_list_preview(
+    db: AsyncSession,
+    recipe_portions: list[tuple[Recipe, int]],
+) -> list[dict]:
+    """Like _build_shopping_list but returns dicts and does not touch the session.
+    Each row also contains pre-loaded `ingredient` and `store` brief dicts so the
+    response can render without extra round trips.
+    """
+    needs = await _aggregate_needs(recipe_portions)
+    if not needs:
+        return []
+
+    inv_by_ingredient, best_product = await _resolve_inventory_and_products(db, list(needs.keys()))
+
+    ing_q = select(IngredientMaster).where(IngredientMaster.id.in_(list(needs.keys())))
+    ing_by_id = {i.id: i for i in (await db.execute(ing_q)).scalars().all()}
+
+    store_ids = {p.store_id for p in best_product.values() if p.store_id}
+    store_by_id: dict[int, Store] = {}
+    if store_ids:
+        store_q = select(Store).where(Store.id.in_(store_ids))
+        store_by_id = {s.id: s for s in (await db.execute(store_q)).scalars().all()}
+
+    rows: list[dict] = []
+    for ingredient_id, unit_map in needs.items():
+        for unit, total_needed in unit_map.items():
+            row = _compute_shopping_row(
+                ingredient_id,
+                unit,
+                total_needed,
+                inv_by_ingredient.get(ingredient_id, []),
+                best_product.get(ingredient_id),
+            )
+            ing = ing_by_id.get(ingredient_id)
+            row["ingredient"] = (
+                {
+                    "id": ing.id,
+                    "canonical_name": ing.canonical_name,
+                    "display_name_fr": ing.display_name_fr,
+                }
+                if ing
+                else None
+            )
+            store = store_by_id.get(row["store_id"]) if row["store_id"] else None
+            row["store"] = (
+                {"id": store.id, "code": store.code, "name": store.name} if store else None
+            )
+            rows.append(row)
+    return rows
+
+
+async def compute_batch_preview(
+    db: AsyncSession,
+    target_portions: int = 20,
+    exclude_ids: list[int] | None = None,
+    num_recipes: int = 3,
+    meal_type_sequence: list[str] | None = None,
+    vegetarian_only: bool = False,
+    vegan_only: bool = False,
+    max_cost_per_portion: float | None = None,
+    prep_time_max_min: int | None = None,
+    health_score_min: float | None = None,
+    include_recipe_ids: list[int] | None = None,
+) -> dict:
+    """Return a preview dict without persisting anything to the DB."""
+    selected = await select_recipes(
+        db,
+        exclude_ids=exclude_ids,
+        num_recipes=num_recipes,
+        meal_type_sequence=meal_type_sequence,
+        vegetarian_only=vegetarian_only,
+        vegan_only=vegan_only,
+        max_cost_per_portion=max_cost_per_portion,
+        prep_time_max_min=prep_time_max_min,
+        health_score_min=health_score_min,
+        include_recipe_ids=include_recipe_ids,
+    )
+    return await preview_for_recipes(db, target_portions, selected)
+
+
+async def preview_for_recipes(
+    db: AsyncSession,
+    target_portions: int,
+    selected: list[Recipe],
+) -> dict:
+    """Build a preview dict from a pre-selected recipe list."""
+    n = len(selected)
+    portions_split = _split_portions(target_portions, n)
+    pairs = list(zip(selected, portions_split))
+
+    shopping_rows = await _build_shopping_list_preview(db, pairs)
+    total_cost = sum((row.get("estimated_cost") or 0) for row in shopping_rows)
+
+    recipes_out = [
+        {
+            "id": r.id,
+            "title": r.title,
+            "image_url": r.image_url,
+            "meal_type": r.meal_type,
+            "health_score": r.health_score,
+            "estimated_cost_per_portion": r.estimated_cost_per_portion,
+            "is_vegetarian": bool(r.is_vegetarian),
+            "is_vegan": bool(r.is_vegan),
+            "portions": p,
+        }
+        for r, p in pairs
+    ]
+    return {
+        "target_portions": target_portions,
+        "total_portions": sum(portions_split),
+        "total_estimated_cost": round(total_cost, 2),
+        "recipes": recipes_out,
+        "shopping_items": shopping_rows,
+    }
+
+
+async def persist_batch_from_slots(
+    db: AsyncSession,
+    target_portions: int,
+    slots: list[tuple[int, int]],  # [(recipe_id, portions), ...]
+    name: str | None = None,
+) -> Batch:
+    """Create a Batch from explicit (recipe_id, portions) slots, build the
+    shopping list, commit, and return the Batch with eager-loaded relations.
+    """
+    if not slots:
+        raise ValueError("Aucune recette fournie.")
+
+    recipe_ids = [rid for rid, _ in slots]
+    load_opts = selectinload(Recipe.ingredients).selectinload(RecipeIngredient.ingredient)
+    q = select(Recipe).options(load_opts).where(Recipe.id.in_(recipe_ids))
+    recipes_by_id = {r.id: r for r in (await db.execute(q)).scalars().all()}
+
+    missing = [rid for rid in recipe_ids if rid not in recipes_by_id]
+    if missing:
+        raise ValueError(f"Recettes introuvables: {missing}")
+
+    pairs: list[tuple[Recipe, int]] = [
+        (recipes_by_id[rid], portions) for rid, portions in slots
+    ]
+    total = sum(p for _, p in pairs)
 
     batch = Batch(
+        name=name,
         target_portions=target_portions,
-        total_portions=sum(portions_split),
+        total_portions=total,
         status="draft",
     )
     db.add(batch)
     await db.flush()
 
-    for recipe, portions in zip(selected, portions_split):
+    for recipe, portions in pairs:
         db.add(BatchRecipe(batch_id=batch.id, recipe_id=recipe.id, portions=portions))
 
-    # Build shopping list
-    shopping_items = await _build_shopping_list(db, batch.id, list(zip(selected, portions_split)))
+    shopping_items = await _build_shopping_list(db, batch.id, pairs)
     total_cost = sum(item.estimated_cost or 0 for item in shopping_items)
     batch.total_estimated_cost = round(total_cost, 2)
 
     await db.commit()
 
-    # Reload with eager-loaded relationships so the response serializer
-    # doesn't trigger lazy loads in async context (MissingGreenlet).
     q = (
         select(Batch)
         .options(
@@ -172,94 +432,32 @@ async def generate_batch(
     return (await db.execute(q)).scalar_one()
 
 
-async def _build_shopping_list(
+async def generate_batch(
     db: AsyncSession,
-    batch_id: int,
-    recipe_portions: list[tuple[Recipe, int]],
-) -> list[ShoppingListItem]:
-    # Aggregate needs: {ingredient_master_id: {unit: total_qty}}
-    needs: dict[int, dict[str, float]] = {}
-    for recipe, portions in recipe_portions:
-        for ri in recipe.ingredients:
-            if not ri.ingredient_master_id or not ri.quantity_per_portion:
-                continue
-            uid = ri.ingredient_master_id
-            unit = ri.unit or "unite"
-            needs.setdefault(uid, {}).setdefault(unit, 0)
-            needs[uid][unit] += ri.quantity_per_portion * portions
-
-    # Deduct inventory (FIFO by purchase date)
-    inventory_q = (
-        select(InventoryItem)
-        .where(InventoryItem.ingredient_master_id.in_(list(needs.keys())))
-        .order_by(InventoryItem.purchased_at.asc().nullslast())
+    target_portions: int = 20,
+    exclude_ids: list[int] | None = None,
+    num_recipes: int = 3,
+    meal_type_sequence: list[str] | None = None,
+    vegetarian_only: bool = False,
+    vegan_only: bool = False,
+    max_cost_per_portion: float | None = None,
+    prep_time_max_min: int | None = None,
+    health_score_min: float | None = None,
+    include_recipe_ids: list[int] | None = None,
+) -> Batch:
+    """Legacy: select recipes and persist in one shot."""
+    selected = await select_recipes(
+        db,
+        exclude_ids=exclude_ids,
+        num_recipes=num_recipes,
+        meal_type_sequence=meal_type_sequence,
+        vegetarian_only=vegetarian_only,
+        vegan_only=vegan_only,
+        max_cost_per_portion=max_cost_per_portion,
+        prep_time_max_min=prep_time_max_min,
+        health_score_min=health_score_min,
+        include_recipe_ids=include_recipe_ids,
     )
-    inventory_items = list((await db.execute(inventory_q)).scalars().all())
-    inv_by_ingredient: dict[int, list[InventoryItem]] = {}
-    for item in inventory_items:
-        inv_by_ingredient.setdefault(item.ingredient_master_id, []).append(item)
-
-    # Load best store products for each ingredient
-    products_q = (
-        select(StoreProduct)
-        .where(
-            StoreProduct.ingredient_master_id.in_(list(needs.keys())),
-            StoreProduct.is_validated == True,  # noqa: E712
-            StoreProduct.price.isnot(None),
-        )
-        .order_by(StoreProduct.ingredient_master_id, StoreProduct.price.asc())
-    )
-    all_products = list((await db.execute(products_q)).scalars().all())
-    # Best product per ingredient (lowest price)
-    best_product: dict[int, StoreProduct] = {}
-    for p in all_products:
-        if p.ingredient_master_id not in best_product:
-            best_product[p.ingredient_master_id] = p
-
-    items: list[ShoppingListItem] = []
-
-    for ingredient_id, unit_map in needs.items():
-        for unit, total_needed in unit_map.items():
-            # Deduct inventory
-            from_inv = 0.0
-            for inv_item in inv_by_ingredient.get(ingredient_id, []):
-                if inv_item.unit == unit and inv_item.quantity > 0:
-                    take = min(inv_item.quantity, total_needed - from_inv)
-                    from_inv += take
-
-            qty_to_buy = max(0.0, total_needed - from_inv)
-
-            # Find best product
-            product = best_product.get(ingredient_id)
-            store_id = product.store_id if product else None
-            product_id = product.id if product else None
-            estimated_cost = None
-            packages = 1
-            format_qty = None
-            format_unit = None
-
-            if product and product.price and product.format_qty and qty_to_buy > 0:
-                scale = get_scale_factor(qty_to_buy, unit, product.format_qty, product.format_unit or unit)
-                if scale > 0:
-                    packages = math.ceil(scale)
-                    estimated_cost = round(product.price * packages, 2)
-                    format_qty = product.format_qty
-                    format_unit = product.format_unit
-
-            sli = ShoppingListItem(
-                batch_id=batch_id,
-                ingredient_master_id=ingredient_id,
-                store_id=store_id,
-                store_product_id=product_id,
-                quantity_needed=round(qty_to_buy, 3),
-                unit=unit,
-                format_qty=format_qty,
-                format_unit=format_unit,
-                packages_to_buy=packages,
-                estimated_cost=estimated_cost,
-                from_inventory_qty=round(from_inv, 3),
-            )
-            db.add(sli)
-            items.append(sli)
-
-    return items
+    portions_split = _split_portions(target_portions, len(selected))
+    slots = [(r.id, p) for r, p in zip(selected, portions_split)]
+    return await persist_batch_from_slots(db, target_portions, slots)

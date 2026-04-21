@@ -7,8 +7,10 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./batchchef.db"
     REDIS_URL: str = "redis://localhost:6379/0"
     GEMINI_API_KEY: str
-    GEMINI_MODEL: str = "gemini-2.0-flash-exp"
+    GEMINI_MODEL: str = "gemini-2.5-flash"
     SECRET_KEY: str = "batchchef-secret-change-in-prod-2026"
+    ADMIN_EMAIL: str = "admin@batchchef.com"
+    ADMIN_PASSWORD: str = ""
     UPLOADS_DIR: str = "../uploads"
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:3001"]
     HOST: str = "0.0.0.0"

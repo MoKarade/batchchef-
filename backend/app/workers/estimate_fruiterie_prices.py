@@ -5,7 +5,7 @@ Batches 30 names / Gemini request.
 import asyncio
 import json
 import logging
-from datetime import datetime
+from app.utils.time import utcnow
 
 from app.workers.celery_app import celery_app
 
@@ -35,14 +35,14 @@ async def _run(job_id: int, ingredient_ids: list[int] | None):
         if not job:
             return
         job.status = "running"
-        job.started_at = datetime.utcnow()
+        job.started_at = utcnow()
         await db.commit()
 
         store = (await db.execute(select(Store).where(Store.code == "fruiterie_440"))).scalar_one_or_none()
         if not store:
             job.status = "failed"
             job.error_log = json.dumps(["Store fruiterie_440 introuvable"])
-            job.finished_at = datetime.utcnow()
+            job.finished_at = utcnow()
             await db.commit()
             await manager.broadcast(str(job_id), {"job_id": job_id, "status": "failed"})
             return
@@ -115,7 +115,7 @@ async def _run(job_id: int, ingredient_ids: list[int] | None):
                 product.product_name = ing.display_name_fr or ing.canonical_name.replace("_", " ").title()
                 product.is_validated = False
                 product.confidence_score = est["confidence"]
-                product.last_checked_at = datetime.utcnow()
+                product.last_checked_at = utcnow()
                 processed += 1
             await db.commit()
 
@@ -140,7 +140,7 @@ async def _run(job_id: int, ingredient_ids: list[int] | None):
         job = await db.get(ImportJob, job_id)
         if job:
             job.status = final_status
-            job.finished_at = datetime.utcnow()
+            job.finished_at = utcnow()
             if not cancelled:
                 job.progress_current = total
             job.error_log = json.dumps(errors[:200])

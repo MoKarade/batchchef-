@@ -13,6 +13,7 @@ from app.routers import recipes, imports, batches, inventory, receipts, stores, 
 async def lifespan(app: FastAPI):
     await init_db()
     await _seed_stores()
+    await _seed_admin_user()
     yield
 
 
@@ -103,3 +104,30 @@ async def _seed_stores():
             if not exists:
                 db.add(Store(**s))
         await db.commit()
+
+
+async def _seed_admin_user():
+    from sqlalchemy import select
+    from app.database import AsyncSessionLocal
+    from app.models.user import User
+    from app.auth import hash_password, verify_password
+
+    email = settings.ADMIN_EMAIL
+    password = settings.ADMIN_PASSWORD
+    if not email or not password:
+        return
+
+    async with AsyncSessionLocal() as db:
+        user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
+        if user is None:
+            db.add(User(
+                email=email,
+                hashed_password=hash_password(password),
+                display_name="Admin",
+                is_active=True,
+                is_admin=True,
+            ))
+            await db.commit()
+        elif not verify_password(password, user.hashed_password):
+            user.hashed_password = hash_password(password)
+            await db.commit()

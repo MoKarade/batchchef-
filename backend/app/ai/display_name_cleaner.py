@@ -10,9 +10,11 @@ Real examples of garbage we've seen:
 Given the canonical_name (clean underscore form) and the corrupted
 display_name_fr, asks Gemini to return a proper French title.
 """
+import asyncio
 import json
 import logging
 from app.ai.client import get_client
+from app.ai.utils import parse_gemini_json
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -53,20 +55,24 @@ async def clean_display_names(
     items = [{"canonical": c, "display": d} for c, d in pairs]
     prompt = SYSTEM_PROMPT + f"\n\nInput: {json.dumps(items, ensure_ascii=False)}"
 
-    try:
-        response = client.models.generate_content(
-            model=settings.GEMINI_MODEL,
-            contents=prompt,
-        )
-        text = response.text.strip()
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        result = json.loads(text)
-        if isinstance(result, list) and len(result) == len(pairs):
-            return [str(r).strip() for r in result]
-    except Exception as e:
-        logger.warning(f"Display name cleaner error: {e}")
+    for attempt in range(5):
+        try:
+            await asyncio.sleep(4)
+            response = client.models.generate_content(
+                model=settings.GEMINI_MODEL,
+                contents=prompt,
+            )
+            result = parse_gemini_json(response.text)
+            if isinstance(result, list) and len(result) == len(pairs):
+                return [str(r).strip() for r in result]
+            raise ValueError(f"Length mismatch: got {len(result)}, expected {len(pairs)}")
+        except Exception as e:
+            is_rate_limit = "429" in str(e) or "quota" in str(e).lower() or "rate" in str(e).lower()
+            if attempt < 4:
+                wait = min(60 * (2 ** attempt), 300) if is_rate_limit else 5
+                logger.warning(f"Display name cleaner attempt {attempt + 1}/5 failed ({e}), retrying in {wait}s")
+                await asyncio.sleep(wait)
+            else:
+                logger.warning(f"Display name cleaner failed after 5 attempts: {e}")
 
     return [d for _, d in pairs]

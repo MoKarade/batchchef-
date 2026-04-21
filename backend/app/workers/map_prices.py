@@ -6,10 +6,10 @@ persists best matches into StoreProduct and broadcasts progress via WebSocket.
 import asyncio
 import json
 import logging
-from datetime import datetime
 
 from app.workers.celery_app import celery_app
 from app.config import settings
+from app.utils.time import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
         if not job:
             return
         job.status = "running"
-        job.started_at = datetime.utcnow()
+        job.started_at = utcnow()
 
         stores_q = select(Store).where(Store.code.in_(codes))
         stores = {s.code: s for s in (await db.execute(stores_q)).scalars().all()}
@@ -67,7 +67,7 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
             job = await db.get(ImportJob, job_id)
             if job:
                 job.status = "completed"
-                job.finished_at = datetime.utcnow()
+                job.finished_at = utcnow()
                 await db.commit()
         await manager.broadcast(str(job_id), {"job_id": job_id, "status": "completed", "processed": 0})
         return
@@ -157,16 +157,16 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
                         product.nutriscore = result.get("nutriscore")
                         product.is_validated = True
                         product.confidence_score = 0.9
-                        product.last_checked_at = datetime.utcnow()
+                        product.last_checked_at = utcnow()
                         if old_price != product.price:
-                            product.last_price_change_at = datetime.utcnow()
+                            product.last_price_change_at = utcnow()
                         await db.flush()
 
                         if product.price is not None:
                             db.add(PriceHistory(store_product_id=product.id, price=product.price))
 
                         ing_db.price_mapping_status = "mapped"
-                        ing_db.last_price_mapping_at = datetime.utcnow()
+                        ing_db.last_price_mapping_at = utcnow()
 
                         processed += 1
                     await db.commit()
@@ -199,7 +199,7 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
         job = await db.get(ImportJob, job_id)
         if job:
             job.status = final_status
-            job.finished_at = datetime.utcnow()
+            job.finished_at = utcnow()
             if not cancelled:
                 job.progress_current = total
             job.error_log = json.dumps(errors[:200])

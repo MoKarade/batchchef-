@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from app.utils.time import utcnow
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,7 +44,7 @@ async def start_marmiton_import(
         task = run_marmiton_import.delay(job.id, all_urls)
         job.celery_task_id = task.id
         job.status = "running"
-        job.started_at = datetime.utcnow()
+        job.started_at = utcnow()
     except Exception as e:
         job.status = "failed"
         job.error_log = json.dumps([str(e)])
@@ -101,7 +101,7 @@ async def cancel_import(job_id: int, db: AsyncSession = Depends(get_db)):
             job.error_log = json.dumps(errs)
 
     job.status = "cancelled"
-    job.finished_at = datetime.utcnow()
+    job.finished_at = utcnow()
     await db.commit()
     await db.refresh(job)
     return job

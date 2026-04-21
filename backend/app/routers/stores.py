@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from app.utils.time import utcnow
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,7 +91,7 @@ async def start_price_mapping(
         task = run_price_mapping.delay(job.id, codes, body.ingredient_ids)
         job.celery_task_id = task.id
         job.status = "running"
-        job.started_at = datetime.utcnow()
+        job.started_at = utcnow()
     except Exception as e:
         job.status = "failed"
         job.error_log = json.dumps([str(e)])
@@ -122,7 +122,7 @@ async def start_fruiterie_estimation(
         task = run_estimate_fruiterie.delay(job.id, ingredient_ids)
         job.celery_task_id = task.id
         job.status = "running"
-        job.started_at = datetime.utcnow()
+        job.started_at = utcnow()
     except Exception as e:
         job.status = "failed"
         job.error_log = json.dumps([str(e)])
@@ -153,7 +153,7 @@ async def start_price_validation(
         task = run_price_validation.delay(max_items)
         job.celery_task_id = task.id
         job.status = "running"
-        job.started_at = datetime.utcnow()
+        job.started_at = utcnow()
     except Exception as e:
         job.status = "failed"
         job.error_log = json.dumps([str(e)])

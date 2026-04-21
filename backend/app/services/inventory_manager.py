@@ -1,5 +1,5 @@
 """Inventory update helpers."""
-from datetime import datetime
+from app.utils.time import utcnow
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.inventory import InventoryItem, InventoryMovement
@@ -36,7 +36,7 @@ async def add_from_receipt(db: AsyncSession, scan_id: int, confirmed_item_ids: l
                 ingredient_master_id=item.ingredient_master_id,
                 quantity=qty,
                 unit=unit,
-                purchased_at=datetime.utcnow(),
+                purchased_at=utcnow(),
             )
             db.add(inv)
 
@@ -52,7 +52,7 @@ async def add_from_receipt(db: AsyncSession, scan_id: int, confirmed_item_ids: l
     scan = await db.get(ReceiptScan, scan_id)
     if scan:
         scan.status = "completed"
-        scan.scanned_at = datetime.utcnow()
+        scan.scanned_at = utcnow()
 
     await db.commit()
 
@@ -100,7 +100,7 @@ async def settle_shopping_item(db: AsyncSession, shopping_item_id: int) -> Inven
         quantity=round(surplus_base, 3),
         unit=base_unit,
         source_store_product_id=item.store_product_id,
-        purchased_at=datetime.utcnow(),
+        purchased_at=utcnow(),
         notes=f"Surplus d'achat batch #{item.batch_id}",
     )
     db.add(inv)

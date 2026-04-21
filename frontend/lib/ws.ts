@@ -30,7 +30,9 @@ export function useJobWebSocket(
       try {
         const data = JSON.parse(event.data) as JobProgress;
         onMessage(data);
-      } catch {}
+      } catch (e) {
+        console.error("WebSocket message parse error:", e);
+      }
     };
 
     ws.onclose = () => {

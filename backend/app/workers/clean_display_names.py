@@ -10,7 +10,7 @@ display names (Gemini no-ops on already-clean inputs per the prompt).
 import asyncio
 import json
 import logging
-from datetime import datetime
+from app.utils.time import utcnow
 
 from app.workers.celery_app import celery_app
 
@@ -39,7 +39,7 @@ async def _run(job_id: int, ingredient_ids: list[int] | None):
         if not job:
             return
         job.status = "running"
-        job.started_at = datetime.utcnow()
+        job.started_at = utcnow()
 
         q = select(IngredientMaster)
         if ingredient_ids:
@@ -103,7 +103,7 @@ async def _run(job_id: int, ingredient_ids: list[int] | None):
         job = await db.get(ImportJob, job_id)
         if job:
             job.status = final_status
-            job.finished_at = datetime.utcnow()
+            job.finished_at = utcnow()
             if not cancelled:
                 job.progress_current = total
             job.error_log = json.dumps(errors[:200])

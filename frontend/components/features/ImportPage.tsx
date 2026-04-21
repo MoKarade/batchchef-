@@ -77,11 +77,11 @@ function JobCard({ job }: { job: ImportJob }) {
 
       <ProgressBar value={current} max={total} />
 
-      {progress?.current_item ?? job.current_item ? (
+      {(progress?.current_item ?? job.current_item) && (
         <p className="text-xs text-muted-foreground truncate">
           {progress?.current_item ?? job.current_item}
         </p>
-      ) : null}
+      )}
 
       {progress?.eta_seconds ? (
         <p className="text-xs text-muted-foreground">

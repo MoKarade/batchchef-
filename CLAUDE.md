@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Read `HANDOFF.md` at the repo root first** — it tracks the state of the most recent refonte (preview/accept batch flow, auto-cascade import pipeline) and the gotchas that are not obvious from the code alone.
+
 ## Project Overview
 
 **BatchChef V2** is an intelligent batch cooking planner. It scrapes recipes from Marmiton, integrates grocery pricing (Maxi, Costco, local stores), and uses Google Gemini AI to standardize ingredients, classify recipes, and perform receipt OCR.
@@ -87,8 +89,19 @@ Next.js rewrites `/api/*`, `/ws/*`, `/uploads/*` to the FastAPI backend, so the 
 **Recipe import:**
 `POST /api/imports/marmiton` → Celery task → Playwright scrapes Marmiton URLs in batches of 5 → Gemini standardizes ingredient names (50/request) → Gemini classifies recipes → WebSocket broadcasts progress
 
-**Batch generation:**
-`POST /api/batches/generate` → picks 3 diverse recipes → distributes target portions → aggregates ingredients → deducts inventory FIFO by purchase date → looks up best store price per ingredient → returns `Batch` + `ShoppingListItem[]`
+**Batch generation (two-phase, preferred):**
+- `POST /api/batches/preview` → runs full selection + shopping list computation, returns `BatchPreviewOut` **without touching the DB**
+- `POST /api/batches/accept` → takes `{target_portions, recipes: [{recipe_id, portions}]}` and persists the batch + shopping list
+
+**Batch generation (legacy one-shot, kept for back-compat):**
+`POST /api/batches/generate` → picks diverse recipes → persists in one call → returns `Batch` + `ShoppingListItem[]`
+
+**Shopping list bulk actions:**
+- `POST /api/batches/{id}/shopping-items/bulk-purchase {item_ids: [...]}` — marks multiple items purchased + settles each into inventory
+- `DELETE /api/batches/{id}` — cascades `BatchRecipe` + `ShoppingListItem` removal
+
+**Auto-cascade after Marmiton import:**
+When `import_marmiton` finishes with new `IngredientMaster` rows, it queues `prices.estimate_fruiterie` + `prices.map` (Maxi + Costco) scoped to the new IDs. Users don't click "Map prices" manually anymore — the buttons are still there but hidden under "Outils avancés" in Settings.
 
 **Receipt OCR:**
 `POST /api/receipts` (multipart) → Gemini Vision extracts product lines → frontend validates → inventory updated

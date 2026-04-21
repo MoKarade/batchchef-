@@ -2,9 +2,11 @@
 Estimate Fruiterie 440 (Montréal) average prices for ingredients via Gemini.
 Batch 30 ingredients/request.
 """
+import asyncio
 import json
 import logging
 from app.ai.client import get_client
+from app.ai.utils import parse_gemini_json
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -40,22 +42,28 @@ async def estimate_prices_batch(canonical_names: list[str]) -> list[dict]:
     readable = [n.replace("_", " ") for n in canonical_names]
     prompt = SYSTEM_PROMPT + f"\n\nInput: {json.dumps(readable, ensure_ascii=False)}"
 
-    try:
-        response = client.models.generate_content(
-            model=settings.GEMINI_MODEL,
-            contents=prompt,
-        )
-        text = response.text.strip()
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        result = json.loads(text)
-        if not isinstance(result, list):
-            return []
-    except Exception as e:
-        logger.warning(f"Price estimator error: {e}")
-        return []
+    for attempt in range(5):
+        try:
+            await asyncio.sleep(4)
+            response = client.models.generate_content(
+                model=settings.GEMINI_MODEL,
+                contents=prompt,
+            )
+            result = parse_gemini_json(response.text)
+            if not isinstance(result, list):
+                raise ValueError("Expected a JSON array")
+            if len(result) != len(canonical_names):
+                raise ValueError(f"Length mismatch: got {len(result)}, expected {len(canonical_names)}")
+            break
+        except Exception as e:
+            is_rate_limit = "429" in str(e) or "quota" in str(e).lower() or "rate" in str(e).lower()
+            if attempt < 4:
+                wait = min(60 * (2 ** attempt), 300) if is_rate_limit else 5
+                logger.warning(f"Price estimator attempt {attempt + 1}/5 failed ({e}), retrying in {wait}s")
+                await asyncio.sleep(wait)
+            else:
+                logger.warning(f"Price estimator failed after 5 attempts: {e}")
+                return []
 
     out: list[dict] = []
     for canon, entry in zip(canonical_names, result):

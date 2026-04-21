@@ -20,8 +20,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 function setToken(t: string) {
+  const secure = location.protocol === "https:" ? "; Secure" : "";
   localStorage.setItem("auth_token", t);
-  document.cookie = `auth_token=${t}; path=/; max-age=2592000; SameSite=Lax`;
+  document.cookie = `auth_token=${t}; path=/; max-age=2592000; SameSite=Lax${secure}`;
   api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
 }
 
@@ -30,6 +31,17 @@ function clearToken() {
   document.cookie = "auth_token=; path=/; max-age=0";
   delete api.defaults.headers.common["Authorization"];
 }
+
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401) {
+      clearToken();
+      window.location.href = "/login";
+    }
+    return Promise.reject(err);
+  }
+);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);

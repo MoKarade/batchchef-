@@ -5,7 +5,8 @@ refreshes last_checked_at. Runs weekly via Celery Beat.
 """
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
+from app.utils.time import utcnow
 
 from app.workers.celery_app import celery_app
 from app.config import settings
@@ -32,7 +33,7 @@ async def _run(max_items: int | None):
 
     await init_db()
     scrapers = {"maxi": search_maxi, "costco": search_costco}
-    cutoff = datetime.utcnow() - timedelta(days=STALE_AFTER_DAYS)
+    cutoff = utcnow() - timedelta(days=STALE_AFTER_DAYS)
 
     async with AsyncSessionLocal() as db:
         q = (
@@ -89,21 +90,21 @@ async def _run(max_items: int | None):
                     if not db_product:
                         continue
                     if isinstance(result, Exception) or not result:
-                        db_product.last_checked_at = datetime.utcnow()
+                        db_product.last_checked_at = utcnow()
                         continue
 
                     new_price = result.get("price")
                     if new_price is not None and new_price != db_product.price:
                         db.add(PriceHistory(store_product_id=db_product.id, price=new_price))
                         db_product.price = new_price
-                        db_product.last_price_change_at = datetime.utcnow()
+                        db_product.last_price_change_at = utcnow()
                         changed += 1
 
                     db_product.product_name = result.get("product_name") or db_product.product_name
                     db_product.product_url = result.get("product_url") or db_product.product_url
                     db_product.format_qty = result.get("format_qty") or db_product.format_qty
                     db_product.format_unit = result.get("format_unit") or db_product.format_unit
-                    db_product.last_checked_at = datetime.utcnow()
+                    db_product.last_checked_at = utcnow()
                 await db.commit()
 
         await browser.close()

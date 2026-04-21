@@ -1,14 +1,15 @@
 """
 Recipe AI classification: tags, meal_type, cuisine_type.
 """
-import json
+import asyncio
 import logging
 from app.ai.client import get_client
+from app.ai.utils import parse_gemini_json
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-CLASSIFY_PROMPT = """Tu es un expert culinaire. Analyse cette recette et réponds UNIQUEMENT avec un JSON valide 
+CLASSIFY_PROMPT = """Tu es un expert culinaire. Analyse cette recette et réponds UNIQUEMENT avec un JSON valide
 (pas de markdown, pas d'explication) avec ces champs:
 {
   "meal_type": "entree|plat|dessert|snack",
@@ -30,19 +31,24 @@ tags: liste libre de 2-5 mots-clés (ex: "rapide", "économique", "famille", "hi
 async def classify_recipe(title: str, ingredients_text: str) -> dict:
     client = get_client()
     prompt = f"{CLASSIFY_PROMPT}\n\nRecette: {title}\nIngrédients: {ingredients_text}"
-    try:
-        response = client.models.generate_content(
-            model=settings.GEMINI_MODEL,
-            contents=prompt,
-        )
-        text = response.text.strip()
-        if text.startswith("```"):
-            lines = text.split("\n")
-            text = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
-        return json.loads(text)
-    except Exception as e:
-        logger.warning(f"Classifier error for '{title}': {e}")
-        return {}
+
+    for attempt in range(5):
+        try:
+            await asyncio.sleep(4)  # respect ~15 RPM free-tier limit
+            response = client.models.generate_content(
+                model=settings.GEMINI_MODEL,
+                contents=prompt,
+            )
+            return parse_gemini_json(response.text)
+        except Exception as e:
+            is_rate_limit = "429" in str(e) or "quota" in str(e).lower() or "rate" in str(e).lower()
+            if attempt < 4:
+                wait = min(60 * (2 ** attempt), 300) if is_rate_limit else 5
+                logger.warning(f"Classifier attempt {attempt + 1}/5 for '{title}' failed ({e}), retrying in {wait}s")
+                await asyncio.sleep(wait)
+            else:
+                logger.warning(f"Classifier failed after 5 attempts for '{title}': {e}")
+    return {}
 
 
 async def classify_ingredient(canonical_name: str) -> dict:
@@ -60,7 +66,7 @@ async def classify_ingredient(canonical_name: str) -> dict:
     )
     try:
         response = client.models.generate_content(model=settings.GEMINI_MODEL, contents=prompt)
-        return json.loads(response.text.strip())
+        return parse_gemini_json(response.text)
     except Exception as e:
         logger.warning(f"Ingredient classifier error for '{canonical_name}': {e}")
         return {"category": "autre", "subcategory": None, "is_produce": False, "default_unit": "g"}

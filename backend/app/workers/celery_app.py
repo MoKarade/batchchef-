@@ -29,7 +29,7 @@ celery_app.conf.update(
 
 celery_app.conf.beat_schedule = {
     "validate-prices-weekly": {
-        "task": "prices.validate",
+        "task": "app.workers.validate_prices.run_price_validation",
         "schedule": crontab(hour=3, minute=0, day_of_week=1),  # Monday 03:00
     },
 }
