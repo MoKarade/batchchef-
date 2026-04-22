@@ -17,6 +17,7 @@ SORT_MAP = {
     "id_asc": Recipe.id.asc(),
     "health_desc": Recipe.health_score.desc().nulls_last(),
     "cost_asc": Recipe.estimated_cost_per_portion.asc().nulls_last(),
+    "cost_desc": Recipe.estimated_cost_per_portion.desc().nulls_last(),
     "calories_asc": Recipe.calories_per_portion.asc().nulls_last(),
     "title_asc": Recipe.title.asc(),
 }
@@ -28,12 +29,20 @@ async def list_recipes(
     meal_type: str | None = Query(None),
     tag: str | None = Query(None),
     status: str | None = Query(None),
-    sort: Literal["id_desc", "id_asc", "health_desc", "cost_asc", "calories_asc", "title_asc"] = "id_desc",
+    max_cost_per_portion: float | None = Query(None),
+    prep_time_max_min: int | None = Query(None),
+    health_score_min: float | None = Query(None),
+    has_price: Literal["all", "priced", "missing"] = "all",
+    sort: Literal["id_desc", "id_asc", "health_desc", "cost_asc", "cost_desc", "calories_asc", "title_asc"] = "id_desc",
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
     q = select(Recipe)
+    if has_price == "priced":
+        q = q.where(Recipe.estimated_cost_per_portion.isnot(None), Recipe.estimated_cost_per_portion > 0)
+    elif has_price == "missing":
+        q = q.where((Recipe.estimated_cost_per_portion.is_(None)) | (Recipe.estimated_cost_per_portion == 0))
     if search:
         q = q.where(Recipe.title.ilike(f"%{search}%"))
     if meal_type:
@@ -44,6 +53,18 @@ async def list_recipes(
         q = q.where(Recipe.is_vegetarian == True)  # noqa: E712
     elif tag == "vegan":
         q = q.where(Recipe.is_vegan == True)  # noqa: E712
+    if max_cost_per_portion is not None:
+        q = q.where(
+            (Recipe.estimated_cost_per_portion.is_(None))
+            | (Recipe.estimated_cost_per_portion <= max_cost_per_portion)
+        )
+    if prep_time_max_min is not None:
+        q = q.where(
+            (Recipe.prep_time_min.is_(None))
+            | (Recipe.prep_time_min <= prep_time_max_min)
+        )
+    if health_score_min is not None:
+        q = q.where(Recipe.health_score >= health_score_min)
 
     count_q = select(func.count()).select_from(q.subquery())
     total = (await db.execute(count_q)).scalar_one()
@@ -92,16 +113,6 @@ async def classify_pending_recipes(
 
     run_classify_recipes.delay(job.id, recipe_ids)
     return job
-
-
-@router.post("/recompute-costs")
-async def recompute_costs(
-    recipe_ids: list[int] | None = None,
-    db: AsyncSession = Depends(get_db),
-):
-    """Recompute estimated_cost_per_portion for all (or given) recipes from current prices."""
-    from app.services.recipe_pricing import recompute_recipe_costs
-    return await recompute_recipe_costs(db, recipe_ids)
 
 
 @router.patch("/{recipe_id}/ingredients/{ri_id}")

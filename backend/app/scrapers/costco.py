@@ -266,8 +266,13 @@ async def search_costco(page, query: str, store_id: str | None = None) -> dict |
                 if (!/^\$/.test(next) && next.length < 40) brand = next;
             }
 
+            // Thumbnail image: look inside tile (a > img, or sibling img)
+            let image = '';
+            const imgEl = (tile || a).querySelector('img[src]');
+            if (imgEl) image = imgEl.currentSrc || imgEl.src;
+
             if (price && price > 0 && price < 1500) {
-                results.push({ name, price, link: href, brand });
+                results.push({ name, price, link: href, brand, image });
             }
         }
         return results;
@@ -299,12 +304,17 @@ async def search_costco(page, query: str, store_id: str | None = None) -> dict |
         f"{best['price']}$ ({fmt['qty']} {fmt['unit']})"
     )
 
+    scraped_img = best.get("image") or ""
+    is_valid_img = scraped_img and ("jpg" in scraped_img.lower() or "png" in scraped_img.lower() or "webp" in scraped_img.lower())
+    image_url = scraped_img if is_valid_img else nutrition.pop("off_image_url", None) or None
+
     return {
         "store": "costco",
         "product_name": best["name"],
         "brand": best.get("brand"),
         "price": best["price"],
         "product_url": best.get("link") or search_url,
+        "image_url": image_url,
         "format_qty": fmt["qty"],
         "format_unit": fmt["unit"],
         **nutrition,

@@ -240,6 +240,7 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
                             old_price = product.price
                             product.product_name = result_dict.get("product_name")
                             product.product_url = result_dict.get("product_url")
+                            product.image_url = result_dict.get("image_url")
                             product.price = result_dict.get("price")
                             product.format_qty = result_dict.get("format_qty")
                             product.format_unit = result_dict.get("format_unit")

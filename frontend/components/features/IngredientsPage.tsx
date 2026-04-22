@@ -10,11 +10,35 @@ import {
 import {
   Search, CheckCircle2, AlertTriangle, Clock, Pencil, Check, X, RotateCcw,
   ChevronRight, ChevronDown, Layers, List, ArrowLeft, Sparkles, Wrench, TimerOff,
-  ExternalLink, ShoppingCart, BookOpen,
+  ExternalLink, ShoppingCart, BookOpen, RefreshCw, ShieldAlert,
 } from "lucide-react";
 import Link from "next/link";
-import { ingredientsApi, type IngredientMaster, type IngredientDetails } from "@/lib/api";
+import { ingredientsApi, storesApi, type IngredientMaster, type IngredientDetails } from "@/lib/api";
 import { formatPrice, categoryEmoji, categoryLabel } from "@/lib/utils";
+
+
+function Sparkline({ points }: { points: number[] }) {
+  if (points.length < 2) return null;
+  const W = 80;
+  const H = 24;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = max - min || 1;
+  const step = W / (points.length - 1);
+  const path = points
+    .map((p, i) => {
+      const x = i * step;
+      const y = H - ((p - min) / range) * H;
+      return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const up = points[points.length - 1] > points[0];
+  return (
+    <svg width={W} height={H} className="inline-block shrink-0">
+      <path d={path} fill="none" strokeWidth={1.5} className={up ? "stroke-red-500" : "stroke-green-500"} />
+    </svg>
+  );
+}
 
 const STATUSES = [
   { value: "", label: "Tous les statuts" },
@@ -51,10 +75,18 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function IngredientDetailsPanel({ id }: { id: number }) {
+  const qc = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ["ingredient-details", id],
     queryFn: () => ingredientsApi.details(id).then((r) => r.data),
     staleTime: 60_000,
+  });
+
+  const rescan = useMutation({
+    mutationFn: () => storesApi.mapPrices({ ingredient_ids: [id] }),
+    onSuccess: () => {
+      setTimeout(() => qc.invalidateQueries({ queryKey: ["ingredient-details", id] }), 30_000);
+    },
   });
 
   if (isLoading)
@@ -70,10 +102,27 @@ function IngredientDetailsPanel({ id }: { id: number }) {
     (p) => p.store_code !== "maxi" && p.store_code !== "costco",
   );
 
+  const historyByStore: Record<string, number[]> = {};
+  for (const pt of d.price_history ?? []) {
+    (historyByStore[pt.store_code] ??= []).push(pt.price);
+  }
+  Object.keys(historyByStore).forEach((k) => historyByStore[k].reverse());
+
   return (
     <div className="space-y-3 pt-2 border-t">
       <div className="space-y-2">
-        <p className="text-xs font-semibold uppercase text-muted-foreground">Prix & liens</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Prix & liens</p>
+          <button
+            onClick={() => rescan.mutate()}
+            disabled={rescan.isPending}
+            className="inline-flex items-center gap-1 text-[10px] rounded-md border px-2 py-0.5 hover:bg-accent disabled:opacity-50"
+            title="Rescanner Maxi + Costco pour cet ingrédient"
+          >
+            <RefreshCw className={`h-3 w-3 ${rescan.isPending ? "animate-spin" : ""}`} />
+            {rescan.isPending ? "Lancé" : "Rescanner"}
+          </button>
+        </div>
         {d.store_products.length === 0 && (
           <p className="text-xs text-muted-foreground italic">
             Pas encore de prix — relance depuis Paramètres › Prix.
@@ -81,7 +130,22 @@ function IngredientDetailsPanel({ id }: { id: number }) {
         )}
         {[maxi, costco, ...others].filter(Boolean).map((sp) => (
           <div key={sp!.id} className="flex items-start gap-2 text-xs rounded-md border bg-muted/30 p-2">
-            <ShoppingCart className="h-3.5 w-3.5 shrink-0 mt-0.5 text-muted-foreground" />
+            {sp!.image_url ? (
+              <a
+                href={sp!.product_url ?? "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 block h-14 w-14 rounded-md overflow-hidden bg-white border"
+                title={sp!.product_name ?? undefined}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={sp!.image_url} alt={sp!.product_name ?? ""} className="h-full w-full object-contain" loading="lazy" />
+              </a>
+            ) : (
+              <div className="shrink-0 h-14 w-14 rounded-md bg-muted/50 border inline-flex items-center justify-center">
+                <ShoppingCart className="h-4 w-4 text-muted-foreground/60" />
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold capitalize">{sp!.store_name}</span>
@@ -90,10 +154,23 @@ function IngredientDetailsPanel({ id }: { id: number }) {
                 </span>
               </div>
               <p className="text-muted-foreground truncate">{sp!.product_name}</p>
-              <p className="text-[10px] text-muted-foreground">
-                {sp!.format_qty} {sp!.format_unit}
-                {sp!.confidence_score != null && ` · conf. ${(sp!.confidence_score * 100).toFixed(0)}%`}
-              </p>
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <span>{sp!.format_qty} {sp!.format_unit}</span>
+                {sp!.confidence_score != null && sp!.confidence_score < 0.6 && (
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-700 px-1.5 py-[1px] text-[9px] font-medium">
+                    <ShieldAlert className="h-2.5 w-2.5" /> À valider ({(sp!.confidence_score * 100).toFixed(0)}%)
+                  </span>
+                )}
+                {sp!.confidence_score != null && sp!.confidence_score >= 0.6 && sp!.confidence_score < 0.85 && (
+                  <span className="text-amber-600">conf. {(sp!.confidence_score * 100).toFixed(0)}%</span>
+                )}
+                {sp!.confidence_score != null && sp!.confidence_score >= 0.85 && (
+                  <span className="text-green-700">✓ {(sp!.confidence_score * 100).toFixed(0)}%</span>
+                )}
+                {historyByStore[sp!.store_code ?? ""] && historyByStore[sp!.store_code ?? ""].length >= 2 && (
+                  <span className="ml-auto"><Sparkline points={historyByStore[sp!.store_code ?? ""]} /></span>
+                )}
+              </div>
               {sp!.product_url && (
                 <a
                   href={sp!.product_url}

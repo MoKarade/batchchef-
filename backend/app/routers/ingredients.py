@@ -300,12 +300,20 @@ class StoreProductOut(BaseModel):
     store_name: str | None = None
     product_name: str | None = None
     product_url: str | None = None
+    image_url: str | None = None
     price: float | None = None
     format_qty: float | None = None
     format_unit: str | None = None
     is_validated: bool = False
     confidence_score: float | None = None
     last_checked_at: str | None = None
+
+
+class PricePoint(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    store_code: str
+    price: float
+    recorded_at: str
 
 
 class RecipeBriefForIng(BaseModel):
@@ -322,6 +330,7 @@ class RecipeBriefForIng(BaseModel):
 class IngredientDetails(IngredientOut):
     store_products: list[StoreProductOut] = []
     recipes: list[RecipeBriefForIng] = []
+    price_history: list[PricePoint] = []
 
 
 @router.get("/{ingredient_id}/details", response_model=IngredientDetails)
@@ -351,6 +360,7 @@ async def ingredient_details(
             store_name=store.name,
             product_name=sp.product_name,
             product_url=sp.product_url,
+            image_url=sp.image_url,
             price=sp.price,
             format_qty=sp.format_qty,
             format_unit=sp.format_unit,
@@ -389,11 +399,123 @@ async def ingredient_details(
         )
     )).scalar() or 0
 
+    from app.models.store import PriceHistory
+    ph_rows = (await db.execute(
+        select(PriceHistory.price, PriceHistory.recorded_at, Store.code)
+        .join(StoreProduct, StoreProduct.id == PriceHistory.store_product_id)
+        .join(Store, Store.id == StoreProduct.store_id)
+        .where(StoreProduct.ingredient_master_id == ingredient_id)
+        .order_by(PriceHistory.recorded_at.desc())
+        .limit(30)
+    )).all()
+    price_history = [
+        PricePoint(price=p, recorded_at=ts.isoformat() if ts else "", store_code=code)
+        for p, ts, code in ph_rows
+    ]
+
     base = IngredientOut.model_validate(ing).model_dump()
     base["usage_count"] = usage_count
     base["store_product_count"] = len(products)
     base["children_count"] = children_count
-    return IngredientDetails(**base, store_products=products, recipes=recipes)
+    return IngredientDetails(
+        **base,
+        store_products=products,
+        recipes=recipes,
+        price_history=price_history,
+    )
+
+
+class ClassifyIngredientsRequest(BaseModel):
+    ingredient_ids: list[int] | None = None
+
+
+@router.post("/classify", response_model=JobOut, status_code=202)
+async def classify_all_ingredients(
+    body: ClassifyIngredientsRequest | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Launch a batch job that cleans corrupted names AND assigns category +
+    subcategory + is_produce + is_taxable + default_unit via Gemini."""
+    ingredient_ids = body.ingredient_ids if body else None
+    job = ImportJob(job_type="ingredient_classify", status="queued", progress_total=0)
+    db.add(job)
+    await db.flush()
+    await db.refresh(job)
+    try:
+        from app.workers.classify_ingredients import run_classify_ingredients
+        task = run_classify_ingredients.delay(job.id, ingredient_ids)
+        job.celery_task_id = task.id
+        job.status = "running"
+        job.started_at = utcnow()
+    except Exception as e:
+        job.status = "failed"
+        job.error_log = json.dumps([str(e)])
+    await db.commit()
+    await db.refresh(job)
+    return job
+
+
+class PricingEtaOut(BaseModel):
+    pending_count: int
+    avg_seconds_per_ingredient: float
+    eta_seconds: int
+    eta_human: str
+
+
+@router.get("/pricing-eta", response_model=PricingEtaOut)
+async def pricing_eta(db: AsyncSession = Depends(get_db)):
+    """Estimates how long before every ingredient has a price.
+
+    Uses avg runtime / progress_total over the last 10 completed price_mapping
+    jobs. Falls back to 30s per ingredient if no history.
+    """
+    recent = (await db.execute(
+        select(ImportJob)
+        .where(
+            ImportJob.job_type == "price_mapping",
+            ImportJob.status == "completed",
+            ImportJob.finished_at.isnot(None),
+            ImportJob.progress_total > 0,
+        )
+        .order_by(ImportJob.finished_at.desc())
+        .limit(10)
+    )).scalars().all()
+
+    if recent:
+        total_secs = 0.0
+        total_items = 0
+        for j in recent:
+            if j.started_at and j.finished_at and j.progress_total:
+                total_secs += (j.finished_at - j.started_at).total_seconds()
+                total_items += j.progress_total
+        avg = total_secs / max(total_items, 1) if total_items else 30.0
+    else:
+        avg = 30.0
+
+    pending = (await db.execute(
+        select(func.count()).select_from(IngredientMaster).where(
+            or_(
+                IngredientMaster.price_mapping_status.is_(None),
+                IngredientMaster.price_mapping_status != "mapped",
+            )
+        )
+    )).scalar_one()
+
+    eta_sec = int(pending * avg)
+    h, m = divmod(eta_sec // 60, 60)
+    d, h = divmod(h, 24)
+    if d > 0:
+        human = f"{d}j {h}h"
+    elif h > 0:
+        human = f"{h}h {m}min"
+    else:
+        human = f"{m}min"
+    return PricingEtaOut(
+        pending_count=pending,
+        avg_seconds_per_ingredient=round(avg, 1),
+        eta_seconds=eta_sec,
+        eta_human=human,
+    )
 
 
 class SanitizeRequest(BaseModel):

@@ -14,7 +14,7 @@ from app.models.ingredient import IngredientMaster
 from app.models.batch import Batch, BatchRecipe, ShoppingListItem
 from app.models.store import StoreProduct, Store
 from app.models.inventory import InventoryItem
-from app.services.unit_converter import get_scale_factor, to_base
+from app.services.unit_converter import get_scale_factor, to_base, convert_count_to_mass, normalize_unit
 
 _TPS_RATE = 0.05
 _TVQ_RATE = 0.09975
@@ -301,6 +301,7 @@ def _compute_shopping_row(
     total_needed: float,
     inv_items: list[InventoryItem],
     product: StoreProduct | None,
+    canonical_name: str | None = None,
 ) -> dict:
     from_inv = 0.0
     for inv_item in inv_items:
@@ -313,9 +314,24 @@ def _compute_shopping_row(
     packages = 1
     format_qty: float | None = None
     format_unit: str | None = None
+    effective_qty = qty_to_buy
+    effective_unit = unit
 
     if product and product.price and product.format_qty and qty_to_buy > 0:
         scale = get_scale_factor(qty_to_buy, unit, product.format_qty, product.format_unit or unit)
+        # Fallback: recipe uses count ("12 abricots") but store sells by mass
+        # (200 g). Convert count → grams so we don't end up with absurd counts
+        # like "48 abricots". Requires an entry in WEIGHT_PER_UNIT_G.
+        if scale == 0 and canonical_name:
+            _, need_type = normalize_unit(unit)
+            _, fmt_type = normalize_unit(product.format_unit or "unite")
+            if need_type == "count" and fmt_type == "mass":
+                mass_g = convert_count_to_mass(canonical_name, qty_to_buy)
+                if mass_g is not None:
+                    scale = get_scale_factor(mass_g, "g", product.format_qty, product.format_unit or "g")
+                    if scale > 0:
+                        effective_qty = round(mass_g, 0)
+                        effective_unit = "g"
         if scale > 0:
             packages = math.ceil(scale)
             estimated_cost = round(product.price * packages, 2)
@@ -326,8 +342,8 @@ def _compute_shopping_row(
         "ingredient_master_id": ingredient_id,
         "store_id": product.store_id if product else None,
         "store_product_id": product.id if product else None,
-        "quantity_needed": round(qty_to_buy, 3),
-        "unit": unit,
+        "quantity_needed": round(effective_qty, 3),
+        "unit": effective_unit,
         "format_qty": format_qty,
         "format_unit": format_unit,
         "packages_to_buy": packages,
@@ -345,6 +361,10 @@ async def _build_shopping_list(
     needs = await _aggregate_needs(recipe_portions)
     inv_by_ingredient, best_product, _ = await _resolve_inventory_and_products(db, list(needs.keys()))
 
+    # Pre-load ingredients so we can pass canonical_name for count→mass fallback
+    ing_q_persist = select(IngredientMaster).where(IngredientMaster.id.in_(list(needs.keys())))
+    ings_by_id_persist = {i.id: i for i in (await db.execute(ing_q_persist)).scalars().all()}
+
     items: list[ShoppingListItem] = []
     for ingredient_id, unit_map in needs.items():
         for unit, total_needed in unit_map.items():
@@ -354,6 +374,7 @@ async def _build_shopping_list(
                 total_needed,
                 inv_by_ingredient.get(ingredient_id, []),
                 best_product.get(ingredient_id),
+                canonical_name=getattr(ings_by_id_persist.get(ingredient_id), "canonical_name", None),
             )
             sli = ShoppingListItem(batch_id=batch_id, **row)
             db.add(sli)
@@ -393,6 +414,7 @@ async def _build_shopping_list_preview(
                 total_needed,
                 inv_by_ingredient.get(ingredient_id, []),
                 best_product.get(ingredient_id),
+                canonical_name=getattr(ing_by_id.get(ingredient_id) if "ing_by_id" in locals() else None, "canonical_name", None),
             )
             ing = ing_by_id.get(ingredient_id)
             row["ingredient"] = (

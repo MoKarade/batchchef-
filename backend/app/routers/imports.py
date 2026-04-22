@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from app.utils.time import utcnow
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,11 +44,41 @@ async def start_marmiton_import(
         task = run_marmiton_import.delay(job.id, all_urls)
         job.celery_task_id = task.id
         job.status = "running"
-        job.started_at = datetime.utcnow()
+        job.started_at = utcnow()
     except Exception as e:
         job.status = "failed"
         job.error_log = json.dumps([str(e)])
 
+    await db.commit()
+    await db.refresh(job)
+    return job
+
+
+@router.post("/marmiton/continuous", response_model=JobOut, status_code=202)
+async def start_continuous_marmiton(db: AsyncSession = Depends(get_db)):
+    """Kick off a self-renewing import loop that keeps scraping until the URL
+    queue is empty. Only one should run at a time."""
+    running_q = select(ImportJob).where(
+        ImportJob.job_type == "marmiton_continuous",
+        ImportJob.status.in_(["queued", "running"]),
+    )
+    existing = (await db.execute(running_q)).scalars().first()
+    if existing:
+        return existing
+
+    job = ImportJob(job_type="marmiton_continuous", status="queued", progress_total=0)
+    db.add(job)
+    await db.flush()
+    await db.refresh(job)
+    try:
+        from app.workers.continuous_import import run_continuous_import
+        task = run_continuous_import.delay(job.id)
+        job.celery_task_id = task.id
+        job.status = "running"
+        job.started_at = utcnow()
+    except Exception as e:
+        job.status = "failed"
+        job.error_log = json.dumps([str(e)])
     await db.commit()
     await db.refresh(job)
     return job
@@ -101,19 +131,7 @@ async def cancel_import(job_id: int, db: AsyncSession = Depends(get_db)):
             job.error_log = json.dumps(errs)
 
     job.status = "cancelled"
-    job.finished_at = datetime.utcnow()
+    job.finished_at = utcnow()
     await db.commit()
     await db.refresh(job)
     return job
-
-
-@router.delete("/{job_id}", status_code=204)
-async def delete_import_job(job_id: int, db: AsyncSession = Depends(get_db)):
-    """Delete a completed/failed/cancelled job record."""
-    job = await db.get(ImportJob, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if job.status in ("queued", "running"):
-        raise HTTPException(status_code=409, detail="Cannot delete an active job; cancel it first")
-    await db.delete(job)
-    await db.commit()

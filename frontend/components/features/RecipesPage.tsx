@@ -12,8 +12,15 @@ const SORT_OPTIONS = [
   { value: "id_desc", label: "Plus récentes" },
   { value: "health_desc", label: "Plus saines" },
   { value: "cost_asc", label: "Moins chères" },
+  { value: "cost_desc", label: "Plus chères" },
   { value: "title_asc", label: "Alphabétique" },
 ];
+
+const HAS_PRICE_TABS = [
+  { value: "all", label: "Toutes" },
+  { value: "priced", label: "Avec prix" },
+  { value: "missing", label: "Prix manquant" },
+] as const;
 
 function RecipeCard({ recipe }: { recipe: RecipeBrief }) {
   return (
@@ -48,9 +55,17 @@ function RecipeCard({ recipe }: { recipe: RecipeBrief }) {
             )}
           </div>
 
-          <div className="flex justify-between text-xs text-muted-foreground">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>{recipe.calories_per_portion ? `${Math.round(recipe.calories_per_portion)} kcal` : "—"}</span>
-            <span>{formatPrice(recipe.estimated_cost_per_portion)}/portion</span>
+            {recipe.estimated_cost_per_portion != null && recipe.estimated_cost_per_portion > 0 ? (
+              <span className="inline-flex items-center gap-1 font-mono font-bold text-green-700 dark:text-green-400">
+                {formatPrice(recipe.estimated_cost_per_portion)}/portion
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-amber-600 text-[10px]">
+                Prix manquant
+              </span>
+            )}
             {recipe.health_score != null && (
               <span className={`flex items-center gap-0.5 font-medium ${healthColor(recipe.health_score)}`}>
                 <Star className="h-3 w-3" />
@@ -68,14 +83,22 @@ export function RecipesPage() {
   const [search, setSearch] = useState("");
   const [mealType, setMealType] = useState("");
   const [sort, setSort] = useState("id_desc");
+  const [hasPrice, setHasPrice] = useState<"all" | "priced" | "missing">("all");
   const [offset, setOffset] = useState(0);
   const LIMIT = 24;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["recipes", { search, mealType, sort, offset }],
+    queryKey: ["recipes", { search, mealType, sort, hasPrice, offset }],
     queryFn: () =>
       recipesApi
-        .list({ search: search || undefined, meal_type: mealType || undefined, sort, limit: LIMIT, offset })
+        .list({
+          search: search || undefined,
+          meal_type: mealType || undefined,
+          sort,
+          has_price: hasPrice,
+          limit: LIMIT,
+          offset,
+        })
         .then((r) => r.data),
     staleTime: 30_000,
   });
@@ -123,6 +146,22 @@ export function RecipesPage() {
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
+
+        <div className="inline-flex rounded-md border border-input overflow-hidden h-9">
+          {HAS_PRICE_TABS.map((t) => (
+            <button
+              key={t.value}
+              onClick={() => { setHasPrice(t.value); setOffset(0); }}
+              className={`px-3 text-xs font-medium ${
+                hasPrice === t.value
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background hover:bg-accent"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Grid */}

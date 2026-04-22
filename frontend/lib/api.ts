@@ -412,6 +412,7 @@ export interface StoreProductOut {
   store_name?: string;
   product_name?: string;
   product_url?: string;
+  image_url?: string;
   price?: number;
   format_qty?: number;
   format_unit?: string;
@@ -430,9 +431,16 @@ export interface RecipeBriefForIng {
   unit?: string;
 }
 
+export interface PricePoint {
+  store_code: string;
+  price: number;
+  recorded_at: string;
+}
+
 export interface IngredientDetails extends IngredientMaster {
   store_products: StoreProductOut[];
   recipes: RecipeBriefForIng[];
+  price_history: PricePoint[];
 }
 
 export const adminApi = {
