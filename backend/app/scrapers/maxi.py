@@ -5,6 +5,8 @@ import logging
 import re
 import urllib.parse
 
+import httpx
+
 from app.scrapers._utils import (
     is_relevant,
     parse_format,
@@ -16,11 +18,38 @@ from app.scrapers._utils import (
 _SKU_RE = re.compile(r"/p/(\d{9,13})(?:_\w+)?", re.I)
 
 
-def _maxi_image_from_url(product_url: str | None) -> str | None:
-    """Build the CDN image URL from the product page URL's SKU.
+_IMAGE_URL_CACHE: dict[str, str | None] = {}  # sku -> verified URL or None
 
-    Pattern (verified 2026-04): assets.shop.loblaws.ca/products/{SKU}/b1/en/front/{SKU}_front_a01_@2.png
-    Returns None if no SKU could be extracted.
+
+def _build_loblaws_cdn_urls(sku: str) -> list[str]:
+    """Candidate CDN paths to try in order. Different products live under
+    slightly different suffixes (_front_a01_@2.png vs _front_a1a.png)."""
+    return [
+        f"https://assets.shop.loblaws.ca/products/{sku}/b1/en/front/{sku}_front_a01_%402.png",
+        f"https://assets.shop.loblaws.ca/products/{sku}/b2/fr/front/{sku}_front_a01_%402.png",
+        f"https://assets.shop.loblaws.ca/products/{sku}/b1/en/front/{sku}_front_a1a.png",
+        f"https://assets.shop.loblaws.ca/products/{sku}/b1/en/front/{sku}_front_a1c1.png",
+    ]
+
+
+async def _verify_image(url: str, client: httpx.AsyncClient) -> bool:
+    """Quick HEAD request: returns True only if the URL 200s AND content-type
+    is an image. Avoids storing 403/404 URLs that waste a DOM <img> slot."""
+    try:
+        r = await client.head(url, timeout=4.0, follow_redirects=True)
+        if r.status_code != 200:
+            return False
+        ctype = r.headers.get("content-type", "")
+        return ctype.startswith("image/")
+    except Exception:
+        return False
+
+
+async def _resolve_loblaws_image(product_url: str | None) -> str | None:
+    """Try the Loblaws CDN candidates in order, return the first that HEADs 200.
+
+    Result cached per-SKU for the process lifetime so we don't HEAD the same
+    URL every time the same ingredient is rescanned.
     """
     if not product_url:
         return None
@@ -28,7 +57,29 @@ def _maxi_image_from_url(product_url: str | None) -> str | None:
     if not m:
         return None
     sku = m.group(1)
-    return f"https://assets.shop.loblaws.ca/products/{sku}/b1/en/front/{sku}_front_a01_%402.png"
+    if sku in _IMAGE_URL_CACHE:
+        return _IMAGE_URL_CACHE[sku]
+
+    async with httpx.AsyncClient(timeout=6.0) as client:
+        for candidate in _build_loblaws_cdn_urls(sku):
+            if await _verify_image(candidate, client):
+                _IMAGE_URL_CACHE[sku] = candidate
+                return candidate
+    _IMAGE_URL_CACHE[sku] = None
+    return None
+
+
+def _maxi_image_from_url(product_url: str | None) -> str | None:
+    """Legacy synchronous version — returns the first candidate without
+    verifying. Kept for callers that don't want to await; prefer
+    `_resolve_loblaws_image` when possible."""
+    if not product_url:
+        return None
+    m = _SKU_RE.search(product_url)
+    if not m:
+        return None
+    sku = m.group(1)
+    return _build_loblaws_cdn_urls(sku)[0]
 
 logger = logging.getLogger(__name__)
 
@@ -123,19 +174,33 @@ async def search_maxi(page, query: str, store_id: str = "8676") -> dict | None:
         f"{best['price']}$ ({fmt['qty']} {fmt['unit']} from '{size_str}')"
     )
 
-    # Image sources, in order of preference:
-    #   1. Deterministic CDN URL built from the product's SKU (always present on Maxi)
-    #   2. DOM <img> if it's a real CDN image (not a search-page placeholder)
-    #   3. OpenFoodFacts fallback (generic product image)
+    # Image sources, in order of preference. Each is HEAD-verified so we
+    # never store a 404/403 URL (common when the CDN path doesn't match the
+    # product's actual suffix):
+    #   1. Loblaws CDN (tried against 4 known URL patterns, HEAD-verified)
+    #   2. DOM <img> from the search tile if it looks like a real image
+    #   3. OpenFoodFacts fallback
+    #   4. None → the UI falls back to the category emoji
     product_url_full = best.get("link") or search_url
-    cdn_img = _maxi_image_from_url(product_url_full)
+    cdn_img = await _resolve_loblaws_image(product_url_full)
     scraped_img = best.get("image") or ""
     is_valid_scraped = (
         scraped_img
         and ("jpg" in scraped_img.lower() or "png" in scraped_img.lower() or "webp" in scraped_img.lower())
         and "search" not in scraped_img
+        and "maxi.ca" not in scraped_img   # defensively drop self-links
     )
-    image_url = cdn_img or (scraped_img if is_valid_scraped else None) or nutrition.pop("off_image_url", None)
+    image_url = cdn_img
+    if not image_url and is_valid_scraped:
+        async with httpx.AsyncClient() as _c:
+            if await _verify_image(scraped_img, _c):
+                image_url = scraped_img
+    if not image_url:
+        off = nutrition.pop("off_image_url", None)
+        if off:
+            async with httpx.AsyncClient() as _c:
+                if await _verify_image(off, _c):
+                    image_url = off
 
     # Drop the scraper-internal OFF image field so it doesn't leak into the result
     nutrition.pop("off_image_url", None)

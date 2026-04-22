@@ -9,13 +9,29 @@ import {
 } from "@tanstack/react-query";
 import {
   Search, CheckCircle2, AlertTriangle, Clock, Pencil, Check, X, RotateCcw,
-  ChevronRight, ChevronDown, Layers, List, ArrowLeft, Sparkles, Wrench, TimerOff,
+  ChevronRight, ChevronDown, Layers, List, ArrowLeft, Sparkles, Wrench,
   ExternalLink, ShoppingCart, BookOpen, RefreshCw, ShieldAlert,
 } from "lucide-react";
 import Link from "next/link";
-import { ingredientsApi, storesApi, type IngredientMaster, type IngredientDetails } from "@/lib/api";
+import { ingredientsApi, storesApi, type IngredientMaster, type IngredientDetails, type StoreProductOut } from "@/lib/api";
 import { formatPrice, categoryEmoji, categoryLabel } from "@/lib/utils";
 
+const STATUSES = [
+  { value: "", label: "Tous les statuts" },
+  { value: "mapped", label: "Mappés" },
+  { value: "pending", label: "En attente" },
+  { value: "failed", label: "Échec" },
+] as const;
+
+const PAGE_SIZE = 60;
+
+function StatusBadge({ status }: { status: string }) {
+  if (status === "mapped")
+    return <span className="inline-flex items-center gap-1 rounded-full bg-green-100 text-green-700 px-2 py-0.5 text-xs"><CheckCircle2 className="h-3 w-3" /> Mappé</span>;
+  if (status === "failed")
+    return <span className="inline-flex items-center gap-1 rounded-full bg-red-100 text-red-700 px-2 py-0.5 text-xs"><AlertTriangle className="h-3 w-3" /> Échec</span>;
+  return <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-xs"><Clock className="h-3 w-3" /> En attente</span>;
+}
 
 function Sparkline({ points }: { points: number[] }) {
   if (points.length < 2) return null;
@@ -32,46 +48,19 @@ function Sparkline({ points }: { points: number[] }) {
       return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
     })
     .join(" ");
-  const up = points[points.length - 1] > points[0];
+  const last = points[points.length - 1];
+  const first = points[0];
+  const up = last > first;
   return (
     <svg width={W} height={H} className="inline-block shrink-0">
-      <path d={path} fill="none" strokeWidth={1.5} className={up ? "stroke-red-500" : "stroke-green-500"} />
+      <path
+        d={path}
+        fill="none"
+        strokeWidth={1.5}
+        className={up ? "stroke-red-500" : "stroke-green-500"}
+      />
     </svg>
   );
-}
-
-const STATUSES = [
-  { value: "", label: "Tous les statuts" },
-  { value: "mapped", label: "Mappés" },
-  { value: "pending", label: "En attente" },
-  { value: "failed", label: "Échec" },
-] as const;
-
-const FRESHNESS_OPTIONS = [
-  { value: "", label: "Toute fraîcheur" },
-  { value: "fresh", label: "Prix à jour" },
-  { value: "stale", label: "Prix périmés" },
-  { value: "missing", label: "Prix manquants" },
-] as const;
-
-function StaleBadge({ lastCheckedAt }: { lastCheckedAt?: string | null }) {
-  if (!lastCheckedAt) return null;
-  const daysAgo = Math.floor((Date.now() - new Date(lastCheckedAt).getTime()) / 86400000);
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 text-yellow-700 px-2 py-0.5 text-xs">
-      <TimerOff className="h-3 w-3" /> Périmé ({daysAgo}j)
-    </span>
-  );
-}
-
-const PAGE_SIZE = 60;
-
-function StatusBadge({ status }: { status: string }) {
-  if (status === "mapped")
-    return <span className="inline-flex items-center gap-1 rounded-full bg-green-100 text-green-700 px-2 py-0.5 text-xs"><CheckCircle2 className="h-3 w-3" /> Mappé</span>;
-  if (status === "failed")
-    return <span className="inline-flex items-center gap-1 rounded-full bg-red-100 text-red-700 px-2 py-0.5 text-xs"><AlertTriangle className="h-3 w-3" /> Échec</span>;
-  return <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-xs"><Clock className="h-3 w-3" /> En attente</span>;
 }
 
 function IngredientDetailsPanel({ id }: { id: number }) {
@@ -102,14 +91,17 @@ function IngredientDetailsPanel({ id }: { id: number }) {
     (p) => p.store_code !== "maxi" && p.store_code !== "costco",
   );
 
+  // Group price history by store for sparklines
   const historyByStore: Record<string, number[]> = {};
-  for (const pt of d.price_history ?? []) {
+  for (const pt of d.price_history) {
     (historyByStore[pt.store_code] ??= []).push(pt.price);
   }
+  // history is desc by recorded_at — reverse so sparkline reads left→right chronologically
   Object.keys(historyByStore).forEach((k) => historyByStore[k].reverse());
 
   return (
     <div className="space-y-3 pt-2 border-t">
+      {/* Prices per store */}
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase text-muted-foreground">Prix & liens</p>
@@ -139,7 +131,12 @@ function IngredientDetailsPanel({ id }: { id: number }) {
                 title={sp!.product_name ?? undefined}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={sp!.image_url} alt={sp!.product_name ?? ""} className="h-full w-full object-contain" loading="lazy" />
+                <img
+                  src={sp!.image_url}
+                  alt={sp!.product_name ?? ""}
+                  className="h-full w-full object-contain"
+                  loading="lazy"
+                />
               </a>
             ) : (
               <div className="shrink-0 h-14 w-14 rounded-md bg-muted/50 border inline-flex items-center justify-center">
@@ -168,7 +165,9 @@ function IngredientDetailsPanel({ id }: { id: number }) {
                   <span className="text-green-700">✓ {(sp!.confidence_score * 100).toFixed(0)}%</span>
                 )}
                 {historyByStore[sp!.store_code ?? ""] && historyByStore[sp!.store_code ?? ""].length >= 2 && (
-                  <span className="ml-auto"><Sparkline points={historyByStore[sp!.store_code ?? ""]} /></span>
+                  <span className="ml-auto">
+                    <Sparkline points={historyByStore[sp!.store_code ?? ""]} />
+                  </span>
                 )}
               </div>
               {sp!.product_url && (
@@ -186,15 +185,16 @@ function IngredientDetailsPanel({ id }: { id: number }) {
         ))}
       </div>
 
+      {/* Recipes using this ingredient */}
       {d.recipes.length > 0 && (
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
             <BookOpen className="h-3 w-3" /> Dans {d.recipes.length} recette{d.recipes.length > 1 ? "s" : ""}
           </p>
           <div className="max-h-48 overflow-y-auto space-y-0.5 rounded-md border bg-muted/30 p-2">
-            {d.recipes.map((r) => (
+            {d.recipes.map((r, idx) => (
               <Link
-                key={r.id}
+                key={`${r.id}-${idx}`}
                 href={`/recipes/${r.id}`}
                 className="flex items-center justify-between gap-2 text-xs hover:bg-accent rounded px-1.5 py-0.5 transition-colors"
               >
@@ -254,9 +254,17 @@ function IngredientCard({
     <div className="rounded-xl border bg-card p-4 space-y-3">
       <div className="flex items-start gap-3">
         {ing.primary_image_url ? (
-          <div className="shrink-0 h-14 w-14 rounded-md overflow-hidden bg-white border" title={`${ing.primary_store_code ?? ""} — ${ing.display_name_fr}`}>
+          <div
+            className="shrink-0 h-14 w-14 rounded-md overflow-hidden bg-white border"
+            title={`${ing.primary_store_code ?? ""} — ${ing.display_name_fr}`}
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={ing.primary_image_url} alt={ing.display_name_fr} className="h-full w-full object-contain" loading="lazy" />
+            <img
+              src={ing.primary_image_url}
+              alt={ing.display_name_fr}
+              className="h-full w-full object-contain"
+              loading="lazy"
+            />
           </div>
         ) : (
           <div className="shrink-0 h-14 w-14 rounded-md bg-muted/40 border inline-flex items-center justify-center text-2xl leading-none">
@@ -300,7 +308,9 @@ function IngredientCard({
         </div>
         <div>
           <p className="text-muted-foreground">
-            Prix / kg{ing.computed_price_per_kg != null ? ` (${ing.primary_store_code ?? ""})` : ""}
+            {ing.computed_unit_price != null
+              ? `Prix / ${ing.computed_unit_label ?? "kg"}${ing.primary_store_code ? ` (${ing.primary_store_code})` : ""}`
+              : "Prix estimé / kg"}
           </p>
           {editing ? (
             <input
@@ -312,17 +322,14 @@ function IngredientCard({
             />
           ) : (
             <p className="font-medium">
-              {formatPrice(ing.computed_price_per_kg ?? ing.estimated_price_per_kg)}
+              {formatPrice(ing.computed_unit_price ?? ing.estimated_price_per_kg)}
             </p>
           )}
         </div>
       </div>
 
       <div className="flex items-center justify-between gap-2 pt-1">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <StatusBadge status={ing.price_mapping_status} />
-          {ing.is_stale && <StaleBadge lastCheckedAt={ing.last_checked_at} />}
-        </div>
+        <StatusBadge status={ing.price_mapping_status} />
         <div className="text-[11px] text-muted-foreground flex items-center gap-2">
           {ing.usage_count != null && <span>{ing.usage_count} recettes</span>}
           {ing.store_product_count != null && <span>· {ing.store_product_count} prix</span>}
@@ -391,7 +398,6 @@ export function IngredientsPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [status, setStatus] = useState("");
-  const [freshness, setFreshness] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("hierarchy");
   const [crumbs, setCrumbs] = useState<Crumb[]>([]);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -407,7 +413,7 @@ export function IngredientsPage() {
       ? currentParentId
       : "null";
 
-  const filters = { search, category, status, freshness, parentFilter };
+  const filters = { search, category, status, parentFilter };
 
   const drillDown = (ing: IngredientMaster) => {
     setCrumbs((cs) => [...cs, { id: ing.id, label: ing.display_name_fr }]);
@@ -449,7 +455,6 @@ export function IngredientsPage() {
           search: search || undefined,
           category: category || undefined,
           price_mapping_status: status || undefined,
-          freshness: freshness || undefined,
           parent_id: parentFilter,
         })
         .then((r) => r.data),
@@ -470,7 +475,6 @@ export function IngredientsPage() {
           search: search || undefined,
           category: category || undefined,
           price_mapping_status: status || undefined,
-          freshness: (freshness as "fresh" | "stale" | "missing") || undefined,
           parent_id: parentFilter,
           limit: PAGE_SIZE,
           offset: pageParam,
@@ -614,15 +618,6 @@ export function IngredientsPage() {
         >
           {STATUSES.map((s) => (
             <option key={s.value} value={s.value}>{s.label}</option>
-          ))}
-        </select>
-        <select
-          value={freshness}
-          onChange={(e) => setFreshness(e.target.value)}
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-        >
-          {FRESHNESS_OPTIONS.map((f) => (
-            <option key={f.value} value={f.value}>{f.label}</option>
           ))}
         </select>
       </div>

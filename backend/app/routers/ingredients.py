@@ -47,6 +47,9 @@ class IngredientOut(BaseModel):
     primary_image_url: str | None = None
     primary_store_code: str | None = None
     computed_price_per_kg: float | None = None
+    # Unit-adaptive price: e.g. 25.0 $/kg, 3.99 $/L, 0.75 $/unite
+    computed_unit_price: float | None = None
+    computed_unit_label: str | None = None  # "kg" | "L" | "unite"
 
 
 class IngredientUpdate(BaseModel):
@@ -293,6 +296,21 @@ async def list_ingredients(
             return round(price / qty, 2)
         return None
 
+    def _unit_price(price, qty, unit):
+        """Unit-adaptive: mass→$/kg, volume→$/L, count→$/unite."""
+        if not (price and qty and unit):
+            return None, None
+        u = (unit or "").strip().lower()
+        if u in ("g", "gramme", "grammes"):
+            return round(price / (qty / 1000.0), 2), "kg"
+        if u in ("kg", "kilo", "kilogramme"):
+            return round(price / qty, 2), "kg"
+        if u in ("ml", "millilitre"):
+            return round(price / (qty / 1000.0), 2), "L"
+        if u in ("l", "litre"):
+            return round(price / qty, 2), "L"
+        return round(price / qty, 2), "unite"
+
     out: list[IngredientOut] = []
     for ing in ingredients:
         row = IngredientOut.model_validate(ing)
@@ -308,6 +326,9 @@ async def list_ingredients(
             row.primary_image_url = img_url
             row.primary_store_code = code
             row.computed_price_per_kg = _ppk(price, fqty, funit)
+            up, ul = _unit_price(price, fqty, funit)
+            row.computed_unit_price = up
+            row.computed_unit_label = ul
         out.append(row)
     return out
 

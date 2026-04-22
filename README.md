@@ -1,133 +1,142 @@
-# BatchChef V2
+# BatchChef V3 — Pricing
 
-Planificateur de batch cooking intelligent — scraping Marmiton, prix supermarché (Maxi), OCR tickets de caisse via Gemini Vision.
+> Planificateur de batch cooking québécois qui scrape Marmiton, mappe chaque
+> ingrédient aux prix **Maxi / Costco / Fruiterie 440** (avec photos), détecte
+> les prix périmés, et génère des listes de courses optimisées (TPS + TVQ).
+
+V3 ajoute au socle V2 un **pipeline de prix complet** : images CDN Loblaws
+HEAD-vérifiées, prix par unité adaptatif (kg / L / pièce), fallback
+OpenFoodFacts, validation Gemini, et un import Marmiton continu qui tourne
+jusqu'à épuisement des URLs.
 
 ## Stack
 
-| Composant | Technologie |
+| Composant | Techno |
 |---|---|
-| Backend API | FastAPI (Python 3.13) + SQLAlchemy + SQLite |
-| Workers | Celery + Redis |
-| Scraping | Playwright (Python) |
-| IA | Gemini 2.0 Flash (standardisation ingrédients, classification, OCR) |
-| Frontend | Next.js 16 + shadcn/ui + Tailwind |
-| Données | 43 492 URLs Marmiton (`data/cleaned_recipes.txt`) |
+| Backend API | FastAPI (Python 3.13) + SQLAlchemy 2.0 async + SQLite |
+| Workers | Celery + Redis (Windows : `--pool=solo`) |
+| Scrapers | Playwright + patchright (Costco anti-bot) |
+| AI | **Gemini 3 Flash Preview** (fallback 3.1 Flash Lite) |
+| Frontend | Next.js 16 + Tailwind + TanStack Query |
+| Données | `data/cleaned_recipes.txt` (43 492 URLs Marmiton) |
 
 ---
 
-## Installation
+## Quickstart
 
-### Prérequis
-- Python 3.13
-- Node.js 20+
-- [uv](https://docs.astral.sh/uv/) (installer: `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`)
-- Redis (via Docker: `docker run -d -p 6379:6379 redis:7-alpine`)
-
-### Backend
-```powershell
+```bash
+# Backend
 cd backend
-copy .env.example .env   # puis éditer GEMINI_API_KEY
+cp .env.example .env             # fill GEMINI_API_KEY
 uv sync
 uv run playwright install chromium
+uv run alembic upgrade head
+
+# Frontend
+cd ../frontend && npm install
+
+# Redis (requis pour Celery)
+# Windows:  redis-server.exe
+# macOS:    brew services start redis
+# Docker:   docker run -d -p 6379:6379 redis:7-alpine
 ```
 
-### Frontend
-```powershell
-cd frontend
-npm install
-```
+### Lancer les services (3 terminaux)
 
----
-
-## Démarrage
-
-### Méthode 1 — Manuelle (3 terminaux)
-
-**Terminal 1 — Backend FastAPI :**
-```powershell
-cd backend
-uv run uvicorn app.main:app --reload --port 8000
-```
-
-**Terminal 2 — Celery Worker (pour l'import) :**
-```powershell
-cd backend
-uv run celery -A app.workers.celery_app worker --loglevel=info --pool=solo
-```
-
-**Terminal 3 — Frontend Next.js :**
-```powershell
-cd frontend
-npm run dev
-```
-
-Ouvrir **http://localhost:3000**
-
-### Méthode 2 — Docker Compose
 ```bash
-docker compose up --build
+# Terminal 1 — API
+cd backend && uv run uvicorn app.main:app --reload --port 8000
+
+# Terminal 2 — Celery (requis pour tout job)
+cd backend && uv run celery -A app.workers.celery_app worker --loglevel=info --pool=solo
+
+# Terminal 3 — Frontend
+cd frontend && npm run dev       # http://localhost:3000
 ```
+
+Ou via `preview_start` avec `.claude/launch.json` si tu utilises Claude Code.
 
 ---
 
-## Utilisation
+## Config (`backend/.env`)
 
-### 1. Configurer la clé Gemini
-Éditer `backend/.env` et ajouter votre clé :
+```env
+# AI (Gemini primaire)
+GEMINI_API_KEY=AIzaSy...
+GEMINI_MODEL=gemini-3-flash-preview
+GEMINI_MODEL_FALLBACK=gemini-3.1-flash-lite-preview
+GEMINI_MIN_INTERVAL_S=1.0         # paid tier: 0, free: 6
+
+# DB + broker
+DATABASE_URL=sqlite+aiosqlite:///./batchchef.db
+REDIS_URL=redis://localhost:6379/0
+
+# Scraping Québec
+MAXI_STORE_ID=7234                # Fleur-de-Lys, Québec
+MAXI_POSTAL_CODE=G1M 3E5
+COSTCO_ENABLED=true
+COSTCO_POSTAL_CODE=G2J 1E3
+COSTCO_WAREHOUSE_NAME_HINT=Quebec
+PLAYWRIGHT_HEADLESS=false         # Costco exige headful
+SCRAPE_CONCURRENCY=5
+PRICE_STALE_DAYS=14
 ```
-GEMINI_API_KEY=AIza...
-```
 
-### 2. Importer les recettes Marmiton
-1. Aller sur **http://localhost:3000/imports**
-2. Optionnel : entrer une limite (ex: 100 pour tester)
-3. Cliquer "Démarrer" — la barre de progression se met à jour en temps réel
-
-### 3. Générer un batch
-1. Aller sur **http://localhost:3000/batches/new**
-2. Choisir le nombre de portions cibles (défaut: 20)
-3. Cliquer "Générer le batch" — 3 recettes sont sélectionnées automatiquement
-
-### 4. Scanner un ticket de caisse
-1. Aller sur **http://localhost:3000/receipts**
-2. Glisser-déposer une photo de ticket (Maxi, Costco, Fruiterie)
-3. Gemini Vision extrait les articles — valider pour mettre à jour l'inventaire
+**⚠ Gotcha Windows** : `.env` doit être **UTF-8 sans BOM, LF**. Si une
+variable système `ANTHROPIC_API_KEY=""` existe, `config.py` backfill
+automatiquement depuis `.env` (sinon pydantic-settings priorise `os.environ`).
 
 ---
 
-## Structure du projet
-```
-batch-cooking/
-├── backend/            # FastAPI + Celery workers
-│   ├── app/
-│   │   ├── main.py    # Entry point
-│   │   ├── models/    # SQLAlchemy ORM
-│   │   ├── routers/   # API endpoints
-│   │   ├── services/  # Business logic
-│   │   ├── scrapers/  # Playwright scrapers
-│   │   ├── ai/        # Gemini integration
-│   │   └── workers/   # Celery tasks
-│   └── .env           # Configuration (ne pas committer)
-├── frontend/           # Next.js 16 app
-│   ├── app/           # App Router pages
-│   ├── components/    # React components
-│   └── lib/           # API client + utils
-├── data/
-│   └── cleaned_recipes.txt   # 43 492 URLs Marmiton
-├── uploads/            # Tickets de caisse (gitignored)
-└── .archive-node/      # Ancien code Node.js (référence)
-```
+## Docs détaillées
+
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — modèles de données,
+  flux `import → standardize → price → batch`, WebSocket, migrations
+- **[docs/PRICING_PIPELINE.md](docs/PRICING_PIPELINE.md)** — scrapers Maxi /
+  Costco / Fruiterie, CDN Loblaws HEAD-vérifié, fallback OpenFoodFacts,
+  validation Gemini, règle « mapped = photo + prix + lien »
+- **[docs/JOBS.md](docs/JOBS.md)** — catalogue Celery (import marmiton,
+  map-prices, classify-ingredients, continuous import, zombie cleanup…)
+- **[docs/API.md](docs/API.md)** — tous les endpoints REST
+- **[docs/FRONTEND.md](docs/FRONTEND.md)** — ⚠ **Next.js 16 a des breaking
+  changes** (voir `frontend/AGENTS.md`)
+- **[docs/OPERATIONS.md](docs/OPERATIONS.md)** — runbook : backfill complet,
+  relance après crash, monitoring, ETA
 
 ---
 
-## API
+## Auth
 
-Documentation interactive : **http://localhost:8000/docs**
+**Désactivée** en V3 (mode local / single-user). `frontend/lib/auth.tsx`
+retourne un stub admin. Les routes `/login` et `/register` redirigent
+vers `/`. Pour réactiver : voir `docs/ARCHITECTURE.md § "Re-enabling auth"`.
 
-Endpoints principaux :
-- `POST /api/imports/marmiton` — Lance l'import bulk
-- `WS /ws/jobs/{job_id}` — Stream WebSocket de progression
-- `GET /api/recipes` — Liste des recettes (pagination, search, filtres)
-- `POST /api/batches/generate` — Génère un batch (3 recettes, N portions)
-- `GET /api/inventory` — Stock actuel
-- `POST /api/receipts` — Upload ticket de caisse (multipart)
+---
+
+## Utilisation rapide
+
+1. **Importer** les recettes : `POST /api/imports/marmiton` (ou
+   `/api/imports/marmiton/continuous` pour scraper **toutes** les URLs
+   jusqu'à épuisement)
+2. **Mapper les prix** : `POST /api/stores/map-prices` (tous les pending) ou
+   avec `{"ingredient_ids":[…]}` pour un sous-ensemble
+3. **Classifier** : `POST /api/ingredients/classify` nettoie les noms
+   corrompus + assigne 10 catégories via Gemini
+4. **Générer un batch** : `POST /api/batches/preview` → `POST /api/batches/accept`
+
+---
+
+## Problèmes connus
+
+Voir `docs/OPERATIONS.md § Troubleshooting` :
+- Costco warm-up bloqué par OneTrust → prix rarement trouvés
+- Gemini JSON tronqué → fallback automatique sur canonical_name
+- Images 403 / 404 → HEAD-check avant persist (V3)
+
+---
+
+## Contribuer
+
+- Format : `uv run ruff check backend/` + `cd frontend && npm run lint`
+- Tests : `uv run pytest backend/tests/` (smoke only, WIP)
+- Commits : conventional, co-authored by `Claude Sonnet 4.6`
