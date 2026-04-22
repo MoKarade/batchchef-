@@ -1,6 +1,5 @@
 "use client";
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { api } from "./api";
+import { createContext, useContext } from "react";
 
 export interface AuthUser {
   id: number;
@@ -17,53 +16,34 @@ interface AuthContextType {
   logout: () => void;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+// Auth disabled for local / single-user mode.
+// Every caller gets a stub admin user; login/register/logout are no-ops.
+const STUB_USER: AuthUser = {
+  id: 1,
+  email: "local@dev",
+  display_name: "Local",
+  is_admin: true,
+};
 
-function setToken(t: string) {
-  localStorage.setItem("auth_token", t);
-  document.cookie = `auth_token=${t}; path=/; max-age=2592000; SameSite=Lax`;
-  api.defaults.headers.common["Authorization"] = `Bearer ${t}`;
-}
-
-function clearToken() {
-  localStorage.removeItem("auth_token");
-  document.cookie = "auth_token=; path=/; max-age=0";
-  delete api.defaults.headers.common["Authorization"];
-}
+const AuthContext = createContext<AuthContextType | null>({
+  user: STUB_USER,
+  isLoading: false,
+  login: async () => undefined,
+  register: async () => undefined,
+  logout: () => undefined,
+});
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const stored = localStorage.getItem("auth_token");
-    if (!stored) { setIsLoading(false); return; }
-    api.defaults.headers.common["Authorization"] = `Bearer ${stored}`;
-    api.get<AuthUser>("/api/auth/me")
-      .then(res => setUser(res.data))
-      .catch(() => clearToken())
-      .finally(() => setIsLoading(false));
-  }, []);
-
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await api.post<{ access_token: string; user_id: number; display_name: string | null; is_admin?: boolean }>("/api/auth/login", { email, password });
-    setToken(res.data.access_token);
-    setUser({ id: res.data.user_id, email, display_name: res.data.display_name, is_admin: res.data.is_admin ?? false });
-  }, []);
-
-  const register = useCallback(async (email: string, password: string, display_name?: string) => {
-    const res = await api.post<{ access_token: string; user_id: number; display_name: string | null }>("/api/auth/register", { email, password, display_name });
-    setToken(res.data.access_token);
-    setUser({ id: res.data.user_id, email, display_name: res.data.display_name, is_admin: false });
-  }, []);
-
-  const logout = useCallback(() => {
-    clearToken();
-    setUser(null);
-  }, []);
-
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{
+        user: STUB_USER,
+        isLoading: false,
+        login: async () => undefined,
+        register: async () => undefined,
+        logout: () => undefined,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -71,6 +51,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
+  return ctx ?? {
+    user: STUB_USER,
+    isLoading: false,
+    login: async () => undefined,
+    register: async () => undefined,
+    logout: () => undefined,
+  };
 }

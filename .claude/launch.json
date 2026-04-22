@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend-api",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "--directory", "C:/Users/dessin14/CascadeProjects/batch-cooking/backend", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"],
+      "port": 8000
+    },
+    {
+      "name": "celery-worker",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "--directory", "C:/Users/dessin14/CascadeProjects/batch-cooking/backend", "celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "--pool=solo"],
+      "port": 9100
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "C:/Users/dessin14/CascadeProjects/batch-cooking/frontend"],
+      "port": 3000
+    }
+  ]
+}

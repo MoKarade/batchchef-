@@ -43,6 +43,10 @@ class IngredientOut(BaseModel):
     children_count: int = 0
     is_stale: bool = False
     last_checked_at: datetime | None = None
+    # Display helpers populated from the best StoreProduct
+    primary_image_url: str | None = None
+    primary_store_code: str | None = None
+    computed_price_per_kg: float | None = None
 
 
 class IngredientUpdate(BaseModel):
@@ -251,6 +255,44 @@ async def list_ingredients(
         r[0]: r[1] for r in (await db.execute(checked_q)).all() if r[1] is not None
     }
 
+    # Best StoreProduct per ingredient (lowest price, validated first) → used
+    # to expose primary_image_url + computed_price_per_kg on each card.
+    from app.models.store import Store as _Store
+    best_q = (
+        select(
+            StoreProduct.ingredient_master_id,
+            StoreProduct.image_url,
+            StoreProduct.price,
+            StoreProduct.format_qty,
+            StoreProduct.format_unit,
+            _Store.code,
+        )
+        .join(_Store, _Store.id == StoreProduct.store_id)
+        .where(StoreProduct.ingredient_master_id.in_(ids), StoreProduct.price.isnot(None))
+        .order_by(
+            StoreProduct.ingredient_master_id,
+            StoreProduct.is_validated.desc(),
+            StoreProduct.price.asc(),
+        )
+    )
+    best_by_ing: dict[int, tuple] = {}
+    for ing_id, img_url, price, fqty, funit, code in (await db.execute(best_q)).all():
+        best_by_ing.setdefault(ing_id, (img_url, price, fqty, funit, code))
+
+    def _ppk(price, qty, unit):
+        if not (price and qty and unit):
+            return None
+        u = (unit or "").strip().lower()
+        if u in ("g", "gramme", "grammes"):
+            return round(price / (qty / 1000.0), 2)
+        if u in ("kg", "kilo", "kilogramme"):
+            return round(price / qty, 2)
+        if u in ("ml", "millilitre"):
+            return round(price / (qty / 1000.0), 2)
+        if u in ("l", "litre"):
+            return round(price / qty, 2)
+        return None
+
     out: list[IngredientOut] = []
     for ing in ingredients:
         row = IngredientOut.model_validate(ing)
@@ -260,6 +302,12 @@ async def list_ingredients(
         lca = checked_map.get(ing.id)
         row.last_checked_at = lca
         row.is_stale = bool(lca is not None and lca < stale_cutoff)
+        best = best_by_ing.get(ing.id)
+        if best:
+            img_url, price, fqty, funit, code = best
+            row.primary_image_url = img_url
+            row.primary_store_code = code
+            row.computed_price_per_kg = _ppk(price, fqty, funit)
         out.append(row)
     return out
 

@@ -186,6 +186,9 @@ export interface IngredientMaster {
   children_count?: number;
   is_stale?: boolean;
   last_checked_at?: string | null;
+  primary_image_url?: string | null;
+  primary_store_code?: string | null;
+  computed_price_per_kg?: number | null;
 }
 
 export interface ReceiptItem {

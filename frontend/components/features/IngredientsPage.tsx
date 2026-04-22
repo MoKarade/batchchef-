@@ -253,7 +253,16 @@ function IngredientCard({
   return (
     <div className="rounded-xl border bg-card p-4 space-y-3">
       <div className="flex items-start gap-3">
-        <div className="text-4xl leading-none shrink-0">{categoryEmoji(ing.category)}</div>
+        {ing.primary_image_url ? (
+          <div className="shrink-0 h-14 w-14 rounded-md overflow-hidden bg-white border" title={`${ing.primary_store_code ?? ""} — ${ing.display_name_fr}`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={ing.primary_image_url} alt={ing.display_name_fr} className="h-full w-full object-contain" loading="lazy" />
+          </div>
+        ) : (
+          <div className="shrink-0 h-14 w-14 rounded-md bg-muted/40 border inline-flex items-center justify-center text-2xl leading-none">
+            {categoryEmoji(ing.category)}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           {editing ? (
             <input
@@ -290,7 +299,9 @@ function IngredientCard({
           )}
         </div>
         <div>
-          <p className="text-muted-foreground">Prix estimé / kg</p>
+          <p className="text-muted-foreground">
+            Prix / kg{ing.computed_price_per_kg != null ? ` (${ing.primary_store_code ?? ""})` : ""}
+          </p>
           {editing ? (
             <input
               type="number"
@@ -300,7 +311,9 @@ function IngredientCard({
               className="h-7 w-full rounded-md border bg-background px-2 text-xs mt-0.5"
             />
           ) : (
-            <p className="font-medium">{formatPrice(ing.estimated_price_per_kg)}</p>
+            <p className="font-medium">
+              {formatPrice(ing.computed_price_per_kg ?? ing.estimated_price_per_kg)}
+            </p>
           )}
         </div>
       </div>
