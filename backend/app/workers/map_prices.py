@@ -259,7 +259,15 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
                             if product.price is not None:
                                 db.add(PriceHistory(store_product_id=product.id, price=product.price))
 
-                            ing_db.price_mapping_status = "mapped"
+                            # Only mark "mapped" when the product is complete:
+                            # it MUST have a real thumbnail so the ingredient UI
+                            # shows a meaningful picture. Otherwise keep it
+                            # pending so the next run will retry.
+                            if product.image_url:
+                                ing_db.price_mapping_status = "mapped"
+                            else:
+                                ing_db.price_mapping_status = "pending"
+                                errors.append(f"{code}:{ing.canonical_name}: missing_image")
                             ing_db.last_price_mapping_at = utcnow()
                             ing_db.price_map_attempts = (ing_db.price_map_attempts or 0) + 1
                             await _maybe_update_display_name(ing_db, result_dict.get("product_name", ""))
