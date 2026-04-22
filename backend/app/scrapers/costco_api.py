@@ -244,6 +244,9 @@ def _format(item: dict, fallback_name: str = "") -> tuple[float, str]:
 
 
 def _image(item: dict) -> str | None:
+    """First-pass heuristic only. The real image comes from the product page
+    via `_fetch_product_image()` (browser-authenticated) because the GraphQL
+    schema doesn't expose an image field."""
     for k in ("imageUrl", "image", "primaryImageURL", "mainImage"):
         v = item.get(k)
         if isinstance(v, str) and v.startswith("http"):
@@ -254,11 +257,47 @@ def _image(item: dict) -> str | None:
             v = a.get("value")
             if isinstance(v, str) and v.startswith("http"):
                 return v
-    # Guess the Costco CDN pattern from itemId
-    item_id = item.get("itemId") or item.get("itemNumber")
-    if item_id:
-        return f"https://images.costcobusinesscentre.ca/ImageDelivery/{item_id}.jpg"
     return None
+
+
+# Cache image URLs per-itemNumber for the process lifetime
+_IMAGE_CACHE: dict[str, str | None] = {}
+
+
+async def _fetch_product_image(page, product_url: str, item_number: str | None) -> str | None:
+    """Hit the Costco product page through the warmed-up browser, extract
+    og:image meta tag. Single-page fetch, ~2-5 s. Cached per-itemNumber."""
+    if item_number and item_number in _IMAGE_CACHE:
+        return _IMAGE_CACHE[item_number]
+    if not product_url:
+        return None
+    try:
+        # Use browser's fetch() so Akamai cookies are attached automatically.
+        html = await page.evaluate(
+            """async (url) => {
+                try {
+                    const r = await fetch(url, {credentials: 'include'});
+                    if (!r.ok) return null;
+                    return await r.text();
+                } catch { return null; }
+            }""",
+            product_url,
+        )
+        if not html:
+            return None
+        # og:image is the canonical product thumbnail
+        m = re.search(r'<meta\s+property="og:image"\s+content="([^"]+)"', html, re.I)
+        if not m:
+            m = re.search(r'<meta\s+name="og:image"\s+content="([^"]+)"', html, re.I)
+        img_url = m.group(1) if m else None
+        if img_url and not img_url.startswith("http"):
+            img_url = f"https://www.costco.ca{img_url}" if img_url.startswith("/") else None
+        if item_number:
+            _IMAGE_CACHE[item_number] = img_url
+        return img_url
+    except Exception as e:
+        logger.debug(f"costco image fetch: {e}")
+        return None
 
 
 def _url(item: dict) -> str | None:
@@ -359,19 +398,40 @@ async def search_costco(page, query: str, store_id: str | None = None) -> dict |
 
     best = min(relevant, key=lambda c: c["price"])
 
-    # 5) HEAD-verify image, fall back to OFF
-    nutrition = await fetch_nutrition_openfoodfacts(en_query)
-    final_image = best.get("image_url")
-    if final_image:
+    # 5) Image resolution cascade:
+    #    a. image from GraphQL (rarely present)
+    #    b. OpenFoodFacts with the Costco product name (more specific match)
+    #    c. OpenFoodFacts with the original query (broader fallback)
+    # Note: Costco product pages are Akamai-gated + SPA-rendered; scraping
+    #       og:image from them is unreliable. OFF covers ~70% of packaged
+    #       goods in Costco's catalogue (Kirkland Signature etc.).
+    async def _verify(u: str) -> bool:
         try:
             async with httpx.AsyncClient(timeout=4.0) as c:
-                r = await c.head(final_image, follow_redirects=True)
-                if r.status_code != 200 or not r.headers.get("content-type", "").startswith("image/"):
-                    final_image = None
+                r = await c.head(u, follow_redirects=True)
+                return r.status_code == 200 and r.headers.get("content-type", "").startswith("image/")
         except Exception:
-            final_image = None
+            return False
+
+    final_image = best.get("image_url")
+    if final_image and not await _verify(final_image):
+        final_image = None
+
+    # Try OFF with the product name first (most specific)
     if not final_image:
-        final_image = nutrition.pop("off_image_url", None)
+        # Strip format suffix for a cleaner OFF query: "Kraft Smooth Peanut Butter, 2 kg" → "Kraft Smooth Peanut Butter"
+        clean_name = re.sub(r",\s*\d+[.,]?\d*\s*(kg|g|ml|l|oz|lb)\b.*$", "", best["name"], flags=re.I).strip()
+        off_name = await fetch_nutrition_openfoodfacts(clean_name[:60])
+        cand = off_name.get("off_image_url")
+        if cand and await _verify(cand):
+            final_image = cand
+
+    # Final fallback: OFF with canonical ingredient query
+    nutrition = await fetch_nutrition_openfoodfacts(en_query)
+    if not final_image:
+        cand2 = nutrition.pop("off_image_url", None)
+        if cand2 and await _verify(cand2):
+            final_image = cand2
     else:
         nutrition.pop("off_image_url", None)
 
