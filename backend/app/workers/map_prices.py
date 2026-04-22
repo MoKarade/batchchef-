@@ -74,7 +74,21 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
     from app.models.ingredient import IngredientMaster
     from app.models.store import Store, StoreProduct, PriceHistory
     from app.scrapers.maxi import search_maxi
-    from app.scrapers.costco import search_costco
+    # Prefer the sitemap+GraphQL Costco path; fall back to the DOM scraper
+    # if the API returns nothing or throws.
+    from app.scrapers.costco_api import search_costco as search_costco_api
+    from app.scrapers.costco import search_costco as search_costco_dom
+
+    async def search_costco(page, query: str, store_id: str | None = None):
+        try:
+            r = await search_costco_api(page, query, store_id)
+            if r:
+                return r
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"costco_api fallback: {e}")
+        return await search_costco_dom(page, query, store_id)
+
     from app.ai.classifier import validate_store_matches
     from app.websocket.manager import manager
     from app.utils.time import utcnow
