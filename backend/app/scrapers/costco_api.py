@@ -435,6 +435,16 @@ async def search_costco(page, query: str, store_id: str | None = None) -> dict |
     else:
         nutrition.pop("off_image_url", None)
 
+    # Last resort: DuckDuckGo image search with the product name. Gets us
+    # ~95-100 % coverage since DDG scrapes Amazon / Walmart / retailer
+    # catalogues that have the same packaging.
+    if not final_image:
+        from app.scrapers._image_search import find_product_image
+        ddg_query = f"{best['name']} costco" if "costco" not in best["name"].lower() else best["name"]
+        ddg_img = await find_product_image(ddg_query[:80])
+        if ddg_img:
+            final_image = ddg_img
+
     logger.info(
         f"Costco-API OK '{query}' → {best['name'][:60]} | ${best['price']} "
         f"({best['format_qty']} {best['format_unit']})"

@@ -202,6 +202,13 @@ async def search_maxi(page, query: str, store_id: str = "8676") -> dict | None:
                 if await _verify_image(off, _c):
                     image_url = off
 
+    # Last-resort: DuckDuckGo image search by product name for near-100%
+    # coverage when CDN + OFF both fail.
+    if not image_url:
+        from app.scrapers._image_search import find_product_image
+        ddg_q = f"{best['name']} maxi loblaws" if best.get("name") else query
+        image_url = await find_product_image(ddg_q[:80])
+
     # Drop the scraper-internal OFF image field so it doesn't leak into the result
     nutrition.pop("off_image_url", None)
 
