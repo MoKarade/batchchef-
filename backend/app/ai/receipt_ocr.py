@@ -1,18 +1,13 @@
-"""
-OCR a receipt image via Gemini 2.0 Flash Vision.
-Returns structured list of items.
-"""
-import json
+"""OCR a receipt image via Claude Vision."""
+import asyncio
 import logging
 from pathlib import Path
-from google import genai
-from google.genai import types
-from app.ai.client import get_client
-from app.config import settings
+from app.ai.client import call_claude_vision
+from app.ai.utils import parse_json_response
 
 logger = logging.getLogger(__name__)
 
-OCR_PROMPT = """Analyse ce ticket de caisse. Extrais chaque article acheté et réponds UNIQUEMENT 
+OCR_SYSTEM = """Analyse ce ticket de caisse. Extrais chaque article acheté et réponds UNIQUEMENT
 avec un JSON array valide (sans markdown):
 [
   {
@@ -28,31 +23,31 @@ Si une valeur est inconnue, mets null. Ignore les lignes non alimentaires (taxes
 
 
 async def ocr_receipt(image_path: str) -> list[dict]:
-    client = get_client()
     path = Path(image_path)
     if not path.exists():
         raise FileNotFoundError(f"Receipt image not found: {image_path}")
 
-    # Upload image
-    with open(path, "rb") as f:
-        image_bytes = f.read()
-
+    image_bytes = path.read_bytes()
     suffix = path.suffix.lower().lstrip(".")
     mime_type = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}.get(suffix, "image/jpeg")
 
-    try:
-        response = client.models.generate_content(
-            model=settings.GEMINI_MODEL,
-            contents=[
-                types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-                OCR_PROMPT,
-            ],
-        )
-        text = response.text.strip()
-        if text.startswith("```"):
-            lines = text.split("\n")
-            text = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
-        return json.loads(text)
-    except Exception as e:
-        logger.error(f"OCR failed for {image_path}: {e}")
-        return []
+    for attempt in range(3):
+        try:
+            text = await call_claude_vision(
+                OCR_SYSTEM,
+                "Extrait les articles de ce ticket.",
+                image_bytes,
+                mime_type,
+            )
+            result = parse_json_response(text)
+            if isinstance(result, list):
+                return result
+            raise ValueError("Expected a JSON array")
+        except Exception as e:
+            if attempt < 2:
+                wait = 5 * (2 ** attempt)
+                logger.warning(f"OCR attempt {attempt + 1}/3 for '{image_path}' failed ({e}), retrying in {wait}s")
+                await asyncio.sleep(wait)
+            else:
+                logger.error(f"OCR failed after 3 attempts for {image_path}: {e}")
+    return []

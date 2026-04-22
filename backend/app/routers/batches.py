@@ -5,8 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models.batch import Batch, BatchRecipe, ShoppingListItem
-from app.schemas.batch import BatchOut, BatchGenerateRequest
-from app.services.batch_generator import generate_batch
+from app.schemas.batch import BatchOut, BatchGenerateRequest, BatchPreviewOut, BatchAcceptRequest
+from app.services.batch_generator import generate_batch, compute_batch_preview, persist_batch_from_slots
 from app.services.inventory_manager import settle_shopping_item
 
 router = APIRouter(prefix="/api/batches", tags=["batches"])
@@ -31,6 +31,64 @@ async def generate(body: BatchGenerateRequest, db: AsyncSession = Depends(get_db
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return batch
+
+
+@router.post("/preview", response_model=BatchPreviewOut)
+async def preview(body: BatchGenerateRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        return await compute_batch_preview(
+            db,
+            target_portions=body.target_portions,
+            exclude_ids=body.exclude_recipe_ids or [],
+            num_recipes=body.num_recipes,
+            meal_type_sequence=body.meal_type_sequence,
+            vegetarian_only=body.vegetarian_only,
+            vegan_only=body.vegan_only,
+            max_cost_per_portion=body.max_cost_per_portion,
+            prep_time_max_min=body.prep_time_max_min,
+            health_score_min=body.health_score_min,
+            include_recipe_ids=body.include_recipe_ids,
+            preferred_stores=body.preferred_stores,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/accept", response_model=BatchOut, status_code=201)
+async def accept(body: BatchAcceptRequest, db: AsyncSession = Depends(get_db)):
+    from app.services.batch_generator import preview_for_recipes
+    from app.models.recipe import Recipe
+    from sqlalchemy.orm import selectinload
+    from app.models.recipe import RecipeIngredient
+
+    # Gate: verify price coverage before persisting
+    recipe_ids = [r.recipe_id for r in body.recipes]
+    load_opts = selectinload(Recipe.ingredients).selectinload(RecipeIngredient.ingredient)
+    q = select(Recipe).options(load_opts).where(Recipe.id.in_(recipe_ids))
+    recipes = list((await db.execute(q)).scalars().all())
+    slots = [(r.recipe_id, r.portions) for r in body.recipes]
+    preview = await preview_for_recipes(db, body.target_portions, recipes)
+    if preview.get("price_coverage", 1.0) < 1.0:
+        missing = preview.get("unpriced_ingredients", [])
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "INCOMPLETE_PRICING",
+                "message": "Certains ingrédients n'ont pas de prix Maxi/Costco.",
+                "unpriced_ingredients": missing,
+                "price_coverage": preview["price_coverage"],
+            },
+        )
+
+    try:
+        return await persist_batch_from_slots(
+            db,
+            target_portions=body.target_portions,
+            slots=slots,
+            name=body.name,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("", response_model=list[BatchOut])

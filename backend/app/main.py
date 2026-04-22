@@ -6,7 +6,7 @@ from pathlib import Path
 
 from app.config import settings
 from app.database import init_db
-from app.routers import recipes, imports, batches, inventory, receipts, stores, ws, ingredients, auth
+from app.routers import recipes, imports, batches, inventory, receipts, stores, ws, ingredients, auth, admin
 
 
 @asynccontextmanager
@@ -39,6 +39,7 @@ app.include_router(inventory.router)
 app.include_router(receipts.router)
 app.include_router(stores.router)
 app.include_router(ingredients.router)
+app.include_router(admin.router)
 app.include_router(auth.router)
 app.include_router(ws.router)
 
@@ -102,4 +103,8 @@ async def _seed_stores():
             exists = (await db.execute(select(Store).where(Store.code == s["code"]))).scalar_one_or_none()
             if not exists:
                 db.add(Store(**s))
+            else:
+                # Update mutable fields so .env changes take effect on restart
+                exists.store_location_id = s["store_location_id"]
+                exists.website_url = s.get("website_url")
         await db.commit()

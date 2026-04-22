@@ -1,6 +1,7 @@
 import json
 import re
 from datetime import datetime
+from app.utils.time import utcnow
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, or_, func, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +27,7 @@ class IngredientOut(BaseModel):
     category: str | None = None
     subcategory: str | None = None
     is_produce: bool = False
+    is_taxable: bool = False
     default_unit: str | None = None
     estimated_price_per_kg: float | None = None
     parent_id: int | None = None
@@ -39,12 +41,15 @@ class IngredientOut(BaseModel):
     usage_count: int = 0
     store_product_count: int = 0
     children_count: int = 0
+    is_stale: bool = False
+    last_checked_at: datetime | None = None
 
 
 class IngredientUpdate(BaseModel):
     display_name_fr: str | None = None
     category: str | None = None
     subcategory: str | None = None
+    is_taxable: bool | None = None
     default_unit: str | None = None
     estimated_price_per_kg: float | None = None
     parent_id: int | None = None
@@ -95,12 +100,57 @@ async def count_ingredients(
     category: str | None = Query(None),
     price_mapping_status: str | None = Query(None),
     parent_id: str | None = Query(None, description="int, 'null' for top-level, omit for all"),
+    freshness: str | None = Query(None, description="fresh|stale|missing"),
     db: AsyncSession = Depends(get_db),
 ):
+    from datetime import timedelta
+    from app.config import settings
+
+    stale_cutoff = utcnow() - timedelta(days=settings.PRICE_STALE_DAYS)
+
     q = _apply_ingredient_filters(
         select(func.count(IngredientMaster.id)),
         search, category, price_mapping_status, _parse_parent_id(parent_id),
     )
+
+    if freshness == "missing":
+        priced_ids_sub = (
+            select(StoreProduct.ingredient_master_id)
+            .where(StoreProduct.is_validated.is_(True), StoreProduct.price.isnot(None))
+            .scalar_subquery()
+        )
+        q = q.where(IngredientMaster.id.not_in(priced_ids_sub))
+    elif freshness == "fresh":
+        fresh_ids_sub = (
+            select(StoreProduct.ingredient_master_id)
+            .where(
+                StoreProduct.is_validated.is_(True),
+                StoreProduct.price.isnot(None),
+                StoreProduct.last_checked_at >= stale_cutoff,
+            )
+            .scalar_subquery()
+        )
+        q = q.where(IngredientMaster.id.in_(fresh_ids_sub))
+    elif freshness == "stale":
+        priced_ids_sub = (
+            select(StoreProduct.ingredient_master_id)
+            .where(StoreProduct.is_validated.is_(True), StoreProduct.price.isnot(None))
+            .scalar_subquery()
+        )
+        fresh_ids_sub = (
+            select(StoreProduct.ingredient_master_id)
+            .where(
+                StoreProduct.is_validated.is_(True),
+                StoreProduct.price.isnot(None),
+                StoreProduct.last_checked_at >= stale_cutoff,
+            )
+            .scalar_subquery()
+        )
+        q = q.where(
+            IngredientMaster.id.in_(priced_ids_sub),
+            IngredientMaster.id.not_in(fresh_ids_sub),
+        )
+
     total = (await db.execute(q)).scalar() or 0
     return int(total)
 
@@ -111,14 +161,60 @@ async def list_ingredients(
     category: str | None = Query(None),
     price_mapping_status: str | None = Query(None, description="pending|mapped|failed"),
     parent_id: str | None = Query(None, description="int, 'null' for top-level, omit for all"),
+    freshness: str | None = Query(None, description="fresh|stale|missing"),
     limit: int = Query(50, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
+    from datetime import timedelta
+    from app.config import settings
+
+    stale_cutoff = utcnow() - timedelta(days=settings.PRICE_STALE_DAYS)
+
     q = _apply_ingredient_filters(
         select(IngredientMaster),
         search, category, price_mapping_status, _parse_parent_id(parent_id),
-    ).order_by(IngredientMaster.canonical_name.asc()).limit(limit).offset(offset)
+    )
+
+    if freshness == "missing":
+        priced_ids_sub = (
+            select(StoreProduct.ingredient_master_id)
+            .where(StoreProduct.is_validated.is_(True), StoreProduct.price.isnot(None))
+            .scalar_subquery()
+        )
+        q = q.where(IngredientMaster.id.not_in(priced_ids_sub))
+    elif freshness == "fresh":
+        fresh_ids_sub = (
+            select(StoreProduct.ingredient_master_id)
+            .where(
+                StoreProduct.is_validated.is_(True),
+                StoreProduct.price.isnot(None),
+                StoreProduct.last_checked_at >= stale_cutoff,
+            )
+            .scalar_subquery()
+        )
+        q = q.where(IngredientMaster.id.in_(fresh_ids_sub))
+    elif freshness == "stale":
+        priced_ids_sub = (
+            select(StoreProduct.ingredient_master_id)
+            .where(StoreProduct.is_validated.is_(True), StoreProduct.price.isnot(None))
+            .scalar_subquery()
+        )
+        fresh_ids_sub = (
+            select(StoreProduct.ingredient_master_id)
+            .where(
+                StoreProduct.is_validated.is_(True),
+                StoreProduct.price.isnot(None),
+                StoreProduct.last_checked_at >= stale_cutoff,
+            )
+            .scalar_subquery()
+        )
+        q = q.where(
+            IngredientMaster.id.in_(priced_ids_sub),
+            IngredientMaster.id.not_in(fresh_ids_sub),
+        )
+
+    q = q.order_by(IngredientMaster.canonical_name.asc()).limit(limit).offset(offset)
 
     ingredients = list((await db.execute(q)).scalars().all())
     if not ingredients:
@@ -146,12 +242,24 @@ async def list_ingredients(
     )
     children_counts = dict((await db.execute(children_q)).all())
 
+    # Last checked + staleness per ingredient
+    checked_q = select(
+        StoreProduct.ingredient_master_id,
+        func.max(StoreProduct.last_checked_at).label("last_checked"),
+    ).where(StoreProduct.ingredient_master_id.in_(ids)).group_by(StoreProduct.ingredient_master_id)
+    checked_map: dict[int, datetime] = {
+        r[0]: r[1] for r in (await db.execute(checked_q)).all() if r[1] is not None
+    }
+
     out: list[IngredientOut] = []
     for ing in ingredients:
         row = IngredientOut.model_validate(ing)
         row.usage_count = int(usage.get(ing.id, 0))
         row.store_product_count = int(prods.get(ing.id, 0))
         row.children_count = int(children_counts.get(ing.id, 0))
+        lca = checked_map.get(ing.id)
+        row.last_checked_at = lca
+        row.is_stale = bool(lca is not None and lca < stale_cutoff)
         out.append(row)
     return out
 
@@ -307,6 +415,231 @@ async def repair_prefixes(db: AsyncSession = Depends(get_db)):
 
     await db.commit()
     return RepairResult(scanned=scanned, renamed=renamed, merged=merged, skipped=skipped)
+
+
+class PriceCoverageItem(BaseModel):
+    id: int
+    canonical_name: str
+    display_name_fr: str
+    attempts: int
+    last_checked_at: datetime | None = None
+    is_stale: bool = False
+
+
+class PriceCoverageOut(BaseModel):
+    total: int
+    priced: int
+    fresh: int
+    stale: int
+    missing: int
+    coverage_pct: float
+    fresh_pct: float
+    by_store: dict[str, int]
+    unpriced: list[PriceCoverageItem]
+    stale_list: list[PriceCoverageItem]
+
+
+@router.get("/price-coverage", response_model=PriceCoverageOut)
+async def get_price_coverage(db: AsyncSession = Depends(get_db)):
+    """Returns ingredient price coverage stats and list of unpriced/stale ingredients."""
+    from sqlalchemy import distinct
+    from datetime import timedelta
+    from app.config import settings
+
+    stale_cutoff = utcnow() - timedelta(days=settings.PRICE_STALE_DAYS)
+
+    total = (await db.execute(select(func.count()).select_from(IngredientMaster))).scalar_one()
+
+    # Subquery: ingredients with at least one validated price
+    priced_subq = (
+        select(distinct(StoreProduct.ingredient_master_id))
+        .where(StoreProduct.is_validated.is_(True), StoreProduct.price.isnot(None))
+        .scalar_subquery()
+    )
+    priced = (
+        await db.execute(
+            select(func.count()).select_from(IngredientMaster)
+            .where(IngredientMaster.id.in_(priced_subq))
+        )
+    ).scalar_one()
+
+    # Subquery: ingredients with a fresh (recently checked) price
+    fresh_subq = (
+        select(distinct(StoreProduct.ingredient_master_id))
+        .where(
+            StoreProduct.is_validated.is_(True),
+            StoreProduct.price.isnot(None),
+            StoreProduct.last_checked_at >= stale_cutoff,
+        )
+        .scalar_subquery()
+    )
+    fresh = (
+        await db.execute(
+            select(func.count()).select_from(IngredientMaster)
+            .where(IngredientMaster.id.in_(fresh_subq))
+        )
+    ).scalar_one()
+
+    stale = priced - fresh
+    missing = total - priced
+
+    # Coverage per store
+    stores_q = select(
+        StoreProduct.store_id,
+        func.count(distinct(StoreProduct.ingredient_master_id))
+    ).where(
+        StoreProduct.is_validated.is_(True),
+        StoreProduct.price.isnot(None),
+    ).group_by(StoreProduct.store_id)
+    store_rows = (await db.execute(stores_q)).all()
+
+    from app.models.store import Store
+    store_ids = [r[0] for r in store_rows]
+    stores_by_id: dict[int, Store] = {}
+    if store_ids:
+        for s in (await db.execute(select(Store).where(Store.id.in_(store_ids)))).scalars().all():
+            stores_by_id[s.id] = s
+    by_store = {
+        stores_by_id[sid].code if sid in stores_by_id else str(sid): count
+        for sid, count in store_rows
+    }
+
+    # Unpriced ingredients (top 100 by attempt count)
+    unpriced_q = (
+        select(IngredientMaster)
+        .where(IngredientMaster.id.not_in(priced_subq))
+        .order_by(IngredientMaster.price_map_attempts.desc())
+        .limit(100)
+    )
+    unpriced_ings = list((await db.execute(unpriced_q)).scalars().all())
+
+    # Stale ingredients (priced but not checked recently)
+    stale_q = (
+        select(IngredientMaster)
+        .where(
+            IngredientMaster.id.in_(priced_subq),
+            IngredientMaster.id.not_in(fresh_subq),
+        )
+        .order_by(IngredientMaster.last_price_mapping_at.asc().nullsfirst())
+        .limit(100)
+    )
+    stale_ings = list((await db.execute(stale_q)).scalars().all())
+
+    # Per-ingredient last_checked_at (most recent StoreProduct.last_checked_at)
+    stale_checked_q = select(
+        StoreProduct.ingredient_master_id,
+        func.max(StoreProduct.last_checked_at).label("last_checked"),
+    ).where(StoreProduct.ingredient_master_id.in_([i.id for i in stale_ings])).group_by(
+        StoreProduct.ingredient_master_id
+    )
+    stale_checked = {r[0]: r[1] for r in (await db.execute(stale_checked_q)).all()}
+
+    return PriceCoverageOut(
+        total=total,
+        priced=priced,
+        fresh=fresh,
+        stale=stale,
+        missing=missing,
+        coverage_pct=round(priced / total * 100, 1) if total else 0.0,
+        fresh_pct=round(fresh / total * 100, 1) if total else 0.0,
+        by_store=by_store,
+        stale_list=[
+            PriceCoverageItem(
+                id=i.id,
+                canonical_name=i.canonical_name,
+                display_name_fr=i.display_name_fr,
+                attempts=i.price_map_attempts or 0,
+                last_checked_at=stale_checked.get(i.id),
+                is_stale=True,
+            )
+            for i in stale_ings
+        ],
+        unpriced=[
+            PriceCoverageItem(
+                id=i.id,
+                canonical_name=i.canonical_name,
+                display_name_fr=i.display_name_fr,
+                attempts=i.price_map_attempts or 0,
+            )
+            for i in unpriced_ings
+        ],
+    )
+
+
+@router.post("/retry-missing-prices", status_code=202)
+async def retry_missing_prices():
+    """Manually trigger retry for unpriced ingredients."""
+    from app.workers.retry_missing_prices import run_retry_missing_prices
+    run_retry_missing_prices.delay()
+    return {"status": "queued"}
+
+
+class RefreshPricesRequest(BaseModel):
+    ingredient_ids: list[int] | None = None
+
+
+@router.post("/refresh-prices", response_model=JobOut, status_code=202)
+async def refresh_prices(
+    body: RefreshPricesRequest | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Queue a map-prices job for given ingredients, or all stale/missing ones."""
+    from datetime import timedelta
+    from app.config import settings
+    from sqlalchemy import distinct
+
+    stale_cutoff = utcnow() - timedelta(days=settings.PRICE_STALE_DAYS)
+    ingredient_ids: list[int] = list(body.ingredient_ids or []) if body else []
+
+    if not ingredient_ids:
+        priced_subq = (
+            select(distinct(StoreProduct.ingredient_master_id))
+            .where(StoreProduct.is_validated.is_(True), StoreProduct.price.isnot(None))
+            .scalar_subquery()
+        )
+        fresh_subq = (
+            select(distinct(StoreProduct.ingredient_master_id))
+            .where(
+                StoreProduct.is_validated.is_(True),
+                StoreProduct.price.isnot(None),
+                StoreProduct.last_checked_at >= stale_cutoff,
+            )
+            .scalar_subquery()
+        )
+        ids_q = select(IngredientMaster.id).where(
+            or_(
+                IngredientMaster.id.not_in(priced_subq),
+                IngredientMaster.id.not_in(fresh_subq),
+            )
+        )
+        ingredient_ids = [r[0] for r in (await db.execute(ids_q)).all()]
+
+    job = ImportJob(
+        job_type="prices_map",
+        status="queued",
+        progress_total=len(ingredient_ids),
+        metadata_json=json.dumps({"store_codes": None, "ingredient_ids": ingredient_ids or None}),
+    )
+    db.add(job)
+    await db.flush()
+    await db.refresh(job)
+
+    if ingredient_ids:
+        try:
+            from app.workers.map_prices import run_price_mapping
+            task = run_price_mapping.delay(job.id, None, ingredient_ids)
+            job.celery_task_id = task.id
+            job.status = "running"
+            job.started_at = utcnow()
+        except Exception as e:
+            job.status = "failed"
+            job.error_log = json.dumps([str(e)])
+    else:
+        job.status = "finished"
+
+    await db.commit()
+    await db.refresh(job)
+    return job
 
 
 @router.post("/{ingredient_id}/unmap", response_model=IngredientOut)

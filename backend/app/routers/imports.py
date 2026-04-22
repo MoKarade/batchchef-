@@ -105,3 +105,15 @@ async def cancel_import(job_id: int, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(job)
     return job
+
+
+@router.delete("/{job_id}", status_code=204)
+async def delete_import_job(job_id: int, db: AsyncSession = Depends(get_db)):
+    """Delete a completed/failed/cancelled job record."""
+    job = await db.get(ImportJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status in ("queued", "running"):
+        raise HTTPException(status_code=409, detail="Cannot delete an active job; cancel it first")
+    await db.delete(job)
+    await db.commit()
