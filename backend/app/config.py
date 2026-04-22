@@ -1,4 +1,15 @@
+import os
+from pathlib import Path
+from dotenv import dotenv_values
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Windows sometimes sets system-wide env vars to empty strings, which would
+# silently override .env. Backfill from .env when the OS var is missing/empty.
+_env_file = Path(__file__).resolve().parent.parent / ".env"
+if _env_file.exists():
+    for k, v in dotenv_values(_env_file).items():
+        if v and not os.environ.get(k):
+            os.environ[k] = v
 
 
 class Settings(BaseSettings):
@@ -14,12 +25,14 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = ""
     SECRET_KEY: str = "batchchef-secret-change-in-prod-2026"
+    ADMIN_EMAIL: str = "admin@batchchef.com"
+    ADMIN_PASSWORD: str = ""
     UPLOADS_DIR: str = "../uploads"
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:3001"]
     HOST: str = "0.0.0.0"
 
     PLAYWRIGHT_HEADLESS: bool = True
-    MAXI_STORE_ID: str = "7234"
+    MAXI_STORE_ID: str = "8676"
     MAXI_POSTAL_CODE: str = "G1M 3E5"  # Fleur-de-Lys, Québec
     COSTCO_ENABLED: bool = True
     COSTCO_POSTAL_CODE: str = "G2J 1E3"  # 440 Rue Bouvier, Québec
