@@ -134,13 +134,52 @@ WHERE id IN (SELECT im.id FROM ingredient_master im
 | Classify ingredients (10 cat) | 15 389 in batches of 30 | ~10 s/batch | **~2 hours** |
 | Recompute recipe costs | 10 000+ recipes | in-memory | **<1 min** |
 
-## Backup
+## Backup & auto-snapshot (committed to git)
+
+### Automatic hourly snapshot
+
+V3 ships with a **Windows Task Scheduler** entry that runs
+`scripts/snapshot_db.bat` every hour :
+
+1. Hot-backup `batchchef.db` → `batchchef.seed.db` (safe during concurrent
+   writes — uses SQLite's online `.backup` API)
+2. `git add backend/batchchef.seed.db`
+3. Commits with `"Auto-snapshot: N recipes, M priced"` (fetched from
+   `/api/stats`)
+4. `git push origin HEAD`
+
+Result: `git pull` on another machine always yields a recent snapshot.
+
+### Manage the task
+
+```powershell
+schtasks /Query /TN "BatchChefSnapshot"               # show status
+schtasks /Run   /TN "BatchChefSnapshot"               # run now
+schtasks /Change /TN "BatchChefSnapshot" /RI 30 /DU 9999:59   # every 30 min
+schtasks /Delete /TN "BatchChefSnapshot" /F           # disable auto-snapshot
+```
+
+Re-create it anytime :
+
+```powershell
+schtasks /Create /TN "BatchChefSnapshot" ^
+  /TR "C:\Users\<you>\...\batch-cooking\scripts\snapshot_db.bat" ^
+  /SC HOURLY /MO 1 /F
+```
+
+### Manual one-off snapshot
+
+```bash
+python scripts/snapshot_db.py
+```
+
+Exit codes: `0` ok (pushed or no changes), `1` git error, `2` db error.
+
+### Adhoc SQL backup
 
 ```bash
 sqlite3 backend/batchchef.db ".backup 'backup-$(date +%Y%m%d).db'"
 ```
-
-Run weekly. No automatic backup in V3.
 
 ## Resetting
 
