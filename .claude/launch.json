@@ -10,8 +10,14 @@
     {
       "name": "celery-worker",
       "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "--directory", "C:/Users/dessin14/CascadeProjects/batch-cooking/backend", "celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "--pool=solo"],
+      "runtimeArgs": ["run", "--directory", "C:/Users/dessin14/CascadeProjects/batch-cooking/backend", "celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "--pool=solo", "-n", "worker1@%h"],
       "port": 9100
+    },
+    {
+      "name": "celery-worker-2",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "--directory", "C:/Users/dessin14/CascadeProjects/batch-cooking/backend", "celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "--pool=solo", "-n", "worker2@%h"],
+      "port": 9101
     },
     {
       "name": "frontend",
