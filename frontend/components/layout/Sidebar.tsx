@@ -42,7 +42,7 @@ export function Sidebar() {
           </div>
           <div>
             <p className="font-bold text-base leading-tight tracking-tight">BatchChef</p>
-            <p className="text-[10px] text-muted-foreground leading-tight">v2.0 · IA</p>
+            <p className="text-[10px] text-muted-foreground leading-tight">v3.0 · Pricing</p>
           </div>
         </div>
         <ThemeToggle />
