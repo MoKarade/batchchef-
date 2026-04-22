@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-query";
 import {
   Search, CheckCircle2, AlertTriangle, Clock, Pencil, Check, X, RotateCcw,
-  ChevronRight, Layers, List, ArrowLeft, Sparkles, Wrench,
+  ChevronRight, Layers, List, ArrowLeft, Sparkles, Wrench, TimerOff,
 } from "lucide-react";
 import { ingredientsApi, type IngredientMaster } from "@/lib/api";
 import { formatPrice, categoryEmoji, categoryLabel } from "@/lib/utils";
@@ -20,6 +20,23 @@ const STATUSES = [
   { value: "pending", label: "En attente" },
   { value: "failed", label: "Échec" },
 ] as const;
+
+const FRESHNESS_OPTIONS = [
+  { value: "", label: "Toute fraîcheur" },
+  { value: "fresh", label: "Prix à jour" },
+  { value: "stale", label: "Prix périmés" },
+  { value: "missing", label: "Prix manquants" },
+] as const;
+
+function StaleBadge({ lastCheckedAt }: { lastCheckedAt?: string | null }) {
+  if (!lastCheckedAt) return null;
+  const daysAgo = Math.floor((Date.now() - new Date(lastCheckedAt).getTime()) / 86400000);
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 text-yellow-700 px-2 py-0.5 text-xs">
+      <TimerOff className="h-3 w-3" /> Périmé ({daysAgo}j)
+    </span>
+  );
+}
 
 const PAGE_SIZE = 60;
 
@@ -122,7 +139,10 @@ function IngredientCard({
       </div>
 
       <div className="flex items-center justify-between gap-2 pt-1">
-        <StatusBadge status={ing.price_mapping_status} />
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <StatusBadge status={ing.price_mapping_status} />
+          {ing.is_stale && <StaleBadge lastCheckedAt={ing.last_checked_at} />}
+        </div>
         <div className="text-[11px] text-muted-foreground flex items-center gap-2">
           {ing.usage_count != null && <span>{ing.usage_count} recettes</span>}
           {ing.store_product_count != null && <span>· {ing.store_product_count} prix</span>}
@@ -182,6 +202,7 @@ export function IngredientsPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [status, setStatus] = useState("");
+  const [freshness, setFreshness] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("hierarchy");
   const [crumbs, setCrumbs] = useState<Crumb[]>([]);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -197,7 +218,7 @@ export function IngredientsPage() {
       ? currentParentId
       : "null";
 
-  const filters = { search, category, status, parentFilter };
+  const filters = { search, category, status, freshness, parentFilter };
 
   const drillDown = (ing: IngredientMaster) => {
     setCrumbs((cs) => [...cs, { id: ing.id, label: ing.display_name_fr }]);
@@ -239,6 +260,7 @@ export function IngredientsPage() {
           search: search || undefined,
           category: category || undefined,
           price_mapping_status: status || undefined,
+          freshness: freshness || undefined,
           parent_id: parentFilter,
         })
         .then((r) => r.data),
@@ -259,6 +281,7 @@ export function IngredientsPage() {
           search: search || undefined,
           category: category || undefined,
           price_mapping_status: status || undefined,
+          freshness: (freshness as "fresh" | "stale" | "missing") || undefined,
           parent_id: parentFilter,
           limit: PAGE_SIZE,
           offset: pageParam,
@@ -402,6 +425,15 @@ export function IngredientsPage() {
         >
           {STATUSES.map((s) => (
             <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
+        <select
+          value={freshness}
+          onChange={(e) => setFreshness(e.target.value)}
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+        >
+          {FRESHNESS_OPTIONS.map((f) => (
+            <option key={f.value} value={f.value}>{f.label}</option>
           ))}
         </select>
       </div>

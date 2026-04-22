@@ -22,6 +22,9 @@ from app.models.ingredient import IngredientMaster
 from app.models.inventory import InventoryItem
 from app.services.unit_converter import get_scale_factor
 
+_TPS_RATE = 0.05
+_TVQ_RATE = 0.09975
+
 
 def _split_portions(target_portions: int, n: int) -> list[int]:
     base = target_portions // n
@@ -84,6 +87,7 @@ async def select_recipes(
         select(Recipe)
         .options(load_opts)
         .where(Recipe.status == "ai_done")
+        .where(Recipe.pricing_status == "complete")
     ).order_by((func.coalesce(Recipe.health_score, 0) + func.random() * 3).desc()).limit(50)
     candidates = list((await db.execute(q)).scalars().all())
 
@@ -92,6 +96,7 @@ async def select_recipes(
             select(Recipe)
             .options(load_opts)
             .where(Recipe.status.in_(["scraped", "ai_done"]))
+            .where(Recipe.pricing_status == "complete")
         ).order_by(func.random()).limit(50)
         candidates = list((await db.execute(q2)).scalars().all())
 
@@ -165,8 +170,10 @@ async def _aggregate_needs(recipe_portions: list[tuple[Recipe, int]]) -> dict[in
 
 
 async def _resolve_inventory_and_products(
-    db: AsyncSession, ingredient_ids: list[int]
-) -> tuple[dict[int, list[InventoryItem]], dict[int, StoreProduct]]:
+    db: AsyncSession,
+    ingredient_ids: list[int],
+    preferred_store_codes: list[str] | None = None,
+) -> tuple[dict[int, list[InventoryItem]], dict[int, StoreProduct], dict[str, dict[int, StoreProduct]]]:
     inventory_q = (
         select(InventoryItem)
         .where(InventoryItem.ingredient_master_id.in_(ingredient_ids))
@@ -181,17 +188,54 @@ async def _resolve_inventory_and_products(
         select(StoreProduct)
         .where(
             StoreProduct.ingredient_master_id.in_(ingredient_ids),
-            StoreProduct.is_validated == True,  # noqa: E712
             StoreProduct.price.isnot(None),
         )
-        .order_by(StoreProduct.ingredient_master_id, StoreProduct.price.asc())
+        .order_by(
+            StoreProduct.ingredient_master_id,
+            StoreProduct.is_validated.desc(),
+            StoreProduct.price.asc(),
+        )
     )
     all_products = list((await db.execute(products_q)).scalars().all())
-    best_product: dict[int, StoreProduct] = {}
+
+    # Load store codes for cheapest-per-store grouping
+    store_ids = {p.store_id for p in all_products if p.store_id}
+    store_code_by_id: dict[int, str] = {}
+    if store_ids:
+        from app.models.store import Store as StoreModel
+        store_code_q = select(StoreModel.id, StoreModel.code).where(StoreModel.id.in_(store_ids))
+        for sid, code in (await db.execute(store_code_q)).all():
+            store_code_by_id[sid] = code
+
+    # Group cheapest product per store per ingredient
+    products_by_store: dict[str, dict[int, StoreProduct]] = {}
     for p in all_products:
-        if p.ingredient_master_id not in best_product:
-            best_product[p.ingredient_master_id] = p
-    return inv_by_ingredient, best_product
+        code = store_code_by_id.get(p.store_id or 0, "")
+        if not code:
+            continue
+        products_by_store.setdefault(code, {})
+        if p.ingredient_master_id not in products_by_store[code]:
+            products_by_store[code][p.ingredient_master_id] = p
+
+    # best_product: preferred stores first, then global fallback
+    preferred = set(preferred_store_codes or [])
+    best_product: dict[int, StoreProduct] = {}
+    if preferred:
+        for code, by_ing in products_by_store.items():
+            if code in preferred:
+                for ing_id, p in by_ing.items():
+                    if ing_id not in best_product or (p.price or 0) < (best_product[ing_id].price or 0):
+                        best_product[ing_id] = p
+        # fallback: ingredients missing from preferred stores
+        for p in all_products:
+            if p.ingredient_master_id not in best_product:
+                best_product[p.ingredient_master_id] = p
+    else:
+        for p in all_products:
+            if p.ingredient_master_id not in best_product:
+                best_product[p.ingredient_master_id] = p
+
+    return inv_by_ingredient, best_product, products_by_store
 
 
 def _compute_shopping_row(
@@ -232,6 +276,7 @@ def _compute_shopping_row(
         "packages_to_buy": packages,
         "estimated_cost": estimated_cost,
         "from_inventory_qty": round(from_inv, 3),
+        "product_url": product.product_url if product else None,
     }
 
 
@@ -241,7 +286,7 @@ async def _build_shopping_list(
     recipe_portions: list[tuple[Recipe, int]],
 ) -> list[ShoppingListItem]:
     needs = await _aggregate_needs(recipe_portions)
-    inv_by_ingredient, best_product = await _resolve_inventory_and_products(db, list(needs.keys()))
+    inv_by_ingredient, best_product, _ = await _resolve_inventory_and_products(db, list(needs.keys()))
 
     items: list[ShoppingListItem] = []
     for ingredient_id, unit_map in needs.items():
@@ -262,16 +307,16 @@ async def _build_shopping_list(
 async def _build_shopping_list_preview(
     db: AsyncSession,
     recipe_portions: list[tuple[Recipe, int]],
-) -> list[dict]:
-    """Like _build_shopping_list but returns dicts and does not touch the session.
-    Each row also contains pre-loaded `ingredient` and `store` brief dicts so the
-    response can render without extra round trips.
-    """
+    preferred_store_codes: list[str] | None = None,
+) -> tuple[list[dict], dict[str, float]]:
+    """Like _build_shopping_list but returns (rows, totals_by_mode) without touching the session."""
     needs = await _aggregate_needs(recipe_portions)
     if not needs:
-        return []
+        return [], {}
 
-    inv_by_ingredient, best_product = await _resolve_inventory_and_products(db, list(needs.keys()))
+    inv_by_ingredient, best_product, products_by_store = await _resolve_inventory_and_products(
+        db, list(needs.keys()), preferred_store_codes
+    )
 
     ing_q = select(IngredientMaster).where(IngredientMaster.id.in_(list(needs.keys())))
     ing_by_id = {i.id: i for i in (await db.execute(ing_q)).scalars().all()}
@@ -302,12 +347,29 @@ async def _build_shopping_list_preview(
                 if ing
                 else None
             )
+            row["is_taxable"] = bool(ing.is_taxable) if ing else False
             store = store_by_id.get(row["store_id"]) if row["store_id"] else None
             row["store"] = (
                 {"id": store.id, "code": store.code, "name": store.name} if store else None
             )
             rows.append(row)
-    return rows
+
+    # Compute total cost per store mode
+    totals_by_mode: dict[str, float] = {}
+    for store_code, store_products in products_by_store.items():
+        mode_cost = 0.0
+        for ingredient_id, unit_map in needs.items():
+            for unit, total_needed in unit_map.items():
+                r = _compute_shopping_row(
+                    ingredient_id, unit, total_needed,
+                    inv_by_ingredient.get(ingredient_id, []),
+                    store_products.get(ingredient_id),
+                )
+                mode_cost += r.get("estimated_cost") or 0
+        totals_by_mode[store_code] = round(mode_cost, 2)
+    totals_by_mode["mixte"] = round(sum((r.get("estimated_cost") or 0) for r in rows), 2)
+
+    return rows, totals_by_mode
 
 
 async def compute_batch_preview(
@@ -322,6 +384,7 @@ async def compute_batch_preview(
     prep_time_max_min: int | None = None,
     health_score_min: float | None = None,
     include_recipe_ids: list[int] | None = None,
+    preferred_stores: list[str] | None = None,
 ) -> dict:
     """Return a preview dict without persisting anything to the DB."""
     selected = await select_recipes(
@@ -336,21 +399,40 @@ async def compute_batch_preview(
         health_score_min=health_score_min,
         include_recipe_ids=include_recipe_ids,
     )
-    return await preview_for_recipes(db, target_portions, selected)
+    return await preview_for_recipes(db, target_portions, selected, preferred_store_codes=preferred_stores)
 
 
 async def preview_for_recipes(
     db: AsyncSession,
     target_portions: int,
     selected: list[Recipe],
+    preferred_store_codes: list[str] | None = None,
 ) -> dict:
     """Build a preview dict from a pre-selected recipe list."""
     n = len(selected)
     portions_split = _split_portions(target_portions, n)
     pairs = list(zip(selected, portions_split))
 
-    shopping_rows = await _build_shopping_list_preview(db, pairs)
+    shopping_rows, totals_by_mode = await _build_shopping_list_preview(db, pairs, preferred_store_codes)
     total_cost = sum((row.get("estimated_cost") or 0) for row in shopping_rows)
+
+    # Price coverage: % of ingredients with a known price
+    priced = sum(1 for row in shopping_rows if row.get("estimated_cost") is not None)
+    total_rows = len(shopping_rows)
+    price_coverage = round(priced / total_rows, 4) if total_rows > 0 else 1.0
+
+    unpriced_ingredients: list[str] = []
+    for row in shopping_rows:
+        if row.get("estimated_cost") is None and row.get("ingredient"):
+            name = row["ingredient"].get("display_name_fr") or row["ingredient"].get("canonical_name", "")
+            if name and name not in unpriced_ingredients:
+                unpriced_ingredients.append(name)
+
+    # Quebec taxes on taxable items
+    taxable_cost = sum((r.get("estimated_cost") or 0) for r in shopping_rows if r.get("is_taxable"))
+    taxes_tps = round(taxable_cost * _TPS_RATE, 2)
+    taxes_tvq = round(taxable_cost * _TVQ_RATE, 2)
+    total_with_taxes = round(total_cost + taxes_tps + taxes_tvq, 2)
 
     recipes_out = [
         {
@@ -370,8 +452,14 @@ async def preview_for_recipes(
         "target_portions": target_portions,
         "total_portions": sum(portions_split),
         "total_estimated_cost": round(total_cost, 2),
+        "taxes_tps": taxes_tps,
+        "taxes_tvq": taxes_tvq,
+        "total_with_taxes": total_with_taxes,
+        "price_coverage": price_coverage,
+        "unpriced_ingredients": unpriced_ingredients,
         "recipes": recipes_out,
         "shopping_items": shopping_rows,
+        "totals_by_mode": totals_by_mode,
     }
 
 

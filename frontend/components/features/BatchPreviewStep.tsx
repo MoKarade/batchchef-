@@ -3,9 +3,10 @@
 import { useState, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, Eye, Loader2, ShoppingCart, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Eye, ExternalLink, Loader2, ShoppingCart, Users } from "lucide-react";
 import { batchesApi, type BatchPreview } from "@/lib/api";
 import { formatPrice, healthColor, mealTypeLabel, categoryEmoji } from "@/lib/utils";
+import { useRefreshOnMount } from "@/lib/useRefreshOnMount";
 import { RecipeModal } from "./RecipeModal";
 
 interface Props {
@@ -18,6 +19,12 @@ export function BatchPreviewStep({ preview, onBack }: Props) {
   const router = useRouter();
   const qc = useQueryClient();
 
+  const staleIngredientIds = useMemo(
+    () => preview.shopping_items.map((it) => it.ingredient_master_id),
+    [preview.shopping_items],
+  );
+  useRefreshOnMount(staleIngredientIds);
+
   const itemsByStore = useMemo(() => {
     const groups: Record<string, typeof preview.shopping_items> = {};
     for (const it of preview.shopping_items) {
@@ -27,6 +34,8 @@ export function BatchPreviewStep({ preview, onBack }: Props) {
     }
     return groups;
   }, [preview.shopping_items]);
+
+  const hasMissingPrices = (preview.price_coverage ?? 1) < 1.0;
 
   const acceptMut = useMutation({
     mutationFn: () =>
@@ -63,10 +72,60 @@ export function BatchPreviewStep({ preview, onBack }: Props) {
           <p className="text-xl font-bold">{preview.recipes.length}</p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">Coût estimé</p>
+          <p className="text-xs text-muted-foreground">
+            {(preview.taxes_tps ?? 0) > 0 ? "Coût avant taxes" : "Coût estimé"}
+          </p>
           <p className="text-xl font-bold">{formatPrice(preview.total_estimated_cost)}</p>
         </div>
       </div>
+
+      {(preview.taxes_tps ?? 0) > 0 && (
+        <div className="rounded-xl border bg-card p-4 space-y-1 text-sm">
+          <div className="flex justify-between text-muted-foreground">
+            <span>Sous-total</span>
+            <span>{formatPrice(preview.total_estimated_cost)}</span>
+          </div>
+          <div className="flex justify-between text-muted-foreground">
+            <span>TPS (5 %)</span>
+            <span>{formatPrice(preview.taxes_tps)}</span>
+          </div>
+          <div className="flex justify-between text-muted-foreground">
+            <span>TVQ (9,975 %)</span>
+            <span>{formatPrice(preview.taxes_tvq)}</span>
+          </div>
+          <div className="flex justify-between font-semibold border-t pt-1 mt-1">
+            <span>Total avec taxes</span>
+            <span>{formatPrice(preview.total_with_taxes)}</span>
+          </div>
+        </div>
+      )}
+
+      {Object.keys(preview.totals_by_mode ?? {}).length > 1 && (
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+            Comparaison par magasin
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(preview.totals_by_mode)
+              .sort(([a], [b]) => a === "mixte" ? -1 : b === "mixte" ? 1 : a.localeCompare(b))
+              .map(([code, total]) => {
+                const label = code === "mixte" ? "Meilleur prix" : code.replace(/_\d+$/, "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                const isBest = code === "mixte" || total === preview.totals_by_mode["mixte"];
+                return (
+                  <div
+                    key={code}
+                    className={`flex-1 min-w-[100px] rounded-lg border p-2.5 text-center ${isBest ? "border-green-500 bg-green-50 dark:bg-green-950/20" : ""}`}
+                  >
+                    <p className="text-[11px] text-muted-foreground">{label}</p>
+                    <p className={`text-sm font-bold ${isBest ? "text-green-700 dark:text-green-400" : ""}`}>
+                      {formatPrice(total)}
+                    </p>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-2">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -134,9 +193,22 @@ export function BatchPreviewStep({ preview, onBack }: Props) {
                         {it.format_qty && ` · ${it.packages_to_buy}× ${it.format_qty} ${it.format_unit ?? it.unit}`}
                       </p>
                     </div>
-                    <span className="text-sm font-semibold tabular-nums shrink-0">
-                      {formatPrice(it.estimated_cost)}
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {it.product_url && (
+                        <a
+                          href={it.product_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-muted-foreground hover:text-primary"
+                          title="Voir le produit"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                      <span className="text-sm font-semibold tabular-nums">
+                        {formatPrice(it.estimated_cost)}
+                      </span>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -145,11 +217,40 @@ export function BatchPreviewStep({ preview, onBack }: Props) {
         )}
       </div>
 
+      {hasMissingPrices && (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 space-y-1">
+          <p className="text-sm font-semibold text-destructive flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            Prix manquants ({Math.round((preview.price_coverage ?? 0) * 100)}% couverture)
+          </p>
+          <p className="text-xs text-destructive/80">
+            Ces ingrédients n&apos;ont pas de correspondance Maxi/Costco — le batch ne peut pas être accepté :
+          </p>
+          <ul className="text-xs text-destructive/90 list-disc list-inside">
+            {(preview.unpriced_ingredients ?? []).map((name) => (
+              <li key={name}>{name}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {acceptMut.isError && (
-        <p className="text-sm text-destructive">
-          {(acceptMut.error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-            ?? "Erreur lors de la création du batch."}
-        </p>
+        <div className="text-sm text-destructive space-y-1">
+          {(() => {
+            const detail = (acceptMut.error as { response?: { data?: { detail?: { message?: string; unpriced_ingredients?: string[] } | string } } })?.response?.data?.detail;
+            if (detail && typeof detail === "object" && detail.unpriced_ingredients) {
+              return (
+                <>
+                  <p className="font-semibold">{detail.message}</p>
+                  <ul className="list-disc list-inside text-xs">
+                    {detail.unpriced_ingredients.map((n) => <li key={n}>{n}</li>)}
+                  </ul>
+                </>
+              );
+            }
+            return <p>{typeof detail === "string" ? detail : "Erreur lors de la création du batch."}</p>;
+          })()}
+        </div>
       )}
 
       <div className="flex gap-3 sticky bottom-4">
@@ -161,7 +262,7 @@ export function BatchPreviewStep({ preview, onBack }: Props) {
         </button>
         <button
           onClick={() => acceptMut.mutate()}
-          disabled={acceptMut.isPending}
+          disabled={acceptMut.isPending || hasMissingPrices}
           className="flex-[2] h-11 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 inline-flex items-center justify-center gap-2"
         >
           {acceptMut.isPending ? (

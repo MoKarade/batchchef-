@@ -15,6 +15,7 @@ class ShoppingItemOut(BaseModel):
     packages_to_buy: int = 1
     estimated_cost: float | None = None
     from_inventory_qty: float = 0.0
+    product_url: str | None = None
     is_purchased: bool = False
     purchased_at: datetime | None = None
     ingredient: IngredientBrief | None = None
@@ -67,6 +68,7 @@ class BatchGenerateRequest(BaseModel):
     health_score_min: float | None = None
     include_recipe_ids: list[int] | None = None
     exclude_recipe_ids: list[int] | None = None
+    preferred_stores: list[str] | None = None
 
 
 class RecipePreview(BaseModel):
@@ -90,6 +92,7 @@ class ShoppingItemPreview(BaseModel):
     packages_to_buy: int = 1
     estimated_cost: float | None = None
     from_inventory_qty: float = 0.0
+    product_url: str | None = None
     ingredient: IngredientBrief | None = None
     store: StoreBrief | None = None
 
@@ -98,8 +101,14 @@ class BatchPreviewOut(BaseModel):
     target_portions: int
     total_portions: int
     total_estimated_cost: float
+    taxes_tps: float = 0.0
+    taxes_tvq: float = 0.0
+    total_with_taxes: float = 0.0
+    price_coverage: float = 1.0
+    unpriced_ingredients: list[str] = []
     recipes: list[RecipePreview]
     shopping_items: list[ShoppingItemPreview]
+    totals_by_mode: dict[str, float] = {}
 
 
 class RecipeSlot(BaseModel):

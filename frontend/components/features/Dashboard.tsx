@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { statsApi } from "@/lib/api";
-import { BookOpen, ChefHat, Package, Tag, ArrowRight } from "lucide-react";
+import { statsApi, ingredientsApi } from "@/lib/api";
+import { BookOpen, ChefHat, Package, Tag, ArrowRight, CheckCircle2, AlertTriangle, TimerOff } from "lucide-react";
 import Link from "next/link";
 
 export function Dashboard() {
@@ -10,6 +10,12 @@ export function Dashboard() {
     queryKey: ["stats"],
     queryFn: () => statsApi.get().then((r) => r.data),
     refetchInterval: 30_000,
+  });
+
+  const { data: coverage } = useQuery({
+    queryKey: ["price-coverage"],
+    queryFn: () => ingredientsApi.priceCoverage().then((r) => r.data),
+    staleTime: 60_000,
   });
 
   const statCards = [
@@ -63,6 +69,38 @@ export function Dashboard() {
           </Link>
         ))}
       </div>
+
+      {/* Price coverage card */}
+      {coverage && (
+        <Link href="/ingredients">
+          <div className="rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+            <div className="flex items-center justify-between mb-3">
+              <p className="font-semibold">Couverture des prix</p>
+              <span className="text-sm font-bold text-primary">
+                {coverage.fresh_pct.toFixed(0)} % à jour
+              </span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-green-500 transition-all"
+                style={{ width: `${coverage.fresh_pct}%` }}
+              />
+            </div>
+            <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+              <span className="inline-flex items-center gap-1 text-green-700">
+                <CheckCircle2 className="h-3 w-3" /> {coverage.fresh} à jour
+              </span>
+              <span className="inline-flex items-center gap-1 text-yellow-700">
+                <TimerOff className="h-3 w-3" /> {coverage.stale} périmés
+              </span>
+              <span className="inline-flex items-center gap-1 text-red-700">
+                <AlertTriangle className="h-3 w-3" /> {coverage.missing} manquants
+              </span>
+              <span className="ml-auto">{coverage.priced}/{coverage.total} avec prix</span>
+            </div>
+          </div>
+        </Link>
+      )}
 
       {/* Quick actions */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

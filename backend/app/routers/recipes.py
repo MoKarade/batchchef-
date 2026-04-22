@@ -109,6 +109,16 @@ async def classify_pending_recipes(
     return job
 
 
+@router.post("/recompute-costs")
+async def recompute_costs(
+    recipe_ids: list[int] | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Recompute estimated_cost_per_portion for all (or given) recipes from current prices."""
+    from app.services.recipe_pricing import recompute_recipe_costs
+    return await recompute_recipe_costs(db, recipe_ids)
+
+
 @router.patch("/{recipe_id}/ingredients/{ri_id}")
 async def update_recipe_ingredient(
     recipe_id: int,

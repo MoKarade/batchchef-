@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { batchesApi, type ShoppingItem } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
-import { ArrowLeft, ShoppingCart, Loader2, Package, Check, Trash2, Boxes } from "lucide-react";
+import { ArrowLeft, ShoppingCart, Loader2, Package, Check, Trash2, Boxes, ExternalLink } from "lucide-react";
 import Link from "next/link";
 
 function ShoppingRow({
@@ -81,6 +81,16 @@ function ShoppingRow({
         )}
         {item.estimated_cost != null && (
           <p className="text-xs text-muted-foreground">{formatPrice(item.estimated_cost)}</p>
+        )}
+        {item.product_url && (
+          <a
+            href={item.product_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] text-primary hover:underline inline-flex items-center gap-0.5"
+          >
+            Voir le produit <ExternalLink className="h-2.5 w-2.5" />
+          </a>
         )}
         {surplus > 0 && item.format_unit && (
           <p className="text-[11px] text-blue-600 flex items-center gap-1 justify-end mt-0.5">

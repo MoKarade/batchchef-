@@ -112,6 +112,7 @@ export interface ShoppingItem {
   from_inventory_qty: number;
   is_purchased: boolean;
   purchased_at?: string;
+  product_url?: string;
   ingredient?: { id: number; canonical_name: string; display_name_fr: string };
   store?: { id: number; code: string; name: string };
 }
@@ -184,6 +185,8 @@ export interface IngredientMaster {
   usage_count?: number;
   store_product_count?: number;
   children_count?: number;
+  is_stale?: boolean;
+  last_checked_at?: string | null;
 }
 
 export interface ReceiptItem {
@@ -217,6 +220,8 @@ export const recipesApi = {
   get: (id: number) => api.get<RecipeDetail>(`/api/recipes/${id}`),
   classifyPending: (recipe_ids?: number[]) =>
     api.post<ImportJob>("/api/recipes/classify-pending", recipe_ids ?? null),
+  recomputeCosts: (recipe_ids?: number[]) =>
+    api.post<{ updated: number; missing: number }>("/api/recipes/recompute-costs", recipe_ids ?? null),
   updateIngredient: (recipeId: number, riId: number, data: {
     ingredient_master_id?: number | null;
     quantity_per_portion?: number | null;
@@ -230,6 +235,7 @@ export const importsApi = {
   getJob: (id: number) => api.get<ImportJob>(`/api/imports/${id}`),
   listJobs: () => api.get<ImportJob[]>("/api/imports"),
   cancel: (id: number) => api.post<ImportJob>(`/api/imports/${id}/cancel`),
+  deleteJob: (id: number) => api.delete(`/api/imports/${id}`),
 };
 
 export interface BatchGenerateRequest {
@@ -243,6 +249,7 @@ export interface BatchGenerateRequest {
   health_score_min?: number | null;
   include_recipe_ids?: number[] | null;
   exclude_recipe_ids?: number[] | null;
+  preferred_stores?: string[] | null;
 }
 
 export interface BatchPreviewRecipe {
@@ -266,6 +273,7 @@ export interface ShoppingItemPreview {
   packages_to_buy: number;
   estimated_cost?: number;
   from_inventory_qty: number;
+  product_url?: string;
   ingredient?: { id: number; canonical_name: string; display_name_fr: string };
   store?: { id: number; code: string; name: string };
 }
@@ -274,8 +282,36 @@ export interface BatchPreview {
   target_portions: number;
   total_portions: number;
   total_estimated_cost: number;
+  taxes_tps: number;
+  taxes_tvq: number;
+  total_with_taxes: number;
+  price_coverage: number;
+  unpriced_ingredients: string[];
   recipes: BatchPreviewRecipe[];
   shopping_items: ShoppingItemPreview[];
+  totals_by_mode: Record<string, number>;
+}
+
+export interface PriceCoverageItem {
+  id: number;
+  canonical_name: string;
+  display_name_fr: string;
+  attempts: number;
+  last_checked_at?: string | null;
+  is_stale?: boolean;
+}
+
+export interface PriceCoverageOut {
+  total: number;
+  priced: number;
+  fresh: number;
+  stale: number;
+  missing: number;
+  coverage_pct: number;
+  fresh_pct: number;
+  by_store: Record<string, number>;
+  unpriced: PriceCoverageItem[];
+  stale_list: PriceCoverageItem[];
 }
 
 export interface BatchAcceptRequest {
@@ -338,6 +374,7 @@ export const ingredientsApi = {
     category?: string;
     price_mapping_status?: string;
     parent_id?: string | number;
+    freshness?: "fresh" | "stale" | "missing";
     limit?: number;
     offset?: number;
   }) => api.get<IngredientMaster[]>("/api/ingredients", { params }),
@@ -346,6 +383,7 @@ export const ingredientsApi = {
     category?: string;
     price_mapping_status?: string;
     parent_id?: string | number;
+    freshness?: string;
   }) => api.get<number>("/api/ingredients/count", { params }),
   categories: () => api.get<string[]>("/api/ingredients/categories"),
   update: (id: number, data: Partial<IngredientMaster>) =>
@@ -358,6 +396,16 @@ export const ingredientsApi = {
     api.post<{ scanned: number; renamed: number; merged: number; skipped: number }>(
       "/api/ingredients/repair-prefixes",
     ),
+  priceCoverage: () =>
+    api.get<PriceCoverageOut>("/api/ingredients/price-coverage"),
+  retryMissingPrices: () =>
+    api.post("/api/ingredients/retry-missing-prices"),
+  refreshPrices: (ingredient_ids?: number[]) =>
+    api.post<ImportJob>("/api/ingredients/refresh-prices", { ingredient_ids: ingredient_ids ?? null }),
+};
+
+export const adminApi = {
+  fullBackfill: () => api.post<ImportJob[]>("/api/admin/full-backfill"),
 };
 
 export const receiptsApi = {

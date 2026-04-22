@@ -1,6 +1,5 @@
 """
-Scraper Maxi — extraction DOM après networkidle (Next.js CSR).
-Stratégie : h3[nom produit] + parent.querySelector('[class*=price]')
+Scraper Maxi — extraction DOM via data-testid attributes (Chakra UI / Next.js).
 """
 import logging
 import urllib.parse
@@ -18,11 +17,11 @@ logger = logging.getLogger(__name__)
 async def search_maxi(page, query: str, store_id: str = "8676") -> dict | None:
     """
     Search Maxi for one ingredient. Returns best matching product or None.
-    `page` is a Playwright async Page object already in a browser context.
+    Extracts name, price, package size, brand via data-testid selectors.
     """
     search_url = (
-        f"https://www.maxi.ca/fr/recherche"
-        f"?recherche={urllib.parse.quote(query)}&magasinId={store_id}"
+        f"https://www.maxi.ca/fr/search"
+        f"?search-bar={urllib.parse.quote(query)}&storeId={store_id}"
     )
 
     try:
@@ -33,39 +32,43 @@ async def search_maxi(page, query: str, store_id: str = "8676") -> dict | None:
     await try_accept_cookies(page)
 
     try:
-        await page.wait_for_selector("h3", timeout=8000)
+        await page.wait_for_selector("[data-testid='product-title']", timeout=8000)
     except Exception:
         pass
 
     _js = r"""() => {
         const results = [];
-        const h3s = Array.from(document.querySelectorAll('h3'));
+        const titles = Array.from(document.querySelectorAll('[data-testid="product-title"]')).slice(0, 30);
 
-        for (const h3 of h3s.slice(0, 30)) {
-            const name = h3.innerText.trim();
+        for (const titleEl of titles) {
+            const name = titleEl.innerText.trim();
             if (!name || name.length < 3) continue;
 
-            let container = h3;
-            let priceEl = null;
-            for (let i = 0; i < 6; i++) {
+            // Walk up to find the product tile container
+            let container = titleEl;
+            for (let i = 0; i < 10; i++) {
+                if (!container.parentElement) break;
                 container = container.parentElement;
-                if (!container) break;
-                priceEl = container.querySelector('[class*="price"],[data-testid*="price"],[itemprop="price"]');
-                if (priceEl) break;
+                if (container.querySelector('[data-testid="regular-price"],[data-testid="sale-price"],[data-testid="price-product-tile"]')) break;
             }
 
-            let link = '';
-            if (container) {
-                const a = container.querySelector('a[href]') || h3.closest('a');
-                link = a ? a.href : '';
-            }
+            const priceEl = container.querySelector(
+                '[data-testid="sale-price"], [data-testid="regular-price"]'
+            );
+            const sizeEl = container.querySelector('[data-testid="product-package-size"]');
+            const brandEl = container.querySelector('[data-testid="product-brand"]');
+            const linkEl = container.querySelector('a[href][class*="linkbox"],a[href*="/p/"]');
 
             const rawPrice = priceEl ? priceEl.innerText.trim() : '';
             const m = rawPrice.match(/(\d+[.,]\d{2})/);
             const price = m ? parseFloat(m[1].replace(',', '.')) : null;
 
-            if (name && price && price > 0 && price < 200) {
-                results.push({ name, price, link });
+            const size = sizeEl ? sizeEl.innerText.trim() : '';
+            const brand = brandEl ? brandEl.innerText.trim() : '';
+            const link = linkEl ? linkEl.href : '';
+
+            if (price && price > 0 && price < 200) {
+                results.push({ name, price, link, size, brand });
             }
         }
         return results;
@@ -82,21 +85,31 @@ async def search_maxi(page, query: str, store_id: str = "8676") -> dict | None:
         return None
 
     best = min(relevant, key=lambda p: p["price"])
-    fmt = parse_format(best["name"])
+
+    # Prefer the real size string from DOM (e.g. "2 kg", "500 ml"); fall back to parsing the name
+    size_str = best.get("size") or ""
+    fmt = parse_format(size_str) if size_str else parse_format(best["name"])
+    if fmt["unit"] == "unite" and size_str:
+        fmt = parse_format(best["name"])
 
     if best["price"] > 75:
         logger.warning(f"Maxi: price too high ({best['price']}$) for '{query}'")
         return None
 
     nutrition = await fetch_nutrition_openfoodfacts(query)
-    logger.info(f"Maxi OK '{query}' -> {best['name']} | {best['price']}$ ({fmt['qty']} {fmt['unit']})")
+    logger.info(
+        f"Maxi OK '{query}' -> {best.get('brand','')} {best['name']} | "
+        f"{best['price']}$ ({fmt['qty']} {fmt['unit']} from '{size_str}')"
+    )
 
     return {
         "store": "maxi",
         "product_name": best["name"],
+        "brand": best.get("brand"),
         "price": best["price"],
         "product_url": best.get("link") or search_url,
         "format_qty": fmt["qty"],
         "format_unit": fmt["unit"],
+        "package_size_raw": size_str,
         **nutrition,
     }
