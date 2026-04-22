@@ -17,13 +17,16 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "sqlite+aiosqlite:///./batchchef.db"
     REDIS_URL: str = "redis://localhost:6379/0"
-    ANTHROPIC_API_KEY: str
-    CLAUDE_MODEL: str = "claude-haiku-4-5-20251001"
-    # Min seconds between Claude calls. Free tier = 5 RPM → ~12.5s. Set to 0 on paid tier.
-    CLAUDE_MIN_INTERVAL_S: float = 12.5
-    # Deprecated, kept optional for backward-compat with existing .env files
+    # Gemini is the primary AI provider. Claude kept as optional fallback.
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = ""
+    GEMINI_MODEL: str = "gemini-3-flash-preview"
+    GEMINI_MODEL_FALLBACK: str = "gemini-3.1-flash-lite-preview"
+    # Gemini free tier ~10 RPM → ~6s between calls. Set to 0 on paid tier.
+    GEMINI_MIN_INTERVAL_S: float = 6.0
+    AI_PROVIDER: str = "gemini"
+    ANTHROPIC_API_KEY: str = ""
+    CLAUDE_MODEL: str = "claude-haiku-4-5-20251001"
+    CLAUDE_MIN_INTERVAL_S: float = 12.5
     SECRET_KEY: str = "batchchef-secret-change-in-prod-2026"
     ADMIN_EMAIL: str = "admin@batchchef.com"
     ADMIN_PASSWORD: str = ""

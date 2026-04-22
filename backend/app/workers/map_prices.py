@@ -25,27 +25,28 @@ def run_price_mapping(self, job_id: int, store_codes: list[str] | None = None, i
 
 
 async def _generate_aliases(ings) -> None:
-    """Generate search aliases for ingredients that don't have them yet."""
+    """Seed search_aliases cheaply from canonical_name.
+
+    The AI-powered alias generator was too slow and fragile (Gemini often
+    returns truncated JSON). The Maxi scraper already handles fuzzy matching
+    via its own search, so a single human-readable alias is enough to unblock
+    the pipeline. We populate with `canonical_name.replace("_", " ")`.
+    """
     from app.database import AsyncSessionLocal
     from app.models.ingredient import IngredientMaster
-    from app.ai.standardizer import generate_search_aliases
 
     needs = [ing for ing in ings if not ing.search_aliases]
     if not needs:
         return
 
-    for i in range(0, len(needs), _ALIASES_BATCH):
-        batch = needs[i: i + _ALIASES_BATCH]
-        names = [ing.canonical_name for ing in batch]
-        aliases_map = await generate_search_aliases(names)
-        async with AsyncSessionLocal() as db:
-            for ing in batch:
-                ing_db = await db.get(IngredientMaster, ing.id)
-                if ing_db:
-                    ing_db.search_aliases = aliases_map.get(ing.canonical_name, [])
-            await db.commit()
+    async with AsyncSessionLocal() as db:
+        for ing in needs:
+            ing_db = await db.get(IngredientMaster, ing.id)
+            if ing_db:
+                ing_db.search_aliases = [ing.canonical_name.replace("_", " ")]
+        await db.commit()
 
-    logger.info(f"[map_prices] Generated aliases for {len(needs)} ingredients")
+    logger.info(f"[map_prices] Seeded cheap aliases for {len(needs)} ingredients")
 
 
 async def _maybe_update_display_name(ing_db, product_name: str) -> None:

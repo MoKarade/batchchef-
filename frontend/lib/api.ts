@@ -401,7 +401,39 @@ export const ingredientsApi = {
     api.post("/api/ingredients/retry-missing-prices"),
   refreshPrices: (ingredient_ids?: number[]) =>
     api.post<ImportJob>("/api/ingredients/refresh-prices", { ingredient_ids: ingredient_ids ?? null }),
+  details: (id: number) =>
+    api.get<IngredientDetails>(`/api/ingredients/${id}/details`),
 };
+
+export interface StoreProductOut {
+  id: number;
+  store_id: number;
+  store_code?: string;
+  store_name?: string;
+  product_name?: string;
+  product_url?: string;
+  price?: number;
+  format_qty?: number;
+  format_unit?: string;
+  is_validated: boolean;
+  confidence_score?: number;
+  last_checked_at?: string;
+}
+
+export interface RecipeBriefForIng {
+  id: number;
+  title: string;
+  image_url?: string;
+  meal_type?: string;
+  servings?: number;
+  quantity_per_portion?: number;
+  unit?: string;
+}
+
+export interface IngredientDetails extends IngredientMaster {
+  store_products: StoreProductOut[];
+  recipes: RecipeBriefForIng[];
+}
 
 export const adminApi = {
   fullBackfill: () => api.post<ImportJob[]>("/api/admin/full-backfill"),

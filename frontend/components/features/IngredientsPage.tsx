@@ -9,9 +9,11 @@ import {
 } from "@tanstack/react-query";
 import {
   Search, CheckCircle2, AlertTriangle, Clock, Pencil, Check, X, RotateCcw,
-  ChevronRight, Layers, List, ArrowLeft, Sparkles, Wrench, TimerOff,
+  ChevronRight, ChevronDown, Layers, List, ArrowLeft, Sparkles, Wrench, TimerOff,
+  ExternalLink, ShoppingCart, BookOpen,
 } from "lucide-react";
-import { ingredientsApi, type IngredientMaster } from "@/lib/api";
+import Link from "next/link";
+import { ingredientsApi, type IngredientMaster, type IngredientDetails } from "@/lib/api";
 import { formatPrice, categoryEmoji, categoryLabel } from "@/lib/utils";
 
 const STATUSES = [
@@ -48,6 +50,93 @@ function StatusBadge({ status }: { status: string }) {
   return <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-xs"><Clock className="h-3 w-3" /> En attente</span>;
 }
 
+function IngredientDetailsPanel({ id }: { id: number }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["ingredient-details", id],
+    queryFn: () => ingredientsApi.details(id).then((r) => r.data),
+    staleTime: 60_000,
+  });
+
+  if (isLoading)
+    return <p className="text-xs text-muted-foreground italic">Chargement…</p>;
+  if (error)
+    return <p className="text-xs text-destructive">Erreur de chargement</p>;
+  if (!data) return null;
+
+  const d = data as IngredientDetails;
+  const maxi = d.store_products.find((p) => p.store_code === "maxi");
+  const costco = d.store_products.find((p) => p.store_code === "costco");
+  const others = d.store_products.filter(
+    (p) => p.store_code !== "maxi" && p.store_code !== "costco",
+  );
+
+  return (
+    <div className="space-y-3 pt-2 border-t">
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase text-muted-foreground">Prix & liens</p>
+        {d.store_products.length === 0 && (
+          <p className="text-xs text-muted-foreground italic">
+            Pas encore de prix — relance depuis Paramètres › Prix.
+          </p>
+        )}
+        {[maxi, costco, ...others].filter(Boolean).map((sp) => (
+          <div key={sp!.id} className="flex items-start gap-2 text-xs rounded-md border bg-muted/30 p-2">
+            <ShoppingCart className="h-3.5 w-3.5 shrink-0 mt-0.5 text-muted-foreground" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold capitalize">{sp!.store_name}</span>
+                <span className="font-mono font-bold text-green-700 dark:text-green-400">
+                  {formatPrice(sp!.price)}
+                </span>
+              </div>
+              <p className="text-muted-foreground truncate">{sp!.product_name}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {sp!.format_qty} {sp!.format_unit}
+                {sp!.confidence_score != null && ` · conf. ${(sp!.confidence_score * 100).toFixed(0)}%`}
+              </p>
+              {sp!.product_url && (
+                <a
+                  href={sp!.product_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:underline mt-1"
+                >
+                  Voir sur {sp!.store_name} <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {d.recipes.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
+            <BookOpen className="h-3 w-3" /> Dans {d.recipes.length} recette{d.recipes.length > 1 ? "s" : ""}
+          </p>
+          <div className="max-h-48 overflow-y-auto space-y-0.5 rounded-md border bg-muted/30 p-2">
+            {d.recipes.map((r) => (
+              <Link
+                key={r.id}
+                href={`/recipes/${r.id}`}
+                className="flex items-center justify-between gap-2 text-xs hover:bg-accent rounded px-1.5 py-0.5 transition-colors"
+              >
+                <span className="truncate">{r.title}</span>
+                {r.quantity_per_portion != null && (
+                  <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                    {r.quantity_per_portion}{r.unit ?? ""}
+                  </span>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function IngredientCard({
   ing,
   onDrillDown,
@@ -57,6 +146,7 @@ function IngredientCard({
 }) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [name, setName] = useState(ing.display_name_fr);
   const [category, setCategory] = useState(ing.category ?? "");
   const [price, setPrice] = useState(ing.estimated_price_per_kg?.toString() ?? "");
@@ -160,6 +250,15 @@ function IngredientCard({
           <ChevronRight className="h-3 w-3" />
         </button>
       )}
+
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full h-7 rounded-md border bg-muted/20 text-[11px] inline-flex items-center justify-center gap-1 hover:bg-accent"
+      >
+        {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        {expanded ? "Masquer détails" : "Voir prix & recettes"}
+      </button>
+      {expanded && <IngredientDetailsPanel id={ing.id} />}
 
       {editing ? (
         <div className="flex items-center gap-2">

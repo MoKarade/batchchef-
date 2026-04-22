@@ -292,6 +292,110 @@ async def update_ingredient(
     return out
 
 
+class StoreProductOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    store_id: int
+    store_code: str | None = None
+    store_name: str | None = None
+    product_name: str | None = None
+    product_url: str | None = None
+    price: float | None = None
+    format_qty: float | None = None
+    format_unit: str | None = None
+    is_validated: bool = False
+    confidence_score: float | None = None
+    last_checked_at: str | None = None
+
+
+class RecipeBriefForIng(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    title: str
+    image_url: str | None = None
+    meal_type: str | None = None
+    servings: int | None = None
+    quantity_per_portion: float | None = None
+    unit: str | None = None
+
+
+class IngredientDetails(IngredientOut):
+    store_products: list[StoreProductOut] = []
+    recipes: list[RecipeBriefForIng] = []
+
+
+@router.get("/{ingredient_id}/details", response_model=IngredientDetails)
+async def ingredient_details(
+    ingredient_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Full detail view: ingredient + per-store prices (with URLs) + recipes using it."""
+    from app.models.store import Store
+    from app.models.recipe import Recipe
+
+    ing = await db.get(IngredientMaster, ingredient_id)
+    if not ing:
+        raise HTTPException(status_code=404, detail="Ingredient not found")
+
+    sp_rows = (await db.execute(
+        select(StoreProduct, Store)
+        .join(Store, Store.id == StoreProduct.store_id)
+        .where(StoreProduct.ingredient_master_id == ingredient_id)
+    )).all()
+    products: list[StoreProductOut] = []
+    for sp, store in sp_rows:
+        products.append(StoreProductOut(
+            id=sp.id,
+            store_id=sp.store_id,
+            store_code=store.code,
+            store_name=store.name,
+            product_name=sp.product_name,
+            product_url=sp.product_url,
+            price=sp.price,
+            format_qty=sp.format_qty,
+            format_unit=sp.format_unit,
+            is_validated=bool(sp.is_validated),
+            confidence_score=sp.confidence_score,
+            last_checked_at=sp.last_checked_at.isoformat() if sp.last_checked_at else None,
+        ))
+
+    rec_rows = (await db.execute(
+        select(Recipe, RecipeIngredient)
+        .join(RecipeIngredient, RecipeIngredient.recipe_id == Recipe.id)
+        .where(RecipeIngredient.ingredient_master_id == ingredient_id)
+        .order_by(Recipe.title)
+        .limit(50)
+    )).all()
+    recipes: list[RecipeBriefForIng] = []
+    for r, ri in rec_rows:
+        recipes.append(RecipeBriefForIng(
+            id=r.id,
+            title=r.title,
+            image_url=r.image_url,
+            meal_type=r.meal_type,
+            servings=r.servings,
+            quantity_per_portion=ri.quantity_per_portion,
+            unit=ri.unit,
+        ))
+
+    usage_count = (await db.execute(
+        select(func.count(RecipeIngredient.id)).where(
+            RecipeIngredient.ingredient_master_id == ingredient_id
+        )
+    )).scalar() or 0
+    children_count = (await db.execute(
+        select(func.count(IngredientMaster.id)).where(
+            IngredientMaster.parent_id == ingredient_id
+        )
+    )).scalar() or 0
+
+    base = IngredientOut.model_validate(ing).model_dump()
+    base["usage_count"] = usage_count
+    base["store_product_count"] = len(products)
+    base["children_count"] = children_count
+    return IngredientDetails(**base, store_products=products, recipes=recipes)
+
+
 class SanitizeRequest(BaseModel):
     ingredient_ids: list[int] | None = None
 
