@@ -1,19 +1,18 @@
-"""Costco scraper v3 — intercept the GraphQL JSON response instead of
-scraping the DOM.
+"""Costco scraper — hybrid sitemap + GraphQL.
 
-How the Costco SPA works (reverse-engineered 2026-04):
-  1. Browser GETs /s?keyword=eggs   (server-side: Akamai-gated HTML shell)
-  2. JS bundle loads, reads the keyword, POSTs to a search endpoint that
-     returns an ordered list of `itemNumber`s
-  3. JS batches those itemNumbers and calls
-     POST https://ecom-api.costco.com/ebusiness/product/v1/products/graphql
-     with { query: "{ products(itemNumbers:[…], clientId:…, locale:"en-ca",
-     warehouseNumber:"894"){ catalogData{...}}" }}
-  4. That response is what the UI renders.
+Flow:
+  1. `ensure_ready(browser_page)` — one-time warm-up per context:
+       - load costco.ca homepage (so Akamai issues _abck, bm_sz, etc.)
+       - copy the resulting cookies into an httpx-friendly jar
+       - load the sitemap catalogue (~8 000 product URLs, ~1 MB)
+  2. `search_costco(query)`:
+       - fuzzy-match the query against the sitemap → candidate itemIds
+       - POST the GraphQL endpoint with those itemIds + warmed-up cookies
+       - rank the returned products by relevance × cheapest
+       - HEAD-verify the image URL, fall back to OpenFoodFacts
 
-We let patchright drive steps 1-3 (so Akamai cookies + warehouse selection
-work), then intercept step 4's JSON directly. Much faster than scraping
-the rendered DOM and more resilient to DOM refactors.
+The old `scrapers/costco.py` (DOM scraping) is kept as a fallback if the
+sitemap/GraphQL path returns nothing for a given ingredient.
 """
 from __future__ import annotations
 
@@ -21,12 +20,13 @@ import asyncio
 import json
 import logging
 import re
-import urllib.parse
+import time
 from typing import Any
 
 import httpx
 
 from app.config import settings
+from app.scrapers import costco_sitemap
 from app.scrapers._utils import (
     is_relevant,
     parse_format,
@@ -37,223 +37,330 @@ from app.scrapers._utils import (
 logger = logging.getLogger(__name__)
 
 GRAPHQL_URL = "https://ecom-api.costco.com/ebusiness/product/v1/products/graphql"
+CLIENT_ID = "e442e6e6-2602-4a39-937b-8b28b4457ed3"
+WAREHOUSE_NUMBER = "894"  # default; can be overridden per request
 
-# Process-lifetime cache of the GraphQL response for each keyword — Costco
-# takes ~3-5 s to return one search, so we don't want to redo it on retries.
-_SEARCH_CACHE: dict[str, list[dict]] = {}
-_WARMED: set[int] = set()
-
-
-def _extract_price(catalog_item: dict) -> float | None:
-    """From GraphQL catalogData row → raw decimal price, or None."""
-    pd = catalog_item.get("priceData") or {}
-    raw = pd.get("price") or pd.get("memberPrice") or pd.get("regularPrice")
-    if raw is None:
-        return None
-    try:
-        p = float(str(raw).replace(",", "."))
-        if p <= 0 or p > 5000:
-            return None
-        return round(p, 2)
-    except (TypeError, ValueError):
-        return None
-
-
-def _extract_attr(catalog_item: dict, key: str) -> str | None:
-    """Walk the `attributes` list for a given key."""
-    for a in catalog_item.get("attributes") or []:
-        if (a.get("key") or "").lower() == key.lower():
-            return a.get("value")
-    return None
-
-
-def _extract_image(catalog_item: dict) -> str | None:
-    """Costco product images live under several possible keys. Return the
-    first URL that looks like a real image."""
-    # Direct keys
-    for k in ("imageUrl", "image", "primaryImageURL", "mainImage"):
-        v = catalog_item.get(k)
-        if isinstance(v, str) and v.startswith("http"):
-            return v
-    # Attributes may contain an image URL
-    for a in catalog_item.get("attributes") or []:
-        for k in ("PrimaryImage", "Image", "ImageUrl", "ImageURL"):
-            if (a.get("key") or "").lower() == k.lower():
-                v = a.get("value")
-                if isinstance(v, str) and v.startswith("http"):
-                    return v
-    return None
-
-
-def _extract_product_url(catalog_item: dict) -> str | None:
-    """Costco product URL: /.product.{itemId}.html (guessed pattern)."""
-    # Sometimes under catalogData.productURL
-    for k in ("productURL", "productUrl", "url"):
-        v = catalog_item.get(k)
-        if isinstance(v, str) and v.startswith("http"):
-            return v
-        if isinstance(v, str) and v.startswith("/"):
-            return f"https://www.costco.ca{v}"
-    # Build from itemId if present
-    item_id = catalog_item.get("itemId")
-    if item_id:
-        name = (_extract_attr(catalog_item, "ProductName") or "").strip().lower()
-        slug = re.sub(r"[^a-z0-9]+", "-", name).strip("-")[:60] or "product"
-        return f"https://www.costco.ca/.product.{item_id}.html"
-    return None
+# Map French → English ingredient tokens (Costco slugs are English only).
+# Covers the most common Québec staples; unmatched queries fall through to
+# the raw query (which may still match English words).
+FR_EN = {
+    "oeuf": "egg", "oeufs": "eggs",
+    "beurre": "butter",
+    "lait": "milk",
+    "farine": "flour",
+    "sel": "salt",
+    "sucre": "sugar",
+    "poivre": "pepper",
+    "huile": "oil",
+    "huile_olive": "olive oil",
+    "poulet": "chicken",
+    "boeuf": "beef",
+    "porc": "pork",
+    "jambon": "ham",
+    "thon": "tuna",
+    "saumon": "salmon",
+    "riz": "rice",
+    "pates": "pasta",
+    "pain": "bread",
+    "fromage": "cheese",
+    "yogourt": "yogurt",
+    "pomme": "apple",
+    "banane": "banana",
+    "orange": "orange",
+    "citron": "lemon",
+    "tomate": "tomato",
+    "oignon": "onion",
+    "ail": "garlic",
+    "carotte": "carrot",
+    "patate": "potato",
+    "pomme_de_terre": "potato",
+    "brocoli": "broccoli",
+    "epinard": "spinach",
+    "laitue": "lettuce",
+    "cafe": "coffee",
+    "the": "tea",
+    "miel": "honey",
+    "amande": "almond", "amandes": "almonds",
+    "noix": "nuts",
+    "chocolat": "chocolate",
+    "vinaigre": "vinegar",
+    "moutarde": "mustard",
+    "ketchup": "ketchup",
+    "mayo": "mayonnaise",
+    "creme": "cream",
+    "tofu": "tofu",
+    "quinoa": "quinoa",
+    "avocat": "avocado",
+    "fraise": "strawberry", "fraises": "strawberries",
+    "bleuet": "blueberry", "bleuets": "blueberries",
+    "framboise": "raspberry", "framboises": "raspberries",
+}
 
 
-def _extract_format(catalog_item: dict) -> tuple[float, str]:
-    """Best-effort parsing of the package format."""
-    # Try a few common attribute keys
-    for key in ("ItemWeight", "NetWeight", "ItemNetContent", "Size", "Unit Size"):
-        v = _extract_attr(catalog_item, key)
-        if v:
-            fmt = parse_format(str(v))
-            if fmt.get("qty"):
-                return fmt["qty"], fmt["unit"]
-    # fall back to parsing the product name
-    name = _extract_attr(catalog_item, "ProductName") or catalog_item.get("ProductName") or ""
-    fmt = parse_format(name) if name else {"qty": 1.0, "unit": "unite"}
-    return fmt.get("qty") or 1.0, fmt.get("unit") or "unite"
+def _fr_to_en(query: str) -> str:
+    """Translate a French ingredient name to English using the fixed table
+    above. Falls back to the original query if no token matched."""
+    tokens = re.split(r"[^a-z]+", query.lower())
+    mapped = [FR_EN.get(t, t) for t in tokens if t]
+    return " ".join(mapped)
 
 
-async def _warm_up(page) -> None:
-    """Load homepage, accept cookies, remove OneTrust, select Quebec warehouse."""
-    ctx_id = id(page.context)
-    if ctx_id in _WARMED:
+# ──────────────────────────────────────────────────────────────────────────
+# Session state: cookies from the browser warm-up, used by httpx on every
+# GraphQL call. Refreshed hourly.
+# ──────────────────────────────────────────────────────────────────────────
+_cookie_jar: httpx.Cookies | None = None
+_cookies_ts: float = 0.0
+_COOKIES_TTL_S = 30 * 60  # 30 min is safe; longer flies through Akamai
+
+_warmed_contexts: set[int] = set()
+
+
+def _graphql_headers() -> dict[str, str]:
+    return {
+        "accept": "*/*",
+        "accept-language": "en-CA,en;q=0.9,fr-CA;q=0.8",
+        "content-type": "application/json",
+        "origin": "https://www.costco.ca",
+        "referer": "https://www.costco.ca/",
+        "user-agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+        ),
+        "client-identifier": CLIENT_ID,
+        "costco.env": "ecom",
+        "costco.service": "restProduct",
+        "sec-ch-ua": '"Google Chrome";v="121", "Not.A/Brand";v="8", "Chromium";v="121"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+    }
+
+
+def _graphql_body(item_numbers: list[str]) -> dict:
+    numbers_arr = ",".join(f'"{n}"' for n in item_numbers)
+    q = (
+        "query { products("
+        f"itemNumbers: [{numbers_arr}], "
+        f'clientId: "{CLIENT_ID}", '
+        'locale: "en-ca", '
+        f'warehouseNumber: "{WAREHOUSE_NUMBER}"'
+        ") { catalogData { "
+        "itemNumber itemId published locale buyable programTypes "
+        "priceData { price listPrice } "
+        "attributes { key value } "
+        "} } }"
+    )
+    return {"query": q}
+
+
+async def _refresh_cookies(browser_page) -> None:
+    """Visit Costco homepage in the browser to get Akamai cookies, then copy
+    them into `_cookie_jar` for httpx. Idempotent per context for 30 min."""
+    global _cookie_jar, _cookies_ts
+    ctx_id = id(browser_page.context)
+    fresh = ctx_id in _warmed_contexts and (time.time() - _cookies_ts) < _COOKIES_TTL_S
+    if fresh:
         return
     try:
-        await page.goto("https://www.costco.ca/", wait_until="domcontentloaded", timeout=40000)
-        await page.wait_for_timeout(4000)
-        await try_accept_cookies(page)
-        await page.evaluate(
+        await browser_page.goto("https://www.costco.ca/", wait_until="domcontentloaded", timeout=40000)
+        await browser_page.wait_for_timeout(4000)
+        await try_accept_cookies(browser_page)
+        await browser_page.evaluate(
             "document.querySelector('#onetrust-consent-sdk')?.remove();"
-            "document.querySelectorAll('[class*=OnetrustBanner]').forEach(e => e.remove());"
         )
-        await page.wait_for_timeout(1500)
-        _WARMED.add(ctx_id)
+        await browser_page.wait_for_timeout(1500)
+
+        raw = await browser_page.context.cookies()
+        jar = httpx.Cookies()
+        for c in raw:
+            try:
+                jar.set(c["name"], c["value"], domain=c.get("domain", ".costco.ca"))
+            except Exception:
+                continue
+        _cookie_jar = jar
+        _cookies_ts = time.time()
+        _warmed_contexts.add(ctx_id)
+        logger.info(f"Costco cookies refreshed ({len(raw)} cookies)")
     except Exception as e:
         logger.warning(f"Costco warm-up: {e}")
 
 
-def _install_graphql_listener(page) -> tuple[asyncio.Future, callable]:
-    """Install the response listener IMMEDIATELY (synchronously) and return
-    the future + remove-listener callable. Caller does page.goto() then
-    awaits the future."""
-    loop = asyncio.get_event_loop()
-    captured: asyncio.Future = loop.create_future()
+# ──────────────────────────────────────────────────────────────────────────
+# Response parsing helpers
+# ──────────────────────────────────────────────────────────────────────────
 
-    async def _on_response(resp):
-        if captured.done():
-            return
-        if GRAPHQL_URL not in resp.url:
-            return
-        if resp.status != 200:
-            return
+def _attr(item: dict, *keys: str) -> str | None:
+    keys_lower = [k.lower() for k in keys]
+    for a in item.get("attributes") or []:
+        if (a.get("key") or "").lower() in keys_lower:
+            v = a.get("value")
+            if v:
+                return str(v)
+    return None
+
+
+def _price(item: dict) -> float | None:
+    pd = item.get("priceData") or {}
+    for k in ("price", "memberPrice", "listPrice"):
+        raw = pd.get(k)
+        if raw is None:
+            continue
         try:
-            body = await resp.text()
-        except Exception:
-            return
-        if "catalogData" not in body:
-            return
-        try:
-            data = json.loads(body)
-            items = (data.get("data", {}).get("products", {}) or {}).get("catalogData") or []
-            if items and not captured.done():
-                captured.set_result(items)
-        except Exception:
-            pass
+            p = float(str(raw).replace(",", "."))
+        except (TypeError, ValueError):
+            continue
+        if 0 < p < 5000:
+            return round(p, 2)
+    return None
 
-    def _listener(r):
-        asyncio.create_task(_on_response(r))
 
-    page.on("response", _listener)
+def _format(item: dict, fallback_name: str = "") -> tuple[float, str]:
+    # 1. Typed attributes first
+    for key in ("Item Weight", "NetWeight", "ItemNetContent", "Size", "ItemSize", "Unit Size", "Quantity"):
+        v = _attr(item, key)
+        if v:
+            fmt = parse_format(str(v))
+            if fmt.get("qty") and fmt.get("unit") != "unite":
+                return fmt["qty"], fmt["unit"]
+    # 2. Explicit name attributes
+    name = _attr(item, "ProductName", "Name", "Title") or ""
+    if name:
+        fmt = parse_format(name)
+        if fmt.get("qty") and fmt.get("unit") != "unite":
+            return fmt["qty"], fmt["unit"]
+    # 3. Fallback: parse the sitemap-derived name (has the "2 kg" / "500 g" hints)
+    if fallback_name:
+        # Also handle multiplied formats: "24 × 33 g" → 24*33 = 792 g
+        m = re.search(r"(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(g|kg|ml|l)\b", fallback_name.lower())
+        if m:
+            count = float(m.group(1).replace(",", "."))
+            per = float(m.group(2).replace(",", "."))
+            unit = m.group(3)
+            return count * per, unit
+        fmt = parse_format(fallback_name)
+        if fmt.get("qty") and fmt.get("unit") != "unite":
+            return fmt["qty"], fmt["unit"]
+    return 1.0, "unite"
 
-    def _remove():
-        try:
-            page.remove_listener("response", _listener)
-        except Exception:
-            pass
 
-    return captured, _remove
+def _image(item: dict) -> str | None:
+    for k in ("imageUrl", "image", "primaryImageURL", "mainImage"):
+        v = item.get(k)
+        if isinstance(v, str) and v.startswith("http"):
+            return v
+    for a in item.get("attributes") or []:
+        key = (a.get("key") or "").lower()
+        if "image" in key and "url" in key:
+            v = a.get("value")
+            if isinstance(v, str) and v.startswith("http"):
+                return v
+    # Guess the Costco CDN pattern from itemId
+    item_id = item.get("itemId") or item.get("itemNumber")
+    if item_id:
+        return f"https://images.costcobusinesscentre.ca/ImageDelivery/{item_id}.jpg"
+    return None
 
+
+def _url(item: dict) -> str | None:
+    item_id = item.get("itemId") or item.get("itemNumber")
+    if not item_id:
+        return None
+    # Prefer the exact slug from the sitemap if the caller attached it
+    pre_slug = item.get("_slug")
+    if pre_slug:
+        return f"https://www.costco.ca/{pre_slug}.product.{item_id}.html"
+    name = _attr(item, "ProductName", "Name", "Title") or "product"
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:60] or "product"
+    return f"https://www.costco.ca/{slug}.product.{item_id}.html"
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Public API — compatible signature with scrapers/maxi.py::search_maxi
+# ──────────────────────────────────────────────────────────────────────────
 
 async def search_costco(page, query: str, store_id: str | None = None) -> dict | None:
-    """Search Costco.ca for one ingredient, returning a scraper dict or None.
+    """Returns {store, product_name, price, image_url, format_qty, ...} or None.
 
-    Matches the contract of `app/scrapers/maxi.py::search_maxi` so
-    `map_prices.py` can call either interchangeably.
+    `page` is a patchright Page (needed to refresh Akamai cookies). For
+    testing without a browser, pass a page object that has already been
+    warmed up.
     """
-    key = query.lower().strip()
-    if key in _SEARCH_CACHE:
-        cached = _SEARCH_CACHE[key]
-        if not cached:
-            return None
-        # skip warm-up, re-extract below
-        items = cached
-    else:
-        await _warm_up(page)
-        search_url = f"https://www.costco.ca/s?dept=All&keyword={urllib.parse.quote(query)}"
+    # 1) make sure sitemap is loaded + cookies fresh
+    await costco_sitemap.ensure_loaded()
+    await _refresh_cookies(page)
 
-        # Attach the listener SYNCHRONOUSLY before navigation — the GraphQL
-        # POST fires very early during page render.
-        future, remove_listener = _install_graphql_listener(page)
-        try:
-            await page.goto(search_url, wait_until="domcontentloaded", timeout=40000)
-            # Scroll to force any lazy product rows
-            try:
-                await page.wait_for_timeout(2500)
-                await page.evaluate("window.scrollBy(0, 1200)")
-                await page.wait_for_timeout(1500)
-            except Exception:
-                pass
-            try:
-                items = await asyncio.wait_for(future, timeout=25.0)
-            except asyncio.TimeoutError:
-                items = []
-        except Exception as e:
-            logger.warning(f"Costco search goto '{query}': {e}")
-            items = []
-        finally:
-            remove_listener()
-        _SEARCH_CACHE[key] = items
-
-    if not items:
-        logger.warning(f"Costco API: no GraphQL products for '{query}'")
+    if _cookie_jar is None:
+        logger.warning("Costco API: no cookies available, aborting")
         return None
 
-    # normalise each item to (name, price, url, image, format_qty, format_unit)
-    scored: list[dict] = []
+    # 2) fuzzy search sitemap → itemIds + slugs
+    en_query = _fr_to_en(query)
+    hits = costco_sitemap.search(en_query, max_results=15)
+    if not hits:
+        logger.info(f"Costco sitemap: no match for '{query}' (translated '{en_query}')")
+        return None
+
+    item_ids = [iid for iid, _, _ in hits]
+    slug_by_id = {iid: slug for iid, slug, _ in hits}
+
+    # 3) call GraphQL for details
+    try:
+        async with httpx.AsyncClient(cookies=_cookie_jar, timeout=15.0) as c:
+            r = await c.post(GRAPHQL_URL, headers=_graphql_headers(), json=_graphql_body(item_ids))
+            if r.status_code != 200:
+                logger.warning(f"Costco GraphQL {r.status_code}: {r.text[:200]}")
+                return None
+            data = r.json()
+    except Exception as e:
+        logger.warning(f"Costco GraphQL call failed: {e}")
+        return None
+
+    items = (data.get("data", {}).get("products", {}) or {}).get("catalogData") or []
+    if not items:
+        return None
+
+    # 4) rank buyable + price + name relevance
+    import urllib.parse as _up
+    candidates: list[dict] = []
     for it in items:
         if not it.get("buyable"):
             continue
-        name = _extract_attr(it, "ProductName") or it.get("ProductName") or ""
+        # Name sources (first win): ProductName attr → explicit names → sitemap slug (decoded)
+        name = _attr(it, "ProductName", "Name", "Title", "DisplayName") or ""
+        if not name:
+            iid = it.get("itemNumber") or it.get("itemId")
+            slug = slug_by_id.get(str(iid), "")
+            if slug:
+                # "cadbury-mini-eggs-candies%2c-24-%c3%97-38-g" → "cadbury mini eggs candies, 24 × 38 g"
+                name = _up.unquote(slug).replace("-", " ").strip()
         if not name or len(name) < 3:
             continue
-        price = _extract_price(it)
+        price = _price(it)
         if price is None:
             continue
-        fq, fu = _extract_format(it)
-        scored.append({
+        fq, fu = _format(it, fallback_name=name)
+        candidates.append({
             "name": name,
-            "brand": _extract_attr(it, "Brand"),
+            "brand": _attr(it, "Brand"),
             "price": price,
-            "product_url": _extract_product_url(it),
-            "image_url": _extract_image(it),
             "format_qty": fq,
             "format_unit": fu,
+            "product_url": _url({**it, "_slug": slug_by_id.get(str(it.get("itemNumber") or it.get("itemId")))}),
+            "image_url": _image(it),
         })
 
-    relevant = [p for p in scored if is_relevant(query, p["name"])]
+    relevant = [c for c in candidates if is_relevant(en_query, c["name"])]
     if not relevant:
-        logger.warning(f"Costco API: none of {len(scored)} items match '{query}'")
+        # fall back to cheapest candidate with at least one shared token
+        tokens = set(re.split(r"[^a-z]+", en_query.lower()))
+        relevant = [c for c in candidates if any(t in c["name"].lower() for t in tokens if len(t) > 2)]
+    if not relevant:
         return None
 
-    best = min(relevant, key=lambda p: p["price"])
+    best = min(relevant, key=lambda c: c["price"])
 
-    # HEAD-verify image; fall back to OFF if the direct URL is dead
-    nutrition = await fetch_nutrition_openfoodfacts(query)
+    # 5) HEAD-verify image, fall back to OFF
+    nutrition = await fetch_nutrition_openfoodfacts(en_query)
     final_image = best.get("image_url")
     if final_image:
         try:
@@ -272,7 +379,6 @@ async def search_costco(page, query: str, store_id: str | None = None) -> dict |
         f"Costco-API OK '{query}' → {best['name'][:60]} | ${best['price']} "
         f"({best['format_qty']} {best['format_unit']})"
     )
-
     return {
         "store": "costco",
         "product_name": best["name"],
