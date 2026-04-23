@@ -3,13 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   ShoppingBasket, X, Minus, Plus, Trash2, ChefHat, Sparkles,
-  ArrowRight, Info,
+  ArrowRight, Info, Package, ExternalLink, AlertTriangle,
 } from "lucide-react";
 import { useCart, removeFromCart, setPortions, clearCart } from "@/lib/cart";
-import { batchesApi } from "@/lib/api";
+import { batchesApi, type BatchPreview, type ShoppingItemPreview } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
 
 /**
@@ -23,6 +23,26 @@ export function CartPage() {
   const router = useRouter();
   const { items, count, totalPortions, totalCost } = useCart();
   const [error, setError] = useState<string | null>(null);
+
+  // Live preview — asks the backend to aggregate ingredients + look up Maxi
+  // prices + deduct inventory, without persisting a real batch. Enabled
+  // only when the cart has items, re-runs whenever items/portions change.
+  const { data: preview, isLoading: previewLoading } = useQuery<BatchPreview>({
+    queryKey: [
+      "cart-preview",
+      items.map((i) => `${i.recipe_id}:${i.portions}`).join(","),
+    ],
+    queryFn: () =>
+      batchesApi
+        .preview({
+          target_portions: totalPortions,
+          num_recipes: items.length,
+          include_recipe_ids: items.map((i) => i.recipe_id),
+        })
+        .then((r) => r.data),
+    enabled: items.length > 0,
+    staleTime: 30_000,
+  });
 
   const finalize = useMutation({
     mutationFn: async () => {
@@ -85,8 +105,21 @@ export function CartPage() {
     );
   }
 
+  // Group shopping items by store for display
+  const itemsByStore: Record<string, ShoppingItemPreview[]> = {};
+  for (const it of preview?.shopping_items ?? []) {
+    const code = it.store?.code ?? "autre";
+    (itemsByStore[code] ??= []).push(it);
+  }
+
+  // Preview may override our local cost estimate with the real computed
+  // total (which accounts for packages_to_buy rounding + Maxi actual prices)
+  const displayCost = preview?.total_estimated_cost ?? totalCost;
+  const priceCoverage = preview?.price_coverage ?? 1.0;
+  const unpriced = preview?.unpriced_ingredients ?? [];
+
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-6xl">
       <header>
         <h1 className="title-serif text-3xl font-bold">Panier</h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -183,6 +216,63 @@ export function CartPage() {
             <Trash2 className="h-3 w-3" />
             Vider le panier
           </button>
+
+          {/* ===== INGREDIENTS PREVIEW — what you'll buy ===== */}
+          <div className="mt-6 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="title-serif text-xl font-bold flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  Liste de courses
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Après déduction de ton frigo · prix Maxi en temps réel
+                </p>
+              </div>
+              {previewLoading && (
+                <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                  <Sparkles className="h-3 w-3 animate-pulse" /> Calcul…
+                </span>
+              )}
+            </div>
+
+            {unpriced.length > 0 && (
+              <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+                <p className="font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1.5 mb-1">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  {unpriced.length} ingrédient{unpriced.length > 1 ? "s" : ""} sans prix
+                </p>
+                <p className="text-muted-foreground">{unpriced.slice(0, 8).join(", ")}{unpriced.length > 8 ? "…" : ""}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Couverture&nbsp;: <span className="font-mono">{Math.round(priceCoverage * 100)}%</span>
+                </p>
+              </div>
+            )}
+
+            {preview && preview.shopping_items.length === 0 && !previewLoading && (
+              <p className="text-sm text-muted-foreground italic">
+                Aucun ingrédient à acheter — tout est déjà dans ton frigo.
+              </p>
+            )}
+
+            {Object.entries(itemsByStore).map(([storeCode, storeItems]) => (
+              <div key={storeCode} className="rounded-2xl border bg-card overflow-hidden">
+                <header className="px-4 py-2.5 bg-muted/60 border-b border-border flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wider">
+                    {storeItems[0]?.store?.name ?? storeCode}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {storeItems.length} article{storeItems.length > 1 ? "s" : ""}
+                  </span>
+                </header>
+                <ul className="divide-y divide-border">
+                  {storeItems.map((it) => (
+                    <ShoppingItemRow key={it.ingredient_master_id} item={it} />
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* RIGHT — Summary + CTA */}
@@ -201,15 +291,22 @@ export function CartPage() {
               </div>
               <div className="h-px bg-border my-3" />
               <div className="flex justify-between items-baseline">
-                <span className="text-muted-foreground">Coût estimé</span>
-                {totalCost != null ? (
+                <span className="text-muted-foreground">Coût total</span>
+                {displayCost != null && displayCost > 0 ? (
                   <span className="title-serif text-2xl font-bold text-secondary">
-                    {formatPrice(totalCost)}
+                    {formatPrice(displayCost)}
                   </span>
                 ) : (
-                  <span className="text-xs text-amber-600 text-right">Certains prix manquent</span>
+                  <span className="text-xs text-muted-foreground text-right">
+                    {previewLoading ? "Calcul…" : "—"}
+                  </span>
                 )}
               </div>
+              {preview && displayCost != null && displayCost > 0 && totalPortions > 0 && (
+                <p className="text-[11px] text-muted-foreground text-right">
+                  {formatPrice(displayCost / totalPortions)} / portion
+                </p>
+              )}
             </div>
 
             {error && (
@@ -256,5 +353,63 @@ export function CartPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+function ShoppingItemRow({ item }: { item: ShoppingItemPreview }) {
+  const displayQty = item.quantity_needed;
+  const unit = item.unit;
+  const pkg = item.format_qty != null && item.format_unit
+    ? `${item.packages_to_buy}× ${item.format_qty} ${item.format_unit}`
+    : null;
+  const fromInv = item.from_inventory_qty > 0;
+  return (
+    <li className="flex items-center gap-3 px-4 py-2.5 hover:bg-accent/20 transition-colors">
+      {/* Image / icon placeholder */}
+      <div className="shrink-0 h-9 w-9 rounded-lg bg-muted/60 border inline-flex items-center justify-center">
+        <Package className="h-4 w-4 text-muted-foreground/70" />
+      </div>
+
+      {/* Main info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-2">
+          <span className="font-semibold text-sm truncate">
+            {item.ingredient?.display_name_fr ?? item.ingredient?.canonical_name ?? "?"}
+          </span>
+          {fromInv && (
+            <span className="text-[10px] text-secondary font-medium" title="Déduit de ton inventaire">
+              (frigo: {item.from_inventory_qty.toFixed(1)} {unit})
+            </span>
+          )}
+        </div>
+        <div className="text-[11px] text-muted-foreground">
+          Besoin {displayQty.toLocaleString("fr-CA", { maximumFractionDigits: 2 })} {unit}
+          {pkg && <span> · {pkg}</span>}
+        </div>
+      </div>
+
+      {/* Price + link */}
+      <div className="flex items-center gap-2 shrink-0">
+        {item.product_url && (
+          <a
+            href={item.product_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="h-7 w-7 rounded-md hover:bg-accent inline-flex items-center justify-center text-muted-foreground hover:text-foreground"
+            title="Voir sur le site du magasin"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        )}
+        {item.estimated_cost != null ? (
+          <span className="font-bold font-serif text-sm text-foreground min-w-[60px] text-right">
+            {formatPrice(item.estimated_cost)}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground min-w-[60px] text-right">—</span>
+        )}
+      </div>
+    </li>
   );
 }
