@@ -1,10 +1,10 @@
-import { BatchesListPage } from "@/components/features/BatchesPage";
+import { CartPage } from "@/components/features/CartPage";
 
 /**
- * /batch = "Panier" in the new nav — same entry point as the legacy
- * /batches route for Phase 1. Phase 2 will reframe this as a grocery-cart
- * metaphor where adding a recipe populates the current batch-in-progress.
+ * /batch — the new "Panier" view. Users build a draft batch by clicking +
+ * on recipe cards, tune portions here, then finalize to generate the real
+ * batch via /api/batches/generate. Past batches live at /batches (plural).
  */
 export default function Page() {
-  return <BatchesListPage />;
+  return <CartPage />;
 }

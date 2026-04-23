@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarDays, BookOpen, ShoppingBasket, Snowflake, Sprout } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCart } from "@/lib/cart";
 
 /**
  * Mobile bottom-tab bar — 5 items focused on the daily/weekly flow.
@@ -20,6 +21,7 @@ const TABS = [
 
 export function BottomNav() {
   const pathname = usePathname();
+  const { count: cartCount } = useCart();
 
   const isActive = (href: string) => {
     if (href === "/planifier") return pathname === "/" || pathname.startsWith("/planifier");
@@ -31,16 +33,24 @@ export function BottomNav() {
       <div className="grid grid-cols-5 h-16">
         {TABS.map(({ href, label, icon: Icon }) => {
           const active = isActive(href);
+          const showBadge = href === "/batch" && cartCount > 0;
           return (
             <Link
               key={href}
               href={href}
               className={cn(
-                "flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors",
+                "relative flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors",
                 active ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Icon className={cn("h-5 w-5", active && "stroke-[2.5]")} />
+              <div className="relative">
+                <Icon className={cn("h-5 w-5", active && "stroke-[2.5]")} />
+                {showBadge && (
+                  <span className="absolute -top-1 -right-2 min-w-[16px] h-[16px] px-1 rounded-full bg-primary text-primary-foreground inline-flex items-center justify-center text-[10px] font-bold">
+                    {cartCount}
+                  </span>
+                )}
+              </div>
               <span>{label}</span>
             </Link>
           );

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
+import { useCart } from "@/lib/cart";
 
 /**
  * V3 navigation — 6 paradigms composed into one app:
@@ -40,6 +41,7 @@ function isActiveRoute(href: string, pathname: string): boolean {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { count: cartCount } = useCart();
 
   return (
     <aside
@@ -64,18 +66,30 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const active = isActiveRoute(href, pathname);
+          const showBadge = href === "/batch" && cartCount > 0;
           return (
             <Link
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-3 rounded-lg h-11 px-3 text-sm font-medium transition-colors",
+                "relative flex items-center gap-3 rounded-lg h-11 px-3 text-sm font-medium transition-colors",
                 active
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground",
               )}
             >
-              <Icon className="h-5 w-5 shrink-0" />
+              <div className="relative shrink-0">
+                <Icon className="h-5 w-5" />
+                {showBadge && (
+                  <span className={cn(
+                    "absolute -top-1 -right-1.5 min-w-[16px] h-[16px] px-1 rounded-full",
+                    "inline-flex items-center justify-center text-[10px] font-bold",
+                    active ? "bg-primary-foreground text-primary" : "bg-primary text-primary-foreground",
+                  )}>
+                    {cartCount}
+                  </span>
+                )}
+              </div>
               <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity whitespace-nowrap">
                 {label}
               </span>

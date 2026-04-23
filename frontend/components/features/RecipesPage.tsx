@@ -4,8 +4,9 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { recipesApi, type RecipeBrief } from "@/lib/api";
 import { formatPrice, healthColor, mealTypeLabel } from "@/lib/utils";
-import { Search, Leaf, Flame, Star } from "lucide-react";
+import { Search, Leaf, Flame, Star, Plus, Check } from "lucide-react";
 import Link from "next/link";
+import { addToCart, isInCart, useCart } from "@/lib/cart";
 
 const MEAL_TYPES = ["", "entree", "plat", "dessert", "snack"] as const;
 const SORT_OPTIONS = [
@@ -24,6 +25,24 @@ const HAS_PRICE_TABS = [
 
 function RecipeCard({ recipe }: { recipe: RecipeBrief }) {
   const hasPrice = recipe.estimated_cost_per_portion != null && recipe.estimated_cost_per_portion > 0;
+  // Re-read the cart on every render so the button state updates immediately
+  // after clicking (useCart subscribes to the custom event).
+  useCart();
+  const inCart = isInCart(recipe.id);
+
+  const handleAdd = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addToCart({
+      recipe_id: recipe.id,
+      title: recipe.title,
+      image_url: recipe.image_url,
+      cost_per_portion: recipe.estimated_cost_per_portion,
+      health_score: recipe.health_score,
+      meal_type: recipe.meal_type,
+    });
+  };
+
   return (
     <Link href={`/recipes/${recipe.id}`} className="group block h-full">
       <article className="relative h-full flex flex-col overflow-hidden rounded-2xl bg-card border border-border shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
@@ -96,6 +115,21 @@ function RecipeCard({ recipe }: { recipe: RecipeBrief }) {
             </span>
           </div>
         </div>
+
+        {/* + au panier button — bottom-right of the card, doesn't navigate */}
+        <button
+          onClick={handleAdd}
+          aria-label={inCart ? "Déjà dans le panier" : "Ajouter au panier"}
+          className={`
+            absolute top-2 left-2 inline-flex items-center justify-center
+            h-9 w-9 rounded-full shadow-lg transition-all
+            ${inCart
+              ? "bg-secondary text-secondary-foreground hover:bg-secondary/90"
+              : "bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-110"}
+          `}
+        >
+          {inCart ? <Check className="h-4 w-4" /> : <Plus className="h-5 w-5" />}
+        </button>
       </article>
     </Link>
   );
