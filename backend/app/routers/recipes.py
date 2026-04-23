@@ -33,12 +33,73 @@ async def list_recipes(
     prep_time_max_min: int | None = Query(None),
     health_score_min: float | None = Query(None),
     has_price: Literal["all", "priced", "missing"] = "all",
+    include_ingredient_ids: list[int] = Query(default_factory=list, alias="include_ingredient_ids"),
+    exclude_ingredient_ids: list[int] = Query(default_factory=list, alias="exclude_ingredient_ids"),
+    ingredient_match: Literal["any", "all"] = "all",
     sort: Literal["id_desc", "id_asc", "health_desc", "cost_asc", "cost_desc", "calories_asc", "title_asc"] = "id_desc",
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
     q = select(Recipe)
+
+    # Ingredient filters — match against both the direct ingredient_master_id
+    # AND its parent_id (so 'beurre' selects recipes using 'beurre_mou',
+    # 'beurre_fondu', etc.). We resolve the request IDs to their closure of
+    # {self, parent} once, then filter RecipeIngredient accordingly.
+    if include_ingredient_ids or exclude_ingredient_ids:
+        from app.models.ingredient import IngredientMaster
+
+        async def _expand(ids: list[int]) -> set[int]:
+            if not ids:
+                return set()
+            # The request IDs + any variant whose parent_id is in the request
+            expanded = set(ids)
+            child_q = select(IngredientMaster.id).where(IngredientMaster.parent_id.in_(ids))
+            expanded.update(r[0] for r in (await db.execute(child_q)).all())
+            return expanded
+
+        include_expanded = await _expand(include_ingredient_ids)
+        exclude_expanded = await _expand(exclude_ingredient_ids)
+
+        if include_expanded:
+            if ingredient_match == "all":
+                # Recipe must contain ALL of the requested ingredients.
+                # Implemented as a chain of sub-selects, one per requested id.
+                for ing_id in include_ingredient_ids:
+                    # For each TOP-level request, accept self or children
+                    subclosure = set([ing_id])
+                    child_q = select(IngredientMaster.id).where(IngredientMaster.parent_id == ing_id)
+                    subclosure.update(r[0] for r in (await db.execute(child_q)).all())
+                    q = q.where(
+                        select(RecipeIngredient.id)
+                        .where(
+                            RecipeIngredient.recipe_id == Recipe.id,
+                            RecipeIngredient.ingredient_master_id.in_(subclosure),
+                        )
+                        .exists()
+                    )
+            else:
+                # ANY match — one sub-select with the full expansion.
+                q = q.where(
+                    select(RecipeIngredient.id)
+                    .where(
+                        RecipeIngredient.recipe_id == Recipe.id,
+                        RecipeIngredient.ingredient_master_id.in_(include_expanded),
+                    )
+                    .exists()
+                )
+
+        if exclude_expanded:
+            # Recipe must contain NONE of the excluded ingredients.
+            q = q.where(
+                ~select(RecipeIngredient.id)
+                .where(
+                    RecipeIngredient.recipe_id == Recipe.id,
+                    RecipeIngredient.ingredient_master_id.in_(exclude_expanded),
+                )
+                .exists()
+            )
     if has_price == "priced":
         q = q.where(Recipe.estimated_cost_per_portion.isnot(None), Recipe.estimated_cost_per_portion > 0)
     elif has_price == "missing":
