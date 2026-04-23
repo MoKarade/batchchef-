@@ -3,69 +3,69 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Food palette — light */
-  --background: hsl(40 30% 98%);
-  --foreground: hsl(150 15% 15%);
+  /* Food palette — light (crème chaud + tomate cuite + vert basilic) */
+  --background: hsl(40 30% 97%);
+  --foreground: hsl(22 30% 14%);
 
   --card: hsl(0 0% 100%);
-  --card-foreground: hsl(150 15% 15%);
+  --card-foreground: hsl(22 30% 14%);
 
   --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(150 15% 15%);
+  --popover-foreground: hsl(22 30% 14%);
 
-  /* Vert frais */
-  --primary: hsl(142 71% 45%);
-  --primary-foreground: hsl(0 0% 100%);
+  /* Orange tomate cuite */
+  --primary: hsl(13 61% 45%);
+  --primary-foreground: hsl(40 30% 98%);
 
-  /* Orange chaud */
-  --secondary: hsl(24 95% 53%);
-  --secondary-foreground: hsl(0 0% 100%);
+  /* Vert basilic */
+  --secondary: hsl(120 24% 39%);
+  --secondary-foreground: hsl(40 30% 98%);
 
-  --muted: hsl(40 20% 94%);
-  --muted-foreground: hsl(150 8% 42%);
+  --muted: hsl(36 30% 93%);
+  --muted-foreground: hsl(25 10% 38%);
 
-  /* Jaune tournesol */
-  --accent: hsl(45 93% 58%);
-  --accent-foreground: hsl(30 30% 15%);
+  /* Beige chaud */
+  --accent: hsl(32 45% 82%);
+  --accent-foreground: hsl(22 30% 14%);
 
-  --destructive: hsl(0 74% 50%);
+  --destructive: hsl(6 62% 49%);
   --destructive-foreground: hsl(0 0% 100%);
 
-  --border: hsl(40 20% 88%);
-  --input: hsl(40 20% 88%);
-  --ring: hsl(142 71% 45%);
+  --border: hsl(36 25% 88%);
+  --input: hsl(36 25% 88%);
+  --ring: hsl(13 61% 45%);
 
-  --radius: 0.6rem;
+  --radius: 0.75rem;
 }
 
 .dark {
-  --background: hsl(150 15% 10%);
-  --foreground: hsl(40 20% 95%);
+  --background: hsl(22 30% 8%);
+  --foreground: hsl(40 30% 95%);
 
-  --card: hsl(150 12% 14%);
-  --card-foreground: hsl(40 20% 95%);
+  --card: hsl(22 25% 12%);
+  --card-foreground: hsl(40 30% 95%);
 
-  --popover: hsl(150 12% 14%);
-  --popover-foreground: hsl(40 20% 95%);
+  --popover: hsl(22 25% 12%);
+  --popover-foreground: hsl(40 30% 95%);
 
-  --primary: hsl(142 55% 48%);
-  --primary-foreground: hsl(150 20% 10%);
+  --primary: hsl(13 60% 55%);
+  --primary-foreground: hsl(22 30% 8%);
 
-  --secondary: hsl(24 78% 55%);
-  --secondary-foreground: hsl(150 20% 10%);
+  --secondary: hsl(120 24% 50%);
+  --secondary-foreground: hsl(22 30% 8%);
 
-  --muted: hsl(150 10% 18%);
-  --muted-foreground: hsl(40 10% 65%);
+  --muted: hsl(22 20% 16%);
+  --muted-foreground: hsl(40 15% 68%);
 
-  --accent: hsl(45 70% 55%);
-  --accent-foreground: hsl(150 20% 10%);
+  --accent: hsl(25 30% 28%);
+  --accent-foreground: hsl(40 30% 95%);
 
-  --destructive: hsl(0 60% 55%);
+  --destructive: hsl(6 55% 55%);
   --destructive-foreground: hsl(0 0% 100%);
 
-  --border: hsl(150 10% 22%);
-  --input: hsl(150 10% 22%);
-  --ring: hsl(142 55% 48%);
+  --border: hsl(22 20% 20%);
+  --input: hsl(22 20% 20%);
+  --ring: hsl(13 60% 55%);
 }
 
 @theme inline {
@@ -93,8 +93,17 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
 
-  --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-sans: var(--font-geist-sans), "Inter", system-ui, -apple-system, sans-serif;
+  --font-serif: "Playfair Display", "Iowan Old Style", Georgia, serif;
+  --font-mono: var(--font-geist-mono), "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Serif titles — tagged with class, not auto-applied to all h1/h2 so
+   existing pages keep their current Inter look unless they opt in. */
+.font-serif,
+.title-serif {
+  font-family: var(--font-serif);
+  letter-spacing: -0.01em;
 }
 
 * {
@@ -105,4 +114,9 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+/* Safe-area padding for mobile bottom nav on iPhones with home indicator */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }

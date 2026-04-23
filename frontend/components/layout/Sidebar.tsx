@@ -3,76 +3,91 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  ChefHat, BookOpen, ShoppingCart, Package, Receipt,
-  Upload, Settings, Home, Sprout, Layers,
+  CalendarDays, BookOpen, ShoppingBasket, Snowflake, Receipt, Wrench,
+  ChefHat,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
 
-const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: Home },
+/**
+ * V3 navigation — 6 paradigms composed into one app:
+ *   - Planifier   : weekly calendar home (#5 calendar, #2 kanban toggle)
+ *   - Recettes    : browse w/ "+ au batch" (#6 grocery cart)
+ *   - Panier      : batch in progress + checkout (#6)
+ *   - Frigo       : inventory (#1 mobile-first when shopping)
+ *   - Tickets     : receipt upload + OCR
+ *   - Gérer       : catalogue/variantes/imports/settings (#9 power tables)
+ * #4 AI chef lives in the floating FAB (see ChefFab).
+ *
+ * Narrow-rail (72px) by default; expands to 220px on hover.
+ */
+export const NAV_ITEMS = [
+  { href: "/planifier", label: "Planifier", icon: CalendarDays },
   { href: "/recipes", label: "Recettes", icon: BookOpen },
-  { href: "/ingredients", label: "Catalogue", icon: Sprout },
-  { href: "/ingredients/variantes", label: "Variantes Marmiton", icon: Layers },
-  { href: "/batches", label: "Batch Cooking", icon: ChefHat },
-  { href: "/shopping", label: "Liste de courses", icon: ShoppingCart },
-  { href: "/inventory", label: "Inventaire", icon: Package },
-  { href: "/receipts", label: "Tickets de caisse", icon: Receipt },
-  { href: "/imports", label: "Import Marmiton", icon: Upload },
-  { href: "/settings", label: "Paramètres", icon: Settings },
+  { href: "/batch", label: "Panier", icon: ShoppingBasket },
+  { href: "/frigo", label: "Frigo", icon: Snowflake },
+  { href: "/receipts", label: "Tickets", icon: Receipt },
+  { href: "/gerer", label: "Gérer", icon: Wrench },
 ] as const;
+
+function isActiveRoute(href: string, pathname: string): boolean {
+  // Exact match for top-level roots we don't want to collide
+  if (href === "/planifier") {
+    return pathname === "/" || pathname.startsWith("/planifier");
+  }
+  return pathname === href || pathname.startsWith(href + "/");
+}
 
 export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-56 shrink-0 flex flex-col bg-card border-r border-border h-full">
-      {/* Logo */}
-      <div className="flex items-center justify-between px-4 py-5 border-b border-border">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-secondary text-primary-foreground">
-            <ChefHat className="h-4 w-4" />
-          </div>
-          <div>
-            <p className="font-bold text-base leading-tight tracking-tight">BatchChef</p>
-            <p className="text-[10px] text-muted-foreground leading-tight">v3.0 · Pricing</p>
-          </div>
+    <aside
+      className={cn(
+        "group/sidebar hidden md:flex",
+        "w-[72px] hover:w-[220px] transition-[width] duration-200 ease-out",
+        "shrink-0 flex-col bg-card border-r border-border h-full overflow-hidden",
+      )}
+    >
+      {/* Logo block */}
+      <div className="flex items-center gap-2 px-4 py-5 border-b border-border h-[72px]">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary text-primary-foreground">
+          <ChefHat className="h-4 w-4" />
         </div>
-        <ThemeToggle />
+        <div className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity whitespace-nowrap">
+          <p className="title-serif font-bold text-lg leading-tight">BatchChef</p>
+          <p className="text-[10px] text-muted-foreground leading-tight">v3.0</p>
+        </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          let active: boolean;
-          if (href === "/") {
-            active = pathname === "/";
-          } else if (href === "/ingredients") {
-            // Catalogue is active ONLY on exactly /ingredients, not sub-routes
-            // like /ingredients/variantes.
-            active = pathname === "/ingredients";
-          } else {
-            active = pathname.startsWith(href);
-          }
+          const active = isActiveRoute(href, pathname);
           return (
             <Link
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg h-11 px-3 text-sm font-medium transition-colors",
                 active
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground",
               )}
             >
-              <Icon className="h-4 w-4 shrink-0" />
-              {label}
+              <Icon className="h-5 w-5 shrink-0" />
+              <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity whitespace-nowrap">
+                {label}
+              </span>
             </Link>
           );
         })}
       </nav>
 
-      {/* Auth widget disabled (local/single-user mode) */}
+      {/* Footer — theme toggle */}
+      <div className="p-2 border-t border-border flex items-center justify-center group-hover/sidebar:justify-start group-hover/sidebar:px-4">
+        <ThemeToggle />
+      </div>
     </aside>
   );
 }
