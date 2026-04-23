@@ -1,4 +1,6 @@
-"""AI client — Gemini primary with automatic fallback to a lighter model.
+"""AI client — Gemini primary with automatic fallback to a lighter model,
+and a final Claude Haiku fallback when all Gemini tiers fail (e.g. when
+the Gemini billing cap is hit).
 
 Kept the legacy `call_claude` / `call_claude_vision` names so all existing
 callers (classifier, standardizer, receipt_ocr, display_name_cleaner,
@@ -7,13 +9,22 @@ ingredient_dedup, name_cleaner) keep working unchanged.
 import asyncio
 import logging
 import time
+
+import anthropic
 from google import genai
 from google.genai import types as genai_types
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 _client: genai.Client | None = None
+_anthropic_client: anthropic.AsyncAnthropic | None = None
+
+# Once we see a hard Gemini quota/billing error, skip Gemini for the rest
+# of the process — every subsequent call would just eat 4s waiting for
+# four 429s before hitting the Claude fallback.
+_gemini_hard_fail = False
 
 # Gemini free tier ~10 RPM. Set GEMINI_MIN_INTERVAL_S=0 on paid tier.
 _MIN_INTERVAL = float(getattr(settings, "GEMINI_MIN_INTERVAL_S", 6.0))
@@ -40,12 +51,73 @@ def get_client() -> genai.Client:
     return _client
 
 
+def get_anthropic_client() -> anthropic.AsyncAnthropic | None:
+    """Lazy init, returns None if no API key is set."""
+    global _anthropic_client
+    if _anthropic_client is not None:
+        return _anthropic_client
+    if not settings.ANTHROPIC_API_KEY:
+        return None
+    _anthropic_client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    return _anthropic_client
+
+
+async def _call_claude_fallback(
+    system: str,
+    user_prompt: str,
+    max_tokens: int,
+    temperature: float,
+) -> str | None:
+    """Final fallback when all Gemini tiers fail (billing cap, quota, etc).
+    Uses Haiku — cheapest Claude model — to stay economical.
+    Returns the response text, or None if no API key / call fails.
+    """
+    ac = get_anthropic_client()
+    if ac is None:
+        return None
+    try:
+        resp = await ac.messages.create(
+            model=settings.CLAUDE_MODEL or "claude-haiku-4-5-20251001",
+            max_tokens=max_tokens,
+            temperature=temperature,
+            system=system or "",
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        # Stitch all text blocks into one string
+        parts: list[str] = []
+        for block in resp.content:
+            if hasattr(block, "text"):
+                parts.append(block.text)
+        return "".join(parts) or None
+    except Exception as e:
+        logger.warning(f"Claude fallback failed: {e}")
+        return None
+
+
+# Fallback chain: when the primary model fails (quota, billing cap, 5xx,
+# empty response), we try each of these in order. Configured via env:
+#   GEMINI_MODEL=<primary>  (default: gemini-3-flash-preview)
+#   GEMINI_MODEL_FALLBACK=<m1,m2,m3,...>  (comma-separated, any length)
+# Default chain covers the 4-tier progression the user asked for:
+#   3-flash-preview  →  3.1-flash-lite-preview  →  2.5-flash  →  2.0-flash
+_DEFAULT_FALLBACK_CHAIN = (
+    "gemini-3.1-flash-lite-preview",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+)
+
+
 def _models_for_fallback(override: str | None) -> list[str]:
     if override:
         return [override]
     primary = settings.GEMINI_MODEL or "gemini-3-flash-preview"
-    fallback = getattr(settings, "GEMINI_MODEL_FALLBACK", "") or "gemini-3.1-flash-lite-preview"
-    return [primary, fallback] if fallback and fallback != primary else [primary]
+    fallback_str = getattr(settings, "GEMINI_MODEL_FALLBACK", "") or ",".join(_DEFAULT_FALLBACK_CHAIN)
+    fallbacks = [m.strip() for m in fallback_str.split(",") if m.strip()]
+    chain: list[str] = [primary]
+    for m in fallbacks:
+        if m and m not in chain:
+            chain.append(m)
+    return chain
 
 
 async def call_claude(
@@ -73,28 +145,55 @@ async def call_claude(
     # the old 8192 default, ~7 KB goes to thinking and the visible response
     # truncates around char 800. Bumping to 32768 leaves plenty for both.
     effective_max = max(max_tokens, 32768)
-    for m in models:
-        try:
-            cfg_kwargs = dict(
-                temperature=temperature,
-                max_output_tokens=effective_max,
-            )
-            if want_json:
-                cfg_kwargs["response_mime_type"] = "application/json"
-            resp = await asyncio.to_thread(
-                client.models.generate_content,
-                model=m,
-                contents=prompt,
-                config=genai_types.GenerateContentConfig(**cfg_kwargs),
-            )
-            text = resp.text or ""
-            if text:
-                return text
-            last_err = RuntimeError(f"{m}: empty response")
-        except Exception as e:
-            last_err = e
-            logger.warning(f"Gemini model '{m}' failed: {e}; trying next")
-    raise last_err or RuntimeError("All Gemini models failed")
+    global _gemini_hard_fail
+    if not _gemini_hard_fail:
+        for m in models:
+            try:
+                cfg_kwargs = dict(
+                    temperature=temperature,
+                    max_output_tokens=effective_max,
+                )
+                if want_json:
+                    cfg_kwargs["response_mime_type"] = "application/json"
+                resp = await asyncio.to_thread(
+                    client.models.generate_content,
+                    model=m,
+                    contents=prompt,
+                    config=genai_types.GenerateContentConfig(**cfg_kwargs),
+                )
+                text = resp.text or ""
+                if text:
+                    return text
+                last_err = RuntimeError(f"{m}: empty response")
+            except Exception as e:
+                last_err = e
+                err_str = str(e).lower()
+                logger.warning(f"Gemini model '{m}' failed: {e}; trying next")
+                # Hard-fail markers: billing cap / project quota exhausted.
+                # These are project-level — switching model inside Gemini
+                # won't help, and the state won't change for the rest of
+                # this process. Short-circuit to Claude immediately.
+                if (
+                    "resource_exhausted" in err_str
+                    or "billing" in err_str
+                    or "spending cap" in err_str
+                    or "quota exceeded" in err_str
+                ):
+                    _gemini_hard_fail = True
+                    logger.warning(
+                        "Gemini hard-fail detected — skipping Gemini for the rest of this process"
+                    )
+                    break
+
+    # All Gemini tiers failed (or skipped) — try Claude Haiku as fallback
+    if _gemini_hard_fail:
+        logger.debug("Using Claude (Gemini disabled for this session)")
+    else:
+        logger.info("All Gemini models exhausted — falling back to Claude Haiku")
+    claude_text = await _call_claude_fallback(system, user, max_tokens, temperature)
+    if claude_text:
+        return claude_text
+    raise last_err or RuntimeError("All Gemini + Claude fallbacks failed")
 
 
 async def call_claude_vision(
