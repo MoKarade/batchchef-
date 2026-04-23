@@ -349,6 +349,25 @@ export const statsApi = {
   get: () => api.get<Stats>("/api/stats"),
 };
 
+export interface ChefChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChefChatRequest {
+  messages: ChefChatMessage[];
+  cart_recipes?: string[] | null;
+}
+
+export interface ChefChatResponse {
+  reply: string;
+}
+
+export const chefApi = {
+  chat: (body: ChefChatRequest) =>
+    api.post<ChefChatResponse>("/api/chef/chat", body),
+};
+
 export const storesApi = {
   list: () => api.get<Store[]>("/api/stores"),
   listProducts: (storeCode: string) => api.get<StoreProduct[]>(`/api/stores/${storeCode}/products`),

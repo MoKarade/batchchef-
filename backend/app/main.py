@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app.config import settings
 from app.database import init_db
-from app.routers import recipes, imports, batches, inventory, receipts, stores, ws, ingredients, auth
+from app.routers import recipes, imports, batches, inventory, receipts, stores, ws, ingredients, auth, chef
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,7 @@ app.include_router(receipts.router)
 app.include_router(stores.router)
 app.include_router(ingredients.router)
 app.include_router(auth.router)
+app.include_router(chef.router)
 app.include_router(ws.router)
 
 # Serve uploaded files
