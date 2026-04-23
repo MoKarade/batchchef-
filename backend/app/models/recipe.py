@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Integer, String, Boolean, Float, DateTime, Text, ForeignKey, func, Index
+from sqlalchemy import Integer, String, Boolean, Float, DateTime, Text, ForeignKey, JSON, func, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -41,6 +41,8 @@ class Recipe(Base):
     scraped_at: Mapped[datetime | None] = mapped_column(DateTime)
     ai_processed_at: Mapped[datetime | None] = mapped_column(DateTime)
     status: Mapped[str] = mapped_column(String, default="pending")  # pending|scraped|ai_done|error
+    pricing_status: Mapped[str] = mapped_column(String, default="pending")  # pending|complete|incomplete
+    missing_price_ingredients: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

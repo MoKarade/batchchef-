@@ -54,6 +54,7 @@ class ShoppingListItem(Base):
     packages_to_buy: Mapped[int] = mapped_column(Integer, default=1)
     estimated_cost: Mapped[float | None] = mapped_column(Float)
     from_inventory_qty: Mapped[float] = mapped_column(Float, default=0.0)
+    product_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
     is_purchased: Mapped[bool] = mapped_column(Boolean, default=False)
     purchased_at: Mapped[datetime | None] = mapped_column(DateTime)

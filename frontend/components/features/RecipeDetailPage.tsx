@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import {
@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { recipesApi, ingredientsApi, type IngredientMaster } from "@/lib/api";
 import { formatPrice, formatDuration, healthColor, mealTypeLabel, categoryEmoji } from "@/lib/utils";
+import { useRefreshOnMount } from "@/lib/useRefreshOnMount";
 
 function IngredientPicker({
   currentId,
@@ -83,6 +84,12 @@ export function RecipeDetailPage({ recipeId }: { recipeId: number }) {
     queryKey: ["recipe", recipeId],
     queryFn: () => recipesApi.get(recipeId).then((r) => r.data),
   });
+
+  const ingredientIds = useMemo(
+    () => recipe?.ingredients.map((ri) => ri.ingredient?.id).filter((id): id is number => id != null) ?? [],
+    [recipe],
+  );
+  useRefreshOnMount(ingredientIds);
 
   const updateIng = useMutation({
     mutationFn: (vars: { riId: number; ingredient_master_id: number | null }) =>

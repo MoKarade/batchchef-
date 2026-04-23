@@ -9,9 +9,11 @@ import {
 } from "@tanstack/react-query";
 import {
   Search, CheckCircle2, AlertTriangle, Clock, Pencil, Check, X, RotateCcw,
-  ChevronRight, Layers, List, ArrowLeft, Sparkles, Wrench,
+  ChevronRight, ChevronDown, Layers, List, ArrowLeft, Sparkles, Wrench,
+  ExternalLink, ShoppingCart, BookOpen, RefreshCw, ShieldAlert,
 } from "lucide-react";
-import { ingredientsApi, type IngredientMaster } from "@/lib/api";
+import Link from "next/link";
+import { ingredientsApi, storesApi, type IngredientMaster, type IngredientDetails, type StoreProductOut } from "@/lib/api";
 import { formatPrice, categoryEmoji, categoryLabel } from "@/lib/utils";
 
 const STATUSES = [
@@ -31,6 +33,187 @@ function StatusBadge({ status }: { status: string }) {
   return <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-xs"><Clock className="h-3 w-3" /> En attente</span>;
 }
 
+function Sparkline({ points }: { points: number[] }) {
+  if (points.length < 2) return null;
+  const W = 80;
+  const H = 24;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = max - min || 1;
+  const step = W / (points.length - 1);
+  const path = points
+    .map((p, i) => {
+      const x = i * step;
+      const y = H - ((p - min) / range) * H;
+      return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const last = points[points.length - 1];
+  const first = points[0];
+  const up = last > first;
+  return (
+    <svg width={W} height={H} className="inline-block shrink-0">
+      <path
+        d={path}
+        fill="none"
+        strokeWidth={1.5}
+        className={up ? "stroke-red-500" : "stroke-green-500"}
+      />
+    </svg>
+  );
+}
+
+function IngredientDetailsPanel({ id }: { id: number }) {
+  const qc = useQueryClient();
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["ingredient-details", id],
+    queryFn: () => ingredientsApi.details(id).then((r) => r.data),
+    staleTime: 60_000,
+  });
+
+  const rescan = useMutation({
+    mutationFn: () => storesApi.mapPrices({ ingredient_ids: [id] }),
+    onSuccess: () => {
+      setTimeout(() => qc.invalidateQueries({ queryKey: ["ingredient-details", id] }), 30_000);
+    },
+  });
+
+  if (isLoading)
+    return <p className="text-xs text-muted-foreground italic">Chargement…</p>;
+  if (error)
+    return <p className="text-xs text-destructive">Erreur de chargement</p>;
+  if (!data) return null;
+
+  const d = data as IngredientDetails;
+  const maxi = d.store_products.find((p) => p.store_code === "maxi");
+  const costco = d.store_products.find((p) => p.store_code === "costco");
+  const others = d.store_products.filter(
+    (p) => p.store_code !== "maxi" && p.store_code !== "costco",
+  );
+
+  // Group price history by store for sparklines
+  const historyByStore: Record<string, number[]> = {};
+  for (const pt of d.price_history) {
+    (historyByStore[pt.store_code] ??= []).push(pt.price);
+  }
+  // history is desc by recorded_at — reverse so sparkline reads left→right chronologically
+  Object.keys(historyByStore).forEach((k) => historyByStore[k].reverse());
+
+  return (
+    <div className="space-y-3 pt-2 border-t">
+      {/* Prices per store */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Prix & liens</p>
+          <button
+            onClick={() => rescan.mutate()}
+            disabled={rescan.isPending}
+            className="inline-flex items-center gap-1 text-[10px] rounded-md border px-2 py-0.5 hover:bg-accent disabled:opacity-50"
+            title="Rescanner Maxi + Costco pour cet ingrédient"
+          >
+            <RefreshCw className={`h-3 w-3 ${rescan.isPending ? "animate-spin" : ""}`} />
+            {rescan.isPending ? "Lancé" : "Rescanner"}
+          </button>
+        </div>
+        {d.store_products.length === 0 && (
+          <p className="text-xs text-muted-foreground italic">
+            Pas encore de prix — relance depuis Paramètres › Prix.
+          </p>
+        )}
+        {[maxi, costco, ...others].filter(Boolean).map((sp) => (
+          <div key={sp!.id} className="flex items-start gap-2 text-xs rounded-md border bg-muted/30 p-2">
+            {sp!.image_url ? (
+              <a
+                href={sp!.product_url ?? "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 block h-14 w-14 rounded-md overflow-hidden bg-white border"
+                title={sp!.product_name ?? undefined}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={sp!.image_url}
+                  alt={sp!.product_name ?? ""}
+                  className="h-full w-full object-contain"
+                  loading="lazy"
+                />
+              </a>
+            ) : (
+              <div className="shrink-0 h-14 w-14 rounded-md bg-muted/50 border inline-flex items-center justify-center">
+                <ShoppingCart className="h-4 w-4 text-muted-foreground/60" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold capitalize">{sp!.store_name}</span>
+                <span className="font-mono font-bold text-green-700 dark:text-green-400">
+                  {formatPrice(sp!.price)}
+                </span>
+              </div>
+              <p className="text-muted-foreground truncate">{sp!.product_name}</p>
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <span>{sp!.format_qty} {sp!.format_unit}</span>
+                {sp!.confidence_score != null && sp!.confidence_score < 0.6 && (
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-700 px-1.5 py-[1px] text-[9px] font-medium">
+                    <ShieldAlert className="h-2.5 w-2.5" /> À valider ({(sp!.confidence_score * 100).toFixed(0)}%)
+                  </span>
+                )}
+                {sp!.confidence_score != null && sp!.confidence_score >= 0.6 && sp!.confidence_score < 0.85 && (
+                  <span className="text-amber-600">conf. {(sp!.confidence_score * 100).toFixed(0)}%</span>
+                )}
+                {sp!.confidence_score != null && sp!.confidence_score >= 0.85 && (
+                  <span className="text-green-700">✓ {(sp!.confidence_score * 100).toFixed(0)}%</span>
+                )}
+                {historyByStore[sp!.store_code ?? ""] && historyByStore[sp!.store_code ?? ""].length >= 2 && (
+                  <span className="ml-auto">
+                    <Sparkline points={historyByStore[sp!.store_code ?? ""]} />
+                  </span>
+                )}
+              </div>
+              {sp!.product_url && (
+                <a
+                  href={sp!.product_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:underline mt-1"
+                >
+                  Voir sur {sp!.store_name} <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Recipes using this ingredient */}
+      {d.recipes.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
+            <BookOpen className="h-3 w-3" /> Dans {d.recipes.length} recette{d.recipes.length > 1 ? "s" : ""}
+          </p>
+          <div className="max-h-48 overflow-y-auto space-y-0.5 rounded-md border bg-muted/30 p-2">
+            {d.recipes.map((r, idx) => (
+              <Link
+                key={`${r.id}-${idx}`}
+                href={`/recipes/${r.id}`}
+                className="flex items-center justify-between gap-2 text-xs hover:bg-accent rounded px-1.5 py-0.5 transition-colors"
+              >
+                <span className="truncate">{r.title}</span>
+                {r.quantity_per_portion != null && (
+                  <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                    {r.quantity_per_portion}{r.unit ?? ""}
+                  </span>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function IngredientCard({
   ing,
   onDrillDown,
@@ -40,6 +223,7 @@ function IngredientCard({
 }) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [name, setName] = useState(ing.display_name_fr);
   const [category, setCategory] = useState(ing.category ?? "");
   const [price, setPrice] = useState(ing.estimated_price_per_kg?.toString() ?? "");
@@ -69,7 +253,24 @@ function IngredientCard({
   return (
     <div className="rounded-xl border bg-card p-4 space-y-3">
       <div className="flex items-start gap-3">
-        <div className="text-4xl leading-none shrink-0">{categoryEmoji(ing.category)}</div>
+        {ing.primary_image_url ? (
+          <div
+            className="shrink-0 h-14 w-14 rounded-md overflow-hidden bg-white border"
+            title={`${ing.primary_store_code ?? ""} — ${ing.display_name_fr}`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={ing.primary_image_url}
+              alt={ing.display_name_fr}
+              className="h-full w-full object-contain"
+              loading="lazy"
+            />
+          </div>
+        ) : (
+          <div className="shrink-0 h-14 w-14 rounded-md bg-muted/40 border inline-flex items-center justify-center text-2xl leading-none">
+            {categoryEmoji(ing.category)}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           {editing ? (
             <input
@@ -106,7 +307,11 @@ function IngredientCard({
           )}
         </div>
         <div>
-          <p className="text-muted-foreground">Prix estimé / kg</p>
+          <p className="text-muted-foreground">
+            {ing.computed_unit_price != null
+              ? `Prix / ${ing.computed_unit_label ?? "kg"}${ing.primary_store_code ? ` (${ing.primary_store_code})` : ""}`
+              : "Prix estimé / kg"}
+          </p>
           {editing ? (
             <input
               type="number"
@@ -116,7 +321,9 @@ function IngredientCard({
               className="h-7 w-full rounded-md border bg-background px-2 text-xs mt-0.5"
             />
           ) : (
-            <p className="font-medium">{formatPrice(ing.estimated_price_per_kg)}</p>
+            <p className="font-medium">
+              {formatPrice(ing.computed_unit_price ?? ing.estimated_price_per_kg)}
+            </p>
           )}
         </div>
       </div>
@@ -140,6 +347,15 @@ function IngredientCard({
           <ChevronRight className="h-3 w-3" />
         </button>
       )}
+
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full h-7 rounded-md border bg-muted/20 text-[11px] inline-flex items-center justify-center gap-1 hover:bg-accent"
+      >
+        {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        {expanded ? "Masquer détails" : "Voir prix & recettes"}
+      </button>
+      {expanded && <IngredientDetailsPanel id={ing.id} />}
 
       {editing ? (
         <div className="flex items-center gap-2">

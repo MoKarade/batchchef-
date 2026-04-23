@@ -1,3 +1,5 @@
+import logging
+import shutil
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,11 +10,31 @@ from app.config import settings
 from app.database import init_db
 from app.routers import recipes, imports, batches, inventory, receipts, stores, ws, ingredients, auth
 
+logger = logging.getLogger(__name__)
+
+
+def _bootstrap_db_from_seed():
+    """If no batchchef.db exists but a committed snapshot batchchef.seed.db is
+    present (fresh `git clone`), copy it so a new machine gets every
+    imported recipe / scraped price / OpenFoodFacts nutrition hit for free."""
+    cwd = Path.cwd()
+    db_path = cwd / "batchchef.db"
+    seed_path = cwd / "batchchef.seed.db"
+    if not db_path.exists() and seed_path.exists():
+        shutil.copy(seed_path, db_path)
+        logger.warning(
+            f"Bootstrapped batchchef.db from committed snapshot "
+            f"({seed_path.stat().st_size / 1_048_576:.1f} MB). "
+            "Delete batchchef.db and restart to reset, or edit .env to point elsewhere."
+        )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _bootstrap_db_from_seed()
     await init_db()
     await _seed_stores()
+    await _seed_admin_user()
     yield
 
 
@@ -102,4 +124,34 @@ async def _seed_stores():
             exists = (await db.execute(select(Store).where(Store.code == s["code"]))).scalar_one_or_none()
             if not exists:
                 db.add(Store(**s))
+            else:
+                exists.store_location_id = s["store_location_id"]
+                exists.website_url = s.get("website_url")
         await db.commit()
+
+
+async def _seed_admin_user():
+    from sqlalchemy import select
+    from app.database import AsyncSessionLocal
+    from app.models.user import User
+    from app.auth import hash_password, verify_password
+
+    email = settings.ADMIN_EMAIL
+    password = settings.ADMIN_PASSWORD
+    if not email or not password:
+        return
+
+    async with AsyncSessionLocal() as db:
+        user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
+        if user is None:
+            db.add(User(
+                email=email,
+                hashed_password=hash_password(password),
+                display_name="Admin",
+                is_active=True,
+                is_admin=True,
+            ))
+            await db.commit()
+        elif not verify_password(password, user.hashed_password):
+            user.hashed_password = hash_password(password)
+            await db.commit()
