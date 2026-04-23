@@ -39,6 +39,13 @@ class IngredientOut(BaseModel):
     usage_count: int = 0
     store_product_count: int = 0
     children_count: int = 0
+    # Display helpers populated from the best StoreProduct
+    primary_image_url: str | None = None
+    primary_store_code: str | None = None
+    computed_price_per_kg: float | None = None
+    # Unit-adaptive price: e.g. 25.0 $/kg, 3.99 $/L, 0.75 $/unite
+    computed_unit_price: float | None = None
+    computed_unit_label: str | None = None  # "kg" | "L" | "unite"
 
 
 class IngredientUpdate(BaseModel):
@@ -139,6 +146,67 @@ async def list_ingredients(
     )
     prods = dict((await db.execute(prod_q)).all())
 
+    # Best StoreProduct per ingredient (lowest price, validated first) — used to
+    # expose primary_image_url + computed_price_per_kg on each card.
+    from app.models.store import Store as _Store
+    best_q = (
+        select(
+            StoreProduct.ingredient_master_id,
+            StoreProduct.image_url,
+            StoreProduct.price,
+            StoreProduct.format_qty,
+            StoreProduct.format_unit,
+            _Store.code,
+        )
+        .join(_Store, _Store.id == StoreProduct.store_id)
+        .where(
+            StoreProduct.ingredient_master_id.in_(ids),
+            StoreProduct.price.isnot(None),
+        )
+        .order_by(
+            StoreProduct.ingredient_master_id,
+            StoreProduct.is_validated.desc(),
+            StoreProduct.price.asc(),
+        )
+    )
+    best_by_ing: dict[int, tuple[str | None, float | None, float | None, str | None, str]] = {}
+    for ing_id, img_url, price, fqty, funit, code in (await db.execute(best_q)).all():
+        best_by_ing.setdefault(ing_id, (img_url, price, fqty, funit, code))
+
+    def _price_per_kg(price: float | None, qty: float | None, unit: str | None) -> float | None:
+        if not (price and qty and unit):
+            return None
+        u = (unit or "").strip().lower()
+        if u in ("g", "gramme", "grammes"):
+            return round(price / (qty / 1000.0), 2)
+        if u in ("kg", "kilo", "kilogramme"):
+            return round(price / qty, 2)
+        if u in ("ml", "millilitre"):
+            return round(price / (qty / 1000.0), 2)
+        if u in ("l", "litre"):
+            return round(price / qty, 2)
+        return None
+
+    def _unit_price(price: float | None, qty: float | None, unit: str | None) -> tuple[float | None, str | None]:
+        """Return (price, label) adapted to the store format unit:
+          mass   → price/kg        (label='kg')
+          volume → price/L         (label='L')
+          count  → price/unit      (label='unite')
+        """
+        if not (price and qty and unit):
+            return None, None
+        u = (unit or "").strip().lower()
+        if u in ("g", "gramme", "grammes"):
+            return round(price / (qty / 1000.0), 2), "kg"
+        if u in ("kg", "kilo", "kilogramme"):
+            return round(price / qty, 2), "kg"
+        if u in ("ml", "millilitre"):
+            return round(price / (qty / 1000.0), 2), "L"
+        if u in ("l", "litre"):
+            return round(price / qty, 2), "L"
+        # Count-based: a 6-pack of eggs at 4.11$ → 0.69$/unit
+        return round(price / qty, 2), "unite"
+
     children_q = (
         select(IngredientMaster.parent_id, func.count(IngredientMaster.id))
         .where(IngredientMaster.parent_id.in_(ids))
@@ -152,6 +220,15 @@ async def list_ingredients(
         row.usage_count = int(usage.get(ing.id, 0))
         row.store_product_count = int(prods.get(ing.id, 0))
         row.children_count = int(children_counts.get(ing.id, 0))
+        best = best_by_ing.get(ing.id)
+        if best:
+            img_url, price, fqty, funit, code = best
+            row.primary_image_url = img_url
+            row.primary_store_code = code
+            row.computed_price_per_kg = _price_per_kg(price, fqty, funit)
+            up, ul = _unit_price(price, fqty, funit)
+            row.computed_unit_price = up
+            row.computed_unit_label = ul
         out.append(row)
     return out
 
@@ -184,45 +261,167 @@ async def update_ingredient(
     return out
 
 
-class SanitizeRequest(BaseModel):
-    ingredient_ids: list[int] | None = None
+class StoreProductOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    store_id: int
+    store_code: str | None = None
+    store_name: str | None = None
+    product_name: str | None = None
+    product_url: str | None = None
+    image_url: str | None = None
+    price: float | None = None
+    format_qty: float | None = None
+    format_unit: str | None = None
+    is_validated: bool = False
+    confidence_score: float | None = None
+    last_checked_at: str | None = None
 
 
-@router.post("/sanitize-names", response_model=JobOut, status_code=202)
-async def sanitize_display_names(
-    body: SanitizeRequest | None = None,
+class RecipeBriefForIng(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    title: str
+    image_url: str | None = None
+    meal_type: str | None = None
+    servings: int | None = None
+    quantity_per_portion: float | None = None
+    unit: str | None = None
+
+
+class PricePoint(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    store_code: str
+    price: float
+    recorded_at: str
+
+
+class IngredientDetails(IngredientOut):
+    store_products: list[StoreProductOut] = []
+    recipes: list[RecipeBriefForIng] = []
+    price_history: list[PricePoint] = []
+
+
+@router.get("/{ingredient_id}/details", response_model=IngredientDetails)
+async def ingredient_details(
+    ingredient_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Launch a Celery task that re-cleans IngredientMaster.display_name_fr via Gemini."""
-    ingredient_ids = body.ingredient_ids if body else None
+    """Full detail view: ingredient + per-store prices (with URLs) + recipes using it."""
+    from app.models.store import Store
+    from app.models.recipe import Recipe
 
-    count_q = select(func.count(IngredientMaster.id))
-    if ingredient_ids:
-        count_q = count_q.where(IngredientMaster.id.in_(ingredient_ids))
-    total = int((await db.execute(count_q)).scalar() or 0)
+    ing = await db.get(IngredientMaster, ingredient_id)
+    if not ing:
+        raise HTTPException(status_code=404, detail="Ingredient not found")
 
-    job = ImportJob(
-        job_type="ingredients_sanitize_names",
-        status="queued",
-        progress_total=total,
-        metadata_json=json.dumps({"ingredient_ids": ingredient_ids}),
+    # Store products + store info
+    sp_rows = (await db.execute(
+        select(StoreProduct, Store)
+        .join(Store, Store.id == StoreProduct.store_id)
+        .where(StoreProduct.ingredient_master_id == ingredient_id)
+    )).all()
+    products: list[StoreProductOut] = []
+    for sp, store in sp_rows:
+        products.append(StoreProductOut(
+            id=sp.id,
+            store_id=sp.store_id,
+            store_code=store.code,
+            store_name=store.name,
+            product_name=sp.product_name,
+            product_url=sp.product_url,
+            image_url=sp.image_url,
+            price=sp.price,
+            format_qty=sp.format_qty,
+            format_unit=sp.format_unit,
+            is_validated=bool(sp.is_validated),
+            confidence_score=sp.confidence_score,
+            last_checked_at=sp.last_checked_at.isoformat() if sp.last_checked_at else None,
+        ))
+
+    # Recipes using this ingredient (via RecipeIngredient)
+    rec_rows = (await db.execute(
+        select(Recipe, RecipeIngredient)
+        .join(RecipeIngredient, RecipeIngredient.recipe_id == Recipe.id)
+        .where(RecipeIngredient.ingredient_master_id == ingredient_id)
+        .order_by(Recipe.title)
+        .limit(50)
+    )).all()
+
+    from app.models.store import PriceHistory
+    ph_rows = (await db.execute(
+        select(PriceHistory.price, PriceHistory.recorded_at, Store.code)
+        .join(StoreProduct, StoreProduct.id == PriceHistory.store_product_id)
+        .join(Store, Store.id == StoreProduct.store_id)
+        .where(StoreProduct.ingredient_master_id == ingredient_id)
+        .order_by(PriceHistory.recorded_at.desc())
+        .limit(30)
+    )).all()
+    price_history = [
+        PricePoint(price=p, recorded_at=ts.isoformat() if ts else "", store_code=code)
+        for p, ts, code in ph_rows
+    ]
+    # Deduplicate by recipe id — a recipe may legitimately list the same
+    # ingredient on two lines (cream in sauce + cream in topping), which
+    # would otherwise collide with React's key= on the frontend.
+    seen_recipes: set[int] = set()
+    recipes: list[RecipeBriefForIng] = []
+    for r, ri in rec_rows:
+        if r.id in seen_recipes:
+            continue
+        seen_recipes.add(r.id)
+        recipes.append(RecipeBriefForIng(
+            id=r.id,
+            title=r.title,
+            image_url=r.image_url,
+            meal_type=r.meal_type,
+            servings=r.servings,
+            quantity_per_portion=ri.quantity_per_portion,
+            unit=ri.unit,
+        ))
+
+    # Counts (same as in list endpoint)
+    usage_count = (await db.execute(
+        select(func.count(RecipeIngredient.id)).where(
+            RecipeIngredient.ingredient_master_id == ingredient_id
+        )
+    )).scalar() or 0
+    children_count = (await db.execute(
+        select(func.count(IngredientMaster.id)).where(
+            IngredientMaster.parent_id == ingredient_id
+        )
+    )).scalar() or 0
+
+    return IngredientDetails(
+        id=ing.id,
+        canonical_name=ing.canonical_name,
+        display_name_fr=ing.display_name_fr,
+        category=ing.category,
+        subcategory=ing.subcategory,
+        is_produce=bool(ing.is_produce),
+        default_unit=ing.default_unit,
+        estimated_price_per_kg=ing.estimated_price_per_kg,
+        parent_id=ing.parent_id,
+        specific_unit=ing.specific_unit,
+        specific_price_per_unit=ing.specific_price_per_unit,
+        calories_per_100=ing.calories_per_100,
+        proteins_per_100=ing.proteins_per_100,
+        carbs_per_100=ing.carbs_per_100,
+        lipids_per_100=ing.lipids_per_100,
+        price_mapping_status=ing.price_mapping_status or "pending",
+        usage_count=usage_count,
+        store_product_count=len(products),
+        children_count=children_count,
+        store_products=products,
+        recipes=recipes,
+        price_history=price_history,
     )
-    db.add(job)
-    await db.flush()
-    await db.refresh(job)
 
-    try:
-        from app.workers.clean_display_names import run_clean_display_names
-        task = run_clean_display_names.delay(job.id, ingredient_ids)
-        job.celery_task_id = task.id
-        job.status = "running"
-        job.started_at = utcnow()
-    except Exception as e:
-        job.status = "failed"
-        job.error_log = json.dumps([str(e)])
 
-    await db.commit()
-    await db.refresh(job)
+# NOTE: the old /classify and /sanitize-names endpoints were removed in V3.
+# Name cleanup is now handled by the offline script
+# `scripts/build_canonical_hierarchy.py` which builds the parent/variant
+# hierarchy in one pass.
     return job
 
 
@@ -307,6 +506,176 @@ async def repair_prefixes(db: AsyncSession = Depends(get_db)):
 
     await db.commit()
     return RepairResult(scanned=scanned, renamed=renamed, merged=merged, skipped=skipped)
+
+
+class PriceCoverageItem(BaseModel):
+    id: int
+    canonical_name: str
+    display_name_fr: str
+    attempts: int
+
+
+class PriceCoverageOut(BaseModel):
+    total: int
+    priced: int
+    coverage_pct: float
+    by_store: dict[str, int]
+    unpriced: list[PriceCoverageItem]
+
+
+class PricingEtaOut(BaseModel):
+    pending_count: int
+    avg_seconds_per_ingredient: float
+    eta_seconds: int
+    eta_human: str
+
+
+@router.get("/pricing-eta", response_model=PricingEtaOut)
+async def pricing_eta(db: AsyncSession = Depends(get_db)):
+    """Estimates how long before every ingredient has a price.
+
+    Uses the average runtime/(progress_total) of the last 10 completed
+    `price_mapping` jobs. Falls back to 30s per ingredient if no history.
+    """
+    from datetime import datetime
+
+    recent = (await db.execute(
+        select(ImportJob)
+        .where(
+            ImportJob.job_type == "price_mapping",
+            ImportJob.status == "completed",
+            ImportJob.finished_at.isnot(None),
+            ImportJob.progress_total > 0,
+        )
+        .order_by(ImportJob.finished_at.desc())
+        .limit(10)
+    )).scalars().all()
+
+    if recent:
+        total_secs = 0.0
+        total_items = 0
+        for j in recent:
+            if j.started_at and j.finished_at and j.progress_total:
+                secs = (j.finished_at - j.started_at).total_seconds()
+                total_secs += secs
+                total_items += j.progress_total
+        avg = total_secs / max(total_items, 1) if total_items else 30.0
+    else:
+        avg = 30.0
+
+    pending = (await db.execute(
+        select(func.count()).select_from(IngredientMaster).where(
+            or_(
+                IngredientMaster.price_mapping_status.is_(None),
+                IngredientMaster.price_mapping_status != "mapped",
+            )
+        )
+    )).scalar_one()
+
+    eta_sec = int(pending * avg)
+    h, m = divmod(eta_sec // 60, 60)
+    d, h = divmod(h, 24)
+    if d > 0:
+        human = f"{d}j {h}h"
+    elif h > 0:
+        human = f"{h}h {m}min"
+    else:
+        human = f"{m}min"
+    return PricingEtaOut(
+        pending_count=pending,
+        avg_seconds_per_ingredient=round(avg, 1),
+        eta_seconds=eta_sec,
+        eta_human=human,
+    )
+
+
+@router.get("/price-coverage", response_model=PriceCoverageOut)
+async def get_price_coverage(db: AsyncSession = Depends(get_db)):
+    """Returns ingredient price coverage stats and list of unpriced ingredients."""
+    from sqlalchemy import distinct
+
+    total = (await db.execute(select(func.count()).select_from(IngredientMaster))).scalar_one()
+
+    # Count ingredients with at least one validated StoreProduct with a price
+    priced_subq = (
+        select(distinct(StoreProduct.ingredient_master_id))
+        .where(StoreProduct.is_validated.is_(True), StoreProduct.price.isnot(None))
+        .scalar_subquery()
+    )
+    priced = (
+        await db.execute(
+            select(func.count()).select_from(IngredientMaster)
+            .where(IngredientMaster.id.in_(priced_subq))
+        )
+    ).scalar_one()
+
+    # Coverage per store
+    stores_q = select(
+        StoreProduct.store_id,
+        func.count(distinct(StoreProduct.ingredient_master_id))
+    ).where(
+        StoreProduct.is_validated.is_(True),
+        StoreProduct.price.isnot(None),
+    ).group_by(StoreProduct.store_id)
+    store_rows = (await db.execute(stores_q)).all()
+
+    from app.models.store import Store
+    store_ids = [r[0] for r in store_rows]
+    stores_by_id: dict[int, Store] = {}
+    if store_ids:
+        for s in (await db.execute(select(Store).where(Store.id.in_(store_ids)))).scalars().all():
+            stores_by_id[s.id] = s
+    by_store = {
+        stores_by_id[sid].code if sid in stores_by_id else str(sid): count
+        for sid, count in store_rows
+    }
+
+    # Unpriced ingredients
+    unpriced_q = (
+        select(IngredientMaster)
+        .where(IngredientMaster.id.not_in(priced_subq))
+        .order_by(IngredientMaster.price_map_attempts.desc())
+        .limit(100)
+    )
+    unpriced_ings = list((await db.execute(unpriced_q)).scalars().all())
+
+    return PriceCoverageOut(
+        total=total,
+        priced=priced,
+        coverage_pct=round(priced / total * 100, 1) if total else 0.0,
+        by_store=by_store,
+        unpriced=[
+            PriceCoverageItem(
+                id=i.id,
+                canonical_name=i.canonical_name,
+                display_name_fr=i.display_name_fr,
+                attempts=i.price_map_attempts or 0,
+            )
+            for i in unpriced_ings
+        ],
+    )
+
+
+@router.post("/retry-missing-prices", status_code=202)
+async def retry_missing_prices(db: AsyncSession = Depends(get_db)):
+    """Re-dispatch map-prices for every ingredient that's still pending."""
+    from app.workers.map_prices import run_price_mapping
+    pending_q = select(IngredientMaster.id).where(IngredientMaster.price_mapping_status != "mapped")
+    ids = [r[0] for r in (await db.execute(pending_q)).all()]
+    job = ImportJob(job_type="price_mapping", status="queued", progress_total=len(ids))
+    db.add(job)
+    await db.flush()
+    await db.refresh(job)
+    try:
+        task = run_price_mapping.delay(job.id, None, ids)
+        job.celery_task_id = task.id
+        job.status = "running"
+        job.started_at = utcnow()
+    except Exception as e:
+        job.status = "failed"
+        job.error_log = json.dumps([str(e)])
+    await db.commit()
+    return {"status": "queued", "job_id": job.id, "count": len(ids)}
 
 
 @router.post("/{ingredient_id}/unmap", response_model=IngredientOut)

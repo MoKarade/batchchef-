@@ -54,6 +54,36 @@ async def start_marmiton_import(
     return job
 
 
+@router.post("/marmiton/continuous", response_model=JobOut, status_code=202)
+async def start_continuous_marmiton(db: AsyncSession = Depends(get_db)):
+    """Kick off a self-renewing import loop that keeps scraping until the URL
+    queue is empty. Only one should run at a time."""
+    running_q = select(ImportJob).where(
+        ImportJob.job_type == "marmiton_continuous",
+        ImportJob.status.in_(["queued", "running"]),
+    )
+    existing = (await db.execute(running_q)).scalars().first()
+    if existing:
+        return existing
+
+    job = ImportJob(job_type="marmiton_continuous", status="queued", progress_total=0)
+    db.add(job)
+    await db.flush()
+    await db.refresh(job)
+    try:
+        from app.workers.continuous_import import run_continuous_import
+        task = run_continuous_import.delay(job.id)
+        job.celery_task_id = task.id
+        job.status = "running"
+        job.started_at = utcnow()
+    except Exception as e:
+        job.status = "failed"
+        job.error_log = json.dumps([str(e)])
+    await db.commit()
+    await db.refresh(job)
+    return job
+
+
 @router.get("/{job_id}", response_model=JobOut)
 async def get_import_job(job_id: int, db: AsyncSession = Depends(get_db)):
     job = await db.get(ImportJob, job_id)

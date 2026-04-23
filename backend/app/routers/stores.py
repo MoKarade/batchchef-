@@ -74,8 +74,8 @@ async def start_price_mapping(
     body: MapPricesRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Launch a Celery job that maps Maxi + Costco prices onto every IngredientMaster."""
-    codes = body.store_codes or ["maxi", "costco"]
+    """Launch a Celery job that maps Maxi prices onto every IngredientMaster (parents only)."""
+    codes = body.store_codes or ["maxi"]
     job = ImportJob(
         job_type="price_mapping",
         status="queued",
@@ -89,68 +89,6 @@ async def start_price_mapping(
     try:
         from app.workers.map_prices import run_price_mapping
         task = run_price_mapping.delay(job.id, codes, body.ingredient_ids)
-        job.celery_task_id = task.id
-        job.status = "running"
-        job.started_at = utcnow()
-    except Exception as e:
-        job.status = "failed"
-        job.error_log = json.dumps([str(e)])
-
-    await db.commit()
-    await db.refresh(job)
-    return job
-
-
-@router.post("/fruiterie_440/estimate-prices", response_model=JobOut, status_code=202)
-async def start_fruiterie_estimation(
-    ingredient_ids: list[int] | None = None,
-    db: AsyncSession = Depends(get_db),
-):
-    """Launch a Celery job that AI-estimates Fruiterie 440 prices for every IngredientMaster."""
-    job = ImportJob(
-        job_type="fruiterie_estimate",
-        status="queued",
-        progress_total=0,
-        metadata_json=json.dumps({"ingredient_ids": ingredient_ids}),
-    )
-    db.add(job)
-    await db.flush()
-    await db.refresh(job)
-
-    try:
-        from app.workers.estimate_fruiterie_prices import run_estimate_fruiterie
-        task = run_estimate_fruiterie.delay(job.id, ingredient_ids)
-        job.celery_task_id = task.id
-        job.status = "running"
-        job.started_at = utcnow()
-    except Exception as e:
-        job.status = "failed"
-        job.error_log = json.dumps([str(e)])
-
-    await db.commit()
-    await db.refresh(job)
-    return job
-
-
-@router.post("/validate-prices", response_model=JobOut, status_code=202)
-async def start_price_validation(
-    max_items: int | None = None,
-    db: AsyncSession = Depends(get_db),
-):
-    """Manually trigger the periodic price validator (normally runs via Celery Beat)."""
-    job = ImportJob(
-        job_type="price_validation",
-        status="queued",
-        progress_total=max_items or 0,
-        metadata_json=json.dumps({"max_items": max_items}),
-    )
-    db.add(job)
-    await db.flush()
-    await db.refresh(job)
-
-    try:
-        from app.workers.validate_prices import run_price_validation
-        task = run_price_validation.delay(max_items)
         job.celery_task_id = task.id
         job.status = "running"
         job.started_at = utcnow()

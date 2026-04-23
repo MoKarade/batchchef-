@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, Eye, Loader2, ShoppingCart, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Eye, ExternalLink, Loader2, ShoppingCart, Users } from "lucide-react";
 import { batchesApi, type BatchPreview } from "@/lib/api";
 import { formatPrice, healthColor, mealTypeLabel, categoryEmoji } from "@/lib/utils";
 import { RecipeModal } from "./RecipeModal";
@@ -27,6 +27,8 @@ export function BatchPreviewStep({ preview, onBack }: Props) {
     }
     return groups;
   }, [preview.shopping_items]);
+
+  const hasMissingPrices = (preview.price_coverage ?? 1) < 1.0;
 
   const acceptMut = useMutation({
     mutationFn: () =>
@@ -134,9 +136,22 @@ export function BatchPreviewStep({ preview, onBack }: Props) {
                         {it.format_qty && ` · ${it.packages_to_buy}× ${it.format_qty} ${it.format_unit ?? it.unit}`}
                       </p>
                     </div>
-                    <span className="text-sm font-semibold tabular-nums shrink-0">
-                      {formatPrice(it.estimated_cost)}
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {it.product_url && (
+                        <a
+                          href={it.product_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-muted-foreground hover:text-primary"
+                          title="Voir le produit"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                      <span className="text-sm font-semibold tabular-nums">
+                        {formatPrice(it.estimated_cost)}
+                      </span>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -145,11 +160,40 @@ export function BatchPreviewStep({ preview, onBack }: Props) {
         )}
       </div>
 
+      {hasMissingPrices && (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 space-y-1">
+          <p className="text-sm font-semibold text-destructive flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            Prix manquants ({Math.round((preview.price_coverage ?? 0) * 100)}% couverture)
+          </p>
+          <p className="text-xs text-destructive/80">
+            Ces ingrédients n&apos;ont pas de correspondance Maxi/Costco — le batch ne peut pas être accepté :
+          </p>
+          <ul className="text-xs text-destructive/90 list-disc list-inside">
+            {(preview.unpriced_ingredients ?? []).map((name) => (
+              <li key={name}>{name}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {acceptMut.isError && (
-        <p className="text-sm text-destructive">
-          {(acceptMut.error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-            ?? "Erreur lors de la création du batch."}
-        </p>
+        <div className="text-sm text-destructive space-y-1">
+          {(() => {
+            const detail = (acceptMut.error as { response?: { data?: { detail?: { message?: string; unpriced_ingredients?: string[] } | string } } })?.response?.data?.detail;
+            if (detail && typeof detail === "object" && detail.unpriced_ingredients) {
+              return (
+                <>
+                  <p className="font-semibold">{detail.message}</p>
+                  <ul className="list-disc list-inside text-xs">
+                    {detail.unpriced_ingredients.map((n) => <li key={n}>{n}</li>)}
+                  </ul>
+                </>
+              );
+            }
+            return <p>{typeof detail === "string" ? detail : "Erreur lors de la création du batch."}</p>;
+          })()}
+        </div>
       )}
 
       <div className="flex gap-3 sticky bottom-4">
@@ -161,7 +205,7 @@ export function BatchPreviewStep({ preview, onBack }: Props) {
         </button>
         <button
           onClick={() => acceptMut.mutate()}
-          disabled={acceptMut.isPending}
+          disabled={acceptMut.isPending || hasMissingPrices}
           className="flex-[2] h-11 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 inline-flex items-center justify-center gap-2"
         >
           {acceptMut.isPending ? (

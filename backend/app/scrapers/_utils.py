@@ -1,4 +1,4 @@
-"""Shared utilities for supermarket scrapers (Maxi, Costco, ...)."""
+"""Shared utilities for supermarket scrapers (Maxi)."""
 import logging
 import re
 import unicodedata
@@ -41,11 +41,16 @@ def parse_format(name: str) -> dict[str, Any]:
 
 
 async def fetch_nutrition_openfoodfacts(query: str) -> dict:
-    """Fetch nutrition per 100g from OpenFoodFacts (free, no auth)."""
+    """Fetch nutrition per 100g + thumbnail image from OpenFoodFacts (free, no auth).
+
+    Returns data from the first product with nutrition info. For the image
+    specifically, we scan up to 10 products and return the first one that
+    actually ships an image — OFF's first result isn't always the best.
+    """
     import httpx
     url = (
         f"https://world.openfoodfacts.org/cgi/search.pl?action=process&json=1"
-        f"&search_terms={query}&fields=nutriments,nutriscore_grade&lc=fr&page_size=3"
+        f"&search_terms={query}&fields=nutriments,nutriscore_grade,image_front_url,image_url&lc=fr&page_size=10"
     )
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
@@ -56,14 +61,23 @@ async def fetch_nutrition_openfoodfacts(query: str) -> dict:
             products = [p for p in (data.get("products") or []) if p.get("nutriments")]
             if not products:
                 return {}
-            n = products[0]["nutriments"]
+            p0 = products[0]
+            n = p0["nutriments"]
             kcal_raw = n.get("energy-kcal_100g") or (n.get("energy_100g", 0) / 4.184)
+            # Scan all results for the first one that actually has an image
+            img = None
+            for p in products:
+                candidate = p.get("image_front_url") or p.get("image_url")
+                if candidate:
+                    img = candidate
+                    break
             return {
                 "calories": round(float(kcal_raw or 0)),
                 "proteins": round(float(n.get("proteins_100g") or 0), 1),
                 "carbs": round(float(n.get("carbohydrates_100g") or 0), 1),
                 "lipids": round(float(n.get("fat_100g") or 0), 1),
-                "nutriscore": products[0].get("nutriscore_grade"),
+                "nutriscore": p0.get("nutriscore_grade"),
+                "off_image_url": img,
             }
     except Exception as e:
         logger.debug(f"OpenFoodFacts error for '{query}': {e}")

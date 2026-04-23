@@ -65,11 +65,35 @@ async def preview(body: BatchGenerateRequest, db: AsyncSession = Depends(get_db)
 
 @router.post("/accept", response_model=BatchOut, status_code=201)
 async def accept(body: BatchAcceptRequest, db: AsyncSession = Depends(get_db)):
+    from app.services.batch_generator import preview_for_recipes
+    from app.models.recipe import Recipe
+    from sqlalchemy.orm import selectinload
+    from app.models.recipe import RecipeIngredient
+
+    # Gate: verify price coverage before persisting
+    recipe_ids = [r.recipe_id for r in body.recipes]
+    load_opts = selectinload(Recipe.ingredients).selectinload(RecipeIngredient.ingredient)
+    q = select(Recipe).options(load_opts).where(Recipe.id.in_(recipe_ids))
+    recipes = list((await db.execute(q)).scalars().all())
+    slots = [(r.recipe_id, r.portions) for r in body.recipes]
+    preview = await preview_for_recipes(db, body.target_portions, recipes)
+    if preview.get("price_coverage", 1.0) < 1.0:
+        missing = preview.get("unpriced_ingredients", [])
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "INCOMPLETE_PRICING",
+                "message": "Certains ingrédients n'ont pas de prix Maxi.",
+                "unpriced_ingredients": missing,
+                "price_coverage": preview["price_coverage"],
+            },
+        )
+
     try:
         return await persist_batch_from_slots(
             db,
             target_portions=body.target_portions,
-            slots=[(r.recipe_id, r.portions) for r in body.recipes],
+            slots=slots,
             name=body.name,
         )
     except ValueError as e:

@@ -41,5 +41,5 @@ class StoreProductOut(BaseModel):
 
 
 class MapPricesRequest(BaseModel):
-    store_codes: list[str] | None = None   # default: ['maxi', 'costco']
+    store_codes: list[str] | None = None   # default: ['maxi']
     ingredient_ids: list[int] | None = None  # default: all unmapped

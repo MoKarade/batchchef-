@@ -15,6 +15,7 @@ class ShoppingItemOut(BaseModel):
     packages_to_buy: int = 1
     estimated_cost: float | None = None
     from_inventory_qty: float = 0.0
+    product_url: str | None = None
     is_purchased: bool = False
     purchased_at: datetime | None = None
     ingredient: IngredientBrief | None = None
@@ -90,6 +91,7 @@ class ShoppingItemPreview(BaseModel):
     packages_to_buy: int = 1
     estimated_cost: float | None = None
     from_inventory_qty: float = 0.0
+    product_url: str | None = None
     ingredient: IngredientBrief | None = None
     store: StoreBrief | None = None
 
@@ -98,6 +100,8 @@ class BatchPreviewOut(BaseModel):
     target_portions: int
     total_portions: int
     total_estimated_cost: float
+    price_coverage: float = 1.0
+    unpriced_ingredients: list[str] = []
     recipes: list[RecipePreview]
     shopping_items: list[ShoppingItemPreview]
 

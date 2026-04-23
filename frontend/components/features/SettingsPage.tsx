@@ -26,7 +26,9 @@ import {
   ChevronDown,
   ChevronRight,
   Wrench,
+  ShoppingCart,
 } from "lucide-react";
+import { type PriceCoverageOut } from "@/lib/api";
 
 function ProgressBar({ value, max }: { value: number; max: number }) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
@@ -42,6 +44,79 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
     </div>
   );
 }
+
+function PriceCoveragePanel() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ["price-coverage"],
+    queryFn: () => ingredientsApi.priceCoverage().then((r) => r.data),
+  });
+  const retryMut = useMutation({
+    mutationFn: () => ingredientsApi.retryMissingPrices(),
+    onSuccess: () => setTimeout(() => qc.invalidateQueries({ queryKey: ["price-coverage"] }), 2000),
+  });
+
+  const coverage = data as PriceCoverageOut | undefined;
+
+  return (
+    <div className="space-y-3">
+      <h3 className="font-semibold flex items-center gap-2 text-sm">
+        <ShoppingCart className="h-4 w-4" /> Couverture prix Maxi/Costco
+      </h3>
+      {isLoading && <p className="text-xs text-muted-foreground">Chargement…</p>}
+      {coverage && (
+        <>
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{coverage.priced} / {coverage.total} ingrédients avec prix</span>
+              <span className="font-semibold">{coverage.coverage_pct}%</span>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-primary rounded-full transition-all"
+                style={{ width: `${coverage.coverage_pct}%` }}
+              />
+            </div>
+          </div>
+          {Object.entries(coverage.by_store).length > 0 && (
+            <div className="flex gap-4 text-xs text-muted-foreground">
+              {Object.entries(coverage.by_store).map(([store, count]) => (
+                <span key={store} className="capitalize">{store}: {count}</span>
+              ))}
+            </div>
+          )}
+          {coverage.unpriced.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-destructive">
+                {coverage.unpriced.length} sans prix
+              </p>
+              <ul className="max-h-40 overflow-y-auto text-xs text-muted-foreground space-y-0.5 rounded-md border bg-muted/30 p-2">
+                {coverage.unpriced.map((ing) => (
+                  <li key={ing.id} className="flex justify-between">
+                    <span>{ing.display_name_fr}</span>
+                    <span className="text-muted-foreground/60">{ing.attempts} essai{ing.attempts !== 1 ? "s" : ""}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => retryMut.mutate()}
+                disabled={retryMut.isPending}
+                className="text-xs h-7 px-3 rounded-md border hover:bg-accent disabled:opacity-50 inline-flex items-center gap-1.5"
+              >
+                {retryMut.isPending ? (
+                  <><Loader2 className="h-3 w-3 animate-spin" /> En cours…</>
+                ) : (
+                  <><RefreshCw className="h-3 w-3" /> Relancer les manquants</>
+                )}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 
 function PriceMappingJobCard({ job }: { job: ImportJob }) {
   const [progress, setProgress] = useState<JobProgress | null>(null);
@@ -499,6 +574,8 @@ export function SettingsPage() {
               Ces actions sont normalement déclenchées automatiquement lors d&apos;un import Marmiton.
               Utilise-les seulement pour forcer un remap après une édition manuelle d&apos;ingrédient.
             </p>
+            <PriceCoveragePanel />
+            <hr className="border-muted" />
             <PriceMappingPanel />
             <FruiteriePanel />
             <ClassifyPanel />

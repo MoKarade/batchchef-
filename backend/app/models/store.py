@@ -8,12 +8,12 @@ class Store(Base):
     __tablename__ = "store"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    code: Mapped[str] = mapped_column(String, unique=True, nullable=False)  # maxi|costco|fruiterie_440
+    code: Mapped[str] = mapped_column(String, unique=True, nullable=False)  # maxi (V3 is Maxi-only)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    type: Mapped[str] = mapped_column(String, default="supermarket")  # supermarket|fruiterie|other
+    type: Mapped[str] = mapped_column(String, default="supermarket")
     website_url: Mapped[str | None] = mapped_column(String)
     store_location_id: Mapped[str | None] = mapped_column(String)  # Maxi store 8676
-    is_transactional: Mapped[bool] = mapped_column(Boolean, default=True)  # False for Fruiterie
+    is_transactional: Mapped[bool] = mapped_column(Boolean, default=True)
 
     products: Mapped[list["StoreProduct"]] = relationship(back_populates="store")  # noqa
 
@@ -26,6 +26,7 @@ class StoreProduct(Base):
     store_id: Mapped[int] = mapped_column(Integer, ForeignKey("store.id"), nullable=False)
     product_name: Mapped[str | None] = mapped_column(String)
     product_url: Mapped[str | None] = mapped_column(String)
+    image_url: Mapped[str | None] = mapped_column(String)
     sku: Mapped[str | None] = mapped_column(String)
     price: Mapped[float | None] = mapped_column(Float)
     format_qty: Mapped[float | None] = mapped_column(Float)   # 500

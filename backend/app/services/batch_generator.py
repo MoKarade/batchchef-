@@ -20,7 +20,7 @@ from app.models.batch import Batch, BatchRecipe, ShoppingListItem
 from app.models.store import StoreProduct, Store
 from app.models.ingredient import IngredientMaster
 from app.models.inventory import InventoryItem
-from app.services.unit_converter import get_scale_factor
+from app.services.unit_converter import get_scale_factor, convert_count_to_mass, normalize_unit
 
 
 def _split_portions(target_portions: int, n: int) -> list[int]:
@@ -84,6 +84,7 @@ async def select_recipes(
         select(Recipe)
         .options(load_opts)
         .where(Recipe.status == "ai_done")
+        .where(Recipe.pricing_status == "complete")
     ).order_by((func.coalesce(Recipe.health_score, 0) + func.random() * 3).desc()).limit(50)
     candidates = list((await db.execute(q)).scalars().all())
 
@@ -92,6 +93,7 @@ async def select_recipes(
             select(Recipe)
             .options(load_opts)
             .where(Recipe.status.in_(["scraped", "ai_done"]))
+            .where(Recipe.pricing_status == "complete")
         ).order_by(func.random()).limit(50)
         candidates = list((await db.execute(q2)).scalars().all())
 
@@ -181,10 +183,13 @@ async def _resolve_inventory_and_products(
         select(StoreProduct)
         .where(
             StoreProduct.ingredient_master_id.in_(ingredient_ids),
-            StoreProduct.is_validated == True,  # noqa: E712
             StoreProduct.price.isnot(None),
         )
-        .order_by(StoreProduct.ingredient_master_id, StoreProduct.price.asc())
+        .order_by(
+            StoreProduct.ingredient_master_id,
+            StoreProduct.is_validated.desc(),  # validated scrapers first
+            StoreProduct.price.asc(),
+        )
     )
     all_products = list((await db.execute(products_q)).scalars().all())
     best_product: dict[int, StoreProduct] = {}
@@ -200,6 +205,7 @@ def _compute_shopping_row(
     total_needed: float,
     inv_items: list[InventoryItem],
     product: StoreProduct | None,
+    canonical_name: str | None = None,
 ) -> dict:
     from_inv = 0.0
     for inv_item in inv_items:
@@ -212,9 +218,24 @@ def _compute_shopping_row(
     packages = 1
     format_qty: float | None = None
     format_unit: str | None = None
+    effective_qty = qty_to_buy
+    effective_unit = unit
 
     if product and product.price and product.format_qty and qty_to_buy > 0:
         scale = get_scale_factor(qty_to_buy, unit, product.format_qty, product.format_unit or unit)
+        # Fallback: recipe uses count ("12 abricots") but store sells by mass ("200 g").
+        # Convert count → grams using an average weight table so we don't end up
+        # computing "48 abricots" where the user expected ~200 g of apricots.
+        if scale == 0 and canonical_name:
+            _, need_type = normalize_unit(unit)
+            _, fmt_type = normalize_unit(product.format_unit or "unite")
+            if need_type == "count" and fmt_type == "mass":
+                mass_g = convert_count_to_mass(canonical_name, qty_to_buy)
+                if mass_g is not None:
+                    scale = get_scale_factor(mass_g, "g", product.format_qty, product.format_unit or "g")
+                    if scale > 0:
+                        effective_qty = round(mass_g, 0)
+                        effective_unit = "g"
         if scale > 0:
             packages = math.ceil(scale)
             estimated_cost = round(product.price * packages, 2)
@@ -225,13 +246,14 @@ def _compute_shopping_row(
         "ingredient_master_id": ingredient_id,
         "store_id": product.store_id if product else None,
         "store_product_id": product.id if product else None,
-        "quantity_needed": round(qty_to_buy, 3),
-        "unit": unit,
+        "quantity_needed": round(effective_qty, 3),
+        "unit": effective_unit,
         "format_qty": format_qty,
         "format_unit": format_unit,
         "packages_to_buy": packages,
         "estimated_cost": estimated_cost,
         "from_inventory_qty": round(from_inv, 3),
+        "product_url": product.product_url if product else None,
     }
 
 
@@ -243,6 +265,10 @@ async def _build_shopping_list(
     needs = await _aggregate_needs(recipe_portions)
     inv_by_ingredient, best_product = await _resolve_inventory_and_products(db, list(needs.keys()))
 
+    # Pre-load ingredients so we can pass canonical_name to the row builder
+    ing_q_persist = select(IngredientMaster).where(IngredientMaster.id.in_(list(needs.keys())))
+    ings_by_id_persist = {i.id: i for i in (await db.execute(ing_q_persist)).scalars().all()}
+
     items: list[ShoppingListItem] = []
     for ingredient_id, unit_map in needs.items():
         for unit, total_needed in unit_map.items():
@@ -252,6 +278,7 @@ async def _build_shopping_list(
                 total_needed,
                 inv_by_ingredient.get(ingredient_id, []),
                 best_product.get(ingredient_id),
+                canonical_name=getattr(ings_by_id_persist.get(ingredient_id), "canonical_name", None),
             )
             sli = ShoppingListItem(batch_id=batch_id, **row)
             db.add(sli)
@@ -291,6 +318,7 @@ async def _build_shopping_list_preview(
                 total_needed,
                 inv_by_ingredient.get(ingredient_id, []),
                 best_product.get(ingredient_id),
+                canonical_name=getattr(ing_by_id.get(ingredient_id), "canonical_name", None),
             )
             ing = ing_by_id.get(ingredient_id)
             row["ingredient"] = (
@@ -352,6 +380,18 @@ async def preview_for_recipes(
     shopping_rows = await _build_shopping_list_preview(db, pairs)
     total_cost = sum((row.get("estimated_cost") or 0) for row in shopping_rows)
 
+    # Price coverage: % of ingredients with a known price
+    priced = sum(1 for row in shopping_rows if row.get("estimated_cost") is not None)
+    total_rows = len(shopping_rows)
+    price_coverage = round(priced / total_rows, 4) if total_rows > 0 else 1.0
+
+    unpriced_ingredients: list[str] = []
+    for row in shopping_rows:
+        if row.get("estimated_cost") is None and row.get("ingredient"):
+            name = row["ingredient"].get("display_name_fr") or row["ingredient"].get("canonical_name", "")
+            if name and name not in unpriced_ingredients:
+                unpriced_ingredients.append(name)
+
     recipes_out = [
         {
             "id": r.id,
@@ -370,6 +410,8 @@ async def preview_for_recipes(
         "target_portions": target_portions,
         "total_portions": sum(portions_split),
         "total_estimated_cost": round(total_cost, 2),
+        "price_coverage": price_coverage,
+        "unpriced_ingredients": unpriced_ingredients,
         "recipes": recipes_out,
         "shopping_items": shopping_rows,
     }

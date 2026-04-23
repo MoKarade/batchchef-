@@ -1,3 +1,5 @@
+import logging
+import shutil
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,9 +10,28 @@ from app.config import settings
 from app.database import init_db
 from app.routers import recipes, imports, batches, inventory, receipts, stores, ws, ingredients, auth
 
+logger = logging.getLogger(__name__)
+
+
+def _bootstrap_db_from_seed():
+    """If no batchchef.db exists but a committed snapshot batchchef.seed.db is
+    present (fresh `git clone`), copy it so a new machine gets every
+    imported recipe / scraped price / OpenFoodFacts nutrition hit for free."""
+    cwd = Path.cwd()
+    db_path = cwd / "batchchef.db"
+    seed_path = cwd / "batchchef.seed.db"
+    if not db_path.exists() and seed_path.exists():
+        shutil.copy(seed_path, db_path)
+        logger.warning(
+            f"Bootstrapped batchchef.db from committed snapshot "
+            f"({seed_path.stat().st_size / 1_048_576:.1f} MB). "
+            "Delete batchchef.db and restart to reset, or edit .env to point elsewhere."
+        )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _bootstrap_db_from_seed()
     await init_db()
     await _seed_stores()
     await _seed_admin_user()
@@ -81,7 +102,12 @@ async def stats():
 
 
 async def _seed_stores():
-    """Ensure the 3 base stores exist on startup."""
+    """Ensure the base store(s) exist on startup.
+
+    V3: Maxi-only. Costco + Fruiterie stores removed from the seed list.
+    Existing rows (from prior installs) stay in the DB but are not seeded
+    fresh — no code path uses them.
+    """
     from sqlalchemy import select
     from app.database import AsyncSessionLocal
     from app.models.store import Store
@@ -90,12 +116,6 @@ async def _seed_stores():
         {"code": "maxi", "name": "Maxi", "type": "supermarket",
          "website_url": "https://www.maxi.ca", "store_location_id": settings.MAXI_STORE_ID,
          "is_transactional": True},
-        {"code": "costco", "name": "Costco", "type": "supermarket",
-         "website_url": "https://www.costco.ca", "store_location_id": "503",
-         "is_transactional": True},
-        {"code": "fruiterie_440", "name": "Fruiterie 440", "type": "fruiterie",
-         "website_url": None, "store_location_id": None,
-         "is_transactional": False},
     ]
 
     async with AsyncSessionLocal() as db:
@@ -103,6 +123,9 @@ async def _seed_stores():
             exists = (await db.execute(select(Store).where(Store.code == s["code"]))).scalar_one_or_none()
             if not exists:
                 db.add(Store(**s))
+            else:
+                exists.store_location_id = s["store_location_id"]
+                exists.website_url = s.get("website_url")
         await db.commit()
 
 

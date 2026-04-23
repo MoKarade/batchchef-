@@ -8,12 +8,11 @@ celery_app = Celery(
     backend=settings.REDIS_URL,
     include=[
         "app.workers.import_marmiton",
-        "app.workers.process_receipt",
+        "app.workers.continuous_import",
         "app.workers.map_prices",
-        "app.workers.validate_prices",
-        "app.workers.estimate_fruiterie_prices",
-        "app.workers.clean_display_names",
         "app.workers.classify_recipes",
+        "app.workers.process_receipt",
+        "app.workers.zombie_cleanup",
     ],
 )
 
@@ -28,8 +27,8 @@ celery_app.conf.update(
 )
 
 celery_app.conf.beat_schedule = {
-    "validate-prices-weekly": {
-        "task": "app.workers.validate_prices.run_price_validation",
-        "schedule": crontab(hour=3, minute=0, day_of_week=1),  # Monday 03:00
+    "zombie-cleanup-hourly": {
+        "task": "app.workers.zombie_cleanup.run_zombie_cleanup",
+        "schedule": crontab(minute=0),
     },
 }

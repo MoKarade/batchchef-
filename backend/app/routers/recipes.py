@@ -17,6 +17,7 @@ SORT_MAP = {
     "id_asc": Recipe.id.asc(),
     "health_desc": Recipe.health_score.desc().nulls_last(),
     "cost_asc": Recipe.estimated_cost_per_portion.asc().nulls_last(),
+    "cost_desc": Recipe.estimated_cost_per_portion.desc().nulls_last(),
     "calories_asc": Recipe.calories_per_portion.asc().nulls_last(),
     "title_asc": Recipe.title.asc(),
 }
@@ -31,12 +32,17 @@ async def list_recipes(
     max_cost_per_portion: float | None = Query(None),
     prep_time_max_min: int | None = Query(None),
     health_score_min: float | None = Query(None),
-    sort: Literal["id_desc", "id_asc", "health_desc", "cost_asc", "calories_asc", "title_asc"] = "id_desc",
+    has_price: Literal["all", "priced", "missing"] = "all",
+    sort: Literal["id_desc", "id_asc", "health_desc", "cost_asc", "cost_desc", "calories_asc", "title_asc"] = "id_desc",
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
     q = select(Recipe)
+    if has_price == "priced":
+        q = q.where(Recipe.estimated_cost_per_portion.isnot(None), Recipe.estimated_cost_per_portion > 0)
+    elif has_price == "missing":
+        q = q.where((Recipe.estimated_cost_per_portion.is_(None)) | (Recipe.estimated_cost_per_portion == 0))
     if search:
         q = q.where(Recipe.title.ilike(f"%{search}%"))
     if meal_type:
