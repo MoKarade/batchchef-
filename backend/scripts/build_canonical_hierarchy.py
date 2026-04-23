@@ -204,46 +204,37 @@ async def main():
             )
             logging.info(f"  marked {len(invalid_ids)} as invalid")
 
-        # 3b. For each cluster, pick/promote a canonical row
+        # 3b. Two-pass DB write to avoid UNIQUE(canonical_name) collisions.
+        #
+        # Problem: two different clusters may both want canonical_name='courgette'
+        # (because Gemini normalised variants that way AND an existing row
+        # already carries that name outside this cluster). A naive UPDATE
+        # explodes with IntegrityError.
+        #
+        # Fix:
+        #   Pass 1 — rename each canonical row to a guaranteed-unique temp
+        #            name ("__pending__<id>") and re-parent its variants.
+        #            No collision is possible because each id is unique.
+        #   Pass 2 — for each canonical, try to set its final name. If two
+        #            clusters share the same target (ps), the second one
+        #            catches IntegrityError, merges INTO the first instead.
+        cluster_canonical: dict[str, tuple[int, str, str, str | None]] = {}
         for ps, members in by_parent.items():
             if not members:
                 continue
-            # Prefer a member whose canonical_name already equals the parent_slug
             canonical_row = next((m for m in members if _slug(m[1]) == ps), None)
             if canonical_row is None:
-                # Pick the most-used member as the canonical
                 members.sort(key=lambda m: -m[5])
                 canonical_row = members[0]
-
             iid = canonical_row[0]
-            parent_display = canonical_row[2]
-            search_q = canonical_row[3]
-            cat = canonical_row[4]
+            cluster_canonical[ps] = (iid, canonical_row[2], canonical_row[3], canonical_row[4])
 
-            # Promote the canonical. Preserve any existing 'mapped' status —
-            # if we already scraped this ingredient successfully, don't
-            # reset it to pending just because it's being re-canonicalized.
-            canonical_row_obj = (await db.execute(
-                select(IngredientMaster).where(IngredientMaster.id == iid)
-            )).scalar_one_or_none()
-            preserved_status = (
-                canonical_row_obj.price_mapping_status
-                if canonical_row_obj and canonical_row_obj.price_mapping_status == "mapped"
-                else "pending"
-            )
+            # Pass 1: temp-rename + re-parent variants right away
             await db.execute(
                 update(IngredientMaster)
                 .where(IngredientMaster.id == iid)
-                .values(
-                    canonical_name=ps,
-                    display_name_fr=search_q,
-                    category=cat,
-                    parent_id=None,
-                    price_mapping_status=preserved_status,
-                )
+                .values(canonical_name=f"__pending__{iid}", parent_id=None)
             )
-
-            # Re-parent the rest of the cluster
             child_ids = [m[0] for m in members if m[0] != iid]
             if child_ids:
                 await db.execute(
@@ -252,6 +243,67 @@ async def main():
                     .values(parent_id=iid, price_mapping_status="variant")
                 )
         await db.commit()
+        logging.info(f"  pass 1: {len(cluster_canonical)} canonicals temp-named, variants re-parented")
+
+        # Pass 2: rename to final. Handles collisions by merging clusters.
+        collisions = 0
+        for ps, (iid, display, search_q, cat) in cluster_canonical.items():
+            try:
+                # Preserve 'mapped' status if the row already had it
+                row = (await db.execute(
+                    select(IngredientMaster).where(IngredientMaster.id == iid)
+                )).scalar_one_or_none()
+                if not row:
+                    continue
+                preserved_status = (
+                    row.price_mapping_status
+                    if row.price_mapping_status == "mapped"
+                    else "pending"
+                )
+                await db.execute(
+                    update(IngredientMaster)
+                    .where(IngredientMaster.id == iid)
+                    .values(
+                        canonical_name=ps,
+                        display_name_fr=search_q or display,
+                        category=cat,
+                        parent_id=None,
+                        price_mapping_status=preserved_status,
+                    )
+                )
+                await db.commit()
+            except Exception as e:
+                # Collision: another row (possibly outside our clusters)
+                # already has canonical_name=ps. Merge this cluster INTO
+                # that existing row by setting iid as a child of the
+                # incumbent.
+                await db.rollback()
+                collisions += 1
+                incumbent = (await db.execute(
+                    select(IngredientMaster).where(IngredientMaster.canonical_name == ps)
+                )).scalar_one_or_none()
+                if incumbent and incumbent.id != iid:
+                    # Move all variants of iid to incumbent
+                    await db.execute(
+                        update(IngredientMaster)
+                        .where(IngredientMaster.parent_id == iid)
+                        .values(parent_id=incumbent.id)
+                    )
+                    # Re-parent iid itself as variant
+                    await db.execute(
+                        update(IngredientMaster)
+                        .where(IngredientMaster.id == iid)
+                        .values(
+                            canonical_name=f"__merged__{iid}",  # keep unique
+                            parent_id=incumbent.id,
+                            price_mapping_status="variant",
+                        )
+                    )
+                    await db.commit()
+                    logging.info(f"  collision on '{ps}': merged cluster id={iid} into incumbent id={incumbent.id}")
+                else:
+                    logging.warning(f"  unhandled collision on '{ps}' (id={iid}): {e}")
+        logging.info(f"  pass 2: committed (collisions handled: {collisions})")
         logging.info("DB updates committed")
 
 
