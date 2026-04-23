@@ -422,7 +422,6 @@ async def ingredient_details(
 # Name cleanup is now handled by the offline script
 # `scripts/build_canonical_hierarchy.py` which builds the parent/variant
 # hierarchy in one pass.
-    return job
 
 
 _BAD_CANONICAL = re.compile(r"^[\s\-_\d,./]+")

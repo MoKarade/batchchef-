@@ -148,12 +148,18 @@ async def select_recipes(
 
 async def _aggregate_needs(recipe_portions: list[tuple[Recipe, int]]) -> dict[int, dict[str, float]]:
     """Aggregate recipe ingredients into needs by ingredient_master_id and unit.
+
     Variants (e.g. 'beurre_fondu') roll up to their parent (e.g. 'beurre').
+    Invalid rows (water, "au goût", fragments) are dropped — they're not
+    real groceries and would only inflate the shopping list with unpriced
+    entries.
     """
     needs: dict[int, dict[str, float]] = {}
     for recipe, portions in recipe_portions:
         for ri in recipe.ingredients:
             if not ri.ingredient_master_id or not ri.quantity_per_portion:
+                continue
+            if ri.ingredient and ri.ingredient.price_mapping_status == "invalid":
                 continue
             uid = (
                 ri.ingredient.parent_id

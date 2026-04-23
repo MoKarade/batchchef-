@@ -220,7 +220,17 @@ async def main():
             search_q = canonical_row[3]
             cat = canonical_row[4]
 
-            # Promote the canonical
+            # Promote the canonical. Preserve any existing 'mapped' status —
+            # if we already scraped this ingredient successfully, don't
+            # reset it to pending just because it's being re-canonicalized.
+            canonical_row_obj = (await db.execute(
+                select(IngredientMaster).where(IngredientMaster.id == iid)
+            )).scalar_one_or_none()
+            preserved_status = (
+                canonical_row_obj.price_mapping_status
+                if canonical_row_obj and canonical_row_obj.price_mapping_status == "mapped"
+                else "pending"
+            )
             await db.execute(
                 update(IngredientMaster)
                 .where(IngredientMaster.id == iid)
@@ -229,7 +239,7 @@ async def main():
                     display_name_fr=search_q,
                     category=cat,
                     parent_id=None,
-                    price_mapping_status="pending",
+                    price_mapping_status=preserved_status,
                 )
             )
 
