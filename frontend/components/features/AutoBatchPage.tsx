@@ -3,13 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import {
   Sparkles, ChefHat, RefreshCw, Snowflake, AlertTriangle,
-  Leaf, Star, Plus, Minus, Package, ExternalLink,
+  Leaf, Star, Plus, Minus, Package, ExternalLink, Utensils,
 } from "lucide-react";
-import { batchesApi, type BatchPreview, type ShoppingItemPreview } from "@/lib/api";
+import { batchesApi, type BatchPreview, type ShoppingItemPreview, type IngredientMaster } from "@/lib/api";
 import { formatPrice, healthColor, mealTypeLabel } from "@/lib/utils";
+import { IngredientChipPicker } from "@/components/shared/IngredientChipPicker";
 
 /**
  * Auto-batch flow — ask the backend to propose a batch based on filters,
@@ -33,6 +34,9 @@ export function AutoBatchPage() {
   const [maxPrep, setMaxPrep] = useState<number | null>(null);
   const [healthMin, setHealthMin] = useState<number | null>(null);
   const [preferInventory, setPreferInventory] = useState(true);
+  const [mealType, setMealType] = useState<string>(""); // "" | "entree" | "plat" | "dessert" | "snack"
+  const [includedIngs, setIncludedIngs] = useState<IngredientMaster[]>([]);
+  const [excludedIngs, setExcludedIngs] = useState<IngredientMaster[]>([]);
 
   // Current preview (what the backend proposes right now)
   const [preview, setPreview] = useState<BatchPreview | null>(null);
@@ -49,6 +53,9 @@ export function AutoBatchPage() {
         health_score_min: healthMin ?? undefined,
         exclude_recipe_ids: excluded,
         prefer_inventory: preferInventory,
+        meal_type_sequence: mealType ? new Array(numRecipes).fill(mealType) : undefined,
+        include_ingredient_ids: includedIngs.length ? includedIngs.map((i) => i.id) : undefined,
+        exclude_ingredient_ids: excludedIngs.length ? excludedIngs.map((i) => i.id) : undefined,
       });
       return res.data;
     },
@@ -152,6 +159,63 @@ export function AutoBatchPage() {
             onChange={setPreferInventory}
             icon={Snowflake}
             label="Utiliser mon frigo en priorité"
+          />
+        </div>
+
+        {/* Meal type */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium">
+            <Utensils className="h-3.5 w-3.5" />
+            Type
+          </span>
+          {[
+            { v: "", label: "Peu importe" },
+            { v: "entree", label: "Entrées" },
+            { v: "plat", label: "Plats" },
+            { v: "dessert", label: "Desserts" },
+            { v: "snack", label: "Snacks" },
+          ].map(({ v, label }) => (
+            <button
+              key={v || "any"}
+              onClick={() => setMealType(v)}
+              className={`inline-flex items-center rounded-full border px-3 h-7 text-xs font-medium transition-colors ${
+                mealType === v
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background border-border text-muted-foreground hover:bg-accent/60"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Ingredient constraints */}
+        <div className="space-y-2 pt-1 border-t border-border">
+          <p className="text-[11px] text-muted-foreground">
+            Contraintes d&apos;ingrédients — la recette doit contenir <strong>tous</strong> les
+            inclus et <strong>aucun</strong> des exclus.
+          </p>
+          <IngredientChipPicker
+            label="Inclure"
+            tone="include"
+            selected={includedIngs}
+            onAdd={(ing) =>
+              setIncludedIngs((prev) =>
+                prev.some((x) => x.id === ing.id) ? prev : [...prev, ing],
+              )
+            }
+            onRemove={(id) => setIncludedIngs((prev) => prev.filter((x) => x.id !== id))}
+          />
+          <IngredientChipPicker
+            label="Exclure"
+            tone="exclude"
+            selected={excludedIngs}
+            onAdd={(ing) =>
+              setExcludedIngs((prev) =>
+                prev.some((x) => x.id === ing.id) ? prev : [...prev, ing],
+              )
+            }
+            onRemove={(id) => setExcludedIngs((prev) => prev.filter((x) => x.id !== id))}
           />
         </div>
 

@@ -87,6 +87,8 @@ async def select_recipes(
     health_score_min: float | None = None,
     include_recipe_ids: list[int] | None = None,
     prefer_inventory: bool = True,
+    include_ingredient_ids: list[int] | None = None,
+    exclude_ingredient_ids: list[int] | None = None,
 ) -> list[Recipe]:
     """Pure selection. Returns list of Recipe ORM objects with ingredients eager-loaded.
     No DB writes. Raises ValueError if not enough recipes match.
@@ -94,10 +96,31 @@ async def select_recipes(
     When prefer_inventory=True (default), recipes using ingredients the user
     already has in stock are heavily preferred — tying into the goal of
     'use up the fridge before buying'.
+
+    include_ingredient_ids / exclude_ingredient_ids are hard filters applied
+    at query time. Each id is expanded to {self, children} so filtering by
+    a canonical parent also matches recipes using its variants.
     """
     exclude_ids = list(exclude_ids or [])
     include_recipe_ids = list(include_recipe_ids or [])
+    include_ingredient_ids = list(include_ingredient_ids or [])
+    exclude_ingredient_ids = list(exclude_ingredient_ids or [])
     num_recipes = max(1, min(5, num_recipes))
+
+    # Pre-expand ingredient id lists to include their children (variants).
+    async def _expand_ings(ids: list[int]) -> set[int]:
+        if not ids:
+            return set()
+        from app.models.ingredient import IngredientMaster as _IM
+        result = set(ids)
+        child_q = select(_IM.id).where(_IM.parent_id.in_(ids))
+        result.update(r[0] for r in (await db.execute(child_q)).all())
+        return result
+
+    include_ing_expanded_per_parent: list[set[int]] = []
+    for ing_id in include_ingredient_ids:
+        include_ing_expanded_per_parent.append(await _expand_ings([ing_id]))
+    exclude_ing_expanded = await _expand_ings(exclude_ingredient_ids)
 
     def _apply_filters(stmt):
         stmt = stmt.where(Recipe.id.not_in(exclude_ids)) if exclude_ids else stmt
@@ -117,6 +140,29 @@ async def select_recipes(
             )
         if health_score_min is not None:
             stmt = stmt.where(Recipe.health_score >= health_score_min)
+
+        # Ingredient inclusion (AND across parents, OR across variants)
+        for closure in include_ing_expanded_per_parent:
+            if not closure:
+                continue
+            stmt = stmt.where(
+                select(RecipeIngredient.id)
+                .where(
+                    RecipeIngredient.recipe_id == Recipe.id,
+                    RecipeIngredient.ingredient_master_id.in_(closure),
+                )
+                .exists()
+            )
+        # Ingredient exclusion
+        if exclude_ing_expanded:
+            stmt = stmt.where(
+                ~select(RecipeIngredient.id)
+                .where(
+                    RecipeIngredient.recipe_id == Recipe.id,
+                    RecipeIngredient.ingredient_master_id.in_(exclude_ing_expanded),
+                )
+                .exists()
+            )
         return stmt
 
     load_opts = selectinload(Recipe.ingredients).selectinload(RecipeIngredient.ingredient)
@@ -421,6 +467,8 @@ async def compute_batch_preview(
     health_score_min: float | None = None,
     include_recipe_ids: list[int] | None = None,
     prefer_inventory: bool = True,
+    include_ingredient_ids: list[int] | None = None,
+    exclude_ingredient_ids: list[int] | None = None,
 ) -> dict:
     """Return a preview dict without persisting anything to the DB."""
     selected = await select_recipes(
@@ -435,6 +483,8 @@ async def compute_batch_preview(
         health_score_min=health_score_min,
         include_recipe_ids=include_recipe_ids,
         prefer_inventory=prefer_inventory,
+        include_ingredient_ids=include_ingredient_ids,
+        exclude_ingredient_ids=exclude_ingredient_ids,
     )
     return await preview_for_recipes(db, target_portions, selected)
 
@@ -559,6 +609,8 @@ async def generate_batch(
     health_score_min: float | None = None,
     include_recipe_ids: list[int] | None = None,
     prefer_inventory: bool = True,
+    include_ingredient_ids: list[int] | None = None,
+    exclude_ingredient_ids: list[int] | None = None,
 ) -> Batch:
     """Legacy: select recipes and persist in one shot."""
     selected = await select_recipes(
@@ -573,6 +625,8 @@ async def generate_batch(
         health_score_min=health_score_min,
         include_recipe_ids=include_recipe_ids,
         prefer_inventory=prefer_inventory,
+        include_ingredient_ids=include_ingredient_ids,
+        exclude_ingredient_ids=exclude_ingredient_ids,
     )
     portions_split = _split_portions(target_portions, len(selected))
     slots = [(r.id, p) for r, p in zip(selected, portions_split)]

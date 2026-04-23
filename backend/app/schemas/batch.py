@@ -71,6 +71,12 @@ class BatchGenerateRequest(BaseModel):
     # Prefer recipes using ingredients already in the user's inventory.
     # Default True so the /auto flow naturally clears the fridge first.
     prefer_inventory: bool = True
+    # Constrain candidate recipes to those that contain ALL of these
+    # ingredient ids (parent-level; variants roll up). Applied BEFORE
+    # inventory re-ranking so the ingredient requirement is strict.
+    include_ingredient_ids: list[int] | None = None
+    # Constrain candidates to those using NONE of these ingredients.
+    exclude_ingredient_ids: list[int] | None = None
 
 
 class RecipePreview(BaseModel):

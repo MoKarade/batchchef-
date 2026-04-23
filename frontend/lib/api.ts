@@ -255,6 +255,10 @@ export interface BatchGenerateRequest {
    * already have bubble to the top.
    */
   prefer_inventory?: boolean;
+  /** Parent ingredient ids the recipe MUST contain (AND semantics) */
+  include_ingredient_ids?: number[] | null;
+  /** Parent ingredient ids the recipe MUST NOT contain */
+  exclude_ingredient_ids?: number[] | null;
 }
 
 export interface BatchPreviewRecipe {
