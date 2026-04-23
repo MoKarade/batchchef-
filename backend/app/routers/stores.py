@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.store import Store, StoreProduct
 from app.models.job import ImportJob
-from app.schemas.store import StoreOut, StorePriceUpdate, StoreProductOut, MapPricesRequest
+from app.schemas.store import StoreOut, StoreProductOut, MapPricesRequest
 from app.schemas.job import JobOut
 
 router = APIRouter(prefix="/api/stores", tags=["stores"])
@@ -29,44 +29,6 @@ async def list_store_products(store_code: str, db: AsyncSession = Depends(get_db
         .order_by(StoreProduct.id.desc())
     )
     return (await db.execute(q)).scalars().all()
-
-
-@router.patch("/{store_code}/prices")
-async def upsert_fruiterie_price(
-    store_code: str,
-    body: StorePriceUpdate,
-    db: AsyncSession = Depends(get_db),
-):
-    store = (await db.execute(select(Store).where(Store.code == store_code))).scalar_one_or_none()
-    if not store:
-        raise HTTPException(status_code=404, detail=f"Store '{store_code}' not found")
-    if store.is_transactional:
-        raise HTTPException(status_code=400, detail="Use scraper for transactional stores")
-
-    q = select(StoreProduct).where(
-        StoreProduct.store_id == store.id,
-        StoreProduct.ingredient_master_id == body.ingredient_master_id,
-    )
-    product = (await db.execute(q)).scalar_one_or_none()
-    if product:
-        product.price = body.price
-        product.format_qty = body.format_qty
-        product.format_unit = body.format_unit
-        product.is_validated = True
-    else:
-        product = StoreProduct(
-            ingredient_master_id=body.ingredient_master_id,
-            store_id=store.id,
-            price=body.price,
-            format_qty=body.format_qty,
-            format_unit=body.format_unit,
-            is_validated=True,
-            confidence_score=1.0,
-        )
-        db.add(product)
-
-    await db.commit()
-    return {"status": "ok", "store": store_code}
 
 
 @router.post("/map-prices", response_model=JobOut, status_code=202)

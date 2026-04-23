@@ -2,7 +2,7 @@
 
 Kept the legacy `call_claude` / `call_claude_vision` names so all existing
 callers (classifier, standardizer, receipt_ocr, display_name_cleaner,
-price_estimator, ingredient_dedup) keep working unchanged.
+ingredient_dedup, name_cleaner) keep working unchanged.
 """
 import asyncio
 import logging

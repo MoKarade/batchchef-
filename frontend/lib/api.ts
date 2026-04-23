@@ -342,12 +342,6 @@ export const statsApi = {
 export const storesApi = {
   list: () => api.get<Store[]>("/api/stores"),
   listProducts: (storeCode: string) => api.get<StoreProduct[]>(`/api/stores/${storeCode}/products`),
-  upsertPrice: (storeCode: string, data: {
-    ingredient_master_id: number;
-    price: number;
-    format_qty: number;
-    format_unit: string;
-  }) => api.patch(`/api/stores/${storeCode}/prices`, data),
   mapPrices: (data?: { store_codes?: string[]; ingredient_ids?: number[] }) =>
     api.post<ImportJob>("/api/stores/map-prices", data ?? {}),
 };

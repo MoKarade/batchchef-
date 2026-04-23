@@ -1,5 +1,5 @@
 """
-Celery task: bulk Marmiton import pipeline.
+Celery task: bulk Marmiton import pipeline (V3: Maxi-only).
 For each URL:
   1. Pre-filter URLs already in DB (skip scraped/ai_done/error)
   2. Scrape with Playwright (3 retries per URL)
@@ -8,10 +8,9 @@ For each URL:
   5. Persist Recipe + RecipeIngredient in DB (isolated per recipe)
   6. AI generate search aliases for new IngredientMaster rows
   7. Deduplicate new ingredients against existing ones
-  8. Scrape Maxi + Costco for new ingredients (synchronous, inline)
+  8. Scrape Maxi for new canonical parent ingredients (synchronous, inline)
   9. Gate each recipe: pricing_status=complete only when 100% ingredients have a price
-  10. Auto-cascade Fruiterie estimation (async, non-blocking bonus)
-  11. Broadcast progress via WebSocket manager
+  10. Broadcast progress via WebSocket manager
 """
 import asyncio
 import json

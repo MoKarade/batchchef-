@@ -104,9 +104,8 @@ async def stats():
 async def _seed_stores():
     """Ensure the base store(s) exist on startup.
 
-    V3: Maxi-only. Costco + Fruiterie stores removed from the seed list.
-    Existing rows (from prior installs) stay in the DB but are not seeded
-    fresh — no code path uses them.
+    V3: Maxi-only. Prior installs may still have costco + fruiterie_440 rows
+    in the store table; they stay untouched because no code path uses them.
     """
     from sqlalchemy import select
     from app.database import AsyncSessionLocal

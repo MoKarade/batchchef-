@@ -12,13 +12,6 @@ class StoreOut(BaseModel):
     is_transactional: bool = True
 
 
-class StorePriceUpdate(BaseModel):
-    ingredient_master_id: int
-    price: float
-    format_qty: float
-    format_unit: str  # g|kg|ml|l|unite
-
-
 class StoreProductOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
