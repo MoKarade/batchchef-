@@ -68,6 +68,9 @@ class BatchGenerateRequest(BaseModel):
     health_score_min: float | None = None
     include_recipe_ids: list[int] | None = None
     exclude_recipe_ids: list[int] | None = None
+    # Prefer recipes using ingredients already in the user's inventory.
+    # Default True so the /auto flow naturally clears the fridge first.
+    prefer_inventory: bool = True
 
 
 class RecipePreview(BaseModel):

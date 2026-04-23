@@ -37,6 +37,7 @@ async def generate(body: BatchGenerateRequest, db: AsyncSession = Depends(get_db
             prep_time_max_min=body.prep_time_max_min,
             health_score_min=body.health_score_min,
             include_recipe_ids=body.include_recipe_ids,
+            prefer_inventory=body.prefer_inventory,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -58,6 +59,7 @@ async def preview(body: BatchGenerateRequest, db: AsyncSession = Depends(get_db)
             prep_time_max_min=body.prep_time_max_min,
             health_score_min=body.health_score_min,
             include_recipe_ids=body.include_recipe_ids,
+            prefer_inventory=body.prefer_inventory,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

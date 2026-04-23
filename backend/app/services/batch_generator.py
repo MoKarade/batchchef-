@@ -29,6 +29,52 @@ def _split_portions(target_portions: int, n: int) -> list[int]:
     return [base + (1 if i < remainder else 0) for i in range(n)]
 
 
+async def _load_inventory_parent_ids(db: AsyncSession) -> set[int]:
+    """Return the set of IngredientMaster.id (always top-level / canonical)
+    for which the user has at least one InventoryItem with qty > 0.
+
+    Variant inventory is rolled up to the parent — if you have 'beurre_mou'
+    in stock, 'beurre' counts as covered.
+    """
+    q = (
+        select(InventoryItem.ingredient_master_id, InventoryItem.quantity)
+        .where(InventoryItem.quantity > 0)
+    )
+    rows = list((await db.execute(q)).all())
+    if not rows:
+        return set()
+    # Resolve each inv ingredient to its parent (if any)
+    ing_ids = {r[0] for r in rows}
+    # Load the minimal (id, parent_id) pairs
+    from app.models.ingredient import IngredientMaster as _IM
+    link_q = select(_IM.id, _IM.parent_id).where(_IM.id.in_(ing_ids))
+    pairs = list((await db.execute(link_q)).all())
+    result: set[int] = set()
+    for iid, pid in pairs:
+        result.add(pid if pid is not None else iid)
+    return result
+
+
+def _recipe_inventory_coverage(recipe: Recipe, in_stock_parent_ids: set[int]) -> float:
+    """Fraction of a recipe's (non-invalid) ingredients that the user has in
+    stock, resolving variants to their parent. Returns 0..1."""
+    total = 0
+    hit = 0
+    for ri in recipe.ingredients or []:
+        if not ri.ingredient_master_id:
+            continue
+        master = ri.ingredient
+        if master and master.price_mapping_status == "invalid":
+            continue
+        total += 1
+        check_id = (
+            master.parent_id if master and master.parent_id else ri.ingredient_master_id
+        )
+        if check_id in in_stock_parent_ids:
+            hit += 1
+    return (hit / total) if total > 0 else 0.0
+
+
 async def select_recipes(
     db: AsyncSession,
     exclude_ids: list[int] | None = None,
@@ -40,9 +86,14 @@ async def select_recipes(
     prep_time_max_min: int | None = None,
     health_score_min: float | None = None,
     include_recipe_ids: list[int] | None = None,
+    prefer_inventory: bool = True,
 ) -> list[Recipe]:
     """Pure selection. Returns list of Recipe ORM objects with ingredients eager-loaded.
     No DB writes. Raises ValueError if not enough recipes match.
+
+    When prefer_inventory=True (default), recipes using ingredients the user
+    already has in stock are heavily preferred — tying into the goal of
+    'use up the fridge before buying'.
     """
     exclude_ids = list(exclude_ids or [])
     include_recipe_ids = list(include_recipe_ids or [])
@@ -102,6 +153,19 @@ async def select_recipes(
             f"Pas assez de recettes (besoin {num_recipes}, dispo {len(candidates) + len(forced)}). "
             "Assouplis les filtres ou importe plus de recettes."
         )
+
+    # Inventory-aware re-ranking: recipes that use ingredients already in the
+    # fridge bubble up to the top, keyed on the fraction of ingredients the
+    # user already has (resolving variants to their parent). The random jitter
+    # in the initial query still applies as a tie-breaker for same-coverage
+    # recipes, so successive regenerations yield variety.
+    if prefer_inventory and candidates:
+        in_stock = await _load_inventory_parent_ids(db)
+        if in_stock:
+            candidates.sort(
+                key=lambda r: _recipe_inventory_coverage(r, in_stock),
+                reverse=True,
+            )
 
     selected: list[Recipe] = list(forced)
 
@@ -356,6 +420,7 @@ async def compute_batch_preview(
     prep_time_max_min: int | None = None,
     health_score_min: float | None = None,
     include_recipe_ids: list[int] | None = None,
+    prefer_inventory: bool = True,
 ) -> dict:
     """Return a preview dict without persisting anything to the DB."""
     selected = await select_recipes(
@@ -369,6 +434,7 @@ async def compute_batch_preview(
         prep_time_max_min=prep_time_max_min,
         health_score_min=health_score_min,
         include_recipe_ids=include_recipe_ids,
+        prefer_inventory=prefer_inventory,
     )
     return await preview_for_recipes(db, target_portions, selected)
 
@@ -492,6 +558,7 @@ async def generate_batch(
     prep_time_max_min: int | None = None,
     health_score_min: float | None = None,
     include_recipe_ids: list[int] | None = None,
+    prefer_inventory: bool = True,
 ) -> Batch:
     """Legacy: select recipes and persist in one shot."""
     selected = await select_recipes(
@@ -505,6 +572,7 @@ async def generate_batch(
         prep_time_max_min=prep_time_max_min,
         health_score_min=health_score_min,
         include_recipe_ids=include_recipe_ids,
+        prefer_inventory=prefer_inventory,
     )
     portions_split = _split_portions(target_portions, len(selected))
     slots = [(r.id, p) for r, p in zip(selected, portions_split)]
