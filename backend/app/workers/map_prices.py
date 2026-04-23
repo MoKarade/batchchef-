@@ -271,19 +271,25 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
 
                         query_lists = []
                         for ing in chunk:
-                            queries = []
-                            if ing.display_name_fr:
+                            queries: list[str] = []
+                            # Staple fallbacks come FIRST for known-bad-default
+                            # ingredients. _try_queries returns on the first
+                            # non-empty result (validation happens later), so
+                            # a bare 'beurre' query would latch onto 'Becel
+                            # Beurre végétal' and never try the good query.
+                            # Putting 'beurre salé' first gives us the real
+                            # product straight away.
+                            for fb in _STAPLE_FALLBACK_QUERIES.get(ing.canonical_name, []):
+                                if fb not in queries:
+                                    queries.append(fb)
+                            # Default ingredient display name + aliases as
+                            # the fallback path if none of the staple queries
+                            # matched (or if there were none).
+                            if ing.display_name_fr and ing.display_name_fr not in queries:
                                 queries.append(ing.display_name_fr)
                             for a in (ing.search_aliases or []):
                                 if a not in queries:
                                     queries.append(a)
-                            # Staple-specific hand-curated fallbacks — tried
-                            # AFTER the default + aliases, so we only hit
-                            # them when the default query hasn't yielded a
-                            # validated match.
-                            for fb in _STAPLE_FALLBACK_QUERIES.get(ing.canonical_name, []):
-                                if fb not in queries:
-                                    queries.append(fb)
                             if not queries:
                                 queries.append(ing.canonical_name.replace("_", " "))
                             query_lists.append(queries)
