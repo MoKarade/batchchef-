@@ -653,21 +653,23 @@ async def _persist_recipe(db, data: dict) -> tuple[set[int], int | None]:
     db.add(recipe)
     await db.flush()
 
+    from app.services.ingredient_resolution import resolve_or_create_ingredient
+
     for order_i, ing in enumerate(data.get("ingredients", [])):
         canonical = _sanitize_ingredient_name(ing.get("canonical_name", ""))
         if not canonical or len(canonical) < 2:
             continue
 
-        ing_master = (
-            await db.execute(select(IngredientMaster).where(IngredientMaster.canonical_name == canonical))
-        ).scalar_one_or_none()
-        if not ing_master:
-            ing_master = IngredientMaster(
-                canonical_name=canonical,
-                display_name_fr=canonical.replace("_", " ").title(),
-            )
-            db.add(ing_master)
-            await db.flush()
+        # Signature-aware resolution: if a canonical parent with the same
+        # conservative signature already exists (e.g. 'abricot' when we got
+        # 'abricots'), this attaches the new name as a variant instead of
+        # spawning a parallel parent. No more post-hoc merge needed.
+        ing_master, created = await resolve_or_create_ingredient(
+            db,
+            canonical_name=canonical,
+            display_name_fr=canonical.replace("_", " ").title(),
+        )
+        if created:
             new_ids.add(ing_master.id)
 
         raw_variant = ing.get("variant_name")
@@ -677,16 +679,28 @@ async def _persist_recipe(db, data: dict) -> tuple[set[int], int | None]:
                 await db.execute(select(IngredientMaster).where(IngredientMaster.canonical_name == variant_name))
             ).scalar_one_or_none()
             if not variant_master:
+                # Use ing_master's top-level parent as the anchor (handle
+                # the case where ing_master itself is a variant)
+                anchor_parent_id = (
+                    ing_master.parent_id
+                    if ing_master.parent_id is not None
+                    else ing_master.id
+                )
                 variant_master = IngredientMaster(
                     canonical_name=variant_name,
                     display_name_fr=variant_name.replace("_", " ").title(),
-                    parent_id=ing_master.id,
+                    parent_id=anchor_parent_id,
+                    price_mapping_status="variant",
                 )
                 db.add(variant_master)
                 await db.flush()
                 new_ids.add(variant_master.id)
             elif variant_master.parent_id is None:
-                variant_master.parent_id = ing_master.id
+                variant_master.parent_id = (
+                    ing_master.parent_id
+                    if ing_master.parent_id is not None
+                    else ing_master.id
+                )
             ing_master = variant_master
 
         ri = RecipeIngredient(
