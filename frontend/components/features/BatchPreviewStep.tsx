@@ -167,7 +167,7 @@ export function BatchPreviewStep({ preview, onBack }: Props) {
             Prix manquants ({Math.round((preview.price_coverage ?? 0) * 100)}% couverture)
           </p>
           <p className="text-xs text-destructive/80">
-            Ces ingrédients n&apos;ont pas de correspondance Maxi/Costco — le batch ne peut pas être accepté :
+            Ces ingrédients n&apos;ont pas de correspondance Maxi — le batch ne peut pas être accepté :
           </p>
           <ul className="text-xs text-destructive/90 list-disc list-inside">
             {(preview.unpriced_ingredients ?? []).map((name) => (

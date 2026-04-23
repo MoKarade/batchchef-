@@ -73,7 +73,7 @@ export function ReceiptsListPage() {
           <div className="flex flex-col items-center gap-2">
             <Upload className="h-8 w-8 text-muted-foreground" />
             <p className="font-medium text-sm">Glisser-déposer ou cliquer pour uploader</p>
-            <p className="text-xs text-muted-foreground">JPG, PNG — photo d&apos;un ticket Maxi, Costco, Fruiterie</p>
+            <p className="text-xs text-muted-foreground">JPG, PNG — photo d&apos;un ticket Maxi</p>
           </div>
         )}
       </div>

@@ -222,7 +222,7 @@ async def _run(job_id: int, urls: list[str]):
             await manager.broadcast(str(job_id), {
                 "job_id": job_id,
                 "status": "pricing",
-                "message": f"Recherche prix Maxi/Costco pour {len(new_ingredient_ids)} ingrédients…",
+                "message": f"Recherche prix Maxi pour {len(new_ingredient_ids)} ingrédients…",
             })
 
             # Generate search aliases for all new ingredients
@@ -231,9 +231,14 @@ async def _run(job_id: int, urls: list[str]):
             # Deduplicate new ingredients vs existing
             await _deduplicate_ingredients(sorted(new_ingredient_ids))
 
-            # Scrape Maxi + Costco synchronously (inline, same Celery job)
+            # Narrow to canonical parents only — variants inherit their
+            # parent's StoreProduct through the hierarchy, so scraping them
+            # individually wastes Maxi requests and rarely matches cleanly.
+            to_price = await _canonical_parents_only(sorted(new_ingredient_ids))
+
+            # Scrape Maxi synchronously (inline, same Celery job)
             priced_ids, unpriced_ids = await _price_new_ingredients(
-                sorted(new_ingredient_ids), pages
+                to_price, pages
             )
 
             # Gate recipes: mark complete/incomplete based on price coverage
@@ -264,6 +269,28 @@ async def _run(job_id: int, urls: list[str]):
     })
 
     # Maxi-only pipeline — no auto-cascade needed
+
+
+async def _canonical_parents_only(ingredient_ids: list[int]) -> list[int]:
+    """Filter a set of ingredient ids down to canonical parents (parent_id IS NULL).
+
+    Variants (rows where parent_id is set) inherit their parent's
+    StoreProduct through the hierarchy — scraping them wastes Maxi
+    requests. Invalid rows (non-ingredients) are dropped here too.
+    """
+    from sqlalchemy import select
+    from app.database import AsyncSessionLocal
+    from app.models.ingredient import IngredientMaster
+
+    if not ingredient_ids:
+        return []
+    async with AsyncSessionLocal() as db:
+        q = select(IngredientMaster.id).where(
+            IngredientMaster.id.in_(ingredient_ids),
+            IngredientMaster.parent_id.is_(None),
+            IngredientMaster.price_mapping_status != "invalid",
+        )
+        return [r[0] for r in (await db.execute(q)).all()]
 
 
 async def _generate_aliases_for_ingredients(ingredient_ids: list[int]):

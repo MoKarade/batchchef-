@@ -350,10 +350,6 @@ export const storesApi = {
   }) => api.patch(`/api/stores/${storeCode}/prices`, data),
   mapPrices: (data?: { store_codes?: string[]; ingredient_ids?: number[] }) =>
     api.post<ImportJob>("/api/stores/map-prices", data ?? {}),
-  validatePrices: (max_items?: number) =>
-    api.post<ImportJob>("/api/stores/validate-prices", undefined, { params: { max_items } }),
-  estimateFruiteriePrices: (ingredient_ids?: number[]) =>
-    api.post<ImportJob>("/api/stores/fruiterie_440/estimate-prices", ingredient_ids ?? null),
 };
 
 export const ingredientsApi = {

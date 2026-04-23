@@ -95,7 +95,18 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
         stores_q = select(Store).where(Store.code.in_(codes))
         stores = {s.code: s for s in (await db.execute(stores_q)).scalars().all()}
 
-        ing_q = select(IngredientMaster)
+        # Price ONLY canonical parents. Variants inherit their parent's
+        # StoreProduct through the hierarchy — scraping a variant ("boîte de
+        # thon 200g") separately would waste requests and never find a
+        # cleaner match than the parent ("thon") already did.
+        ing_q = select(IngredientMaster).where(IngredientMaster.parent_id.is_(None))
+        # Skip rows marked 'invalid' (non-ingredients like eau, au_gout).
+        ing_q = ing_q.where(
+            or_(
+                IngredientMaster.price_mapping_status.is_(None),
+                IngredientMaster.price_mapping_status != "invalid",
+            )
+        )
         if ingredient_ids:
             ing_q = ing_q.where(IngredientMaster.id.in_(ingredient_ids))
         else:

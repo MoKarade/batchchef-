@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   storesApi,
@@ -8,8 +8,6 @@ import {
   importsApi,
   recipesApi,
   type ImportJob,
-  type IngredientMaster,
-  type StoreProduct,
 } from "@/lib/api";
 import { useJobWebSocket, type JobProgress } from "@/lib/ws";
 import {
@@ -18,10 +16,7 @@ import {
   CheckCircle2,
   RefreshCw,
   Store as StoreIcon,
-  Leaf,
-  Save,
   Sparkles,
-  ShieldCheck,
   X,
   ChevronDown,
   ChevronRight,
@@ -61,7 +56,7 @@ function PriceCoveragePanel() {
   return (
     <div className="space-y-3">
       <h3 className="font-semibold flex items-center gap-2 text-sm">
-        <ShoppingCart className="h-4 w-4" /> Couverture prix Maxi/Costco
+        <ShoppingCart className="h-4 w-4" /> Couverture prix Maxi
       </h3>
       {isLoading && <p className="text-xs text-muted-foreground">Chargement…</p>}
       {coverage && (
@@ -170,10 +165,8 @@ function PriceMappingJobCard({ job }: { job: ImportJob }) {
 }
 
 function labelForJobType(t: string): string {
-  if (t === "price_mapping") return "Mapping des prix Maxi + Costco";
-  if (t === "price_validation") return "Validation périodique des prix";
+  if (t === "price_mapping") return "Mapping des prix Maxi";
   if (t === "marmiton_bulk") return "Import Marmiton";
-  if (t === "fruiterie_estimate") return "Estimation IA — Fruiterie 440";
   return t;
 }
 
@@ -191,9 +184,6 @@ function PriceMappingPanel() {
   const startMap = useMutation({
     mutationFn: () => storesApi.mapPrices(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ingredients-stats"] }),
-  });
-  const startValidate = useMutation({
-    mutationFn: () => storesApi.validatePrices(),
   });
 
   const [jobs, setJobs] = useState<ImportJob[]>([]);
@@ -226,19 +216,7 @@ function PriceMappingPanel() {
           className="flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 h-9 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
         >
           {startMap.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-          Mapper tous les prix (Maxi + Costco)
-        </button>
-
-        <button
-          onClick={async () => {
-            const r = await startValidate.mutateAsync();
-            setJobs((prev) => [r.data, ...prev]);
-          }}
-          disabled={startValidate.isPending}
-          className="flex items-center gap-2 rounded-md border px-4 h-9 text-sm hover:bg-accent disabled:opacity-50"
-        >
-          {startValidate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          Valider les prix existants
+          Mapper tous les prix (Maxi)
         </button>
       </div>
 
@@ -255,226 +233,6 @@ function PriceMappingPanel() {
           Erreur : le worker Celery est-il démarré ? (Redis requis)
         </p>
       )}
-    </div>
-  );
-}
-
-function FruiteriePricingRow({
-  ingredient,
-  product,
-  onSave,
-}: {
-  ingredient: IngredientMaster;
-  product?: StoreProduct;
-  onSave: (data: { ingredient_master_id: number; price: number; format_qty: number; format_unit: string }) => Promise<void>;
-}) {
-  const [price, setPrice] = useState<string>(product?.price?.toString() ?? "");
-  const [qty, setQty] = useState<string>(product?.format_qty?.toString() ?? "1");
-  const [unit, setUnit] = useState<string>(product?.format_unit ?? ingredient.default_unit ?? "kg");
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  const handleSave = async () => {
-    const p = parseFloat(price);
-    const q = parseFloat(qty);
-    if (!p || !q) return;
-    setSaving(true);
-    try {
-      await onSave({
-        ingredient_master_id: ingredient.id,
-        price: p,
-        format_qty: q,
-        format_unit: unit,
-      });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <tr className="border-t">
-      <td className="py-2 pr-3 text-sm">{ingredient.display_name_fr}</td>
-      <td className="py-2 pr-2">
-        <input
-          type="number"
-          step="0.01"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          placeholder="0.00"
-          className="w-20 h-8 rounded-md border bg-background px-2 text-sm"
-        />
-      </td>
-      <td className="py-2 pr-2">
-        <input
-          type="number"
-          step="0.1"
-          value={qty}
-          onChange={(e) => setQty(e.target.value)}
-          className="w-20 h-8 rounded-md border bg-background px-2 text-sm"
-        />
-      </td>
-      <td className="py-2 pr-2">
-        <select
-          value={unit}
-          onChange={(e) => setUnit(e.target.value)}
-          className="h-8 rounded-md border bg-background px-2 text-sm"
-        >
-          <option value="kg">kg</option>
-          <option value="g">g</option>
-          <option value="l">l</option>
-          <option value="ml">ml</option>
-          <option value="unite">unité</option>
-        </select>
-      </td>
-      <td className="py-2 pr-2">
-        {product == null || product.price == null ? (
-          <span className="text-[10px] text-muted-foreground">—</span>
-        ) : product.is_validated ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 text-green-700 px-2 py-0.5 text-[10px]">
-            <ShieldCheck className="h-3 w-3" /> Validé
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[10px]">
-            <Sparkles className="h-3 w-3" /> IA {product.confidence_score != null ? `(${product.confidence_score.toFixed(1)})` : ""}
-          </span>
-        )}
-      </td>
-      <td className="py-2 text-right">
-        <button
-          onClick={handleSave}
-          disabled={saving || !price}
-          className="flex items-center gap-1 rounded-md bg-primary text-primary-foreground px-3 h-7 text-xs ml-auto disabled:opacity-50"
-        >
-          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> :
-           saved ? <CheckCircle2 className="h-3 w-3" /> :
-           <Save className="h-3 w-3" />}
-          {saved ? "Enregistré" : "Sauver"}
-        </button>
-      </td>
-    </tr>
-  );
-}
-
-function FruiteriePanel() {
-  const qc = useQueryClient();
-  const [search, setSearch] = useState("");
-  const [jobs, setJobs] = useState<ImportJob[]>([]);
-
-  const { data: ingredients = [] } = useQuery({
-    queryKey: ["ingredients", search],
-    queryFn: () => ingredientsApi.list({ search: search || undefined, limit: 100 }).then((r) => r.data),
-  });
-
-  const { data: products = [] } = useQuery({
-    queryKey: ["fruiterie-products"],
-    queryFn: () => storesApi.listProducts("fruiterie_440").then((r) => r.data),
-    refetchInterval: jobs.some((j) => j.status === "running" || j.status === "queued") ? 5_000 : false,
-  });
-
-  const byIngredient = useMemo(() => {
-    const map = new Map<number, StoreProduct>();
-    for (const p of products) map.set(p.ingredient_master_id, p);
-    return map;
-  }, [products]);
-
-  const save = async (data: Parameters<typeof storesApi.upsertPrice>[1]) => {
-    await storesApi.upsertPrice("fruiterie_440", data);
-    await qc.invalidateQueries({ queryKey: ["fruiterie-products"] });
-  };
-
-  const estimateAll = useMutation({
-    mutationFn: () => storesApi.estimateFruiteriePrices(),
-    onSuccess: (r) => setJobs((prev) => [r.data, ...prev]),
-  });
-
-  const estimatedCount = products.filter((p) => !p.is_validated && p.price != null).length;
-  const validatedCount = products.filter((p) => p.is_validated).length;
-
-  return (
-    <div className="rounded-xl border bg-card p-5 space-y-4">
-      <div className="flex items-center gap-2">
-        <Leaf className="h-5 w-5 text-green-600" />
-        <span className="font-semibold">Prix Fruiterie 440</span>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Gemini estime automatiquement les prix en vrac. Tu peux ensuite écraser manuellement
-        chaque estimation ; les prix manuels passent en « validés » et ne seront plus écrasés.
-      </p>
-
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <div className="rounded-md border p-3">
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
-            <Sparkles className="h-3 w-3" /> Estimés IA
-          </p>
-          <p className="text-xl font-bold">{estimatedCount}</p>
-        </div>
-        <div className="rounded-md border p-3">
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
-            <ShieldCheck className="h-3 w-3" /> Validés manuellement
-          </p>
-          <p className="text-xl font-bold">{validatedCount}</p>
-        </div>
-      </div>
-
-      <div className="flex gap-2 flex-wrap">
-        <button
-          onClick={() => estimateAll.mutate()}
-          disabled={estimateAll.isPending}
-          className="flex items-center gap-2 rounded-md bg-primary text-primary-foreground px-4 h-9 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
-        >
-          {estimateAll.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          Estimer tous les prix avec Gemini
-        </button>
-      </div>
-
-      {jobs.length > 0 && (
-        <div className="space-y-2">
-          {jobs.map((j) => (
-            <PriceMappingJobCard key={j.id} job={j} />
-          ))}
-        </div>
-      )}
-
-      {estimateAll.isError && (
-        <p className="text-sm text-destructive">
-          Erreur : worker Celery / clé Gemini ?
-        </p>
-      )}
-
-      <input
-        type="text"
-        placeholder="Rechercher un ingrédient..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-      />
-
-      <div className="max-h-[500px] overflow-auto">
-        <table className="w-full text-sm">
-          <thead className="text-xs text-muted-foreground">
-            <tr className="text-left">
-              <th className="py-2 pr-3">Ingrédient</th>
-              <th className="py-2 pr-2">Prix ($)</th>
-              <th className="py-2 pr-2">Format</th>
-              <th className="py-2 pr-2">Unité</th>
-              <th className="py-2 pr-2">Source</th>
-              <th className="py-2 text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ingredients.map((ing) => (
-              <FruiteriePricingRow
-                key={ing.id}
-                ingredient={ing}
-                product={byIngredient.get(ing.id)}
-                onSave={save}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
@@ -552,7 +310,6 @@ export function SettingsPage() {
           <li><code className="text-xs bg-muted px-1 rounded">GEMINI_API_KEY</code> — Clé Google AI Studio</li>
           <li><code className="text-xs bg-muted px-1 rounded">MAXI_STORE_ID</code> — ID de votre Maxi local (défaut 8676)</li>
           <li><code className="text-xs bg-muted px-1 rounded">SCRAPE_CONCURRENCY</code> — Pages Playwright parallèles</li>
-          <li><code className="text-xs bg-muted px-1 rounded">COSTCO_ENABLED</code> — Active le scraper Costco</li>
         </ul>
       </div>
 
@@ -577,7 +334,6 @@ export function SettingsPage() {
             <PriceCoveragePanel />
             <hr className="border-muted" />
             <PriceMappingPanel />
-            <FruiteriePanel />
             <ClassifyPanel />
           </div>
         )}

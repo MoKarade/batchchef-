@@ -92,10 +92,7 @@ function IngredientDetailsPanel({ id }: { id: number }) {
 
   const d = data as IngredientDetails;
   const maxi = d.store_products.find((p) => p.store_code === "maxi");
-  const costco = d.store_products.find((p) => p.store_code === "costco");
-  const others = d.store_products.filter(
-    (p) => p.store_code !== "maxi" && p.store_code !== "costco",
-  );
+  const others = d.store_products.filter((p) => p.store_code !== "maxi");
 
   // Group price history by store for sparklines
   const historyByStore: Record<string, number[]> = {};
@@ -115,7 +112,7 @@ function IngredientDetailsPanel({ id }: { id: number }) {
             onClick={() => rescan.mutate()}
             disabled={rescan.isPending}
             className="inline-flex items-center gap-1 text-[10px] rounded-md border px-2 py-0.5 hover:bg-accent disabled:opacity-50"
-            title="Rescanner Maxi + Costco pour cet ingrédient"
+            title="Rescanner Maxi pour cet ingrédient"
           >
             <RefreshCw className={`h-3 w-3 ${rescan.isPending ? "animate-spin" : ""}`} />
             {rescan.isPending ? "Lancé" : "Rescanner"}
@@ -126,7 +123,7 @@ function IngredientDetailsPanel({ id }: { id: number }) {
             Pas encore de prix — relance depuis Paramètres › Prix.
           </p>
         )}
-        {[maxi, costco, ...others].filter(Boolean).map((sp) => (
+        {[maxi, ...others].filter(Boolean).map((sp) => (
           <div key={sp!.id} className="flex items-start gap-2 text-xs rounded-md border bg-muted/30 p-2">
             {sp!.image_url ? (
               <a
