@@ -157,55 +157,64 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
                 logger.debug(f"Query '{query}' failed: {e}")
         return None, None
 
-    async with async_playwright() as pw:
-        # channel='chrome' uses the user's installed Chrome to stay human-looking.
-        browser = await pw.chromium.launch(
-            headless=settings.PLAYWRIGHT_HEADLESS,
-            channel="chrome",
-        )
-        context = await browser.new_context(locale="fr-CA")
-        await context.route(
-            "**/*.{png,jpg,jpeg,gif,webp,woff,woff2,ttf,otf,css,svg}",
-            lambda r: r.abort(),
-        )
-        pages = [await context.new_page() for _ in range(BATCH_SIZE)]
+    # Supervised Playwright session: if the browser crashes mid-run (patchright
+    # sometimes throws "value: expected integer, got object" from a background
+    # Future), we close it and relaunch. Each restart skips ingredients
+    # already processed (via chunk_start cursor).
+    chunk_start = 0
+    restart_count = 0
+    max_restarts = 10
+    while chunk_start < len(ingredients):
+        try:
+            async with async_playwright() as pw:
+                # channel='chrome' uses the user's installed Chrome to stay human-looking.
+                browser = await pw.chromium.launch(
+                    headless=settings.PLAYWRIGHT_HEADLESS,
+                    channel="chrome",
+                )
+                context = await browser.new_context(locale="fr-CA")
+                await context.route(
+                    "**/*.{png,jpg,jpeg,gif,webp,woff,woff2,ttf,otf,css,svg}",
+                    lambda r: r.abort(),
+                )
+                pages = [await context.new_page() for _ in range(BATCH_SIZE)]
 
-        for chunk_start in range(0, len(ingredients), BATCH_SIZE):
-            # Cooperative cancellation
-            async with AsyncSessionLocal() as db:
-                job = await db.get(ImportJob, job_id)
-                if job and job.cancel_requested:
-                    cancelled = True
-                    break
+                while chunk_start < len(ingredients):
+                    # Cooperative cancellation
+                    async with AsyncSessionLocal() as db:
+                        job = await db.get(ImportJob, job_id)
+                        if job and job.cancel_requested:
+                            cancelled = True
+                            break
 
-            chunk = ingredients[chunk_start: chunk_start + BATCH_SIZE]
+                    chunk = ingredients[chunk_start: chunk_start + BATCH_SIZE]
 
-            for code in codes:
-                store = stores.get(code)
-                if not store:
-                    continue
-                scraper_fn = scrapers[code]
-                store_id_param = store.store_location_id or ""
+                    for code in codes:
+                        store = stores.get(code)
+                        if not store:
+                            continue
+                        scraper_fn = scrapers[code]
+                        store_id_param = store.store_location_id or ""
 
-                query_lists = []
-                for ing in chunk:
-                    queries = []
-                    if ing.display_name_fr:
-                        queries.append(ing.display_name_fr)
-                    for a in (ing.search_aliases or []):
-                        if a not in queries:
-                            queries.append(a)
-                    if not queries:
-                        queries.append(ing.canonical_name.replace("_", " "))
-                    query_lists.append(queries)
+                        query_lists = []
+                        for ing in chunk:
+                            queries = []
+                            if ing.display_name_fr:
+                                queries.append(ing.display_name_fr)
+                            for a in (ing.search_aliases or []):
+                                if a not in queries:
+                                    queries.append(a)
+                            if not queries:
+                                queries.append(ing.canonical_name.replace("_", " "))
+                            query_lists.append(queries)
 
-                tasks = [
-                    asyncio.create_task(
-                        _try_queries(pages[j], scraper_fn, query_lists[j], store_id_param)
-                    )
-                    for j in range(len(chunk))
-                ]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
+                        tasks = [
+                            asyncio.create_task(
+                                _try_queries(pages[j], scraper_fn, query_lists[j], store_id_param)
+                            )
+                            for j in range(len(chunk))
+                        ]
+                        results = await asyncio.gather(*tasks, return_exceptions=True)
 
                 # Batch AI validation for all matches found
                 validation_pairs: list[tuple[int, dict, str]] = []
@@ -292,26 +301,45 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
                             )
                         await db.commit()
 
-            # Progress update
-            async with AsyncSessionLocal() as db:
-                job = await db.get(ImportJob, job_id)
-                if job:
-                    job.progress_current = min(chunk_start + BATCH_SIZE, len(ingredients))
-                    job.current_item = chunk[-1].canonical_name
-                    await db.commit()
+                    # Progress update
+                    async with AsyncSessionLocal() as db:
+                        job = await db.get(ImportJob, job_id)
+                        if job:
+                            job.progress_current = min(chunk_start + BATCH_SIZE, len(ingredients))
+                            job.current_item = chunk[-1].canonical_name
+                            await db.commit()
 
-            await manager.broadcast(
-                str(job_id),
-                {
-                    "job_id": job_id,
-                    "current": min(chunk_start + BATCH_SIZE, len(ingredients)),
-                    "total": len(ingredients),
-                    "processed": processed,
-                    "errors": len(errors),
-                },
+                    await manager.broadcast(
+                        str(job_id),
+                        {
+                            "job_id": job_id,
+                            "current": min(chunk_start + BATCH_SIZE, len(ingredients)),
+                            "total": len(ingredients),
+                            "processed": processed,
+                            "errors": len(errors),
+                        },
+                    )
+
+                    # Advance cursor — one chunk at a time so a crash mid-
+                    # chunk doesn't lose work on the next restart.
+                    chunk_start += BATCH_SIZE
+
+                if cancelled:
+                    break
+                await browser.close()
+                break  # normal exit — all ingredients processed
+        except Exception as supervised_exc:
+            restart_count += 1
+            logger.warning(
+                f"Playwright session crashed (attempt {restart_count}/{max_restarts}) "
+                f"at chunk_start={chunk_start}: {supervised_exc}. Restarting..."
             )
-
-        await browser.close()
+            if restart_count >= max_restarts:
+                logger.error(f"Max Playwright restarts ({max_restarts}) exceeded; aborting.")
+                errors.append(f"playwright_supervisor: max restarts exceeded ({supervised_exc})")
+                break
+            # Brief cooldown before restart
+            await asyncio.sleep(3.0)
 
     final_status = "cancelled" if cancelled else "completed"
 

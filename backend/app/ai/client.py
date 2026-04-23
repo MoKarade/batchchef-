@@ -10,7 +10,7 @@ import asyncio
 import logging
 import time
 
-import anthropic
+import httpx
 from google import genai
 from google.genai import types as genai_types
 
@@ -19,7 +19,8 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 _client: genai.Client | None = None
-_anthropic_client: anthropic.AsyncAnthropic | None = None
+_anthropic_http: httpx.AsyncClient | None = None
+_ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 
 # Once we see a hard Gemini quota/billing error, skip Gemini for the rest
 # of the process — every subsequent call would just eat 4s waiting for
@@ -51,15 +52,21 @@ def get_client() -> genai.Client:
     return _client
 
 
-def get_anthropic_client() -> anthropic.AsyncAnthropic | None:
-    """Lazy init, returns None if no API key is set."""
-    global _anthropic_client
-    if _anthropic_client is not None:
-        return _anthropic_client
+def _get_anthropic_http() -> httpx.AsyncClient | None:
+    """Lazy init of an httpx AsyncClient for Claude.
+
+    Intentionally bypasses the `anthropic` SDK: on Windows with Python 3.14
+    the SDK's messages.create() hangs forever on certain response chunks.
+    Direct httpx is snappy (~0.5s per call) and the Messages API is a
+    straightforward JSON endpoint.
+    """
+    global _anthropic_http
+    if _anthropic_http is not None:
+        return _anthropic_http
     if not settings.ANTHROPIC_API_KEY:
         return None
-    _anthropic_client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-    return _anthropic_client
+    _anthropic_http = httpx.AsyncClient(timeout=30.0)
+    return _anthropic_http
 
 
 async def _call_claude_fallback(
@@ -69,25 +76,36 @@ async def _call_claude_fallback(
     temperature: float,
 ) -> str | None:
     """Final fallback when all Gemini tiers fail (billing cap, quota, etc).
-    Uses Haiku — cheapest Claude model — to stay economical.
+    Uses Haiku via direct httpx call to stay economical.
     Returns the response text, or None if no API key / call fails.
     """
-    ac = get_anthropic_client()
-    if ac is None:
+    http = _get_anthropic_http()
+    if http is None:
         return None
     try:
-        resp = await ac.messages.create(
-            model=settings.CLAUDE_MODEL or "claude-haiku-4-5-20251001",
-            max_tokens=max_tokens,
-            temperature=temperature,
-            system=system or "",
-            messages=[{"role": "user", "content": user_prompt}],
+        r = await http.post(
+            _ANTHROPIC_URL,
+            headers={
+                "content-type": "application/json",
+                "x-api-key": settings.ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+            },
+            json={
+                "model": settings.CLAUDE_MODEL or "claude-haiku-4-5-20251001",
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "system": system or "",
+                "messages": [{"role": "user", "content": user_prompt}],
+            },
         )
-        # Stitch all text blocks into one string
+        if r.status_code != 200:
+            logger.warning(f"Claude fallback HTTP {r.status_code}: {r.text[:200]}")
+            return None
+        data = r.json()
         parts: list[str] = []
-        for block in resp.content:
-            if hasattr(block, "text"):
-                parts.append(block.text)
+        for block in data.get("content") or []:
+            if isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block.get("text") or "")
         return "".join(parts) or None
     except Exception as e:
         logger.warning(f"Claude fallback failed: {e}")
