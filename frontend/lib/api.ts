@@ -249,6 +249,12 @@ export interface BatchGenerateRequest {
   health_score_min?: number | null;
   include_recipe_ids?: number[] | null;
   exclude_recipe_ids?: number[] | null;
+  /**
+   * When true (default server-side), the recipe selector re-ranks
+   * candidates by inventory coverage — recipes using ingredients you
+   * already have bubble to the top.
+   */
+  prefer_inventory?: boolean;
 }
 
 export interface BatchPreviewRecipe {

@@ -77,12 +77,6 @@ export function CartPage() {
   if (count === 0) {
     return (
       <div className="max-w-2xl">
-        <header className="mb-6">
-          <h1 className="title-serif text-3xl font-bold">Panier</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Compose ton batch de la semaine en ajoutant des recettes depuis le catalogue.
-          </p>
-        </header>
         <div className="rounded-3xl border-2 border-dashed border-border bg-card p-12 text-center space-y-4">
           <div className="mx-auto h-16 w-16 rounded-full bg-muted inline-flex items-center justify-center">
             <ShoppingBasket className="h-8 w-8 text-muted-foreground" />
@@ -120,12 +114,9 @@ export function CartPage() {
 
   return (
     <div className="space-y-6 max-w-6xl">
-      <header>
-        <h1 className="title-serif text-3xl font-bold">Panier</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {count} recette{count > 1 ? "s" : ""} · {totalPortions} portion{totalPortions > 1 ? "s" : ""} totales
-        </p>
-      </header>
+      <p className="text-sm text-muted-foreground">
+        {count} recette{count > 1 ? "s" : ""} · {totalPortions} portion{totalPortions > 1 ? "s" : ""} totales
+      </p>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* LEFT — Items */}
