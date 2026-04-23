@@ -8,6 +8,7 @@ import { Search, Leaf, Flame, Star, Plus, Check, Filter } from "lucide-react";
 import Link from "next/link";
 import { addToCart, isInCart, useCart } from "@/lib/cart";
 import { IngredientChipPicker } from "@/components/shared/IngredientChipPicker";
+import { AllergyFilter } from "@/components/shared/AllergyFilter";
 
 const MEAL_TYPES = ["", "entree", "plat", "dessert", "snack"] as const;
 const SORT_OPTIONS = [
@@ -269,6 +270,20 @@ export function RecipesPage() {
             );
           }}
           onRemove={(id) => {
+            setOffset(0);
+            setExcludedIngs((prev) => prev.filter((x) => x.id !== id));
+          }}
+        />
+        <AllergyFilter
+          excluded={excludedIngs}
+          onMergeExclude={(ings) => {
+            setOffset(0);
+            setExcludedIngs((prev) => {
+              const seen = new Set(prev.map((x) => x.id));
+              return [...prev, ...ings.filter((i) => !seen.has(i.id))];
+            });
+          }}
+          onRemoveExclude={(id) => {
             setOffset(0);
             setExcludedIngs((prev) => prev.filter((x) => x.id !== id));
           }}

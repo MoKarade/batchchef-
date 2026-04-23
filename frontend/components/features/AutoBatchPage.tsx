@@ -11,6 +11,7 @@ import {
 import { batchesApi, type BatchPreview, type ShoppingItemPreview, type IngredientMaster } from "@/lib/api";
 import { formatPrice, healthColor, mealTypeLabel } from "@/lib/utils";
 import { IngredientChipPicker } from "@/components/shared/IngredientChipPicker";
+import { AllergyFilter } from "@/components/shared/AllergyFilter";
 
 /**
  * Auto-batch flow — ask the backend to propose a batch based on filters,
@@ -216,6 +217,18 @@ export function AutoBatchPage() {
               )
             }
             onRemove={(id) => setExcludedIngs((prev) => prev.filter((x) => x.id !== id))}
+          />
+          <AllergyFilter
+            excluded={excludedIngs}
+            onMergeExclude={(ings) =>
+              setExcludedIngs((prev) => {
+                const seen = new Set(prev.map((x) => x.id));
+                return [...prev, ...ings.filter((i) => !seen.has(i.id))];
+              })
+            }
+            onRemoveExclude={(id) =>
+              setExcludedIngs((prev) => prev.filter((x) => x.id !== id))
+            }
           />
         </div>
 
