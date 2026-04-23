@@ -1,8 +1,10 @@
 """
-Celery task: map IngredientMaster -> StoreProduct via Maxi scraper.
+Celery task: map IngredientMaster -> StoreProduct via Maxi + Costco scrapers.
 Uses AI-generated search aliases + AI match validation (same as import pipeline).
 
-V3: Maxi-only — Costco disabled (Akamai + SPA rendering made it unreliable).
+V3: Maxi is the primary source (DOM scraping). Costco uses a sitemap +
+GraphQL API combo with per-token position-weighted matching (see
+costco_sitemap.search() and costco_api.search_costco() for details).
 """
 import asyncio
 import json
@@ -15,7 +17,7 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 5
-STORES = ("maxi",)
+STORES = ("maxi", "costco")
 SCRAPE_TIMEOUT_S = 25
 # A worker never spends more than this long on a single ingredient across
 # all queries + validation, so one bad item can't wedge the pipeline.
@@ -70,7 +72,7 @@ async def _maybe_update_display_name(ing_db, product_name: str) -> None:
 
 async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[int] | None):
     # patchright (Playwright fork) with the real Chrome channel keeps us
-    # human-looking for any future anti-bot detection; today only Maxi runs.
+    # channel='chrome' keeps us human-looking for anti-bot detection.
     from patchright.async_api import async_playwright
     from sqlalchemy import select, or_
     from app.database import AsyncSessionLocal, init_db
@@ -78,6 +80,7 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
     from app.models.ingredient import IngredientMaster
     from app.models.store import Store, StoreProduct, PriceHistory
     from app.scrapers.maxi import search_maxi
+    from app.scrapers.costco_api import search_costco
     from app.ai.classifier import validate_store_matches
     from app.websocket.manager import manager
     from app.utils.time import utcnow
@@ -140,7 +143,7 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
         )).scalars().all())
     ingredients = ings_fresh
 
-    scrapers = {"maxi": search_maxi}
+    scrapers = {"maxi": search_maxi, "costco": search_costco}
     errors: list[str] = []
     processed = 0
     cancelled = False

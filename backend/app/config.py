@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     PLAYWRIGHT_HEADLESS: bool = True
     MAXI_STORE_ID: str = "8676"
     MAXI_POSTAL_CODE: str = "G1M 3E5"  # Fleur-de-Lys, Québec
+    # Costco (revived in V3 via sitemap + GraphQL path, bypasses DOM scraping)
+    COSTCO_POSTAL_CODE: str = "G2J 1E3"  # 440 Rue Bouvier, Québec
+    COSTCO_WAREHOUSE_NAME_HINT: str = "Quebec"
     SCRAPE_CONCURRENCY: int = 5
     SCRAPE_RETRIES: int = 3
     PRICE_STALE_DAYS: int = 14

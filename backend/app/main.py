@@ -102,10 +102,10 @@ async def stats():
 
 
 async def _seed_stores():
-    """Ensure the base store(s) exist on startup.
+    """Ensure the base stores exist on startup.
 
-    V3: Maxi-only. Prior installs may still have costco + fruiterie_440 rows
-    in the store table; they stay untouched because no code path uses them.
+    V3: Maxi primary (DOM scraper) + Costco secondary (sitemap + GraphQL).
+    Fruiterie 440 rows from prior installs stay untouched; no code uses them.
     """
     from sqlalchemy import select
     from app.database import AsyncSessionLocal
@@ -114,6 +114,9 @@ async def _seed_stores():
     STORES = [
         {"code": "maxi", "name": "Maxi", "type": "supermarket",
          "website_url": "https://www.maxi.ca", "store_location_id": settings.MAXI_STORE_ID,
+         "is_transactional": True},
+        {"code": "costco", "name": "Costco", "type": "supermarket",
+         "website_url": "https://www.costco.ca", "store_location_id": "894",  # Québec warehouse
          "is_transactional": True},
     ]
 
