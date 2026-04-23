@@ -381,8 +381,11 @@ export function AutoBatchPage() {
                     </span>
                   </header>
                   <ul className="divide-y divide-border">
-                    {storeItems.map((it) => (
-                      <ShoppingRow key={it.ingredient_master_id} item={it} />
+                    {storeItems.map((it, idx) => (
+                      <ShoppingRow
+                        key={`${it.ingredient_master_id}-${it.unit}-${idx}`}
+                        item={it}
+                      />
                     ))}
                   </ul>
                 </div>

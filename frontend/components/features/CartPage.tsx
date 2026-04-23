@@ -258,7 +258,10 @@ export function CartPage() {
                 </header>
                 <ul className="divide-y divide-border">
                   {storeItems.map((it) => (
-                    <ShoppingItemRow key={it.ingredient_master_id} item={it} />
+                    <ShoppingItemRow
+                      key={`${it.ingredient_master_id}-${it.unit}`}
+                      item={it}
+                    />
                   ))}
                 </ul>
               </div>

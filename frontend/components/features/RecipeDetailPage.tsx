@@ -3,12 +3,39 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft, ExternalLink, Clock, Flame, Leaf, Star, Utensils,
   CheckCircle2, AlertCircle, X, Minus, Plus, Users,
 } from "lucide-react";
 import { recipesApi, ingredientsApi, type IngredientMaster } from "@/lib/api";
 import { formatPrice, formatDuration, healthColor, mealTypeLabel, categoryEmoji } from "@/lib/utils";
+
+/**
+ * Smart back button — uses browser history (so you return to /batch,
+ * /recipes, or wherever you came from) with a safe fallback to /recipes
+ * when history is empty (e.g. direct-link visit).
+ */
+function SmartBackLink({ label }: { label: string }) {
+  const router = useRouter();
+  const handle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/recipes");
+    }
+  };
+  return (
+    <Link
+      href="/recipes"
+      onClick={handle}
+      className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+    >
+      <ArrowLeft className="h-3 w-3" /> {label}
+    </Link>
+  );
+}
 
 function IngredientPicker({
   currentId,
@@ -96,9 +123,7 @@ export function RecipeDetailPage({ recipeId }: { recipeId: number }) {
   if (isError || !recipe) {
     return (
       <div className="max-w-2xl space-y-3">
-        <Link href="/recipes" className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-          <ArrowLeft className="h-3 w-3" /> Retour
-        </Link>
+        <SmartBackLink label="Retour" />
         <p className="rounded-md border bg-destructive/10 text-destructive p-4 text-sm">
           Recette introuvable (#{recipeId}).
         </p>
@@ -117,9 +142,7 @@ export function RecipeDetailPage({ recipeId }: { recipeId: number }) {
 
   return (
     <div className="space-y-5 max-w-5xl">
-      <Link href="/recipes" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-3 w-3" /> Toutes les recettes
-      </Link>
+      <SmartBackLink label="Retour" />
 
       {/* Header */}
       <div className="rounded-xl border bg-card overflow-hidden">
