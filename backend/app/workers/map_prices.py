@@ -19,6 +19,44 @@ logger = logging.getLogger(__name__)
 BATCH_SIZE = 5
 STORES = ("maxi", "costco")
 SCRAPE_TIMEOUT_S = 25
+
+# Hand-curated query fallbacks for high-usage staples whose bare canonical
+# name ('beurre', 'crème liquide', etc.) returns too many tangential
+# products on Maxi (vegan margarine, cheese spreads, ice-cream bars…).
+# Each list is tried in order after the ingredient's own display_name_fr
+# + aliases, so the scraper only falls back when the default query hasn't
+# yielded a validated match.
+_STAPLE_FALLBACK_QUERIES: dict[str, list[str]] = {
+    "beurre": ["beurre salé", "beurre non salé", "beurre doux"],
+    "beurre_doux": ["beurre non salé", "beurre doux"],
+    "beurre_demi_sel": ["beurre demi-sel", "beurre salé"],
+    "beurre_fondu": ["beurre salé"],
+    "crème_liquide": ["crème 35% à cuisson", "crème champêtre 15%", "crème à cuisson 10%"],
+    "crème_fraiche": ["crème sure 14%"],
+    "crème_épaisse": ["crème sure"],
+    "crème": ["crème 35%", "crème à café 10%"],
+    "levure_chimique": ["poudre à pâte", "poudre à pâte fleischmann"],
+    "levure_de_boulanger": ["levure sèche active", "levure à pain"],
+    "vanille": ["extrait de vanille pure", "extrait vanille", "gousse de vanille"],
+    "sucre_vanillé": ["sucre vanillé"],
+    "cassonade": ["cassonade dorée", "sucre brun"],
+    "sucre_glace": ["sucre à glacer", "sucre en poudre"],
+    "lardon": ["lardons fumés", "bacon en dés"],
+    "jambon": ["jambon cuit tranché", "jambon cuit"],
+    "bouillon": ["cube de bouillon", "bouillon de poulet"],
+    "pâte_feuilletée": ["pâte feuilletée tenderflake", "pâte à tarte congelée"],
+    "pâte_brisée": ["pâte brisée", "pâte à tarte"],
+    "ciboulette": ["ciboulette fraîche"],
+    "persil": ["persil frais italien", "persil"],
+    "thym": ["thym frais", "thym séché"],
+    "basilic": ["basilic frais", "basilic"],
+    "menthe": ["menthe fraîche"],
+    "gousse_dail": ["ail frais", "ail"],
+    "huile_olive": ["huile d'olive extra-vierge"],
+    "huile_de_tournesol": ["huile de tournesol"],
+    "moutarde": ["moutarde de dijon"],
+    "moutarde_dijon": ["moutarde de dijon"],
+}
 # A worker never spends more than this long on a single ingredient across
 # all queries + validation, so one bad item can't wedge the pipeline.
 PER_INGREDIENT_DEADLINE_S = 60
@@ -239,6 +277,13 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
                             for a in (ing.search_aliases or []):
                                 if a not in queries:
                                     queries.append(a)
+                            # Staple-specific hand-curated fallbacks — tried
+                            # AFTER the default + aliases, so we only hit
+                            # them when the default query hasn't yielded a
+                            # validated match.
+                            for fb in _STAPLE_FALLBACK_QUERIES.get(ing.canonical_name, []):
+                                if fb not in queries:
+                                    queries.append(fb)
                             if not queries:
                                 queries.append(ing.canonical_name.replace("_", " "))
                             query_lists.append(queries)
