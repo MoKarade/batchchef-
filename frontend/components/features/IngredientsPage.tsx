@@ -254,11 +254,11 @@ function IngredientCard({
   });
 
   return (
-    <div className="rounded-xl border bg-card p-4 space-y-3">
+    <div className="rounded-2xl border bg-card p-4 space-y-3 hover:shadow-md hover:border-primary/30 transition-all">
       <div className="flex items-start gap-3">
         {ing.primary_image_url ? (
           <div
-            className="shrink-0 h-14 w-14 rounded-md overflow-hidden bg-white border"
+            className="shrink-0 h-16 w-16 rounded-xl overflow-hidden bg-white border shadow-sm"
             title={`${ing.primary_store_code ?? ""} — ${ing.display_name_fr}`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -270,7 +270,7 @@ function IngredientCard({
             />
           </div>
         ) : (
-          <div className="shrink-0 h-14 w-14 rounded-md bg-muted/40 border inline-flex items-center justify-center text-2xl leading-none">
+          <div className="shrink-0 h-16 w-16 rounded-xl bg-gradient-to-br from-accent/50 to-muted border inline-flex items-center justify-center text-3xl leading-none">
             {categoryEmoji(ing.category)}
           </div>
         )}
@@ -282,9 +282,13 @@ function IngredientCard({
               className="h-7 w-full rounded-md border bg-background px-2 text-sm font-semibold"
             />
           ) : (
-            <p className="font-semibold text-sm truncate">{ing.display_name_fr}</p>
+            <p className="title-serif font-semibold text-base leading-tight truncate">
+              {ing.display_name_fr}
+            </p>
           )}
-          <p className="text-[11px] text-muted-foreground font-mono truncate">{ing.canonical_name}</p>
+          <p className="text-[11px] text-muted-foreground font-mono truncate mt-0.5">
+            {ing.canonical_name}
+          </p>
         </div>
         <button
           onClick={() => setEditing((v) => !v)}
@@ -541,7 +545,7 @@ export function IngredientsPage({ mode }: IngredientsPageProps) {
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+          <h1 className="title-serif text-3xl font-bold">{title}</h1>
           <p className="text-muted-foreground text-sm mt-0.5">{subtitle}</p>
           <p className="text-muted-foreground text-xs mt-1">
             {totalCount.toLocaleString("fr-CA")} éléments

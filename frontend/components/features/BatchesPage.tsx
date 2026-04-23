@@ -68,7 +68,7 @@ export function BatchesListPage() {
     <div className="space-y-5 max-w-2xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Batch Cooking</h1>
+          <h1 className="title-serif text-3xl font-bold">Batch Cooking</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Vos sessions de meal prep</p>
         </div>
         <Link href="/batches/new">

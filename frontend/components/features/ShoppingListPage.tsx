@@ -178,7 +178,7 @@ export function ShoppingListPage({ batchId }: { batchId: number }) {
         </Link>
         <div className="flex items-start justify-between gap-3 mt-2">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <h1 className="title-serif text-3xl font-bold flex items-center gap-2">
               <ShoppingCart className="h-6 w-6 text-primary" />
               {batch.name ?? `Batch #${batch.id}`}
             </h1>

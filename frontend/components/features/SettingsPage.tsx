@@ -294,7 +294,7 @@ export function SettingsPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Paramètres</h1>
+        <h1 className="title-serif text-3xl font-bold">Paramètres</h1>
         <p className="text-muted-foreground text-sm mt-1">
           Variables d&apos;environnement et outils manuels (les imports cascadent automatiquement).
         </p>

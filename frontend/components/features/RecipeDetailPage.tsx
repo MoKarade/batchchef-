@@ -132,7 +132,7 @@ export function RecipeDetailPage({ recipeId }: { recipeId: number }) {
           )}
           <div className="p-5 space-y-3">
             <div className="flex items-start justify-between gap-3">
-              <h1 className="text-2xl font-bold tracking-tight">{recipe.title}</h1>
+              <h1 className="title-serif text-3xl font-bold">{recipe.title}</h1>
               <a
                 href={recipe.marmiton_url}
                 target="_blank"

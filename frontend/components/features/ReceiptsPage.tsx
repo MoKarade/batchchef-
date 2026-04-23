@@ -44,7 +44,7 @@ export function ReceiptsListPage() {
     <div className="space-y-5 max-w-2xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Tickets de caisse</h1>
+          <h1 className="title-serif text-3xl font-bold">Tickets de caisse</h1>
           <p className="text-muted-foreground text-sm mt-0.5">OCR via Gemini Vision</p>
         </div>
       </div>

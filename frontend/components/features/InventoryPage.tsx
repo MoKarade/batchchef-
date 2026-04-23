@@ -27,7 +27,7 @@ export function InventoryPage() {
     <div className="space-y-5 max-w-3xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Inventaire</h1>
+          <h1 className="title-serif text-3xl font-bold">Inventaire</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
             {items.length} articles en stock
           </p>

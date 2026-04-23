@@ -115,7 +115,7 @@ export function ImportPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Import Marmiton</h1>
+        <h1 className="title-serif text-3xl font-bold">Import Marmiton</h1>
         <p className="text-muted-foreground text-sm mt-1">
           Lance le scraping des 43 492 recettes depuis cleaned_recipes.txt
         </p>

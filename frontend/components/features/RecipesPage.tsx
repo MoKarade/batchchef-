@@ -23,58 +23,80 @@ const HAS_PRICE_TABS = [
 ] as const;
 
 function RecipeCard({ recipe }: { recipe: RecipeBrief }) {
+  const hasPrice = recipe.estimated_cost_per_portion != null && recipe.estimated_cost_per_portion > 0;
   return (
-    <Link href={`/recipes/${recipe.id}`}>
-      <div className="rounded-xl border bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full flex flex-col">
-        {recipe.image_url ? (
-          <div className="aspect-video relative overflow-hidden bg-muted">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={recipe.image_url} alt={recipe.title} className="w-full h-full object-cover" />
-          </div>
-        ) : (
-          <div className="aspect-video bg-muted flex items-center justify-center text-4xl">🍽️</div>
-        )}
-        <div className="p-4 flex-1 flex flex-col gap-2">
-          <p className="font-semibold text-sm leading-tight line-clamp-2">{recipe.title}</p>
+    <Link href={`/recipes/${recipe.id}`} className="group block h-full">
+      <article className="relative h-full flex flex-col overflow-hidden rounded-2xl bg-card border border-border shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
+        {/* Hero image, bigger + overlay gradient for readability */}
+        <div className="relative aspect-[16/10] overflow-hidden bg-muted">
+          {recipe.image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={recipe.image_url}
+              alt={recipe.title}
+              className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-5xl bg-gradient-to-br from-accent/40 to-muted">
+              🍽️
+            </div>
+          )}
+          <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
 
-          <div className="flex items-center gap-1.5 flex-wrap mt-auto">
-            {recipe.meal_type && (
-              <span className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium">
-                {mealTypeLabel(recipe.meal_type)}
-              </span>
-            )}
+          {/* Health score top-right badge (if present) */}
+          {recipe.health_score != null && (
+            <div className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-background/90 backdrop-blur px-2 py-0.5 text-[11px] font-semibold shadow">
+              <Star className={`h-3 w-3 ${healthColor(recipe.health_score)}`} />
+              <span className={healthColor(recipe.health_score)}>{recipe.health_score.toFixed(1)}</span>
+            </div>
+          )}
+
+          {/* Price bottom-left over gradient */}
+          {hasPrice ? (
+            <div className="absolute left-2 bottom-2 inline-flex items-baseline gap-1 rounded-full bg-background/95 backdrop-blur px-2.5 py-1 text-xs font-bold shadow">
+              <span className="font-serif text-secondary">{formatPrice(recipe.estimated_cost_per_portion!)}</span>
+              <span className="text-[10px] text-muted-foreground font-normal">/portion</span>
+            </div>
+          ) : (
+            <div className="absolute left-2 bottom-2 inline-flex items-center gap-1 rounded-full bg-amber-500/90 text-white px-2 py-0.5 text-[10px] font-medium shadow">
+              Prix manquant
+            </div>
+          )}
+
+          {/* Diet badges bottom-right over gradient */}
+          <div className="absolute right-2 bottom-2 flex items-center gap-1">
             {recipe.is_vegetarian && (
-              <span className="rounded-full bg-green-100 text-green-700 px-2 py-0.5 text-xs flex items-center gap-0.5">
-                <Leaf className="h-3 w-3" /> Végé
+              <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-secondary/95 text-secondary-foreground shadow" title="Végétarien">
+                <Leaf className="h-3 w-3" />
               </span>
             )}
             {recipe.is_spicy && (
-              <span className="rounded-full bg-red-100 text-red-700 px-2 py-0.5 text-xs flex items-center gap-0.5">
-                <Flame className="h-3 w-3" /> Épicé
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{recipe.calories_per_portion ? `${Math.round(recipe.calories_per_portion)} kcal` : "—"}</span>
-            {recipe.estimated_cost_per_portion != null && recipe.estimated_cost_per_portion > 0 ? (
-              <span className="inline-flex items-center gap-1 font-mono font-bold text-green-700 dark:text-green-400">
-                {formatPrice(recipe.estimated_cost_per_portion)}/portion
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-amber-600 text-[10px]">
-                Prix manquant
-              </span>
-            )}
-            {recipe.health_score != null && (
-              <span className={`flex items-center gap-0.5 font-medium ${healthColor(recipe.health_score)}`}>
-                <Star className="h-3 w-3" />
-                {recipe.health_score.toFixed(1)}
+              <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-destructive/95 text-destructive-foreground shadow" title="Épicé">
+                <Flame className="h-3 w-3" />
               </span>
             )}
           </div>
         </div>
-      </div>
+
+        {/* Content */}
+        <div className="p-4 flex-1 flex flex-col gap-2">
+          <h3 className="title-serif font-semibold text-base leading-tight line-clamp-2 text-foreground group-hover:text-primary transition-colors">
+            {recipe.title}
+          </h3>
+
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-auto">
+            {recipe.meal_type && (
+              <span className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
+                {mealTypeLabel(recipe.meal_type)}
+              </span>
+            )}
+            <span className="ml-auto">
+              {recipe.calories_per_portion ? `${Math.round(recipe.calories_per_portion)} kcal` : "—"}
+            </span>
+          </div>
+        </div>
+      </article>
     </Link>
   );
 }
@@ -107,9 +129,11 @@ export function RecipesPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Recettes</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            {data?.total ?? "—"} recettes importées
+          <h1 className="title-serif text-3xl md:text-4xl font-bold tracking-tight">
+            Recettes
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {data?.total ?? "—"} recettes Marmiton importées, standardisées et mises en prix
           </p>
         </div>
       </div>

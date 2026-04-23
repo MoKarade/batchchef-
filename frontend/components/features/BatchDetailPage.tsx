@@ -33,7 +33,7 @@ export function BatchDetailPage({ batchId }: { batchId: number }) {
         </Link>
         <div className="mt-2 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <h1 className="title-serif text-3xl font-bold flex items-center gap-2">
               <ChefHat className="h-6 w-6 text-primary" />
               {batch.name ?? `Batch #${batch.id}`}
             </h1>

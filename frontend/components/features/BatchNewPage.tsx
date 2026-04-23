@@ -95,7 +95,7 @@ export function BatchNewPage() {
     return (
       <div className="space-y-6 max-w-4xl">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Aperçu du batch</h1>
+          <h1 className="title-serif text-3xl font-bold">Aperçu du batch</h1>
           <p className="text-muted-foreground text-sm mt-1">
             Vérifie les recettes et la liste de courses avant de créer le batch.
           </p>
@@ -112,7 +112,7 @@ export function BatchNewPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Générer un batch</h1>
+        <h1 className="title-serif text-3xl font-bold">Générer un batch</h1>
         <p className="text-muted-foreground text-sm mt-1">
           Configure les contraintes puis prévisualise ton batch avant de l&apos;accepter.
         </p>
