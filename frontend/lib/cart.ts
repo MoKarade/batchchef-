@@ -10,7 +10,7 @@
  * then clears the cart.
  */
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 
 export interface CartItem {
   recipe_id: number;
@@ -27,24 +27,58 @@ const STORAGE_KEY = "batchchef.cart.v1";
 const EVT = "batchchef:cart-changed";
 
 // ---- Storage helpers ------------------------------------------------------
+//
+// useSyncExternalStore requires getSnapshot to return a REFERENCE-STABLE
+// value when nothing changed — otherwise React bails with "The result of
+// getServerSnapshot should be cached to avoid an infinite loop".
+//
+// We therefore keep a module-level `_cachedSnapshot` and only replace it
+// when localStorage's serialized content differs from what we last read.
 
-function read(): CartItem[] {
-  if (typeof window === "undefined") return [];
+const EMPTY_SNAPSHOT: readonly CartItem[] = Object.freeze([]);
+let _cachedSnapshot: CartItem[] = EMPTY_SNAPSHOT as CartItem[];
+let _cachedRaw: string | null = "";
+
+function readRaw(): CartItem[] {
+  if (typeof window === "undefined") return EMPTY_SNAPSHOT as CartItem[];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
+    if (raw === _cachedRaw) return _cachedSnapshot;
+    _cachedRaw = raw;
+    if (!raw) {
+      _cachedSnapshot = EMPTY_SNAPSHOT as CartItem[];
+      return _cachedSnapshot;
+    }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    _cachedSnapshot = Array.isArray(parsed) ? parsed : (EMPTY_SNAPSHOT as CartItem[]);
+    return _cachedSnapshot;
   } catch {
-    return [];
+    _cachedSnapshot = EMPTY_SNAPSHOT as CartItem[];
+    return _cachedSnapshot;
   }
+}
+
+function read(): CartItem[] {
+  // Public helper for mutations — returns a copy so callers can mutate freely
+  // without poisoning the cached snapshot used by React.
+  return [...readRaw()];
 }
 
 function write(items: CartItem[]): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  const serialized = JSON.stringify(items);
+  localStorage.setItem(STORAGE_KEY, serialized);
+  // Update the cache eagerly so the next getSnapshot returns the fresh value
+  // with a new reference (React uses Object.is to detect change).
+  _cachedRaw = serialized;
+  _cachedSnapshot = items;
   // Notify every useCart subscriber in the current tab
   window.dispatchEvent(new CustomEvent(EVT));
+}
+
+// Stable server snapshot — always the same frozen empty array ref
+function getServerSnapshot(): CartItem[] {
+  return EMPTY_SNAPSHOT as CartItem[];
 }
 
 // ---- Public API (mutations) ----------------------------------------------
@@ -107,13 +141,10 @@ export function useCart(): {
   totalPortions: number;
   totalCost: number | null;
 } {
-  const items = useSyncExternalStore(subscribe, read, () => []);
-
-  // Force a re-read once after mount (SSR returns []; client has real data)
-  useEffect(() => {
-    // Trigger an event so components re-render with hydrated localStorage
-    window.dispatchEvent(new CustomEvent(EVT));
-  }, []);
+  // getSnapshot must return a stable reference when nothing changed; readRaw
+  // caches the parsed array per-localStorage-string so React's Object.is
+  // check short-circuits cleanly.
+  const items = useSyncExternalStore(subscribe, readRaw, getServerSnapshot);
 
   let totalCost: number | null = 0;
   let hasMissing = false;
