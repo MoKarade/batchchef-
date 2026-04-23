@@ -132,6 +132,75 @@ def _maxi_image_from_url(product_url: str | None) -> str | None:
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Pack-size parser — reparse a Maxi product name when the DOM gave us a
+# useless (1, unite) pair. Shared with scripts/fix_unite_format.py.
+# ---------------------------------------------------------------------------
+def _parse_pack_from_name(name: str, canonical_hint: str = "") -> tuple[float, str] | None:
+    n = (name or "").lower()
+    hint = (canonical_hint or "").lower()
+
+    # Multi-pack: "6×250 g", "24 x 33 g", "pack de 6 — 500 ml"
+    m = re.search(r"(\d+)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(kg|g|ml|l|cl)\b", n)
+    if m:
+        count = int(m.group(1))
+        per = float(m.group(2).replace(",", "."))
+        unit = m.group(3)
+        if unit == "cl":
+            per, unit = per * 10, "ml"
+        return count * per, unit
+
+    # Explicit dozen / egg-specific: douzaine, 12 œufs, dozen
+    if re.search(r"douzaine|dozen|\b12\s*(?:œuf|oeuf|eggs?|unit)", n):
+        return 12.0, "unite"
+
+    # Eggs with no explicit count default to a dozen (the Maxi default SKU)
+    if (
+        ("œuf" in n or "oeuf" in n)
+        and ("œuf" in hint or "oeuf" in hint or hint == "")
+        and not re.search(r"\b1\s*(?:œuf|oeuf)\b", n)
+    ):
+        m = re.search(r"\b(\d{1,2})\s*(?:œufs?|oeufs?|unit)", n)
+        if m:
+            n_eggs = int(m.group(1))
+            if 4 <= n_eggs <= 30:
+                return float(n_eggs), "unite"
+        return 12.0, "unite"
+
+    # "pack/paquet/boîte de N (unités|œufs|muffins|…)"
+    m = re.search(
+        r"(?:pack|paquet|bo[iî]te|ensemble|emballage)\s*(?:de|d')?\s*(\d+)\s*(?:unit(?:e|é)s?|pi[eè]ces?|œufs?|oeufs?|muffins?|pains?|tranches?|saucisses?|croissants?)?",
+        n,
+    )
+    if m:
+        return float(m.group(1)), "unite"
+
+    # "N unité(s) | pièces | ct | count"
+    m = re.search(r"\b(\d+)\s*(?:unit(?:e|é)s?|pi[eè]ces?|pcs?|ct|count)\b", n)
+    if m:
+        count = int(m.group(1))
+        if 2 <= count <= 100:
+            return float(count), "unite"
+
+    # Mass in package (typical Maxi suffix)
+    m = re.search(r"\b(\d+(?:[.,]\d+)?)\s*(kg|g)\b", n)
+    if m:
+        qty = float(m.group(1).replace(",", "."))
+        unit = m.group(2)
+        if (unit == "g" and 20 <= qty <= 5000) or (unit == "kg" and 0.1 <= qty <= 20):
+            return qty, unit
+
+    # Volume
+    m = re.search(r"\b(\d+(?:[.,]\d+)?)\s*(ml|l)\b", n)
+    if m:
+        qty = float(m.group(1).replace(",", "."))
+        unit = m.group(2)
+        if (unit == "ml" and 50 <= qty <= 5000) or (unit == "l" and 0.1 <= qty <= 20):
+            return qty, unit
+
+    return None
+
+
 async def search_maxi(page, query: str, store_id: str = "8676") -> dict | None:
     """
     Search Maxi for one ingredient. Returns best matching product or None.
@@ -211,6 +280,17 @@ async def search_maxi(page, query: str, store_id: str = "8676") -> dict | None:
     fmt = parse_format(size_str) if size_str else parse_format(best["name"])
     if fmt["unit"] == "unite" and size_str:
         fmt = parse_format(best["name"])
+
+    # Pack-size sanity override: when we end up with qty=1, unit=unite, the
+    # product name often still encodes the real pack size (douzaine, 12 œufs,
+    # pack de 6, etc.). If our heuristic finds a better (qty, unit) from the
+    # full name, prefer that. Fixes the recurring "31 eggs at 4.17/unit = 129$"
+    # class of bug where Maxi lists the per-unit price alongside the pack.
+    if fmt.get("qty") in (None, 1, 1.0) and (fmt.get("unit") in ("unite", None)):
+        reparsed = _parse_pack_from_name(best["name"], query)
+        if reparsed is not None:
+            new_qty, new_unit = reparsed
+            fmt = {"qty": new_qty, "unit": new_unit}
 
     if best["price"] > 75:
         logger.warning(f"Maxi: price too high ({best['price']}$) for '{query}'")
