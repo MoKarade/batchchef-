@@ -18,6 +18,42 @@ from app.schemas.job import JobOut
 router = APIRouter(prefix="/api/ingredients", tags=["ingredients"])
 
 
+def _price_per_kg_m(price: float | None, qty: float | None, unit: str | None) -> float | None:
+    if not (price and qty and unit):
+        return None
+    u = (unit or "").strip().lower()
+    if u in ("g", "gramme", "grammes"):
+        return round(price / (qty / 1000.0), 2)
+    if u in ("kg", "kilo", "kilogramme"):
+        return round(price / qty, 2)
+    if u in ("ml", "millilitre"):
+        return round(price / (qty / 1000.0), 2)
+    if u in ("l", "litre"):
+        return round(price / qty, 2)
+    return None
+
+
+def _unit_price_m(price: float | None, qty: float | None, unit: str | None) -> tuple[float | None, str | None]:
+    """Return (price, label) adapted to the store format unit:
+      mass   → price/kg        (label='kg')
+      volume → price/L         (label='L')
+      count  → price/unit      (label='unite')
+    """
+    if not (price and qty and unit):
+        return None, None
+    u = (unit or "").strip().lower()
+    if u in ("g", "gramme", "grammes"):
+        return round(price / (qty / 1000.0), 2), "kg"
+    if u in ("kg", "kilo", "kilogramme"):
+        return round(price / qty, 2), "kg"
+    if u in ("ml", "millilitre"):
+        return round(price / (qty / 1000.0), 2), "L"
+    if u in ("l", "litre"):
+        return round(price / qty, 2), "L"
+    # Count-based: a 6-pack of eggs at 4.11$ → 0.69$/unit
+    return round(price / qty, 2), "unite"
+
+
 class IngredientOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -173,39 +209,9 @@ async def list_ingredients(
     for ing_id, img_url, price, fqty, funit, code in (await db.execute(best_q)).all():
         best_by_ing.setdefault(ing_id, (img_url, price, fqty, funit, code))
 
-    def _price_per_kg(price: float | None, qty: float | None, unit: str | None) -> float | None:
-        if not (price and qty and unit):
-            return None
-        u = (unit or "").strip().lower()
-        if u in ("g", "gramme", "grammes"):
-            return round(price / (qty / 1000.0), 2)
-        if u in ("kg", "kilo", "kilogramme"):
-            return round(price / qty, 2)
-        if u in ("ml", "millilitre"):
-            return round(price / (qty / 1000.0), 2)
-        if u in ("l", "litre"):
-            return round(price / qty, 2)
-        return None
-
-    def _unit_price(price: float | None, qty: float | None, unit: str | None) -> tuple[float | None, str | None]:
-        """Return (price, label) adapted to the store format unit:
-          mass   → price/kg        (label='kg')
-          volume → price/L         (label='L')
-          count  → price/unit      (label='unite')
-        """
-        if not (price and qty and unit):
-            return None, None
-        u = (unit or "").strip().lower()
-        if u in ("g", "gramme", "grammes"):
-            return round(price / (qty / 1000.0), 2), "kg"
-        if u in ("kg", "kilo", "kilogramme"):
-            return round(price / qty, 2), "kg"
-        if u in ("ml", "millilitre"):
-            return round(price / (qty / 1000.0), 2), "L"
-        if u in ("l", "litre"):
-            return round(price / qty, 2), "L"
-        # Count-based: a 6-pack of eggs at 4.11$ → 0.69$/unit
-        return round(price / qty, 2), "unite"
+    # Use the module-level helpers (_price_per_kg_m, _unit_price_m)
+    _price_per_kg = _price_per_kg_m
+    _unit_price = _unit_price_m
 
     children_q = (
         select(IngredientMaster.parent_id, func.count(IngredientMaster.id))
@@ -392,6 +398,26 @@ async def ingredient_details(
         )
     )).scalar() or 0
 
+    # Compute unit-adaptive price from the cheapest priced product
+    computed_unit_price: float | None = None
+    computed_unit_label: str | None = None
+    computed_price_per_kg: float | None = None
+    primary_image_url: str | None = None
+    primary_store_code: str | None = None
+    best_sp: StoreProductOut | None = None
+    for p in products:
+        if p.price is None:
+            continue
+        if best_sp is None or (p.price < (best_sp.price or float("inf"))):
+            best_sp = p
+    if best_sp:
+        primary_image_url = best_sp.image_url
+        primary_store_code = best_sp.store_code
+        computed_price_per_kg = _price_per_kg_m(best_sp.price, best_sp.format_qty, best_sp.format_unit)
+        up, ul = _unit_price_m(best_sp.price, best_sp.format_qty, best_sp.format_unit)
+        computed_unit_price = up
+        computed_unit_label = ul
+
     return IngredientDetails(
         id=ing.id,
         canonical_name=ing.canonical_name,
@@ -412,6 +438,11 @@ async def ingredient_details(
         usage_count=usage_count,
         store_product_count=len(products),
         children_count=children_count,
+        primary_image_url=primary_image_url,
+        primary_store_code=primary_store_code,
+        computed_price_per_kg=computed_price_per_kg,
+        computed_unit_price=computed_unit_price,
+        computed_unit_label=computed_unit_label,
         store_products=products,
         recipes=recipes,
         price_history=price_history,

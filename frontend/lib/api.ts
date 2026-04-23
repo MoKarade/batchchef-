@@ -445,6 +445,45 @@ export interface IngredientDetails extends IngredientMaster {
   price_history: PricePoint[];
 }
 
+export interface ReceiptSuggestion {
+  ingredient_id: number;
+  name: string;
+  canonical_name: string;
+  confidence: number; // 0-1
+  maxi_price: number | null;
+  maxi_format_qty: number | null;
+  maxi_format_unit: string | null;
+}
+
+export interface WeeklyTotal {
+  week: string; // ISO "2026-W14"
+  total: number;
+  count: number;
+}
+
+export interface TopIngredient {
+  ingredient_id: number;
+  name: string;
+  total: number;
+  qty_times: number;
+}
+
+export interface PriceAlert {
+  ingredient_id: number;
+  name: string;
+  avg_ticket_unit_price: number;
+  maxi_unit_price: number;
+  delta_pct: number;
+}
+
+export interface ReceiptStats {
+  months: number;
+  totals: { this_month: number; last_month: number; avg_weekly: number };
+  weekly: WeeklyTotal[];
+  top_ingredients: TopIngredient[];
+  price_alerts: PriceAlert[];
+}
+
 export const receiptsApi = {
   list: () => api.get<ReceiptScan[]>("/api/receipts"),
   get: (id: number) => api.get<ReceiptScan>(`/api/receipts/${id}`),
@@ -463,4 +502,8 @@ export const receiptsApi = {
     api.patch<ReceiptItem>(`/api/receipts/${scanId}/items/${itemId}`, data),
   deleteItem: (scanId: number, itemId: number) =>
     api.delete(`/api/receipts/${scanId}/items/${itemId}`),
+  suggest: (raw_name: string) =>
+    api.get<ReceiptSuggestion[]>("/api/receipts/suggest", { params: { raw_name } }),
+  stats: (months = 6) =>
+    api.get<ReceiptStats>("/api/receipts/stats", { params: { months } }),
 };
