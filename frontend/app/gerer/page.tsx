@@ -1,19 +1,7 @@
 import Link from "next/link";
-import { Sprout, Layers, Upload, Settings2 } from "lucide-react";
+import { Upload, Settings2 } from "lucide-react";
 
 const CARDS = [
-  {
-    href: "/gerer/catalogue",
-    label: "Catalogue",
-    desc: "Parents canoniques — un ingrédient par produit d'épicerie, avec prix + photos.",
-    icon: Sprout,
-  },
-  {
-    href: "/gerer/variantes",
-    label: "Variantes Marmiton",
-    desc: "Noms bruts extraits des recettes, rattachés à leur parent canonique.",
-    icon: Layers,
-  },
   {
     href: "/gerer/imports",
     label: "Imports Marmiton",

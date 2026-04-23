@@ -2,20 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, BookOpen, ShoppingBasket, Snowflake, Wrench } from "lucide-react";
+import { CalendarDays, BookOpen, ShoppingBasket, Snowflake, Sprout } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * Mobile bottom-tab bar — 5 items (Tickets and Gérer compete for the 5th
- * slot; Tickets wins since receipts are the main mobile-use flow).
- * Desktop shows the narrow Sidebar instead (hidden via `md:hidden`).
+ * Mobile bottom-tab bar — 5 items focused on the daily/weekly flow.
+ * Tickets + Gérer live in the Sidebar (desktop) only; on mobile they're
+ * reachable via the "Gérer" card from the landing page or direct URL.
  */
 const TABS = [
   { href: "/planifier", label: "Plan", icon: CalendarDays },
   { href: "/recipes", label: "Recettes", icon: BookOpen },
+  { href: "/ingredients", label: "Ingrédients", icon: Sprout },
   { href: "/batch", label: "Panier", icon: ShoppingBasket },
   { href: "/frigo", label: "Frigo", icon: Snowflake },
-  { href: "/gerer", label: "Gérer", icon: Wrench },
 ] as const;
 
 export function BottomNav() {

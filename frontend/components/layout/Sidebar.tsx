@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays, BookOpen, ShoppingBasket, Snowflake, Receipt, Wrench,
-  ChefHat,
+  ChefHat, Sprout,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
@@ -24,6 +24,7 @@ import { ThemeToggle } from "./ThemeToggle";
 export const NAV_ITEMS = [
   { href: "/planifier", label: "Planifier", icon: CalendarDays },
   { href: "/recipes", label: "Recettes", icon: BookOpen },
+  { href: "/ingredients", label: "Ingrédients", icon: Sprout },
   { href: "/batch", label: "Panier", icon: ShoppingBasket },
   { href: "/frigo", label: "Frigo", icon: Snowflake },
   { href: "/receipts", label: "Tickets", icon: Receipt },
@@ -31,7 +32,6 @@ export const NAV_ITEMS = [
 ] as const;
 
 function isActiveRoute(href: string, pathname: string): boolean {
-  // Exact match for top-level roots we don't want to collide
   if (href === "/planifier") {
     return pathname === "/" || pathname.startsWith("/planifier");
   }

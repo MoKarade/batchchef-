@@ -13,15 +13,17 @@ const nextConfig: NextConfig = {
   async redirects() {
     // V3 UI refonte — legacy routes redirect to the new navigation.
     // permanent:false so browsers don't cache aggressively while we iterate.
+    //
+    // /ingredients and /ingredients/variantes stay CANONICAL in V3 (the user
+    // wants direct access to both the cleaned catalogue and the raw Marmiton
+    // variants in the primary nav). The /gerer shortcuts now redirect INTO
+    // /ingredients so bookmarks survive either way.
     return [
       { source: "/inventory", destination: "/frigo", permanent: false },
-      { source: "/ingredients", destination: "/gerer/catalogue", permanent: false },
-      { source: "/ingredients/variantes", destination: "/gerer/variantes", permanent: false },
       { source: "/imports", destination: "/gerer/imports", permanent: false },
       { source: "/settings", destination: "/gerer/settings", permanent: false },
-      // /batches and /shopping stay working (recipe-detail + shopping live
-      // there). The new nav points at /batch for the landing; /batches
-      // remains canonical until Phase 2 reframes the flow.
+      { source: "/gerer/catalogue", destination: "/ingredients", permanent: false },
+      { source: "/gerer/variantes", destination: "/ingredients/variantes", permanent: false },
     ];
   },
 };

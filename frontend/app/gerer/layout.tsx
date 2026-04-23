@@ -2,20 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sprout, Layers, Upload, Settings2 } from "lucide-react";
+import { Upload, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * /gerer — power-user admin area. Sub-nav with 4 tabs:
- *   - Catalogue  : canonical parents (ingredients catalogue)
- *   - Variantes  : raw Marmiton variants
+ * /gerer — power-user admin area. Sub-nav with 2 tabs:
  *   - Imports    : Marmiton bulk import job launcher
  *   - Paramètres : env + advanced tools
+ *
+ * Catalogue + Variantes Marmiton live under /ingredients (primary nav)
+ * since the user wants direct access.
  */
 const TABS = [
-  { href: "/gerer/catalogue", label: "Catalogue", icon: Sprout },
-  { href: "/gerer/variantes", label: "Variantes", icon: Layers },
-  { href: "/gerer/imports", label: "Imports", icon: Upload },
+  { href: "/gerer/imports", label: "Imports Marmiton", icon: Upload },
   { href: "/gerer/settings", label: "Paramètres", icon: Settings2 },
 ] as const;
 
