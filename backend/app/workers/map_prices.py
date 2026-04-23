@@ -162,15 +162,13 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
 
     # Supervised Playwright session: if the browser crashes mid-run (patchright
     # sometimes throws "value: expected integer, got object" from a background
-    # Future), we close it and relaunch. Each restart skips ingredients
-    # already processed (via chunk_start cursor).
+    # Future), we close it and relaunch. Each restart resumes at chunk_start.
     chunk_start = 0
     restart_count = 0
     max_restarts = 10
     while chunk_start < len(ingredients):
         try:
             async with async_playwright() as pw:
-                # channel='chrome' uses the user's installed Chrome to stay human-looking.
                 browser = await pw.chromium.launch(
                     headless=settings.PLAYWRIGHT_HEADLESS,
                     channel="chrome",
@@ -219,92 +217,94 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
                         ]
                         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                # Batch AI validation for all matches found
-                validation_pairs: list[tuple[int, dict, str]] = []
-                for idx, (ing, res) in enumerate(zip(chunk, results)):
-                    if isinstance(res, Exception) or not res or not res[0]:
-                        errors.append(f"{code}:{ing.canonical_name}: miss")
-                        continue
-                    result_dict, matched_query = res
-                    validation_pairs.append((idx, result_dict, matched_query))
-
-                if validation_pairs:
-                    pairs_for_ai = [
-                        (chunk[idx].canonical_name, rd.get("product_name", ""))
-                        for idx, rd, _ in validation_pairs
-                    ]
-                    scores = await validate_store_matches(pairs_for_ai)
-
-                    async with AsyncSessionLocal() as db:
-                        for (idx, result_dict, matched_query), score in zip(validation_pairs, scores):
-                            ing = chunk[idx]
-                            if score < ALIAS_CONFIDENCE_THRESHOLD:
-                                logger.info(
-                                    f"{code}:{ing.canonical_name}: rejected '{result_dict.get('product_name')}' "
-                                    f"(score={score:.2f})"
-                                )
-                                errors.append(f"{code}:{ing.canonical_name}: low_confidence({score:.2f})")
+                        # --- Validate + persist THIS store's results ---
+                        validation_pairs: list[tuple[int, dict, str]] = []
+                        for idx, (ing, res) in enumerate(zip(chunk, results)):
+                            if isinstance(res, Exception) or not res or not res[0]:
+                                errors.append(f"{code}:{ing.canonical_name}: miss")
                                 continue
+                            result_dict, matched_query = res
+                            validation_pairs.append((idx, result_dict, matched_query))
 
-                            ing_db = await db.get(IngredientMaster, ing.id)
-                            if not ing_db:
-                                continue
+                        if validation_pairs:
+                            pairs_for_ai = [
+                                (chunk[idx].canonical_name, rd.get("product_name", ""))
+                                for idx, rd, _ in validation_pairs
+                            ]
+                            scores = await validate_store_matches(pairs_for_ai)
 
-                            sp_q = select(StoreProduct).where(
-                                StoreProduct.ingredient_master_id == ing.id,
-                                StoreProduct.store_id == store.id,
-                            )
-                            product = (await db.execute(sp_q)).scalars().first()
-                            if not product:
-                                product = StoreProduct(
-                                    ingredient_master_id=ing.id,
-                                    store_id=store.id,
-                                )
-                                db.add(product)
+                            async with AsyncSessionLocal() as db:
+                                for (idx, result_dict, matched_query), score in zip(validation_pairs, scores):
+                                    ing = chunk[idx]
+                                    if score < ALIAS_CONFIDENCE_THRESHOLD:
+                                        logger.info(
+                                            f"{code}:{ing.canonical_name}: rejected "
+                                            f"'{result_dict.get('product_name')}' (score={score:.2f})"
+                                        )
+                                        errors.append(f"{code}:{ing.canonical_name}: low_confidence({score:.2f})")
+                                        continue
 
-                            old_price = product.price
-                            product.product_name = result_dict.get("product_name")
-                            product.product_url = result_dict.get("product_url")
-                            product.image_url = result_dict.get("image_url")
-                            product.price = result_dict.get("price")
-                            product.format_qty = result_dict.get("format_qty")
-                            product.format_unit = result_dict.get("format_unit")
-                            product.calories_per_100 = result_dict.get("calories")
-                            product.proteins_per_100 = result_dict.get("proteins")
-                            product.carbs_per_100 = result_dict.get("carbs")
-                            product.lipids_per_100 = result_dict.get("lipids")
-                            product.nutriscore = result_dict.get("nutriscore")
-                            product.is_validated = True
-                            product.confidence_score = score
-                            product.last_checked_at = utcnow()
-                            if old_price != product.price:
-                                product.last_price_change_at = utcnow()
-                            await db.flush()
+                                    ing_db = await db.get(IngredientMaster, ing.id)
+                                    if not ing_db:
+                                        continue
 
-                            if product.price is not None:
-                                db.add(PriceHistory(store_product_id=product.id, price=product.price))
+                                    sp_q = select(StoreProduct).where(
+                                        StoreProduct.ingredient_master_id == ing.id,
+                                        StoreProduct.store_id == store.id,
+                                    )
+                                    product = (await db.execute(sp_q)).scalars().first()
+                                    if not product:
+                                        product = StoreProduct(
+                                            ingredient_master_id=ing.id,
+                                            store_id=store.id,
+                                        )
+                                        db.add(product)
 
-                            # Only mark "mapped" when the product is complete:
-                            # it MUST have a real thumbnail so the ingredient UI
-                            # shows a meaningful picture. Otherwise keep it
-                            # pending so the next run will retry.
-                            if product.image_url:
-                                ing_db.price_mapping_status = "mapped"
-                            else:
-                                ing_db.price_mapping_status = "pending"
-                                errors.append(f"{code}:{ing.canonical_name}: missing_image")
-                            ing_db.last_price_mapping_at = utcnow()
-                            ing_db.price_map_attempts = (ing_db.price_map_attempts or 0) + 1
-                            await _maybe_update_display_name(ing_db, result_dict.get("product_name", ""))
+                                    old_price = product.price
+                                    product.product_name = result_dict.get("product_name")
+                                    product.product_url = result_dict.get("product_url")
+                                    product.image_url = result_dict.get("image_url")
+                                    product.price = result_dict.get("price")
+                                    product.format_qty = result_dict.get("format_qty")
+                                    product.format_unit = result_dict.get("format_unit")
+                                    product.calories_per_100 = result_dict.get("calories")
+                                    product.proteins_per_100 = result_dict.get("proteins")
+                                    product.carbs_per_100 = result_dict.get("carbs")
+                                    product.lipids_per_100 = result_dict.get("lipids")
+                                    product.nutriscore = result_dict.get("nutriscore")
+                                    product.is_validated = True
+                                    product.confidence_score = score
+                                    product.last_checked_at = utcnow()
+                                    if old_price != product.price:
+                                        product.last_price_change_at = utcnow()
+                                    await db.flush()
 
-                            processed += 1
-                            logger.info(
-                                f"{code}:{ing.canonical_name} → '{result_dict.get('product_name')}' "
-                                f"(score={score:.2f}, query='{matched_query}')"
-                            )
-                        await db.commit()
+                                    if product.price is not None:
+                                        db.add(PriceHistory(store_product_id=product.id, price=product.price))
 
-                    # Progress update
+                                    # Only mark "mapped" when we have a thumbnail
+                                    # too — otherwise keep pending for retry.
+                                    if product.image_url:
+                                        ing_db.price_mapping_status = "mapped"
+                                    else:
+                                        ing_db.price_mapping_status = "pending"
+                                        errors.append(f"{code}:{ing.canonical_name}: missing_image")
+                                    ing_db.last_price_mapping_at = utcnow()
+                                    ing_db.price_map_attempts = (ing_db.price_map_attempts or 0) + 1
+                                    await _maybe_update_display_name(
+                                        ing_db, result_dict.get("product_name", "")
+                                    )
+
+                                    processed += 1
+                                    logger.info(
+                                        f"{code}:{ing.canonical_name} → "
+                                        f"'{result_dict.get('product_name')}' "
+                                        f"(score={score:.2f}, query='{matched_query}')"
+                                    )
+                                await db.commit()
+                    # end for code in codes
+
+                    # --- Progress update PER CHUNK ---
                     async with AsyncSessionLocal() as db:
                         job = await db.get(ImportJob, job_id)
                         if job:
@@ -326,6 +326,7 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
                     # Advance cursor — one chunk at a time so a crash mid-
                     # chunk doesn't lose work on the next restart.
                     chunk_start += BATCH_SIZE
+                # end while chunk_start
 
                 if cancelled:
                     break
@@ -341,7 +342,6 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
                 logger.error(f"Max Playwright restarts ({max_restarts}) exceeded; aborting.")
                 errors.append(f"playwright_supervisor: max restarts exceeded ({supervised_exc})")
                 break
-            # Brief cooldown before restart
             await asyncio.sleep(3.0)
 
     final_status = "cancelled" if cancelled else "completed"
