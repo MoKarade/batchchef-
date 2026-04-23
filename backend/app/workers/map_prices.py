@@ -14,7 +14,10 @@ logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 5
 STORES = ("maxi", "costco")
-SCRAPE_TIMEOUT_S = 45
+SCRAPE_TIMEOUT_S = 25  # tighter — 45 was letting Costco hang on Akamai challenges
+# A worker never spends more than this long on a single ingredient across
+# all queries + validation, so one bad item can't wedge the pipeline.
+PER_INGREDIENT_DEADLINE_S = 60
 ALIAS_CONFIDENCE_THRESHOLD = 0.75
 _ALIASES_BATCH = 50
 
@@ -74,20 +77,11 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
     from app.models.ingredient import IngredientMaster
     from app.models.store import Store, StoreProduct, PriceHistory
     from app.scrapers.maxi import search_maxi
-    # Prefer the sitemap+GraphQL Costco path; fall back to the DOM scraper
-    # if the API returns nothing or throws.
-    from app.scrapers.costco_api import search_costco as search_costco_api
-    from app.scrapers.costco import search_costco as search_costco_dom
-
+    # Costco disabled in V3: Akamai + SPA rendering make it unreliable.
+    # A stub is kept so the existing `scrapers` dict doesn't break; it
+    # always returns None so only Maxi prices get persisted.
     async def search_costco(page, query: str, store_id: str | None = None):
-        try:
-            r = await search_costco_api(page, query, store_id)
-            if r:
-                return r
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(f"costco_api fallback: {e}")
-        return await search_costco_dom(page, query, store_id)
+        return None
 
     from app.ai.classifier import validate_store_matches
     from app.websocket.manager import manager
