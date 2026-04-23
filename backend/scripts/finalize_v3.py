@@ -129,6 +129,14 @@ async def phase_regate_recipes() -> dict:
                 master = ri.ingredient
                 if master and master.price_mapping_status == "invalid":
                     continue
+                # Ingredients without a quantity ('sel au goût', 'poivre',
+                # 'huile pour la cuisson') don't enter the shopping list —
+                # _aggregate_needs skips them. So they shouldn't block the
+                # recipe either. Price them if we can (cheap/low-impact), but
+                # a missing price should never prevent a recipe from being
+                # 'complete' when there's no quantity to multiply against.
+                if not ri.quantity_per_portion:
+                    continue
                 # Resolve to parent for variants
                 check_id = (
                     master.parent_id

@@ -102,8 +102,41 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
         # StoreProduct through the hierarchy — scraping a variant ("boîte de
         # thon 200g") separately would waste requests and never find a
         # cleaner match than the parent ("thon") already did.
-        ing_q = select(IngredientMaster).where(IngredientMaster.parent_id.is_(None))
-        # Skip rows marked 'invalid' (non-ingredients like eau, au_gout).
+        #
+        # ORDER BY usage count DESC — a single run that processes 'beurre'
+        # (used in 2921 recipes) unlocks way more recipe coverage than 500
+        # random long-tail items. When the job is interrupted, we lose the
+        # tail (low-value) not the head.
+        from sqlalchemy import func as _sf
+        from app.models.recipe import RecipeIngredient as _RI
+
+        # Usage subquery: count RecipeIngredient rows pointing at THIS parent
+        # or at any of its variants. Then ORDER BY that count DESC so
+        # scraping 'beurre' (used in 2921 recipes) happens before the long
+        # tail of hyper-specific one-off ingredients.
+        from sqlalchemy.orm import aliased
+        _IM_child = aliased(IngredientMaster)
+        usage_sub = (
+            select(
+                IngredientMaster.id.label("pid"),
+                _sf.count(_RI.id).label("uses"),
+            )
+            .select_from(IngredientMaster)
+            .outerjoin(
+                _IM_child,
+                (_IM_child.id == IngredientMaster.id) | (_IM_child.parent_id == IngredientMaster.id),
+            )
+            .outerjoin(_RI, _RI.ingredient_master_id == _IM_child.id)
+            .where(IngredientMaster.parent_id.is_(None))
+            .group_by(IngredientMaster.id)
+            .subquery()
+        )
+
+        ing_q = (
+            select(IngredientMaster)
+            .outerjoin(usage_sub, usage_sub.c.pid == IngredientMaster.id)
+            .where(IngredientMaster.parent_id.is_(None))
+        )
         ing_q = ing_q.where(
             or_(
                 IngredientMaster.price_mapping_status.is_(None),
@@ -119,6 +152,7 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
                     IngredientMaster.price_mapping_status != "mapped",
                 )
             )
+        ing_q = ing_q.order_by(_sf.coalesce(usage_sub.c.uses, 0).desc(), IngredientMaster.id.asc())
         ingredients = list((await db.execute(ing_q)).scalars().all())
 
         job.progress_total = len(ingredients)

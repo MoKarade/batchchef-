@@ -545,6 +545,9 @@ async def _gate_recipes(recipe_ids: list[int], unpriced_ingredient_ids: set[int]
                 # Invalid rows (water, "au goût", fragments) never need a price.
                 if master and master.price_mapping_status == "invalid":
                     continue
+                # No quantity = nothing to buy ('sel au goût'). Skip.
+                if not ri.quantity_per_portion:
+                    continue
                 # Variants roll up to their parent — that's where the price lives.
                 check_id = (master.parent_id if master and master.parent_id else ri.ingredient_master_id)
                 if check_id in unpriced_ingredient_ids:
