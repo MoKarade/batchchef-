@@ -3,6 +3,15 @@ import type { NextConfig } from "next";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 const nextConfig: NextConfig = {
+  // Next 15/16 blocks dev assets from cross-origin hosts unless the host
+  // is whitelisted here. We allow all common dev-access channels:
+  // LAN IPs, the ephemeral Cloudflare tunnel, and ngrok.
+  allowedDevOrigins: [
+    "10.10.0.146",
+    "*.trycloudflare.com",
+    "*.ngrok-free.app",
+    "*.ngrok.io",
+  ],
   async rewrites() {
     return [
       { source: "/api/:path*", destination: `${API_URL}/api/:path*` },

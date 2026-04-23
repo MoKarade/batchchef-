@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useCallback } from "react";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
+// In the browser, derive the WS host from window.location so the app works
+// when accessed via LAN IP / ngrok / deployed origin. Fall back to the env
+// var (explicit override) or localhost (SSR / tests).
+const WS_URL =
+  process.env.NEXT_PUBLIC_WS_URL ||
+  (typeof window !== "undefined"
+    ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.hostname}:8000`
+    : "ws://localhost:8000");
 
 export interface JobProgress {
   job_id: number;
