@@ -27,7 +27,15 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     CLAUDE_MODEL: str = "claude-haiku-4-5-20251001"
     CLAUDE_MIN_INTERVAL_S: float = 12.5
-    SECRET_KEY: str = "batchchef-secret-change-in-prod-2026"
+    # Hard daily cap on estimated AI spend (USD). 0 = disabled.
+    # When hit, ``call_claude`` raises BudgetExceededError instead of
+    # calling the API. Resets at UTC midnight.
+    AI_DAILY_BUDGET_USD: float = 0.0
+    # JWT signing key — auto-generated + persisted to .env on first boot if
+    # empty (app.utils.crypto._ensure_secret_key). The hardcoded default is
+    # ONLY used as a marker of "not yet generated". It's a security hole to
+    # ship a real app with this default — we detect it at startup and swap.
+    SECRET_KEY: str = ""
     ADMIN_EMAIL: str = "admin@batchchef.com"
     ADMIN_PASSWORD: str = ""
     UPLOADS_DIR: str = "../uploads"
@@ -35,7 +43,17 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
 
     PLAYWRIGHT_HEADLESS: bool = True
+    # Fernet key for encrypting user-supplied secrets (Maxi creds).
+    # Auto-generated + written to .env on first startup if empty.
+    MAXI_CRED_KEY: str = ""
     MAXI_STORE_ID: str = "8676"
+    # Google OAuth (for the "Exporter vers Google Tasks" feature).
+    # Create credentials at https://console.cloud.google.com/apis/credentials
+    # with redirect URI set to GOOGLE_OAUTH_REDIRECT_URI below. Enable the
+    # "Google Tasks API" in the same project.
+    GOOGLE_OAUTH_CLIENT_ID: str = ""
+    GOOGLE_OAUTH_CLIENT_SECRET: str = ""
+    GOOGLE_OAUTH_REDIRECT_URI: str = "http://localhost:8001/api/auth/google/callback"
     MAXI_POSTAL_CODE: str = "G1M 3E5"  # Fleur-de-Lys, Québec
     # Costco (revived in V3 via sitemap + GraphQL path, bypasses DOM scraping)
     COSTCO_POSTAL_CODE: str = "G2J 1E3"  # 440 Rue Bouvier, Québec

@@ -7,8 +7,10 @@ import {
   ingredientsApi,
   importsApi,
   recipesApi,
+  authApi,
   type ImportJob,
 } from "@/lib/api";
+import toast from "react-hot-toast";
 import { useJobWebSocket, type JobProgress } from "@/lib/ws";
 import {
   Play,
@@ -300,6 +302,9 @@ export function SettingsPage() {
         </p>
       </div>
 
+      <MaxiCredsCard />
+      <GoogleTasksCard />
+
       <div className="rounded-xl border bg-card p-5 space-y-3">
         <h2 className="font-semibold">Variables d&apos;environnement</h2>
         <p className="text-sm text-muted-foreground">
@@ -338,6 +343,259 @@ export function SettingsPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Maxi.ca credentials — opt-in. Password is Fernet-encrypted at rest on
+ * the backend (``app.utils.crypto``). We never display it; we only show
+ * whether creds are saved + the email.
+ */
+function MaxiCredsCard() {
+  const qc = useQueryClient();
+  const { data: status } = useQuery({
+    queryKey: ["maxi-creds"],
+    queryFn: () => authApi.getMaxiCreds().then((r) => r.data),
+  });
+
+  const [editing, setEditing] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const saveMut = useMutation({
+    mutationFn: () => authApi.setMaxiCreds({ email, password }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["maxi-creds"] });
+      setEditing(false);
+      setPassword("");
+      toast.success("Creds Maxi enregistrés (chiffrés)");
+    },
+    onError: (err) => {
+      const msg =
+        (err as { response?: { data?: { message?: string; detail?: string } } })?.response?.data?.message ||
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        "Impossible de sauvegarder";
+      toast.error(msg);
+    },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: () => authApi.deleteMaxiCreds(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["maxi-creds"] });
+      toast.success("Creds Maxi effacés");
+    },
+  });
+
+  const hasCreds = status?.has_creds ?? false;
+
+  return (
+    <div className="rounded-xl border bg-card p-5 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold flex items-center gap-2">
+            🛒 Creds Maxi.ca
+            {hasCreds && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-green-100 text-green-800 px-2 py-0.5 text-[10px] font-bold">
+                Enregistrés
+              </span>
+            )}
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Utilisés pour l&apos;action <b>Remplir mon panier Maxi</b> depuis la liste de courses.
+            Mot de passe chiffré (Fernet / AES-128) dans la base. Jamais affiché.
+          </p>
+        </div>
+      </div>
+
+      {hasCreds && !editing ? (
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/40 p-3">
+          <div className="text-sm">
+            <span className="text-muted-foreground text-xs">Email : </span>
+            <span className="font-medium">{status?.email}</span>
+            <span className="text-muted-foreground text-xs ml-2">· Mot de passe : ••••••••</span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setEmail(status?.email ?? "");
+                setEditing(true);
+              }}
+              className="text-xs h-7 rounded-md border px-2 hover:bg-accent"
+            >
+              Modifier
+            </button>
+            <button
+              onClick={() => {
+                if (confirm("Effacer tes creds Maxi ?")) deleteMut.mutate();
+              }}
+              className="text-xs h-7 rounded-md border border-destructive/40 text-destructive px-2 hover:bg-destructive/10"
+            >
+              Effacer
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="ton.email@exemple.ca"
+            className="w-full h-9 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Mot de passe Maxi"
+            className="w-full h-9 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            autoComplete="new-password"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={() => saveMut.mutate()}
+              disabled={!email || !password || saveMut.isPending}
+              className="h-9 rounded-md bg-primary text-primary-foreground px-3 text-xs font-semibold disabled:opacity-50"
+            >
+              {saveMut.isPending ? "Chiffrement..." : hasCreds ? "Remplacer" : "Enregistrer"}
+            </button>
+            {editing && (
+              <button
+                onClick={() => {
+                  setEditing(false);
+                  setPassword("");
+                }}
+                className="h-9 rounded-md border px-3 text-xs hover:bg-accent"
+              >
+                Annuler
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Google Tasks connect card — OAuth 2.0 flow in a popup. On success Google
+ * redirects back to our /api/auth/google/callback which writes the tokens
+ * to the DB and returns an HTML page that auto-closes the popup. We poll
+ * the /status endpoint while the popup is open so the UI updates when the
+ * user grants.
+ */
+function GoogleTasksCard() {
+  const qc = useQueryClient();
+  const { data: status } = useQuery({
+    queryKey: ["google-status"],
+    queryFn: () => authApi.getGoogleStatus().then((r) => r.data),
+    // While a popup is open the user might grant. Refetch every 2s so the
+    // UI flips to "Connected" without the user having to reload.
+    refetchInterval: (q) =>
+      (q.state.data as { connected?: boolean } | undefined)?.connected ? false : 2000,
+  });
+
+  const connect = useCallback(async () => {
+    try {
+      const { data } = await authApi.googleOauthStart();
+      // Open consent in a popup — our callback page auto-closes on success
+      const popup = window.open(
+        data.consent_url,
+        "google-oauth",
+        "width=500,height=650",
+      );
+      if (!popup) {
+        // Popup blocked — fall back to same-window redirect
+        window.location.href = data.consent_url;
+      }
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        "Impossible de lancer OAuth (GOOGLE_OAUTH_CLIENT_ID manquant ?)";
+      toast.error(msg);
+    }
+  }, []);
+
+  const disconnectMut = useMutation({
+    mutationFn: () => authApi.googleDisconnect(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["google-status"] });
+      toast.success("Google Tasks déconnecté");
+    },
+  });
+
+  const connected = status?.connected ?? false;
+
+  return (
+    <div className="rounded-xl border bg-card p-5 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold flex items-center gap-2">
+            📝 Google Tasks
+            {connected && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-green-100 text-green-800 px-2 py-0.5 text-[10px] font-bold">
+                Connecté
+              </span>
+            )}
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Exporte une liste de courses en liste de tâches Google — disponible
+            dans Gmail, Calendar, Keep (onglet Tasks), app mobile. OAuth 2.0,
+            scope <code>tasks</code> seulement (pas d&apos;accès à ton email).
+          </p>
+        </div>
+      </div>
+
+      {connected ? (
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/40 p-3">
+          <div className="text-sm">
+            <span className="text-muted-foreground text-xs">Compte : </span>
+            <span className="font-medium">{status?.email}</span>
+          </div>
+          <button
+            onClick={() => {
+              if (confirm("Déconnecter Google Tasks de BatchChef ?")) {
+                disconnectMut.mutate();
+              }
+            }}
+            className="text-xs h-7 rounded-md border border-destructive/40 text-destructive px-2 hover:bg-destructive/10"
+          >
+            Déconnecter
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <button
+            onClick={connect}
+            className="inline-flex items-center gap-2 h-9 rounded-md bg-[#4285F4] text-white px-4 text-xs font-semibold hover:bg-[#3367d6] transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
+              <path fill="#fff" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+              <path fill="#fff" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#fff" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+              <path fill="#fff" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+            Se connecter à Google
+          </button>
+          <p className="text-[10px] text-muted-foreground">
+            Nécessite <code>GOOGLE_OAUTH_CLIENT_ID</code> + <code>GOOGLE_OAUTH_CLIENT_SECRET</code> dans{" "}
+            <code>backend/.env</code>. Crée des creds sur{" "}
+            <a
+              href="https://console.cloud.google.com/apis/credentials"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              console.cloud.google.com
+            </a>
+            , active l&apos;API Google Tasks, et ajoute{" "}
+            <code className="text-[10px]">http://localhost:8000/api/auth/google/callback</code>{" "}
+            en redirect URI.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

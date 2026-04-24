@@ -78,11 +78,18 @@ async def _call_claude_fallback(
     """Final fallback when all Gemini tiers fail (billing cap, quota, etc).
     Uses Haiku via direct httpx call to stay economical.
     Returns the response text, or None if no API key / call fails.
+
+    Wrapped in a circuit breaker — if Anthropic is rate-limiting us we
+    stop calling for ``cooldown_s`` rather than piling on 429s during a
+    long import.
     """
+    from app.utils.circuit_breaker import call_with_breaker, CircuitOpenError
+
     http = _get_anthropic_http()
     if http is None:
         return None
-    try:
+
+    async def _do() -> str | None:
         r = await http.post(
             _ANTHROPIC_URL,
             headers={
@@ -98,6 +105,11 @@ async def _call_claude_fallback(
                 "messages": [{"role": "user", "content": user_prompt}],
             },
         )
+        # 429 and 5xx are "try again later" — let the circuit breaker count
+        # them as failures. 4xx other than 429 is "our mistake" — don't
+        # trip the breaker, just return None.
+        if r.status_code == 429 or r.status_code >= 500:
+            raise RuntimeError(f"Claude HTTP {r.status_code}: {r.text[:200]}")
         if r.status_code != 200:
             logger.warning(f"Claude fallback HTTP {r.status_code}: {r.text[:200]}")
             return None
@@ -107,6 +119,17 @@ async def _call_claude_fallback(
             if isinstance(block, dict) and block.get("type") == "text":
                 parts.append(block.get("text") or "")
         return "".join(parts) or None
+
+    try:
+        return await call_with_breaker(
+            "anthropic", _do,
+            failure_threshold=8,   # 8 errors in 60s → open
+            window_s=60.0,
+            cooldown_s=120.0,      # 2 min cool-off
+        )
+    except CircuitOpenError as e:
+        logger.warning("Claude breaker open: %s", e)
+        return None
     except Exception as e:
         logger.warning(f"Claude fallback failed: {e}")
         return None
@@ -151,11 +174,35 @@ async def call_claude(
     Concatenates `system` + `user` as a single prompt (Gemini's system
     instruction arg is model-dependent and noisier).
     """
+    # ── Cheap-win: cache lookup before paying for a call ─────────────────
+    # Same (model+system+user+json_mode) → same answer, good for 30 days.
+    # Importers re-run identical prompts thousands of times (e.g. "standardize
+    # these 50 ingredient names") — cache hit rate typically 70-95% on reruns.
+    from app.utils.ai_budget import (
+        cache_get, cache_put, record_usage, assert_under_budget, BudgetExceededError,
+    )
+
+    want_json = "JSON" in (system or "") or "json" in (system or "")
+    # Use the primary model name for the cache key so model switches invalidate
+    cache_model_key = model or (settings.GEMINI_MODEL or "gemini-3-flash-preview")
+    try:
+        cached = await cache_get(cache_model_key, system or "", user or "", want_json)
+        if cached is not None:
+            return cached
+    except Exception:
+        pass
+
+    # Budget gate — if the user configured a daily cap and we're past it,
+    # refuse the call BEFORE paying for tokens.
+    try:
+        await assert_under_budget()
+    except BudgetExceededError as e:
+        logger.warning("AI budget cap hit: %s", e)
+        raise
+
     await _throttle()
     client = get_client()
     prompt = f"{system}\n\n{user}" if system else user
-    # Heuristic: if the prompt asks for JSON, switch Gemini into strict JSON mode.
-    want_json = "JSON" in (system or "") or "json" in (system or "")
     models = _models_for_fallback(model)
     last_err: Exception | None = None
     # Gemini 3 Flash Preview uses an internal "thinking budget" that eats
@@ -164,7 +211,16 @@ async def call_claude(
     # truncates around char 800. Bumping to 32768 leaves plenty for both.
     effective_max = max(max_tokens, 32768)
     global _gemini_hard_fail
-    if not _gemini_hard_fail:
+
+    # Circuit breaker on Gemini as a whole — if we're accumulating failures
+    # across models (e.g. all-region outage), stop for a cooldown before
+    # burning through retries.
+    from app.utils.circuit_breaker import get_breaker, CircuitOpenError
+    gemini_breaker = get_breaker(
+        "gemini", failure_threshold=10, window_s=60.0, cooldown_s=60.0,
+    )
+
+    if not _gemini_hard_fail and gemini_breaker.state() != "open":
         for m in models:
             try:
                 cfg_kwargs = dict(
@@ -181,9 +237,20 @@ async def call_claude(
                 )
                 text = resp.text or ""
                 if text:
+                    gemini_breaker.record_success()
+                    # Cache-through + usage recording. Failure here is
+                    # non-fatal — the call succeeded, the user gets their
+                    # answer, we just don't learn from it.
+                    try:
+                        await cache_put(cache_model_key, system or "", user or "", text, want_json)
+                        await record_usage("gemini", m, system or "", user or "", text)
+                    except Exception:
+                        pass
                     return text
                 last_err = RuntimeError(f"{m}: empty response")
+                gemini_breaker.record_failure()
             except Exception as e:
+                gemini_breaker.record_failure()
                 last_err = e
                 err_str = str(e).lower()
                 logger.warning(f"Gemini model '{m}' failed: {e}; trying next")
@@ -210,6 +277,11 @@ async def call_claude(
         logger.info("All Gemini models exhausted — falling back to Claude Haiku")
     claude_text = await _call_claude_fallback(system, user, max_tokens, temperature)
     if claude_text:
+        try:
+            await cache_put(cache_model_key, system or "", user or "", claude_text, want_json)
+            await record_usage("anthropic", settings.CLAUDE_MODEL, system or "", user or "", claude_text)
+        except Exception:
+            pass
         return claude_text
     raise last_err or RuntimeError("All Gemini + Claude fallbacks failed")
 

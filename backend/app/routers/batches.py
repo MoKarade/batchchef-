@@ -77,6 +77,15 @@ async def accept(body: BatchAcceptRequest, db: AsyncSession = Depends(get_db)):
     from sqlalchemy.orm import selectinload
     from app.models.recipe import RecipeIngredient
 
+    # Input validation (audit #13): refuse nonsensical portions upfront
+    if body.target_portions <= 0:
+        raise HTTPException(422, "target_portions must be > 0")
+    for r in body.recipes:
+        if r.portions <= 0:
+            raise HTTPException(
+                422, f"portions for recipe {r.recipe_id} must be > 0 (got {r.portions})",
+            )
+
     # Gate: verify price coverage before persisting
     recipe_ids = [r.recipe_id for r in body.recipes]
     load_opts = selectinload(Recipe.ingredients).selectinload(RecipeIngredient.ingredient)
@@ -195,6 +204,197 @@ async def update_batch_metadata(
     return (await db.execute(q)).scalar_one()
 
 
+@router.post("/{batch_id}/export-to-google-tasks")
+async def export_to_google_tasks(
+    batch_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Export the batch's shopping list as a new Google Tasks list on the
+    connected user's Google account. Synchronous (no Celery) because the
+    Tasks API is fast and we want to surface errors immediately to the UI.
+
+    Each shopping item becomes one task; the product URL (when present)
+    goes into the task notes so the Tasks mobile app shows a tappable link.
+    Requires the user to have connected Google via /api/auth/google/oauth-start.
+    """
+    from app.models.batch import Batch, ShoppingListItem
+    from app.models.ingredient import IngredientMaster
+    from app.models.user import User
+    from app.services.google_tasks import (
+        create_task,
+        create_tasklist,
+        ensure_access_token,
+    )
+    from datetime import date as _date
+
+    q = (
+        select(Batch)
+        .where(Batch.id == batch_id)
+        .options(
+            selectinload(Batch.shopping_items)
+            .selectinload(ShoppingListItem.ingredient),
+            selectinload(Batch.shopping_items).selectinload(ShoppingListItem.store),
+        )
+    )
+    batch = (await db.execute(q)).scalar_one_or_none()
+    if not batch:
+        raise HTTPException(404, "Batch not found")
+
+    # Pick user — same resolution as fill_maxi_cart
+    user = None
+    if batch.user_id is not None:
+        user = await db.get(User, batch.user_id)
+    if not user or not user.google_refresh_token_encrypted:
+        q_user = select(User).where(User.google_refresh_token_encrypted.isnot(None)).limit(1)
+        user = (await db.execute(q_user)).scalar_one_or_none()
+    if not user or not user.google_refresh_token_encrypted:
+        raise HTTPException(
+            409,
+            "Aucun compte Google connecté. Va dans /settings et clique « Connecter Google Tasks ».",
+        )
+
+    try:
+        access_token = await ensure_access_token(user, db)
+    except Exception as e:
+        raise HTTPException(502, f"Token Google invalide : {e}")
+
+    # Filter unpurchased items — the user's already-bought ones shouldn't
+    # re-appear on their Tasks checklist.
+    items = [it for it in batch.shopping_items if not it.is_purchased]
+    if not items:
+        raise HTTPException(400, "Tous les items sont déjà cochés comme achetés.")
+
+    # Fail-fast sanity check: ping the Tasks API with a cheap call before
+    # creating the list, so we don't end up with a half-populated list if
+    # the token's revoked or the API is down (audit #6).
+    import httpx as _httpx
+    try:
+        async with _httpx.AsyncClient(timeout=8.0) as _c:
+            _r = await _c.get(
+                "https://tasks.googleapis.com/tasks/v1/users/@me/lists",
+                headers={"Authorization": f"Bearer {access_token}"},
+                params={"maxResults": 1},
+            )
+            _r.raise_for_status()
+    except _httpx.HTTPStatusError as e:
+        code = e.response.status_code if e.response else "?"
+        raise HTTPException(502, f"Google Tasks API rejette notre token ({code}) — reconnecte dans /settings")
+    except Exception as e:
+        raise HTTPException(502, f"Google Tasks API unreachable: {e}")
+
+    title = batch.name or f"Courses BatchChef — {batch.generated_at.date().isoformat()}"
+    # Prefix makes it obvious in Tasks UI which list is ours
+    title = f"🛒 {title}"
+
+    try:
+        list_id = await create_tasklist(access_token, title)
+    except Exception as e:
+        raise HTTPException(502, f"Création liste Tasks échouée : {e}")
+
+    created = 0
+    errors: list[str] = []
+    for it in items:
+        name = (
+            it.ingredient.display_name_fr
+            if it.ingredient
+            else f"Ingrédient #{it.ingredient_master_id}"
+        )
+        # Build a compact human title:  "3 × 500 g · Farine blanche"
+        qty_str = ""
+        if it.format_qty and it.format_unit:
+            qty_str = f"{it.packages_to_buy} × {it.format_qty}{it.format_unit} · "
+        elif it.quantity_needed:
+            qty_str = f"{it.quantity_needed:g} {it.unit} · "
+        task_title = f"{qty_str}{name}".strip()
+
+        # Notes: store + product URL (auto-linkified in Tasks)
+        notes_parts: list[str] = []
+        if it.store:
+            notes_parts.append(f"Magasin: {it.store.name}")
+        if it.estimated_cost is not None:
+            notes_parts.append(f"Coût estimé: {it.estimated_cost:.2f} $")
+        if it.product_url:
+            notes_parts.append(it.product_url)
+        notes = "\n".join(notes_parts) if notes_parts else None
+
+        try:
+            await create_task(access_token, list_id, task_title, notes)
+            created += 1
+        except Exception as e:
+            errors.append(f"{name}: {str(e)[:60]}")
+
+    return {
+        "google_tasklist_id": list_id,
+        "title": title,
+        "tasks_created": created,
+        "total_items": len(items),
+        "errors": errors,
+        "google_email": user.google_email,
+    }
+
+
+@router.post("/{batch_id}/fill-maxi-cart", status_code=202)
+async def fill_maxi_cart(
+    batch_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Dispatch the Playwright-driven Maxi cart filler for this batch.
+
+    Requires the caller to have Maxi creds stored (set via
+    ``PUT /api/auth/maxi-creds``). The worker opens a headful Chromium on
+    the server's desktop — the user physically watches it log in + add
+    items + validate in the end.
+
+    Right now the endpoint trusts any call to know which user owns the
+    creds — we read the batch's ``user_id`` if present, else fall back
+    to the first user with Maxi creds. Replace with ``Depends(get_current_user)``
+    when the frontend always sends a token.
+    """
+    from app.models.user import User
+    from app.models.job import ImportJob
+    from app.workers.maxi_cart import fill_maxi_cart as celery_fill
+
+    batch = await db.get(Batch, batch_id)
+    if not batch:
+        raise HTTPException(404, "Batch not found")
+
+    # Resolve user — prefer batch.user_id, otherwise first user with creds
+    user = None
+    if batch.user_id is not None:
+        user = await db.get(User, batch.user_id)
+    if not user or not user.maxi_password_encrypted:
+        q = select(User).where(User.maxi_password_encrypted.isnot(None)).limit(1)
+        user = (await db.execute(q)).scalar_one_or_none()
+    if not user or not user.maxi_password_encrypted:
+        raise HTTPException(
+            409,
+            "Aucun utilisateur n'a enregistré ses creds Maxi. Va dans /settings.",
+        )
+
+    job = ImportJob(
+        job_type="maxi_cart_fill",
+        status="queued",
+        progress_current=0,
+        progress_total=0,
+    )
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+
+    try:
+        task = celery_fill.delay(job.id, batch_id, user.id)
+        job.celery_task_id = task.id
+        job.status = "running"
+        await db.commit()
+    except Exception as e:
+        job.status = "failed"
+        job.error_log = __import__("json").dumps([str(e)])
+        await db.commit()
+        raise HTTPException(500, f"Dispatch impossible: {e}")
+
+    return {"job_id": job.id, "status": job.status, "task_id": job.celery_task_id}
+
+
 @router.post("/{batch_id}/duplicate", response_model=BatchOut, status_code=201)
 async def duplicate_batch(batch_id: int, db: AsyncSession = Depends(get_db)):
     """Clone a batch — same recipes, same portions, fresh shopping list.
@@ -208,13 +408,16 @@ async def duplicate_batch(batch_id: int, db: AsyncSession = Depends(get_db)):
     if not original:
         raise HTTPException(404, "Batch not found")
 
-    # Gather (recipe_id, portions) from original via its BatchRecipe rows
+    # Gather (recipe_id, portions) from original via its BatchRecipe rows.
+    # We include BOTH active and inactive rows — a user duplicating a batch
+    # expects the full menu, and audit #7 pointed out we were silently
+    # dropping inactive recipes (eg. recipes paused mid-batch).
     q = select(BatchRecipe).where(BatchRecipe.batch_id == batch_id)
     brs = list((await db.execute(q)).scalars().all())
     if not brs:
         raise HTTPException(400, "Batch has no recipes to duplicate.")
 
-    slots = [(br.recipe_id, br.portions) for br in brs if br.is_active]
+    slots = [(br.recipe_id, br.portions) for br in brs]
     target_portions = sum(p for _, p in slots)
     new_name = f"{original.name or f'Batch #{original.id}'} (copie)"
 
@@ -294,22 +497,42 @@ async def bulk_purchase(
     )
     items = list((await db.execute(q)).scalars().all())
 
-    to_settle: list[int] = []
+    # Atomicity (audit fix): mark-purchased + settle-inventory must succeed
+    # together or rollback together per item. Previously we batch-committed
+    # is_purchased=True for ALL items, then settled sequentially — a crash
+    # in the middle left items flagged purchased with no inventory entry.
+    # Now: per-item try/except; if settle fails, revert is_purchased.
     now = utcnow()
+    results = []
+    failures: list[dict] = []
     for item in items:
         if item.is_purchased:
             continue
         item.is_purchased = True
         item.purchased_at = now
-        to_settle.append(item.id)
-    await db.commit()
+        try:
+            await db.commit()
+        except Exception as e:
+            await db.rollback()
+            failures.append({"id": item.id, "error": f"mark-purchased failed: {e}"})
+            continue
 
-    results = []
-    for item_id in to_settle:
-        surplus = await settle_shopping_item(db, item_id)
-        results.append({
-            "id": item_id,
-            "surplus_added": surplus.quantity if surplus else 0,
-            "surplus_unit": surplus.unit if surplus else None,
-        })
-    return {"status": "ok", "items": results}
+        try:
+            surplus = await settle_shopping_item(db, item.id)
+            results.append({
+                "id": item.id,
+                "surplus_added": surplus.quantity if surplus else 0,
+                "surplus_unit": surplus.unit if surplus else None,
+            })
+        except Exception as e:
+            # Settlement failed — roll back the purchase flag so the item
+            # isn't stuck in an inconsistent state.
+            item.is_purchased = False
+            item.purchased_at = None
+            try:
+                await db.commit()
+            except Exception:
+                await db.rollback()
+            failures.append({"id": item.id, "error": f"settle failed: {e}"})
+
+    return {"status": "ok", "items": results, "failures": failures}

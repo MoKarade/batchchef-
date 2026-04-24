@@ -55,6 +55,11 @@ async def _cleanup_zombie_jobs() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Security first: generate SECRET_KEY if the user hasn't set one. Run
+    # BEFORE anything that might mint a JWT (which happens in _seed_admin_user).
+    from app.utils.crypto import ensure_secret_key
+    ensure_secret_key()
+
     _bootstrap_db_from_seed()
     await init_db()
     await _cleanup_zombie_jobs()
@@ -96,6 +101,13 @@ async def _unhandled_exception_handler(request: Request, exc: Exception):
         "Unhandled exception [%s] %s %s",
         request_id, request.method, request.url.path,
     )
+    # Also stash in the in-process ring buffer so the /api/admin/errors
+    # endpoint can surface it for post-mortem debugging.
+    try:
+        from app.utils.error_buffer import record_exception
+        record_exception(exc, request_id=request_id, method=request.method, path=request.url.path)
+    except Exception:
+        pass  # never let error-recording itself crash the handler
     return JSONResponse(
         status_code=500,
         content={
@@ -206,6 +218,97 @@ async def health():
         status_out["db_error"] = str(e)[:80]
 
     return status_out
+
+
+@app.get("/api/metrics")
+async def metrics():
+    """Lightweight JSON metrics endpoint for monitoring dashboards.
+
+    Not Prometheus-format (yet) — just a flat dict anyone can scrape.
+    Cached 30s in Redis via the existing @cached utility so a polling
+    dashboard doesn't hammer the DB.
+    """
+    from app.utils.cache import cached
+    from datetime import datetime, timedelta, timezone
+
+    @cached("metrics", ttl=30)
+    async def _compute():
+        from sqlalchemy import select, func
+        from app.database import AsyncSessionLocal
+        from app.models.recipe import Recipe
+        from app.models.ingredient import IngredientMaster
+        from app.models.store import StoreProduct
+        from app.models.batch import Batch, ShoppingListItem
+        from app.models.job import ImportJob
+
+        async with AsyncSessionLocal() as db:
+            recipes_total = (await db.execute(select(func.count(Recipe.id)))).scalar_one()
+            recipes_by_status = dict(
+                (await db.execute(
+                    select(Recipe.status, func.count(Recipe.id)).group_by(Recipe.status)
+                )).all()
+            )
+            ings_total = (await db.execute(select(func.count(IngredientMaster.id)))).scalar_one()
+            ings_by_status = dict(
+                (await db.execute(
+                    select(IngredientMaster.price_mapping_status, func.count(IngredientMaster.id))
+                    .where(IngredientMaster.parent_id.is_(None))
+                    .group_by(IngredientMaster.price_mapping_status)
+                )).all()
+            )
+            store_products = (await db.execute(
+                select(func.count(StoreProduct.id)).where(StoreProduct.is_validated == True)  # noqa: E712
+            )).scalar_one()
+            batches_total = (await db.execute(select(func.count(Batch.id)))).scalar_one()
+            jobs_24h = (await db.execute(
+                select(ImportJob.job_type, ImportJob.status, func.count(ImportJob.id))
+                .where(ImportJob.created_at >= datetime.utcnow() - timedelta(hours=24))
+                .group_by(ImportJob.job_type, ImportJob.status)
+            )).all()
+            shopping_items = (await db.execute(
+                select(func.count(ShoppingListItem.id))
+            )).scalar_one()
+
+        jobs_24h_dict: dict[str, dict[str, int]] = {}
+        for job_type, status, cnt in jobs_24h:
+            jobs_24h_dict.setdefault(job_type, {})[status] = cnt
+
+        # Circuit breaker states — tells you at a glance which external
+        # dependencies are happy vs throttling. Not cached (changes per-call).
+        from app.utils.circuit_breaker import snapshot as breakers_snapshot
+        return {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "recipes": {
+                "total": recipes_total,
+                "by_status": recipes_by_status,
+            },
+            "ingredients": {
+                "total": ings_total,
+                "parents_by_mapping_status": ings_by_status,
+            },
+            "store_products_validated": store_products,
+            "batches_total": batches_total,
+            "shopping_items_total": shopping_items,
+            "jobs_last_24h": jobs_24h_dict,
+            "circuit_breakers": breakers_snapshot(),
+        }
+
+    return await _compute()
+
+
+@app.get("/api/admin/errors")
+async def admin_errors(limit: int = 50):
+    """Last N unhandled exceptions captured by the global error handler.
+    No auth guard — single-user local deployment. Wrap in a real auth
+    check before deploying publicly."""
+    from app.utils.error_buffer import snapshot as errors_snapshot
+    return {"errors": errors_snapshot(limit=max(1, min(limit, 200)))}
+
+
+@app.post("/api/admin/errors/clear")
+async def admin_errors_clear():
+    from app.utils.error_buffer import clear as errors_clear
+    return {"cleared": errors_clear()}
 
 
 @app.get("/api/stats")

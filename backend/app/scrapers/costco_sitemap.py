@@ -64,7 +64,13 @@ async def _fetch_sitemap(url: str, client: httpx.AsyncClient) -> str:
 async def _load_async() -> None:
     """Download + parse all Costco product sitemaps into the module cache."""
     global _last_load_ts
-    async with httpx.AsyncClient(follow_redirects=True) as client:
+    # Explicit timeout — the sitemap is ~2 MB but sometimes Costco CDN
+    # stalls. 60 s total, 10 s connect. Without this the import task can
+    # hang indefinitely on a slow sitemap response.
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        timeout=httpx.Timeout(60.0, connect=10.0),
+    ) as client:
         try:
             index_xml = await _fetch_sitemap(INDEX_URL, client)
         except Exception as e:

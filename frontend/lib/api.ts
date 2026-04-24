@@ -344,6 +344,27 @@ export interface BatchAcceptRequest {
   name?: string;
 }
 
+export interface MaxiCredsStatus {
+  has_creds: boolean;
+  email: string | null;
+}
+
+export interface GoogleStatus {
+  connected: boolean;
+  email: string | null;
+}
+
+export const authApi = {
+  getMaxiCreds: () => api.get<MaxiCredsStatus>("/api/auth/maxi-creds"),
+  setMaxiCreds: (data: { email: string; password: string }) =>
+    api.put<MaxiCredsStatus>("/api/auth/maxi-creds", data),
+  deleteMaxiCreds: () => api.delete("/api/auth/maxi-creds"),
+  getGoogleStatus: () => api.get<GoogleStatus>("/api/auth/google/status"),
+  googleOauthStart: () =>
+    api.get<{ consent_url: string }>("/api/auth/google/oauth-start"),
+  googleDisconnect: () => api.delete("/api/auth/google/disconnect"),
+};
+
 export const batchesApi = {
   generate: (req: BatchGenerateRequest) =>
     api.post<Batch>("/api/batches/generate", req),
@@ -360,6 +381,21 @@ export const batchesApi = {
   /** Clone a batch with fresh shopping list — UX #9 "reproduire" */
   duplicate: (id: number) =>
     api.post<Batch>(`/api/batches/${id}/duplicate`),
+  /** Trigger the Playwright Maxi-cart filler. Returns the new ImportJob. */
+  fillMaxiCart: (id: number) =>
+    api.post<{ job_id: number; status: string; task_id: string }>(
+      `/api/batches/${id}/fill-maxi-cart`,
+    ),
+  /** Export shopping list as a new Google Tasks list on the user's account. */
+  exportToGoogleTasks: (id: number) =>
+    api.post<{
+      google_tasklist_id: string;
+      title: string;
+      tasks_created: number;
+      total_items: number;
+      errors: string[];
+      google_email: string;
+    }>(`/api/batches/${id}/export-to-google-tasks`),
   purchaseItem: (batchId: number, itemId: number) =>
     api.patch(`/api/batches/${batchId}/shopping-items/${itemId}/purchase`),
   unpurchaseItem: (batchId: number, itemId: number) =>
@@ -377,8 +413,19 @@ export const inventoryApi = {
   delete: (id: number) => api.delete(`/api/inventory/${id}`),
 };
 
+export interface Metrics {
+  generated_at: string;
+  recipes: { total: number; by_status: Record<string, number> };
+  ingredients: { total: number; parents_by_mapping_status: Record<string, number> };
+  store_products_validated: number;
+  batches_total: number;
+  shopping_items_total: number;
+  jobs_last_24h: Record<string, Record<string, number>>;
+}
+
 export const statsApi = {
   get: () => api.get<Stats>("/api/stats"),
+  metrics: () => api.get<Metrics>("/api/metrics"),
 };
 
 export interface ChefChatMessage {

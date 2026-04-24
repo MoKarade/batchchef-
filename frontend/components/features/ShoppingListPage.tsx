@@ -5,11 +5,28 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { batchesApi, type ShoppingItem } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
-import { ArrowLeft, ShoppingCart, Loader2, Package, Check, Trash2, Boxes, ExternalLink, Store as StoreIcon } from "lucide-react";
+import { ArrowLeft, ShoppingCart, Loader2, Package, Check, Trash2, Boxes, ExternalLink, Store as StoreIcon, Zap, NotebookPen } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { ShoppingExportButton } from "./ShoppingExportPanel";
 import { useConfirm } from "@/components/shared/ConfirmDialog";
+import { authApi } from "@/lib/api";
+
+/**
+ * Build a store search URL for an item that has no direct product_url
+ * mapped yet. Uses the store's name hint to pick the right site, falls
+ * back to Maxi (primary store).
+ */
+function buildStoreSearchUrl(item: ShoppingItem): string {
+  const name =
+    item.ingredient?.display_name_fr ??
+    item.ingredient?.canonical_name?.replace(/_/g, " ") ??
+    "";
+  const q = encodeURIComponent(name);
+  const storeName = (item.store?.name ?? "").toLowerCase();
+  if (storeName.includes("costco")) return `https://www.costco.ca/s?dept=All&keyword=${q}`;
+  return `https://www.maxi.ca/fr/recherche?search-bar=${q}`;
+}
 
 function ShoppingRow({
   batchId,
@@ -39,9 +56,28 @@ function ShoppingRow({
   const packagesLabel = item.format_qty
     ? `${item.packages_to_buy} × ${item.format_qty}${item.format_unit ?? ""}`
     : `${item.packages_to_buy} ${item.unit}`;
-  const surplus = item.format_qty && item.packages_to_buy
-    ? item.packages_to_buy * item.format_qty - item.quantity_needed
-    : 0;
+  // Surplus (leftover pack volume going to inventory). Computed only when
+  // the package unit matches the need unit — otherwise we'd subtract
+  // "2 × 1 kg" from "500 g" and get nonsense. When units differ, the
+  // backend already stores everything in compatible bases but the
+  // format_unit can still be kg while quantity_needed is in g, so
+  // normalize here: if format_unit is kg/L and need is g/ml, scale.
+  const surplus = (() => {
+    if (!item.format_qty || !item.packages_to_buy) return 0;
+    const fu = (item.format_unit ?? "").toLowerCase();
+    const nu = (item.unit ?? "").toLowerCase();
+    // Scale factor to convert format_qty into the "unit" base
+    let scale = 1;
+    if (fu === nu) scale = 1;
+    else if (fu === "kg" && nu === "g") scale = 1000;
+    else if (fu === "g" && nu === "kg") scale = 0.001;
+    else if (fu === "l" && nu === "ml") scale = 1000;
+    else if (fu === "ml" && nu === "l") scale = 0.001;
+    else if (fu === "cl" && nu === "ml") scale = 10;
+    else if (fu === "ml" && nu === "cl") scale = 0.1;
+    else return 0; // incompatible — skip the display
+    return item.packages_to_buy * item.format_qty * scale - item.quantity_needed;
+  })();
 
   return (
     <li className={`flex items-center gap-3 rounded-lg border p-3 ${item.is_purchased ? "bg-green-50 border-green-200" : "bg-card"}`}>
@@ -85,14 +121,28 @@ function ShoppingRow({
         {item.estimated_cost != null && (
           <p className="text-xs text-muted-foreground">{formatPrice(item.estimated_cost)}</p>
         )}
-        {item.product_url && (
+        {/* Direct product link if we have one, otherwise fallback to a
+            pre-filled Maxi/Costco search so the user can ALWAYS jump to
+            the store for this ingredient (user report: "je vois pas le
+            lien" — it was conditional on product_url being mapped). */}
+        {item.product_url ? (
           <a
             href={item.product_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[11px] text-primary hover:underline inline-flex items-center gap-0.5"
+            className="text-[11px] text-primary hover:underline inline-flex items-center gap-0.5 font-semibold"
           >
-            Voir le produit <ExternalLink className="h-2.5 w-2.5" />
+            Voir sur {item.store?.name ?? "Maxi"}{" "}
+            <ExternalLink className="h-2.5 w-2.5" />
+          </a>
+        ) : (
+          <a
+            href={buildStoreSearchUrl(item)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] text-muted-foreground hover:text-primary hover:underline inline-flex items-center gap-0.5"
+          >
+            Chercher sur Maxi <ExternalLink className="h-2.5 w-2.5" />
           </a>
         )}
         {surplus > 0 && item.format_unit && (
@@ -217,6 +267,8 @@ export function ShoppingListPage({ batchId }: { batchId: number }) {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <MaxiCartButton batchId={batch.id} />
+            <GoogleTasksButton batchId={batch.id} />
             <ShoppingExportButton
               items={filteredItems}
               batchName={batch.name ?? `Batch #${batch.id}`}
@@ -357,5 +409,124 @@ export function ShoppingListPage({ batchId }: { batchId: number }) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Button that triggers the Playwright-driven Maxi cart filler.
+ * Disabled (with tooltip) if the user hasn't saved Maxi creds yet.
+ */
+function MaxiCartButton({ batchId }: { batchId: number }) {
+  const { data: creds } = useQuery({
+    queryKey: ["maxi-creds"],
+    queryFn: () => authApi.getMaxiCreds().then((r) => r.data),
+    staleTime: 60_000,
+  });
+
+  const fillMut = useMutation({
+    mutationFn: () => batchesApi.fillMaxiCart(batchId),
+    onSuccess: ({ data }) => {
+      toast.success(
+        `Panier en cours de remplissage — job #${data.job_id}. Chromium s'ouvre sur ton bureau.`,
+        { duration: 6000 },
+      );
+    },
+    onError: (err) => {
+      const msg =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        "Impossible de lancer le remplissage";
+      toast.error(msg);
+    },
+  });
+
+  const hasCreds = creds?.has_creds ?? false;
+
+  if (!hasCreds) {
+    return (
+      <Link
+        href="/settings"
+        className="inline-flex items-center gap-1.5 h-9 rounded-full border border-dashed border-primary/50 text-primary px-4 text-xs font-semibold hover:bg-primary/5"
+        title="Enregistre d'abord tes creds Maxi dans /settings"
+      >
+        <Zap className="h-3.5 w-3.5" />
+        Activer panier Maxi
+      </Link>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => fillMut.mutate()}
+      disabled={fillMut.isPending}
+      className="inline-flex items-center gap-1.5 h-9 rounded-full bg-[#e40046] text-white px-4 text-xs font-semibold shadow hover:shadow-md disabled:opacity-60 transition"
+      title="Lance un Chromium qui se connecte à Maxi et remplit ton panier"
+    >
+      {fillMut.isPending ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Zap className="h-3.5 w-3.5" />
+      )}
+      Remplir panier Maxi
+    </button>
+  );
+}
+
+/**
+ * Exporter-toward-Google-Tasks button. Synchronous — no Celery — since
+ * the Tasks API is fast (few hundred ms even for 30 items). Falls back to
+ * "Connect" if the user hasn't OAuthed yet, same pattern as MaxiCartButton.
+ */
+function GoogleTasksButton({ batchId }: { batchId: number }) {
+  const { data: gs } = useQuery({
+    queryKey: ["google-status"],
+    queryFn: () => authApi.getGoogleStatus().then((r) => r.data),
+    staleTime: 60_000,
+  });
+
+  const exportMut = useMutation({
+    mutationFn: () => batchesApi.exportToGoogleTasks(batchId),
+    onSuccess: ({ data }) => {
+      toast.success(
+        `${data.tasks_created}/${data.total_items} exportés vers "${data.title}" (${data.google_email})`,
+        { duration: 6000 },
+      );
+    },
+    onError: (err) => {
+      const msg =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        "Export Google Tasks impossible";
+      toast.error(msg);
+    },
+  });
+
+  const connected = gs?.connected ?? false;
+
+  if (!connected) {
+    return (
+      <Link
+        href="/settings"
+        className="inline-flex items-center gap-1.5 h-9 rounded-full border border-dashed border-[#4285F4]/50 text-[#4285F4] px-4 text-xs font-semibold hover:bg-[#4285F4]/5"
+        title="Connecte ton compte Google dans /settings"
+      >
+        <NotebookPen className="h-3.5 w-3.5" />
+        Activer Google Tasks
+      </Link>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => exportMut.mutate()}
+      disabled={exportMut.isPending}
+      className="inline-flex items-center gap-1.5 h-9 rounded-full bg-[#4285F4] text-white px-4 text-xs font-semibold shadow hover:shadow-md disabled:opacity-60 transition"
+      title="Crée une liste Google Tasks avec toutes les courses"
+    >
+      {exportMut.isPending ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <NotebookPen className="h-3.5 w-3.5" />
+      )}
+      Google Tasks
+    </button>
   );
 }
