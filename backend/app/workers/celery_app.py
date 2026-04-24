@@ -1,6 +1,21 @@
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import worker_init, worker_shutting_down
 from app.config import settings
+from app.utils.shutdown import install_signal_handler, request_shutdown
+
+
+@worker_init.connect
+def _on_worker_init(**_kw):
+    """Cooperate with Celery signals — when the worker spawns, wire up
+    our SIGTERM/SIGINT handler. Lets long-running tasks see the shutdown
+    flag and finish their current batch instead of being killed mid-commit."""
+    install_signal_handler()
+
+
+@worker_shutting_down.connect
+def _on_worker_shutting_down(**_kw):
+    request_shutdown()
 
 celery_app = Celery(
     "batchchef",
@@ -14,6 +29,7 @@ celery_app = Celery(
         "app.workers.process_receipt",
         "app.workers.zombie_cleanup",
         "app.workers.db_backup",
+        "app.workers.maxi_cart",
     ],
 )
 
@@ -25,29 +41,19 @@ celery_app.conf.update(
     enable_utc=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
-    # ── Retry & reliability defaults (item #17) ──────────────────────────
-    # Tasks that raise an unexpected exception are requeued with an
-    # exponential backoff: 60s → 120s → 240s, capped at 3 attempts. Each
-    # concrete task can override via its own decorator kwargs.
-    task_annotations={
-        "*": {
-            "autoretry_for": (Exception,),
-            "retry_backoff": 60,
-            "retry_backoff_max": 600,
-            "retry_jitter": True,
-            "max_retries": 3,
-        },
-        # Long-running scrapers: increase max_retries only when appropriate.
-        # The import_marmiton and map_prices tasks have their own inner
-        # retry loops around Playwright; we keep the outer retry low so we
-        # don't re-run a 20k-URL job from scratch on a transient error.
-        "import_marmiton.run": {"max_retries": 1},
-        "prices.map": {"max_retries": 1},
-    },
     # Visibility timeout — how long Redis keeps an unacked task before
-    # making it visible to another worker. Must be >= longest task; we
-    # default to 12h so a running import is never duplicate-picked by a
-    # second worker (we saw this happen when jobs #78 was grabbed twice).
+    # making it visible to another worker. 12h so a running import is
+    # never duplicate-picked by a second worker (we saw this happen when
+    # job #78 got grabbed twice).
+    #
+    # Retry behavior (item #17): kept at the per-task decorator level
+    # instead of task_annotations here. The "*" glob with a tuple-typed
+    # ``autoretry_for`` broke Celery's task registration — tasks weren't
+    # discoverable by the worker despite the module being imported, so
+    # .delay() calls went to the queue but were never picked up. If we
+    # want blanket retry later, each @celery_app.task can add
+    # ``autoretry_for=(Exception,), max_retries=3, retry_backoff=True``
+    # directly.
     broker_transport_options={"visibility_timeout": 43_200},
 )
 

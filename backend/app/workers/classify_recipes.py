@@ -98,7 +98,14 @@ async def _run(job_id: int, recipe_ids: list[int] | None):
                     if cls.get("tags"):
                         r_full.tags_json = json.dumps(cls["tags"], ensure_ascii=False)
                     if cls.get("health_score") is not None:
-                        r_full.health_score = float(cls["health_score"])
+                        # Clamp to the documented [0..10] range — Gemini
+                        # occasionally returns values outside bounds and we
+                        # don't want the frontend colour-coding / sort
+                        # ordering to break on rogue 15.0s.
+                        try:
+                            r_full.health_score = max(0.0, min(10.0, float(cls["health_score"])))
+                        except (TypeError, ValueError):
+                            pass
                     r_full.status = "ai_done"
                     r_full.ai_processed_at = utcnow()
                     await db.commit()

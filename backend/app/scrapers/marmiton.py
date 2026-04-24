@@ -14,15 +14,37 @@ def _extract_marmiton_id(url: str) -> str | None:
 
 
 def _parse_ingredient_line(raw: str) -> dict:
-    """Parse '200 g de farine' → {raw_text, quantity, unit, name_raw}"""
+    """Parse '200 g de farine' → {raw_text, quantity, unit, name_raw}.
+
+    Normalizes common French measurement variants so the downstream
+    unit converter has a clean input:
+      - "cuillère à soupe" / "cuillères à soupe" / "c.à.s." → cuill_soupe
+      - "cuillère à café"  / "c.à.c."                       → cuill_cafe
+      - "pincée" / "pincées"                                → pincee
+    Without this the parser was emitting bare "cuill" or literal
+    "cuillère" which the converter treats as "count" → broken shopping
+    list quantities (user saw "3.5 cuill de crème fraîche" priced $0.00).
+    """
     raw = raw.strip()
     raw_stripped = re.sub(r"^[\-•·⁃\*]+\s*", "", raw)
+
+    # Normalize full phrases BEFORE the regex so "2 cuillères à soupe
+    # de farine" gets rewritten to "2 cuill_soupe de farine".
+    norm = raw_stripped.lower()
+    norm = re.sub(r"cuill[eè]res?\s*[àa]\s*soupe", "cuill_soupe", norm, flags=re.IGNORECASE)
+    norm = re.sub(r"cuill[eè]res?\s*[àa]\s*caf[ée]", "cuill_cafe", norm, flags=re.IGNORECASE)
+    norm = re.sub(r"c\.?\s*[àa]?\.?\s*s\.?", "cuill_soupe", norm, flags=re.IGNORECASE)
+    norm = re.sub(r"c\.?\s*[àa]?\.?\s*c\.?", "cuill_cafe", norm, flags=re.IGNORECASE)
+    norm = re.sub(r"pinc[eé]es?", "pincee", norm, flags=re.IGNORECASE)
+
     m = re.match(
         r"^([\d.,/]+)?\s*"
-        r"(kg|g|gramme|grammes|l|litre|litres|ml|cl|dl|tasse|cuill?[\w.]*|c\.?s\.?|c\.?c\.?|lb|oz|pincée|pincees)\b\s*"
+        r"(kg|g|gramme|grammes|l|litre|litres|ml|cl|dl|tasse|tasses|cup|cups|"
+        r"cuill_soupe|cuill_cafe|cuillere|cuilleres|cuill|cs|cc|tbsp|tsp|"
+        r"lb|oz|pincee)\b\s*"
         r"(?:d[eu]s?\s*|d'|d’)?"
         r"(.+)$",
-        raw_stripped,
+        norm,
         re.IGNORECASE,
     )
     if not m:

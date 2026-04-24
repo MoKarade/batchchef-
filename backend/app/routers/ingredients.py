@@ -457,38 +457,166 @@ async def ingredient_details(
 
 _BAD_CANONICAL = re.compile(r"^[\s\-_\d,./]+")
 
-# Gemini parse artefacts: unit-phrase fragments that ended up being treated as
-# canonical names when the LLM returned malformed output during classification.
-# Examples we saw in prod: "s_de_sel" (from "cuillères de sel"), "verres_deau"
-# (from "2 verres d'eau"), "s_de_muscade" (from "pincées de muscade").
+# Gemini parse artefacts: unit-phrase fragments that ended up being
+# treated as canonical names when the LLM returned malformed output
+# during classification. Examples we saw in prod with counts (all 2026-04-24):
+#   743× "a_cafe_de_X" / "a_soupe_de_X"  (cuillère à café / soupe leaked)
+#   139× 1-2-letter_X               (Gemini token truncation)
+#    35× "s_(125_ml)_de_X"              (verre measurement leaked)
+#    32× "es_(X)_Y"                     (plural stub leaked)
+#    12× "verres_dX"                    (verre d' leaked)
+#     6× "pincées_dX"
+#     5× "tasses_dX"
+# Prefix + suffix stripping iterates (see _clean_canonical) so stacked
+# artefacts like "a_cafe_rases_de_poivre" eventually resolve to "poivre".
 _FRAGMENT_PREFIXES = [
-    "s_de_", "s_a_", "s_à_", "es_de_", "e_de_",
-    "verres_de_", "verres_deau", "verre_de_", "verre_d_",
-    "cuilleres_de_", "cuillères_de_", "cuillere_de_",
-    "pincees_de_", "pincées_de_", "pincee_de_",
-    "cas_de_", "càs_de_", "cac_de_", "càc_de_",
-    "tasses_de_", "tasse_de_",
+    # Cuillères à café / soupe (most common)
+    "a_cafe_de_", "a_cafe_d_", "a_cafe_rases_de_", "a_cafe_",
+    "a_soupe_de_", "a_soupe_d_", "a_soupe_rases_de_", "a_soupe_",
+    "cuillere_a_cafe_de_", "cuillere_a_soupe_de_",
+    "cuilleres_a_cafe_de_", "cuilleres_a_soupe_de_",
+    "cuillere_de_", "cuilleres_de_", "cuill_de_",
+    "cuillères_de_", "cuillère_de_",
+    # Pincées
+    "pincees_de_", "pincees_d_", "pincees_", "pincée_", "pincees_",
+    "pincée_de_", "pincées_de_", "pincée_d_", "pincées_d_",
+    "pincees_dail_", "pincees_dorigan_",  # explicit seen examples
+    # Tasses / verres / bols
+    "tasses_de_", "tasse_de_", "tasses_d_", "tasse_d_", "tasses_a_",
+    "verres_de_", "verre_de_", "verres_d_", "verre_d_", "verres_deau",
+    "bols_de_", "bol_de_", "bols_d_", "bol_d_",
+    "tranches_de_", "tranche_de_",
+    # Gramme/ml/cl/dl/l abbreviations
     "grammes_de_", "gramme_de_", "g_de_",
     "litres_de_", "litre_de_", "l_de_",
-    "ml_de_", "cl_de_", "dl_de_",
+    "ml_de_", "cl_de_", "dl_de_", "kg_de_",
+    # Plurals / prepositions leaked from French grammar
+    "s_de_", "s_d_", "s_a_", "s_à_", "s_(125_ml)_de_", "s_(250ml)_de_",
+    "s_(250_ml)_de_", "s_(25cl)_de_", "s_(500ml)_de_",
+    "es_de_", "e_de_", "es_(",
+    "de_", "du_", "des_", "d_",
+    # Abbrev variants seen
+    "cas_de_", "càs_de_", "cac_de_", "càc_de_", "cs_de_", "cc_de_",
 ]
 _FRAGMENT_PATTERN = re.compile(
     r"^(" + "|".join(re.escape(p) for p in _FRAGMENT_PREFIXES) + ")",
     re.IGNORECASE,
 )
 
+# ID-accretion artefact: Gemini sometimes appended the raw ingredient_id
+# to the canonical_name (e.g. "a_cafe_dail__1013"). Strip that trailing
+# "__NNN" or "_NNN" before doing the prefix/suffix pass.
+_ID_SUFFIX = re.compile(r"__?\d+$")
+
+# Parenthesized measurement clauses that the LLM kept in-line:
+#   "s_(125_ml)_de_crème" or "es_(magnum)"
+_PAREN_MEASURE = re.compile(r"\([^)]*\)")
+
+
+def _normalize_accents(s: str) -> str:
+    """Strip accents so regex matching is predictable — ``à`` / ``é`` /
+    ``è`` / ``ç`` all become plain ASCII. Keeps the rest of the string
+    intact (numbers, underscores)."""
+    import unicodedata
+    nfd = unicodedata.normalize("NFD", s)
+    return "".join(ch for ch in nfd if unicodedata.category(ch) != "Mn")
+
+
+# One mega-regex built from alternations so plural `s` can show up at
+# any boundary — "cuillere_a_cafe" OR "cuilleres_a_cafe" OR "cuillere_a_cafes"
+# all match without enumerating every permutation.
+#
+# Groups (all optional except the stem):
+#   1. plural leak "s_" at the very start
+#   2. the unit stem itself, with optional plural `s`
+#   3. optional "rases/bombees/combles" qualifier
+#   4. preposition (`_de_`, `_du_`, `_des_`, `_a_`, or `_d` glued to a word)
+_FRAG_RE = re.compile(
+    r"^(?:s_)?"
+    r"(?:"
+        r"cuilleres?_a_cafes?"      # "cuillère à café" + any plural
+        r"|cuilleres?_a_soupes?"
+        r"|a_cafes?"
+        r"|a_soupes?"
+        r"|cuilleres?"
+        r"|cuill"
+        r"|pincees?"
+        r"|tasses?"
+        r"|bols?"
+        r"|verres?"
+        r"|grammes?"
+        r"|litres?"
+        r"|tranches?"
+        r"|morceaux?"
+        r"|rondelles?"
+    r")"
+    r"(?:_(?:rases?|bombees?|combles?))?"
+    r"(?:_(?:de|du|des|a)_|_d(?=[a-z]))?",
+    re.IGNORECASE,
+)
+
+# Standalone preposition leak at the start of a name. Added `s` and `es`
+# (plural stubs), plus `d(?=[a-z])` for glued "d'eau" → "deau" case.
+# The lookahead version is tried separately from the "_|$" version so we
+# don't accidentally eat `de` from `de_creme` (which is handled by "_").
+_PREPOSITION_PREFIX = re.compile(
+    r"^(?:(de|du|des|d|a|au|aux|s|es)(_|$)|d(?=[a-z]{2,}))",
+    re.IGNORECASE,
+)
+
 
 def _clean_canonical(raw: str) -> str:
-    c = (raw or "").lower().strip()
-    c = _BAD_CANONICAL.sub("", c)
-    # Strip Gemini unit-phrase fragments (iteratively — sometimes stacked)
-    for _ in range(3):
-        m = _FRAGMENT_PATTERN.match(c)
-        if not m:
+    """Iteratively strip garbage off a Gemini-generated canonical_name.
+
+    Layers applied (order matters):
+      1. NFD normalization — accents stripped so ``cuillère`` ≡ ``cuillere``
+      2. Trailing ``__NNN`` / ``_NNN`` ID accretion
+      3. Parenthesized measurement clauses ``(125_ml)``
+      4. Known unit-phrase prefixes via ``_FRAG_RE`` (handles glued ``d'``)
+      5. Leading prepositions (``de_X``, ``du_X``, ``a_X`` alone)
+      6. Leading digits / punctuation noise
+      7. Whitespace + double-underscore normalization
+
+    Loop 6×: stacked artefacts like
+    ``a_soupe_rases_de_poivre_noir_moulu__15640`` resolve to ``poivre_noir_moulu``.
+    """
+    if not raw:
+        return ""
+    # 1. Accent normalization
+    c = _normalize_accents(raw).lower().strip()
+    # 2. Strip trailing ID suffix (one or two leading underscores + digits)
+    c = _ID_SUFFIX.sub("", c)
+    # 3. Strip parenthesized clauses: "(125 ml)" etc.
+    c = _PAREN_MEASURE.sub("", c)
+    c = re.sub(r"\s+", "_", c)          # normalize whitespace early
+    c = re.sub(r"_+", "_", c).strip("_")
+
+    # 4+5+6. Iterative prefix + noise removal
+    for _ in range(6):
+        before = c
+        c = _BAD_CANONICAL.sub("", c)
+        # try the heavy unit-phrase regex first
+        m = _FRAG_RE.match(c)
+        if m and m.end() > 0:
+            # don't strip if it would leave nothing (e.g. "pincee" alone)
+            remainder = c[m.end():].lstrip("_")
+            if remainder and len(remainder) >= 2:
+                c = remainder
+        # then try a bare preposition
+        m2 = _PREPOSITION_PREFIX.match(c)
+        if m2:
+            remainder = c[m2.end():].lstrip("_")
+            if remainder and len(remainder) >= 2:
+                c = remainder
+        if c == before:
             break
-        c = c[m.end():]
-    c = re.sub(r"\s+", "_", c)
+
     c = re.sub(r"_+", "_", c).strip("_ ")
+    # Final sanity: names of 1-2 chars are almost always artefacts
+    # ("au", "es", "s"). Returning empty signals "unrepairable" to the
+    # caller (repair-prefixes will then skip or delete-if-unused).
+    if len(c) <= 2:
+        return ""
     return c
 
 
@@ -516,13 +644,17 @@ async def repair_prefixes(db: AsyncSession = Depends(get_db)):
 
     for ing in rows:
         name = ing.canonical_name or ""
-        # Detect BOTH the legacy digit/dash prefix AND the new Gemini unit
-        # fragments ("s_de_sel", "verres_deau", "pincée_de_muscade"...).
-        has_bad = bool(_BAD_CANONICAL.match(name)) or bool(_FRAGMENT_PATTERN.match(name))
-        if not has_bad:
+        # A row is "bad" if the new mega-cleaner actually changes it. This
+        # is the most robust detection — any legacy pattern, any leading
+        # unit phrase, any trailing ID accretion, any accent weirdness all
+        # produce a different output. Compare normalized-to-normalized to
+        # avoid false "changed" on ``œ`` vs ``oe``.
+        normalized = _normalize_accents(name).lower().strip()
+        cleaned_preview = _clean_canonical(name)
+        if cleaned_preview == normalized or not cleaned_preview:
             continue
         scanned += 1
-        clean = _clean_canonical(ing.canonical_name)
+        clean = cleaned_preview
         if not clean or len(clean) < 2:
             skipped += 1
             continue

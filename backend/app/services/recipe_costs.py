@@ -28,21 +28,26 @@ from app.models.store import StoreProduct
 logger = logging.getLogger(__name__)
 
 
-async def _price_map(db: AsyncSession) -> dict[int, float]:
-    """Return {ingredient_master_id -> unit_price_per_base_unit}.
+async def _price_map(db: AsyncSession) -> dict[int, tuple[float, str]]:
+    """Return ``{ingredient_master_id -> (unit_price_per_base_unit, base_unit)}``.
 
-    Prorates StoreProduct.price over StoreProduct.format_qty so the caller
-    can multiply by a recipe's quantity_per_portion and get cost in CAD.
+    ``base_unit`` is one of ``"g"``, ``"ml"``, ``"unite"`` — the canonical
+    base the caller must normalize the recipe quantity into before
+    multiplying. Without this check, multiplying a $/kg price by a qty in
+    "g" silently undercounts by 1000×.
 
     Resolves by (parent | self): if the recipe references ``beurre_demi_sel``
     but only ``beurre`` has a StoreProduct, we still get a price.
     """
+    from app.services.unit_converter import normalize_unit, to_base
+
     q = (
         select(
             IngredientMaster.id,
             IngredientMaster.parent_id,
             StoreProduct.price,
             StoreProduct.format_qty,
+            StoreProduct.format_unit,
         )
         .join(StoreProduct, StoreProduct.ingredient_master_id == IngredientMaster.id)
         .where(StoreProduct.is_validated == True)  # noqa: E712
@@ -52,22 +57,22 @@ async def _price_map(db: AsyncSession) -> dict[int, float]:
     )
     rows = (await db.execute(q)).all()
 
-    direct: dict[int, float] = {}
-    parent_prices: dict[int, float] = {}
-    for ing_id, parent_id, price, fmt in rows:
-        unit_price = float(price) / float(fmt)
-        # First validated StoreProduct wins; we don't average to keep logic
-        # predictable (users can unmap to force a retry elsewhere).
-        direct.setdefault(ing_id, unit_price)
-        if parent_id is None:
-            parent_prices.setdefault(ing_id, unit_price)
+    direct: dict[int, tuple[float, str]] = {}
+    for ing_id, _parent, price, fmt_qty, fmt_unit in rows:
+        fmt_unit = fmt_unit or "unite"
+        base_unit, _kind = normalize_unit(fmt_unit)
+        # Express the whole pack in base units (e.g. 2 kg → 2000 g).
+        fmt_in_base = to_base(float(fmt_qty), fmt_unit)
+        if fmt_in_base <= 0:
+            continue
+        unit_price = float(price) / fmt_in_base
+        direct.setdefault(ing_id, (unit_price, base_unit))
 
-    # Fallback: resolve every parent_id in the catalogue through the parent map
-    # so variant ingredients inherit their parent's price.
+    # Fallback: variants inherit their parent's (price, base_unit).
     id_to_parent_q = select(IngredientMaster.id, IngredientMaster.parent_id)
     id_to_parent = dict((await db.execute(id_to_parent_q)).all())
 
-    resolved: dict[int, float] = dict(direct)
+    resolved: dict[int, tuple[float, str]] = dict(direct)
     for child_id, parent_id in id_to_parent.items():
         if child_id in resolved:
             continue
@@ -78,15 +83,18 @@ async def _price_map(db: AsyncSession) -> dict[int, float]:
 
 
 async def _compute_one(
-    recipe: Recipe, prices: dict[int, float]
+    recipe: Recipe, prices: dict[int, tuple[float, str]]
 ) -> tuple[float | None, str]:
     """Returns (cost_per_portion, pricing_status).
 
-    pricing_status:
-      - "complete"    → all ingredients priced
-      - "incomplete"  → some priced, some missing (cost is partial)
-      - "pending"     → zero ingredients priced
+    Converts each RecipeIngredient.quantity_per_portion to the base unit
+    of its price lookup BEFORE multiplying. Without this step, a recipe
+    that says "0.25 kg flour" priced against a "$/g" store product would
+    undercount by 1000×. Units that don't match (count vs mass) are
+    silently skipped — better than a wrong number.
     """
+    from app.services.unit_converter import normalize_unit, to_base
+
     if not recipe.ingredients:
         return None, "pending"
 
@@ -95,10 +103,19 @@ async def _compute_one(
     for ri in recipe.ingredients:
         if ri.ingredient_master_id is None:
             continue
-        unit_price = prices.get(ri.ingredient_master_id)
-        if unit_price is None or ri.quantity_per_portion is None:
+        tup = prices.get(ri.ingredient_master_id)
+        if tup is None or ri.quantity_per_portion is None:
             continue
-        total += unit_price * float(ri.quantity_per_portion)
+        unit_price, price_base = tup
+        ri_unit = ri.unit or "unite"
+        ri_base, _ = normalize_unit(ri_unit)
+        # Incompatible base (recipe says "g" but product sells "unite") →
+        # we can't produce a meaningful cost. Skip this line so the recipe
+        # ends up as incomplete rather than wildly wrong.
+        if ri_base != price_base:
+            continue
+        qty_in_base = to_base(float(ri.quantity_per_portion), ri_unit)
+        total += unit_price * qty_in_base
         priced_count += 1
 
     total_ings = sum(1 for ri in recipe.ingredients if ri.ingredient_master_id)

@@ -32,6 +32,37 @@ _VALID_MEAL_TYPES = {"entree", "plat", "dessert", "snack"}
 _CANONICAL_JUNK_RE = __import__("re").compile(r"[®©™\[\](){}\"'<>\\|@#$%^&*+=;:!?]")
 
 
+def _classify_scrape_error(err: str) -> str:
+    """Categorize a Marmiton scrape error so the UI can group them.
+
+    Returns one of:
+      - "skip"  — page exists but has no content (recipe deleted on Marmiton).
+                  Safe to persist as status=error and never retry.
+      - "retry" — transient network / Playwright hiccup worth retrying.
+      - "fatal" — malformed page / parser bug. Log loud, don't retry blindly.
+    """
+    if not err:
+        return "skip"
+    low = err.lower()
+    # Transient — browser or network issues
+    if any(kw in low for kw in (
+        "target page, context or browser has been closed",
+        "timeout",
+        "err_connection_",
+        "err_network_",
+        "err_tunnel_connection",
+        "net::err_",
+        "disconnected",
+        "browser has been closed",
+    )):
+        return "retry"
+    # Expected "page doesn't have recipe" shape
+    if "no title" in low or "404" in low or "not found" in low:
+        return "skip"
+    # Anything else might indicate a Marmiton markup change — worth flagging
+    return "fatal"
+
+
 def _sanitize_ingredient_name(name: str) -> str:
     """Strip junk chars Gemini may hallucinate, normalize to lowercase underscored form."""
     import re
@@ -43,7 +74,21 @@ def _sanitize_ingredient_name(name: str) -> str:
 
 @celery_app.task(bind=True, name="import_marmiton.run")
 def run_marmiton_import(self, job_id: int, urls: list[str]):
-    asyncio.run(_run(job_id, urls))
+    """Entry point. Wraps ``_run`` in a per-job Redis lock so the same
+    import never ends up in two workers simultaneously — we saw this
+    cause duplicate scraping + browser contention when ``task_acks_late``
+    left the message in the broker's unacked set across a worker restart.
+    """
+    from app.utils.task_lock import redis_lock
+
+    with redis_lock(f"import_marmiton:{job_id}", ttl=24 * 3600) as acquired:
+        if not acquired:
+            logger.warning(
+                "import_marmiton job #%d already running on another worker — skipping duplicate dispatch",
+                job_id,
+            )
+            return
+        asyncio.run(_run(job_id, urls))
 
 
 async def _run(job_id: int, urls: list[str]):
@@ -106,6 +151,11 @@ async def _run(job_id: int, urls: list[str]):
         cancelled = False
         new_ingredient_ids: set[int] = set()
         all_new_recipe_ids: list[int] = []
+        # Adaptive rate control — if we get a burst of retry-flagged errors
+        # in a row (typical anti-bot throttling), sleep a bit before the
+        # next batch so we don't compound the block. Resets on any success.
+        consecutive_retry_errors = 0
+        backoff_threshold = 5  # 5 retry errors in a row → back off
 
         async def _scrape_one(url: str, page):
             """Scrape with 3 retries before giving up."""
@@ -119,8 +169,17 @@ async def _run(job_id: int, urls: list[str]):
                     else:
                         return url, None, str(e)
 
+        from app.utils.shutdown import shutdown_requested
+
         for i in range(0, len(urls), BATCH_SIZE):
-            # Cooperative cancellation check
+            # Cooperative cancellation — the user can cancel (cancel_requested
+            # flag) OR the worker can receive SIGTERM (shutdown_requested).
+            # Either way we finish the CURRENT batch (it's already launched)
+            # then break before starting the next.
+            if shutdown_requested():
+                logger.warning("Graceful shutdown requested — stopping import after current batch")
+                cancelled = True
+                break
             async with AsyncSessionLocal() as db:
                 job = await db.get(ImportJob, job_id)
                 if job and job.cancel_requested:
@@ -132,16 +191,40 @@ async def _run(job_id: int, urls: list[str]):
                      for j, url in enumerate(batch_urls)]
 
             scraped: list[dict] = []
-            failed_urls: list[tuple[str, str]] = []  # (url, error)
+            # (url, error_message, category) — category in {"skip","retry","fatal"}
+            # used to surface actionable breakdowns on the /imports page.
+            failed_urls: list[tuple[str, str, str]] = []
 
             for coro in asyncio.as_completed(tasks):
                 url, data, err = await coro
                 done += 1
                 if isinstance(data, dict) and data.get("title"):
                     scraped.append(data)
+                    consecutive_retry_errors = 0  # success resets backoff
                 else:
-                    failed_urls.append((url, err or "no title"))
-                    errors.append(f"SKIP: {url} ({err or 'no title'})")
+                    err_msg = err or "no title"
+                    category = _classify_scrape_error(err_msg)
+                    failed_urls.append((url, err_msg, category))
+                    if category == "skip":
+                        errors.append(f"SKIP: {url} ({err_msg})")
+                        consecutive_retry_errors = 0  # 404 isn't rate-limit
+                    elif category == "retry":
+                        errors.append(f"RETRY: {url} ({err_msg})")
+                        consecutive_retry_errors += 1
+                    else:
+                        errors.append(f"FATAL: {url} ({err_msg})")
+
+            # Adaptive backoff — many consecutive timeouts / closed pages
+            # almost always mean we got rate-limited. 30 s pause buys us
+            # time without killing the whole job.
+            if consecutive_retry_errors >= backoff_threshold:
+                wait = min(60, 10 * (consecutive_retry_errors // backoff_threshold))
+                logger.warning(
+                    "Adaptive backoff: %d consecutive retry errors — pausing %ds",
+                    consecutive_retry_errors, wait,
+                )
+                await asyncio.sleep(wait)
+                consecutive_retry_errors = 0  # post-pause reset
 
                 await manager.broadcast(str(job_id), {
                     "job_id": job_id,
@@ -153,25 +236,34 @@ async def _run(job_id: int, urls: list[str]):
                     "eta_seconds": _eta(done, len(urls)),
                 })
 
-            # Persist failed URLs as status="error" so they're skipped on future runs
-            for fail_url, fail_err in failed_urls:
+            # Persist failed URLs. "skip" errors → status="error" so
+            # continuous_import won't retry them. "retry" errors are left
+            # out of the Recipe table — caller can rerun and they'll be
+            # picked up again. "fatal" errors ARE persisted + loudly
+            # logged so the Marmiton markup change is visible on /imports.
+            for fail_url, fail_err, fail_category in failed_urls:
+                if fail_category == "retry":
+                    continue  # leave for next run
                 try:
                     async with AsyncSessionLocal() as db:
                         exists = (await db.execute(
                             select(Recipe).where(Recipe.marmiton_url == fail_url)
                         )).scalar_one_or_none()
                         if not exists:
+                            slug_part = fail_url.rstrip("/").split("/")[-1].replace(".aspx", "")
                             db.add(Recipe(
                                 marmiton_url=fail_url,
-                                title=None,
-                                slug=None,
+                                title=f"[{fail_category.upper()}] {slug_part[:200]}" or "[SKIPPED]",
+                                slug=slug_part[:200] or None,
                                 status="error",
-                                error_message=fail_err[:500],
+                                error_message=f"[{fail_category}] {fail_err[:480]}",
                                 scraped_at=utcnow(),
                             ))
                             await db.commit()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.warning("Could not persist error-row for %s: %s", fail_url, _e)
+                if fail_category == "fatal":
+                    logger.error("FATAL scrape for %s: %s — Marmiton markup changed?", fail_url, fail_err)
 
             if scraped:
                 # Batch standardize ingredient names

@@ -59,34 +59,55 @@ export function clearBatchDraft() {
 }
 
 export function BatchNewPage() {
-  // Hydrate from sessionStorage ONCE on mount. If the user navigated away
-  // (e.g. to a recipe detail) and hit Back, we restore the entire form +
-  // preview exactly where they left off.
-  const stored = typeof window !== "undefined" ? loadDraft() : null;
+  // Default state first so SSR and first client render match. The saved
+  // draft (if any) is applied in a post-mount useEffect to avoid the
+  // hydration mismatch that was firing on /batch when state differed
+  // between server ("empty defaults") and client ("restored from
+  // sessionStorage").
+  const [step, setStep] = useState<Step>("configure");
+  const [mode, setMode] = useState<Mode>("auto");
+  const [preview, setPreview] = useState<BatchPreview | null>(null);
 
-  const [step, setStep] = useState<Step>(stored?.step ?? "configure");
-  const [mode, setMode] = useState<Mode>(stored?.mode ?? "auto");
-  const [preview, setPreview] = useState<BatchPreview | null>(stored?.preview ?? null);
-
-  const [portions, setPortions] = useState(stored?.portions ?? 20);
-  const [numRecipes, setNumRecipes] = useState(stored?.numRecipes ?? 3);
-  const [vegetarian, setVegetarian] = useState(stored?.vegetarian ?? false);
-  const [vegan, setVegan] = useState(stored?.vegan ?? false);
-  const [mealSequence, setMealSequence] = useState<string[]>(
-    stored?.mealSequence ?? ["plat", "plat", "plat"],
-  );
-  const [maxCost, setMaxCost] = useState<string>(stored?.maxCost ?? "");
-  const [maxPrep, setMaxPrep] = useState<string>(stored?.maxPrep ?? "");
-  const [minHealth, setMinHealth] = useState<string>(stored?.minHealth ?? "");
+  const [portions, setPortions] = useState(20);
+  const [numRecipes, setNumRecipes] = useState(3);
+  const [vegetarian, setVegetarian] = useState(false);
+  const [vegan, setVegan] = useState(false);
+  const [mealSequence, setMealSequence] = useState<string[]>(["plat", "plat", "plat"]);
+  const [maxCost, setMaxCost] = useState<string>("");
+  const [maxPrep, setMaxPrep] = useState<string>("");
+  const [minHealth, setMinHealth] = useState<string>("");
 
   const [pickedRecipes, setPickedRecipes] = useState<(RecipeBrief | null)[]>(
-    stored?.pickedRecipes ?? Array(3).fill(null),
+    Array(3).fill(null),
   );
 
-  // Persist the whole draft on any relevant change. Cheap — sessionStorage
-  // writes are synchronous but <1ms for this payload size. Only runs
-  // client-side so SSR isn't affected.
+  const [hydrated, setHydrated] = useState(false);
+
+  // One-shot hydration from sessionStorage after first render
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    const d = loadDraft();
+    if (d) {
+      setStep(d.step);
+      setMode(d.mode);
+      setPreview(d.preview);
+      setPortions(d.portions);
+      setNumRecipes(d.numRecipes);
+      setVegetarian(d.vegetarian);
+      setVegan(d.vegan);
+      setMealSequence(d.mealSequence);
+      setMaxCost(d.maxCost);
+      setMaxPrep(d.maxPrep);
+      setMinHealth(d.minHealth);
+      setPickedRecipes(d.pickedRecipes);
+    }
+    setHydrated(true);
+  }, []);
+
+  // Persist on any change — gated on `hydrated` so the initial defaults
+  // don't clobber a saved draft.
+  useEffect(() => {
+    if (!hydrated) return;
     if (typeof window === "undefined") return;
     const draft: DraftState = {
       step, mode, preview, portions, numRecipes,
@@ -98,7 +119,7 @@ export function BatchNewPage() {
     } catch {
       // Quota exceeded / private browsing — silently ignore
     }
-  }, [step, mode, preview, portions, numRecipes, vegetarian, vegan, mealSequence, maxCost, maxPrep, minHealth, pickedRecipes]);
+  }, [hydrated, step, mode, preview, portions, numRecipes, vegetarian, vegan, mealSequence, maxCost, maxPrep, minHealth, pickedRecipes]);
 
   const previewMut = useMutation({
     mutationFn: () => {

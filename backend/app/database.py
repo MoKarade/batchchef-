@@ -5,8 +5,20 @@ from app.config import settings
 
 engine = create_async_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    connect_args={"check_same_thread": False, "timeout": 30.0},
     echo=False,
+    # Pool tuning for the mixed workload (FastAPI + 3 Celery workers all
+    # talking to the same SQLite file).
+    #   pool_size=10   — 5 workers × 2 avg concurrent queries each.
+    #   max_overflow=5 — room for occasional burst.
+    #   pool_pre_ping  — detects stale connections after long idle (e.g.
+    #                    worker sleeping between imports).
+    #   pool_recycle=1800  — recycle every 30 min so SQLite file handles
+    #                    don't outlive a WAL checkpoint cycle.
+    pool_size=10,
+    max_overflow=5,
+    pool_pre_ping=True,
+    pool_recycle=1800,
 )
 
 
@@ -75,6 +87,15 @@ async def _add_missing_columns(conn):
         # recipe.user_notes + recipe.is_favorite — user annotations.
         ("recipe", "user_notes", "TEXT"),
         ("recipe", "is_favorite", "INTEGER DEFAULT 0 NOT NULL"),
+        # user.maxi_email + maxi_password_encrypted — opt-in store creds
+        # used by the "Remplir mon panier Maxi" feature.
+        ("user", "maxi_email", "VARCHAR"),
+        ("user", "maxi_password_encrypted", "TEXT"),
+        # Google OAuth for the "Exporter vers Google Tasks" feature.
+        ("user", "google_email", "VARCHAR"),
+        ("user", "google_refresh_token_encrypted", "TEXT"),
+        ("user", "google_access_token_encrypted", "TEXT"),
+        ("user", "google_access_token_expires_at", "DATETIME"),
     ]
     for table, col, ddl in migrations:
         existing = await conn.execute(text(f"PRAGMA table_info({table})"))

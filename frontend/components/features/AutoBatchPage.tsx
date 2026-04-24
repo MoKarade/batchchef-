@@ -62,27 +62,55 @@ export function clearAutoBatchDraft() {
 export function AutoBatchPage() {
   const router = useRouter();
 
-  // Hydrate from sessionStorage once on mount
-  const stored = typeof window !== "undefined" ? loadAutoDraft() : null;
+  // Filters — initialized with defaults for SSR parity. The sessionStorage
+  // draft is applied in a post-mount useEffect so server-rendered HTML and
+  // first client render match exactly (fixes Next.js hydration mismatch
+  // that was reported on /batch: "Plats → Peu importe", "Générer pour moi
+  // → Recommencer").
+  const [numRecipes, setNumRecipes] = useState(3);
+  const [portions, setPortions] = useState(16);
+  const [vegetarian, setVegetarian] = useState(false);
+  const [maxCost, setMaxCost] = useState<number | null>(null);
+  const [maxPrep, setMaxPrep] = useState<number | null>(null);
+  const [healthMin, setHealthMin] = useState<number | null>(null);
+  const [preferInventory, setPreferInventory] = useState(true);
+  const [mealType, setMealType] = useState<string>("");
+  const [includedIngs, setIncludedIngs] = useState<IngredientMaster[]>([]);
+  const [excludedIngs, setExcludedIngs] = useState<IngredientMaster[]>([]);
+  const [preview, setPreview] = useState<BatchPreview | null>(null);
+  const [excluded, setExcluded] = useState<number[]>([]);
+  // Recipe IDs the user has pinned — reroll preserves these and only
+  // replaces the others. Cleared on accept or on a full "Recommencer".
+  const [kept, setKept] = useState<Set<number>>(new Set());
+  // Tracks whether we've done the initial hydration — we skip the persist
+  // effect until it's true so the defaults don't clobber a saved draft.
+  const [hydrated, setHydrated] = useState(false);
 
-  // Filters
-  const [numRecipes, setNumRecipes] = useState(stored?.numRecipes ?? 3);
-  const [portions, setPortions] = useState(stored?.portions ?? 16);
-  const [vegetarian, setVegetarian] = useState(stored?.vegetarian ?? false);
-  const [maxCost, setMaxCost] = useState<number | null>(stored?.maxCost ?? null);
-  const [maxPrep, setMaxPrep] = useState<number | null>(stored?.maxPrep ?? null);
-  const [healthMin, setHealthMin] = useState<number | null>(stored?.healthMin ?? null);
-  const [preferInventory, setPreferInventory] = useState(stored?.preferInventory ?? true);
-  const [mealType, setMealType] = useState<string>(stored?.mealType ?? "");
-  const [includedIngs, setIncludedIngs] = useState<IngredientMaster[]>(stored?.includedIngs ?? []);
-  const [excludedIngs, setExcludedIngs] = useState<IngredientMaster[]>(stored?.excludedIngs ?? []);
-
-  // Current preview (what the backend proposes right now)
-  const [preview, setPreview] = useState<BatchPreview | null>(stored?.preview ?? null);
-  const [excluded, setExcluded] = useState<number[]>(stored?.excluded ?? []);
-
-  // Persist every change so a back-navigation restores the exact state
+  // One-shot hydration from sessionStorage after the first client render.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    const d = loadAutoDraft();
+    if (d) {
+      setNumRecipes(d.numRecipes);
+      setPortions(d.portions);
+      setVegetarian(d.vegetarian);
+      setMaxCost(d.maxCost);
+      setMaxPrep(d.maxPrep);
+      setHealthMin(d.healthMin);
+      setPreferInventory(d.preferInventory);
+      setMealType(d.mealType);
+      setIncludedIngs(d.includedIngs);
+      setExcludedIngs(d.excludedIngs);
+      setPreview(d.preview);
+      setExcluded(d.excluded);
+    }
+    setHydrated(true);
+  }, []);
+
+  // Persist every change. Skipped until we've hydrated so we don't
+  // overwrite the stored draft with default values on mount.
+  useEffect(() => {
+    if (!hydrated) return;
     if (typeof window === "undefined") return;
     try {
       sessionStorage.setItem(
@@ -97,12 +125,14 @@ export function AutoBatchPage() {
       // quota / private browsing — silent
     }
   }, [
+    hydrated,
     numRecipes, portions, vegetarian, maxCost, maxPrep, healthMin,
     preferInventory, mealType, includedIngs, excludedIngs, preview, excluded,
   ]);
 
   const generate = useMutation({
     mutationFn: async (): Promise<BatchPreview> => {
+      const keptIds = Array.from(kept);
       const res = await batchesApi.preview({
         target_portions: portions,
         num_recipes: numRecipes,
@@ -111,6 +141,9 @@ export function AutoBatchPage() {
         prep_time_max_min: maxPrep ?? undefined,
         health_score_min: healthMin ?? undefined,
         exclude_recipe_ids: excluded,
+        // Pin the kept recipes so the backend's slot picker preserves them
+        // and only rerolls the empty slots.
+        include_recipe_ids: keptIds.length ? keptIds : undefined,
         prefer_inventory: preferInventory,
         meal_type_sequence: mealType ? new Array(numRecipes).fill(mealType) : undefined,
         include_ingredient_ids: includedIngs.length ? includedIngs.map((i) => i.id) : undefined,
@@ -118,16 +151,50 @@ export function AutoBatchPage() {
       });
       return res.data;
     },
-    onSuccess: (data) => setPreview(data),
+    onSuccess: (data) => {
+      setPreview(data);
+      // Trim ``kept`` to IDs that actually landed in the new preview (in
+      // case the backend dropped one that no longer fits the constraints).
+      setKept((prev) => {
+        const stillThere = new Set(data.recipes.map((r) => r.id));
+        const next = new Set<number>();
+        for (const id of prev) if (stillThere.has(id)) next.add(id);
+        return next;
+      });
+    },
   });
 
   const regen = () => {
-    // On re-roll, push the current recipes into the exclude list
+    // Reroll: push ONLY the non-kept recipes into the exclude list so the
+    // backend doesn't propose them again. Kept ones remain in
+    // include_recipe_ids and get preserved slot-for-slot.
     if (preview) {
-      setExcluded((prev) => [...prev, ...preview.recipes.map((r) => r.id)]);
+      const toExclude = preview.recipes
+        .filter((r) => !kept.has(r.id))
+        .map((r) => r.id);
+      if (toExclude.length) {
+        setExcluded((prev) => [...prev, ...toExclude]);
+      }
     }
     setPreview(null);
-    // Schedule the next generate in the next tick so the exclude-state is live
+    setTimeout(() => generate.mutate(), 0);
+  };
+
+  const toggleKept = (id: number) => {
+    setKept((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const resetAll = () => {
+    // "Recommencer": wipe everything including the kept set and
+    // accumulated exclusions, so the next generation starts fresh.
+    setKept(new Set());
+    setExcluded([]);
+    setPreview(null);
     setTimeout(() => generate.mutate(), 0);
   };
 
@@ -297,8 +364,13 @@ export function AutoBatchPage() {
         <div className="flex items-center gap-2 pt-2 border-t border-border">
           <button
             onClick={() => {
-              setExcluded([]);
-              generate.mutate();
+              // Fresh start: wipe both exclusions AND kept pins so the
+              // next generation is unconstrained.
+              if (preview) resetAll();
+              else {
+                setExcluded([]);
+                generate.mutate();
+              }
             }}
             disabled={generate.isPending}
             className="inline-flex items-center gap-2 rounded-full bg-primary text-primary-foreground px-5 h-10 text-sm font-semibold shadow-sm hover:bg-primary/90 hover:shadow-md disabled:opacity-50 transition-all"
@@ -315,9 +387,16 @@ export function AutoBatchPage() {
               onClick={regen}
               disabled={generate.isPending}
               className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-4 h-10 text-sm font-medium hover:bg-accent/60 disabled:opacity-50"
+              title={
+                kept.size > 0
+                  ? `Reroll des ${preview.recipes.length - kept.size} non épinglées (${kept.size} gardée${kept.size > 1 ? "s" : ""})`
+                  : "Autre suggestion"
+              }
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              Autre suggestion
+              {kept.size > 0
+                ? `Reroll les autres (${preview.recipes.length - kept.size})`
+                : "Autre suggestion"}
             </button>
           )}
         </div>
@@ -378,48 +457,82 @@ export function AutoBatchPage() {
 
           {/* Recipe proposals */}
           <section>
-            <h2 className="title-serif text-xl font-bold mb-3">Recettes proposées</h2>
+            <div className="flex items-end justify-between mb-3">
+              <h2 className="title-serif text-xl font-bold">Recettes proposées</h2>
+              {kept.size > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  📌 {kept.size} épinglée{kept.size > 1 ? "s" : ""} · seront préservées au reroll
+                </p>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {preview.recipes.map((r) => (
-                <Link
-                  key={r.id}
-                  href={`/recipes/${r.id}`}
-                  className="group block rounded-2xl border bg-card overflow-hidden hover:shadow-md transition-all"
-                >
-                  <div className="relative aspect-[16/10] overflow-hidden bg-muted">
-                    {r.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={r.image_url}
-                        alt={r.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-4xl">🍽️</div>
-                    )}
-                    <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/60 to-transparent" />
-                    {r.health_score != null && (
-                      <span className="absolute top-2 right-2 inline-flex items-center gap-0.5 rounded-full bg-background/90 backdrop-blur px-1.5 py-0.5 text-[10px] font-bold shadow">
-                        <Star className={`h-2.5 w-2.5 ${healthColor(r.health_score)}`} />
-                        <span className={healthColor(r.health_score)}>{r.health_score.toFixed(1)}</span>
-                      </span>
-                    )}
-                    <span className="absolute bottom-2 left-2 rounded-full bg-secondary/95 text-secondary-foreground text-[10px] font-bold px-2 py-0.5 shadow">
-                      {r.portions} portions
-                    </span>
+              {preview.recipes.map((r) => {
+                const isKept = kept.has(r.id);
+                return (
+                  <div
+                    key={r.id}
+                    className={`relative rounded-2xl border bg-card overflow-hidden transition-all ${
+                      isKept
+                        ? "border-primary shadow-md ring-2 ring-primary/30"
+                        : "hover:shadow-md"
+                    }`}
+                  >
+                    {/* Pin toggle — stops propagation so it doesn't fire the recipe link */}
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleKept(r.id);
+                      }}
+                      className={`absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold shadow transition-all ${
+                        isKept
+                          ? "bg-primary text-primary-foreground scale-100"
+                          : "bg-background/90 backdrop-blur text-muted-foreground hover:bg-primary hover:text-primary-foreground scale-90 hover:scale-100"
+                      }`}
+                      title={isKept ? "Cliquer pour ne plus garder" : "Garder cette recette au prochain reroll"}
+                    >
+                      {isKept ? "📌 Gardée" : "📌 Garder"}
+                    </button>
+                    <Link
+                      href={`/recipes/${r.id}`}
+                      className="group block"
+                    >
+                      <div className="relative aspect-[16/10] overflow-hidden bg-muted">
+                        {r.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={r.image_url}
+                            alt={r.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-4xl">🍽️</div>
+                        )}
+                        <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/60 to-transparent" />
+                        {r.health_score != null && (
+                          <span className="absolute top-2 right-2 inline-flex items-center gap-0.5 rounded-full bg-background/90 backdrop-blur px-1.5 py-0.5 text-[10px] font-bold shadow">
+                            <Star className={`h-2.5 w-2.5 ${healthColor(r.health_score)}`} />
+                            <span className={healthColor(r.health_score)}>{r.health_score.toFixed(1)}</span>
+                          </span>
+                        )}
+                        <span className="absolute bottom-2 left-2 rounded-full bg-secondary/95 text-secondary-foreground text-[10px] font-bold px-2 py-0.5 shadow">
+                          {r.portions} portions
+                        </span>
+                      </div>
+                      <div className="p-3">
+                        <p className="title-serif font-semibold text-sm line-clamp-2">{r.title}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {r.meal_type ? mealTypeLabel(r.meal_type) : "—"}
+                          {r.estimated_cost_per_portion != null && (
+                            <> · {formatPrice(r.estimated_cost_per_portion)}/portion</>
+                          )}
+                        </p>
+                      </div>
+                    </Link>
                   </div>
-                  <div className="p-3">
-                    <p className="title-serif font-semibold text-sm line-clamp-2">{r.title}</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {r.meal_type ? mealTypeLabel(r.meal_type) : "—"}
-                      {r.estimated_cost_per_portion != null && (
-                        <> · {formatPrice(r.estimated_cost_per_portion)}/portion</>
-                      )}
-                    </p>
-                  </div>
-                </Link>
-              ))}
+                );
+              })}
             </div>
           </section>
 

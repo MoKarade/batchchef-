@@ -66,7 +66,15 @@ _ALIASES_BATCH = 50
 
 @celery_app.task(bind=True, name="prices.map")
 def run_price_mapping(self, job_id: int, store_codes: list[str] | None = None, ingredient_ids: list[int] | None = None):
-    asyncio.run(_run(job_id, store_codes, ingredient_ids))
+    """Same dedup-lock pattern as import_marmiton — one running copy per
+    job_id, even if the broker delivers the task to two workers."""
+    from app.utils.task_lock import redis_lock
+
+    with redis_lock(f"price_mapping:{job_id}", ttl=6 * 3600) as acquired:
+        if not acquired:
+            logger.warning("price_mapping job #%d already running — skipping duplicate", job_id)
+            return
+        asyncio.run(_run(job_id, store_codes, ingredient_ids))
 
 
 async def _generate_aliases(ings) -> None:

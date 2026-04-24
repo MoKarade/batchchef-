@@ -10,9 +10,12 @@ Public surface:
   - persist_batch_from_slots(...)   — create Batch from explicit recipe slots
   - generate_batch(...)             — legacy: select + persist in one shot
 """
+import logging
 import math
 import random
 from sqlalchemy import select, func
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.recipe import Recipe, RecipeIngredient
@@ -169,13 +172,26 @@ async def select_recipes(
 
     forced: list[Recipe] = []
     if include_recipe_ids:
-        forced_q = (
-            select(Recipe)
-            .options(load_opts)
-            .where(Recipe.id.in_(include_recipe_ids))
-        )
-        forced = list((await db.execute(forced_q)).scalars().all())
-        exclude_ids.extend([r.id for r in forced])
+        # Sanity check: the user asked to both INCLUDE and EXCLUDE the
+        # same recipe. That's contradictory — we treat exclude as the
+        # stronger signal (so the user can e.g. AutoBatch's "Garder" a
+        # recipe and also "Reroll" it at the same time safely).
+        conflicting = set(include_recipe_ids) & set(exclude_ids)
+        effective_include = [rid for rid in include_recipe_ids if rid not in conflicting]
+        if conflicting:
+            logger.info(
+                "select_recipes: %d recipe(s) were both in include and exclude — exclude wins",
+                len(conflicting),
+            )
+        if effective_include:
+            forced_q = (
+                select(Recipe)
+                .options(load_opts)
+                .where(Recipe.id.in_(effective_include))
+            )
+            forced = list((await db.execute(forced_q)).scalars().all())
+            # Prevent the random picker below from re-proposing a forced recipe
+            exclude_ids.extend([r.id for r in forced])
 
     q = _apply_filters(
         select(Recipe)
@@ -337,21 +353,25 @@ def _compute_shopping_row(
     effective_qty = qty_to_buy
     effective_unit = unit
 
+    # ── Unit hygiene (applied even without a mapped product) ──────────────
+    # Recipes frequently say "1 pomme de terre charlotte" (unit="unite") but
+    # when the user is buying at Maxi/Costco they think in grams. Convert
+    # count → grams up-front using the per-item weight table so the shopping
+    # list shows "150 g de pomme de terre charlotte" instead of the absurd
+    # "1 pomme de terre charlotte" (user report).
+    # We don't overwrite the unit when the conversion fails (returns None);
+    # the item stays as-is in "unite" so the frontend can still render it.
+    _, need_type = normalize_unit(unit)
+    if need_type == "count" and canonical_name:
+        mass_g = convert_count_to_mass(canonical_name, qty_to_buy)
+        if mass_g is not None and mass_g > 0:
+            effective_qty = round(mass_g, 0)
+            effective_unit = "g"
+            qty_to_buy = mass_g  # feed the product-sizing below with grams
+
     if product and product.price and product.format_qty and qty_to_buy > 0:
-        scale = get_scale_factor(qty_to_buy, unit, product.format_qty, product.format_unit or unit)
-        # Fallback: recipe uses count ("12 abricots") but store sells by mass ("200 g").
-        # Convert count → grams using an average weight table so we don't end up
-        # computing "48 abricots" where the user expected ~200 g of apricots.
-        if scale == 0 and canonical_name:
-            _, need_type = normalize_unit(unit)
-            _, fmt_type = normalize_unit(product.format_unit or "unite")
-            if need_type == "count" and fmt_type == "mass":
-                mass_g = convert_count_to_mass(canonical_name, qty_to_buy)
-                if mass_g is not None:
-                    scale = get_scale_factor(mass_g, "g", product.format_qty, product.format_unit or "g")
-                    if scale > 0:
-                        effective_qty = round(mass_g, 0)
-                        effective_unit = "g"
+        # qty_to_buy is now in ``effective_unit`` (g if we just converted)
+        scale = get_scale_factor(qty_to_buy, effective_unit, product.format_qty, product.format_unit or effective_unit)
         if scale > 0:
             packages = math.ceil(scale)
             estimated_cost = round(product.price * packages, 2)
