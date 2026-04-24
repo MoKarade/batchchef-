@@ -4,6 +4,107 @@ Target audience: another AI (or developer) picking up this repo cold. Read this 
 
 ---
 
+## 0. Latest session — 2026-04-24 (reliability + centralisation)
+
+Follow-up session after the April refonte. Branch `claude/infallible-gould-ad05ec`, merged via PR #3 (https://github.com/MoKarade/batchchef-/pull/3). User email: marc.richard4@gmail.com.
+
+### What got added
+
+- **Centralised launcher** `backend/supervisor.py` — one window spawns api/worker/beat/next with colour-coded prefixes + per-service logs in `backend/logs/`. Replaces the 6-terminal setup. `start.ps1` just sweeps ports 8000/8001/3000 and runs the supervisor.
+- **Reliability stack** under `backend/app/utils/`:
+  - `circuit_breaker.py` — closed/half-open/open states. Applied to Gemini (10 fails / 60s window / 60s cooldown) and Anthropic (8 / 60s / 120s) in `ai/client.py`.
+  - `task_lock.py` — Redis lock with UUID unlock token (Lua script for atomic release). Applied to `import_marmiton.run` and `prices.map` so `task_acks_late` can't double-pick a job.
+  - `shutdown.py` — cooperative SIGTERM/SIGINT flag checked at Marmiton batch boundaries.
+  - `db.py` — `commit_with_retry()` with exp-backoff for SQLite "database is locked".
+  - `error_buffer.py` — in-process `deque(maxlen=200)` exposed at `/api/admin/errors`.
+  - `crypto.py` — Fernet for Maxi credentials (`settings.MAXI_CRED_KEY`, auto-generated). Also `ensure_secret_key()` that generates a strong `SECRET_KEY` on first boot and persists to `.env`.
+  - `ai_budget.py` — Redis-backed response cache (SHA-256 of `(model, system, user, json_mode)`, 30-day TTL) + per-day token counter + `AI_DAILY_BUDGET_USD` cap raising `BudgetExceededError`.
+- **Maxi auto-cart** `backend/app/workers/maxi_cart.py` + `POST /api/batches/{id}/fill-maxi-cart`. Playwright headful, logs in with encrypted creds, adds each shopping item via direct product URL or search fallback (60% similarity threshold).
+- **Google Tasks export** `backend/app/services/google_tasks.py` (OAuth via httpx, no SDK) + `POST /api/batches/{id}/export-to-google-tasks`. OAuth callback at `localhost:8001/api/auth/google/callback`.
+- **Weekly planner** `/planifier` — 7×3 Trello board with @dnd-kit (`frontend/components/features/WeekPlannerPage.tsx`).
+- **Cooking mode** `frontend/components/features/CookingModePage.tsx` — fullscreen, keyboard nav, per-step timer with regex-parsed minutes + Web Audio beep.
+- **Draft persistence** — `AutoBatchPage` and `BatchNewPage` persist form state to `sessionStorage`. Hydration gated by a `hydrated` flag in `useEffect` (not render) to avoid Next.js 16 SSR/client mismatch.
+- **Inline pin/keep** — `AutoBatchPage` keeps a `Set<number>` of pinned recipes across rerolls.
+
+### Data quality fixes
+
+- **Canonical name cleaner** in `app/routers/ingredients.py` (`/repair-prefixes` endpoint). Kills Gemini parse artefacts like `a_soupe_de_persil`, `s_beurre`, `cuilleres_a_cafe_sel`. Ran on live DB: **3692 rows scanned → 1411 renamed + 2281 merged**. Ingredient table shrank **20945 → 18595**. 21/21 unit tests pass.
+- **`marmiton.py` parser** — normalises French measurement variants BEFORE the capture regex. "2 cuillères à soupe de farine" → `cuill_soupe` (previously emitted bare `cuill` → treated as count → $0 priced).
+- **`unit_converter.py`** — bare `cuill`/`cuillere`/`cs`/`cc`/`tbsp`/`tsp`/`pincee` now have volume aliases. `WEIGHT_PER_UNIT_G` gained `sel: 2`, `poivre: 1`, `sucre: 5`, `farine: 10` as fallbacks for "5 unités de sel" nonsense.
+- **`recipe_costs.py`** — `_price_map` now returns `(price, base_unit)` tuples; recipe qty normalised via `to_base()` before multiplying. Fixes 1000× cost errors on kg recipes.
+- **`import_marmiton.py`** — failed URLs now persist with `[SKIP] <slug>` title (fixes NOT-NULL violation → infinite retry loop). `_classify_scrape_error()` returns skip/retry/fatal. Adaptive backoff: 5+ consecutive retries → 10-60s pause.
+- **`batch_generator.py`** — `_compute_shopping_row` converts count→mass up-front even when no store product is mapped, so `pomme_de_terre_charlotte` shows "150 g × N" not "1 unité".
+
+### Ports / environment
+
+- **API moved to 8001** (port 8000 had a persistent Windows zombie socket — PID 6656, survives restart, still there at session end). Frontend `.env.local` points at `http://127.0.0.1:8001`.
+- Google OAuth redirect URI: `http://localhost:8001/api/auth/google/callback`.
+- New config keys in `backend/.env`: `MAXI_CRED_KEY`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, `AI_DAILY_BUDGET_USD`, `GEMINI_MIN_INTERVAL_S` (default 6.0 for free-tier ~10 RPM).
+
+### Final state before handoff
+
+- All processes stopped (`maintenant arrete tout`). 7 processes killed: 2× uvicorn, 4× celery, 1× next. Redis service left running.
+- PR #3 merged to `main` at 2026-04-24T20:36:21Z.
+- This worktree branch `claude/infallible-gould-ad05ec` is still checked out at `C:\Users\dessin14\CascadeProjects\batch-cooking\.claude\worktrees\infallible-gould-ad05ec\`.
+- Raw session transcript committed at `docs/sessions/2026-04-24-reliability-overhaul.jsonl` (~8.4 MB, full Claude Code JSONL tool-call trace). **API keys scrubbed** before commit — `AIzaSy…`, `sk-ant-api03-…`, `GOCSPX-…`, `gho_…`, OAuth access/refresh tokens, and env-var-style secret references all replaced with `REDACTED` placeholders (64 hits across 11 patterns). If you paste this file through another AI, double-check first; the scrubbing is regex-based and may have missed something exotic.
+
+---
+
+## 0b. Reprendre cette session sur un autre PC
+
+Two options, pick depending on what "reprendre" means to you.
+
+### Option 1 — Fresh Claude Code session, same codebase (recommended)
+
+A new Claude on another PC doesn't need the transcript: `CLAUDE.md` + this `HANDOFF.md` are enough context for it to keep working.
+
+```powershell
+# On the other PC (Windows)
+git clone https://github.com/MoKarade/batchchef-.git batch-cooking
+cd batch-cooking
+
+# Copy the two secrets files from this PC (they're .gitignored):
+#   backend/.env       (GEMINI_API_KEY, ANTHROPIC_API_KEY, MAXI_CRED_KEY, GOOGLE_OAUTH_*, SECRET_KEY)
+#   frontend/.env.local  (NEXT_PUBLIC_API_URL, NEXT_PUBLIC_WS_URL)
+# USB / encrypted cloud / 1Password. Not through email/Slack.
+
+# Install deps
+cd backend; uv sync; uv run playwright install chromium
+cd ../frontend; npm install
+
+# Start everything (one window)
+cd ..; ./start.ps1
+
+# Then in a new folder:
+claude
+```
+
+The first thing Claude Code does on `claude` is read `CLAUDE.md` (which points at this `HANDOFF.md`). It will pick up where this session left off with no memory of the exact wording, but with full knowledge of what the codebase looks like and what was done.
+
+### Option 2 — Exact transcript replay
+
+Only needed if you want `claude --resume` to show this exact conversation with every turn.
+
+The scrubbed transcript is committed at `docs/sessions/2026-04-24-reliability-overhaul.jsonl`, so `git pull` on the other PC gets it automatically. To make `claude --resume` pick it up:
+
+1. Run `claude` once in the target project folder so Claude Code creates its per-project directory under `%USERPROFILE%\.claude\projects\`.
+2. Copy the jsonl into that directory:
+   ```
+   %USERPROFILE%\.claude\projects\<encoded-cwd-path>\<new-uuid>.jsonl
+   ```
+   where `<encoded-cwd-path>` is the absolute path of the repo folder with `\` and `:` replaced by `-` (e.g. `C--Users-alice-code-batch-cooking`). Keep the original filename or rename with a fresh UUID — Claude Code lists every `.jsonl` it finds there.
+3. Run `claude --resume` — the session appears in the picker with its first-message preview.
+
+Caveats:
+- The jsonl references local Windows paths (`C:\Users\dessin14\...`). On another PC with a different username, tool-call logs show those paths as history — nothing breaks, Claude just reads them as reference.
+- Placeholders like `AIzaSy-REDACTED`, `sk-ant-api03-REDACTED`, `GOCSPX-REDACTED` replace the real secrets. Anything that tries to *call* those redacted values would 401 — but the transcript is for reading, not replaying API calls.
+
+### Option 3 — Share the work summary, not the session
+
+If the "other PC" is someone else's Claude (e.g. handing to a teammate), point them at HANDOFF.md section 0 and `docs/sessions/2026-04-24-reliability-overhaul.jsonl`. No need to replay the exact conversation; the handoff doc captures the relevant decisions.
+
+---
+
 ## 1. What the last session changed
 
 The user ([marc.richard4@gmail.com](mailto:marc.richard4@gmail.com)) asked for a full refonte of the batch creation flow + end-to-end pipeline automation. The plan is archived at `C:\Users\marcr\.claude\plans\je-veux-maintenant-que-noble-coral.md`.
