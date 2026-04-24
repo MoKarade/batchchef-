@@ -6,6 +6,7 @@ from app.models.batch import Batch, BatchRecipe, ShoppingListItem
 from app.models.inventory import InventoryItem, InventoryMovement
 from app.models.receipt import ReceiptScan, ReceiptItem
 from app.models.job import ImportJob
+from app.models.meal_plan import MealPlan, PlannedMeal
 
 __all_models__ = [
     User,
@@ -23,4 +24,6 @@ __all_models__ = [
     ReceiptScan,
     ReceiptItem,
     ImportJob,
+    MealPlan,
+    PlannedMeal,
 ]

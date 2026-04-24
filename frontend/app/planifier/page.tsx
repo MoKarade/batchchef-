@@ -1,10 +1,12 @@
-import { Dashboard } from "@/components/features/Dashboard";
+import { WeekPlannerPage } from "@/components/features/WeekPlannerPage";
 
 /**
- * Phase 1 placeholder — shows the existing Dashboard.
- * Phase 2 will replace this with a weekly calendar view + Kanban toggle
- * as the primary batch-planning surface.
+ * /planifier — Trello-style weekly meal board.
+ *
+ * 7 day-columns × 3 meal-slots (midi / soir / snack). Each card is a
+ * `PlannedMeal` entry (backed by /api/meal-plans) that can be dragged
+ * between cells.
  */
 export default function Page() {
-  return <Dashboard />;
+  return <WeekPlannerPage />;
 }

@@ -308,6 +308,114 @@ export function RecipeDetailPage({ recipeId }: { recipeId: number }) {
           )}
         </div>
       </div>
+
+      {/* ── User notes + "used in batches" ──────────────────────────── */}
+      <RecipeMetaSection recipeId={recipeId} recipe={recipe} />
+    </div>
+  );
+}
+
+/**
+ * Notes libres + liste des batches utilisant cette recette.
+ * Auto-save on blur for the notes; favorite toggle is instant.
+ */
+function RecipeMetaSection({
+  recipeId,
+  recipe,
+}: {
+  recipeId: number;
+  recipe: import("@/lib/api").RecipeDetail;
+}) {
+  const qc = useQueryClient();
+  const [notesDraft, setNotesDraft] = useState(recipe.user_notes ?? "");
+
+  const { data: batchRefs } = useQuery({
+    queryKey: ["recipe-batches", recipeId],
+    queryFn: () => recipesApi.getBatches(recipeId).then((r) => r.data),
+    staleTime: 30_000,
+  });
+
+  const patchMut = useMutation({
+    mutationFn: (data: Parameters<typeof recipesApi.patch>[1]) =>
+      recipesApi.patch(recipeId, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["recipe", recipeId] }),
+  });
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2 mt-5">
+      {/* Notes */}
+      <div className="rounded-2xl border bg-card p-4 sm:p-5">
+        <header className="flex items-center justify-between mb-2">
+          <h3 className="title-serif font-bold">Mes notes</h3>
+          <button
+            onClick={() => patchMut.mutate({ is_favorite: !recipe.is_favorite })}
+            className={`inline-flex items-center gap-1 rounded-full h-8 px-3 text-xs font-semibold transition ${
+              recipe.is_favorite
+                ? "bg-amber-100 text-amber-800 border border-amber-200"
+                : "bg-muted border hover:bg-accent"
+            }`}
+          >
+            <Star
+              className={`h-3.5 w-3.5 ${
+                recipe.is_favorite ? "fill-amber-500 text-amber-500" : ""
+              }`}
+            />
+            {recipe.is_favorite ? "Favori" : "Ajouter aux favoris"}
+          </button>
+        </header>
+        <textarea
+          value={notesDraft}
+          onChange={(e) => setNotesDraft(e.target.value)}
+          onBlur={() => {
+            if (notesDraft !== (recipe.user_notes ?? "")) {
+              patchMut.mutate({ user_notes: notesDraft || null });
+            }
+          }}
+          placeholder="Ajuster la prochaine fois : +10% de crème, moins de sel, utiliser beurre demi-sel..."
+          rows={5}
+          className="w-full rounded-xl border bg-background p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+        <p className="text-[10px] text-muted-foreground mt-1">
+          Auto-sauvegardé à la sortie du champ
+        </p>
+      </div>
+
+      {/* Batches using this recipe */}
+      <div className="rounded-2xl border bg-card p-4 sm:p-5">
+        <h3 className="title-serif font-bold mb-3">Utilisée dans ces batches</h3>
+        {batchRefs == null ? (
+          <div className="space-y-2">
+            <div className="h-10 rounded-lg bg-muted animate-pulse" />
+            <div className="h-10 rounded-lg bg-muted animate-pulse" />
+          </div>
+        ) : batchRefs.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Jamais mise dans un batch pour l&apos;instant.
+          </p>
+        ) : (
+          <ul className="space-y-1.5 max-h-64 overflow-y-auto">
+            {batchRefs.map((b) => (
+              <li key={b.batch_id}>
+                <Link
+                  href={`/batches/${b.batch_id}`}
+                  className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 bg-muted/40 hover:bg-accent transition"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {b.batch_name ?? `Batch #${b.batch_id}`}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {new Date(b.generated_at).toLocaleDateString("fr-CA")} ·{" "}
+                      {b.portions} portions · {b.status}
+                    </p>
+                  </div>
+                  <ArrowLeft className="h-3 w-3 rotate-180 text-muted-foreground shrink-0" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

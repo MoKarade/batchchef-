@@ -44,6 +44,16 @@ class Recipe(Base):
     pricing_status: Mapped[str] = mapped_column(String, default="pending")  # pending|complete|incomplete
     missing_price_ingredients: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text)
+
+    # User annotations — free-form notes shown on the recipe detail page
+    # ("ajouter 10% plus de crème", "trop épicé pour les kids"). Distinct
+    # from ``instructions`` (scraped from Marmiton) and ``error_message``
+    # (import pipeline).
+    user_notes: Mapped[str | None] = mapped_column(Text)
+    # Simple star/favorite flag. An actual multi-user rating system is
+    # overkill for now — one bit per user gets 95% of the value.
+    is_favorite: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     ingredients: Mapped[list["RecipeIngredient"]] = relationship(  # noqa

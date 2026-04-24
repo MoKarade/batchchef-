@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
@@ -24,24 +24,82 @@ import { AllergyFilter } from "@/components/shared/AllergyFilter";
  *   - Portions + num_recipes sliders
  *   - Each regen excludes the current recipes so you actually see variety
  */
+// sessionStorage key for the in-flight Auto batch preview. The user reported
+// that navigating to a recipe detail and hitting Back wiped their preview —
+// React unmounts this page on navigation so useState is lost. We persist
+// the whole shape (filters + current preview) so Back restores everything.
+// The draft is cleared on accept (see `accept.onSuccess`).
+const AUTO_SS_KEY = "batchchef:auto-draft-v1";
+
+interface AutoDraft {
+  numRecipes: number;
+  portions: number;
+  vegetarian: boolean;
+  maxCost: number | null;
+  maxPrep: number | null;
+  healthMin: number | null;
+  preferInventory: boolean;
+  mealType: string;
+  includedIngs: IngredientMaster[];
+  excludedIngs: IngredientMaster[];
+  preview: BatchPreview | null;
+  excluded: number[];
+}
+
+function loadAutoDraft(): AutoDraft | null {
+  try {
+    const raw = sessionStorage.getItem(AUTO_SS_KEY);
+    return raw ? (JSON.parse(raw) as AutoDraft) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearAutoBatchDraft() {
+  try { sessionStorage.removeItem(AUTO_SS_KEY); } catch {}
+}
+
 export function AutoBatchPage() {
   const router = useRouter();
 
+  // Hydrate from sessionStorage once on mount
+  const stored = typeof window !== "undefined" ? loadAutoDraft() : null;
+
   // Filters
-  const [numRecipes, setNumRecipes] = useState(3);
-  const [portions, setPortions] = useState(16);
-  const [vegetarian, setVegetarian] = useState(false);
-  const [maxCost, setMaxCost] = useState<number | null>(null);
-  const [maxPrep, setMaxPrep] = useState<number | null>(null);
-  const [healthMin, setHealthMin] = useState<number | null>(null);
-  const [preferInventory, setPreferInventory] = useState(true);
-  const [mealType, setMealType] = useState<string>(""); // "" | "entree" | "plat" | "dessert" | "snack"
-  const [includedIngs, setIncludedIngs] = useState<IngredientMaster[]>([]);
-  const [excludedIngs, setExcludedIngs] = useState<IngredientMaster[]>([]);
+  const [numRecipes, setNumRecipes] = useState(stored?.numRecipes ?? 3);
+  const [portions, setPortions] = useState(stored?.portions ?? 16);
+  const [vegetarian, setVegetarian] = useState(stored?.vegetarian ?? false);
+  const [maxCost, setMaxCost] = useState<number | null>(stored?.maxCost ?? null);
+  const [maxPrep, setMaxPrep] = useState<number | null>(stored?.maxPrep ?? null);
+  const [healthMin, setHealthMin] = useState<number | null>(stored?.healthMin ?? null);
+  const [preferInventory, setPreferInventory] = useState(stored?.preferInventory ?? true);
+  const [mealType, setMealType] = useState<string>(stored?.mealType ?? "");
+  const [includedIngs, setIncludedIngs] = useState<IngredientMaster[]>(stored?.includedIngs ?? []);
+  const [excludedIngs, setExcludedIngs] = useState<IngredientMaster[]>(stored?.excludedIngs ?? []);
 
   // Current preview (what the backend proposes right now)
-  const [preview, setPreview] = useState<BatchPreview | null>(null);
-  const [excluded, setExcluded] = useState<number[]>([]);
+  const [preview, setPreview] = useState<BatchPreview | null>(stored?.preview ?? null);
+  const [excluded, setExcluded] = useState<number[]>(stored?.excluded ?? []);
+
+  // Persist every change so a back-navigation restores the exact state
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      sessionStorage.setItem(
+        AUTO_SS_KEY,
+        JSON.stringify({
+          numRecipes, portions, vegetarian, maxCost, maxPrep, healthMin,
+          preferInventory, mealType, includedIngs, excludedIngs,
+          preview, excluded,
+        } satisfies AutoDraft),
+      );
+    } catch {
+      // quota / private browsing — silent
+    }
+  }, [
+    numRecipes, portions, vegetarian, maxCost, maxPrep, healthMin,
+    preferInventory, mealType, includedIngs, excludedIngs, preview, excluded,
+  ]);
 
   const generate = useMutation({
     mutationFn: async (): Promise<BatchPreview> => {
@@ -85,6 +143,10 @@ export function AutoBatchPage() {
       return res.data;
     },
     onSuccess: (batch) => {
+      // Batch is persisted — wipe the draft so a fresh /batch visit starts
+      // clean (otherwise we'd restore a preview on top of an already-saved
+      // batch, confusing the user).
+      clearAutoBatchDraft();
       router.push(`/batches/${batch.id}`);
     },
   });

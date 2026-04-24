@@ -35,6 +35,14 @@ class IngredientMaster(Base):
     last_price_mapping_at: Mapped[datetime | None] = mapped_column(DateTime)
     search_aliases: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     price_map_attempts: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Pre-computed usage count (self + all variants). Eliminates the
+    # expensive self-join that was making price_mapping init take >10 min.
+    # Maintained by ``refresh_usage_counts()`` (call it after any bulk import
+    # or RecipeIngredient mutation); for per-row accuracy we could add a
+    # SQLAlchemy event listener later.
+    usage_count: Mapped[int] = mapped_column(Integer, default=0, index=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     parent: Mapped["IngredientMaster | None"] = relationship(

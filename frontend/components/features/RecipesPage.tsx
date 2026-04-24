@@ -67,6 +67,15 @@ function RecipeCard({ recipe }: { recipe: RecipeBrief }) {
           )}
           <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
 
+          {/* "In cart" ribbon — visible on any recipe already added, so the
+              user sees at a glance which ones are queued for the next batch */}
+          {inCart && (
+            <div className="absolute top-0 left-0 inline-flex items-center gap-1 rounded-br-lg bg-primary text-primary-foreground px-2 py-0.5 text-[10px] font-bold shadow-lg">
+              <Check className="h-3 w-3" />
+              Dans le panier
+            </div>
+          )}
+
           {/* Health score top-right badge (if present) */}
           {recipe.health_score != null && (
             <div className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-background/90 backdrop-blur px-2 py-0.5 text-[11px] font-semibold shadow">

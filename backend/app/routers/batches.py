@@ -1,5 +1,6 @@
 from app.utils.time import utcnow
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -147,6 +148,82 @@ async def delete_batch(batch_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Batch not found")
     await db.delete(batch)
     await db.commit()
+
+
+class BatchMetadataPatch(BaseModel):
+    """Partial update for Batch metadata. All fields optional — only those
+    explicitly set via ``model_dump(exclude_unset=True)`` get written."""
+    name: str | None = None
+    notes: str | None = None
+    status: str | None = None
+
+
+@router.patch("/{batch_id}", response_model=BatchOut)
+async def update_batch_metadata(
+    batch_id: int,
+    body: BatchMetadataPatch,
+    db: AsyncSession = Depends(get_db),
+):
+    """Rename/relabel a batch, update notes, or force a status transition.
+
+    ``notes`` = free-form multiline text shown in the detail page, used for
+    "ajouter 10% plus de crème" / "trop épicé pour les kids" kind of
+    per-batch annotations.
+    """
+    batch = await db.get(Batch, batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+
+    patch = body.model_dump(exclude_unset=True)
+    VALID_STATUSES = {"draft", "shopping", "cooking", "done"}
+    if "status" in patch and patch["status"] not in VALID_STATUSES:
+        raise HTTPException(400, f"status must be one of {sorted(VALID_STATUSES)}")
+
+    for key, value in patch.items():
+        setattr(batch, key, value)
+    await db.commit()
+
+    # Reload with relations for the response
+    q = (
+        select(Batch)
+        .where(Batch.id == batch_id)
+        .options(
+            selectinload(Batch.batch_recipes),
+            selectinload(Batch.shopping_items),
+        )
+    )
+    return (await db.execute(q)).scalar_one()
+
+
+@router.post("/{batch_id}/duplicate", response_model=BatchOut, status_code=201)
+async def duplicate_batch(batch_id: int, db: AsyncSession = Depends(get_db)):
+    """Clone a batch — same recipes, same portions, fresh shopping list.
+
+    This lets the user "re-do last week's menu" in one click. The new batch
+    starts in ``draft`` status with ``(copie)`` appended to its name.
+    """
+    from app.services.batch_generator import persist_batch_from_slots
+
+    original = await db.get(Batch, batch_id)
+    if not original:
+        raise HTTPException(404, "Batch not found")
+
+    # Gather (recipe_id, portions) from original via its BatchRecipe rows
+    q = select(BatchRecipe).where(BatchRecipe.batch_id == batch_id)
+    brs = list((await db.execute(q)).scalars().all())
+    if not brs:
+        raise HTTPException(400, "Batch has no recipes to duplicate.")
+
+    slots = [(br.recipe_id, br.portions) for br in brs if br.is_active]
+    target_portions = sum(p for _, p in slots)
+    new_name = f"{original.name or f'Batch #{original.id}'} (copie)"
+
+    return await persist_batch_from_slots(
+        db,
+        target_portions=target_portions,
+        slots=slots,
+        name=new_name,
+    )
 
 
 @router.patch("/{batch_id}/status")

@@ -35,7 +35,7 @@ async def start_marmiton_import(
         metadata_json=json.dumps({"urls_count": len(all_urls)}),
     )
     db.add(job)
-    await db.flush()
+    await db.commit()
     await db.refresh(job)
 
     # Fire Celery task
@@ -68,7 +68,7 @@ async def start_continuous_marmiton(db: AsyncSession = Depends(get_db)):
 
     job = ImportJob(job_type="marmiton_continuous", status="queued", progress_total=0)
     db.add(job)
-    await db.flush()
+    await db.commit()
     await db.refresh(job)
     try:
         from app.workers.continuous_import import run_continuous_import
@@ -82,6 +82,24 @@ async def start_continuous_marmiton(db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(job)
     return job
+
+
+@router.post("/cleanup-zombies", status_code=200)
+async def cleanup_zombie_jobs(db: AsyncSession = Depends(get_db)):
+    """Mark running/queued jobs older than 5 minutes as failed.
+    Call this after a Celery worker crash to unblock the UI without restarting the server.
+    """
+    from datetime import timedelta
+    from sqlalchemy import update as _upd
+
+    cutoff = utcnow() - timedelta(minutes=5)
+    result = await db.execute(
+        _upd(ImportJob)
+        .where(ImportJob.status.in_(["running", "queued"]), ImportJob.created_at < cutoff)
+        .values(status="failed", finished_at=utcnow(), error_log=json.dumps(["Zombie cleanup: manually triggered"]))
+    )
+    await db.commit()
+    return {"cleaned": result.rowcount}
 
 
 @router.get("/{job_id}", response_model=JobOut)

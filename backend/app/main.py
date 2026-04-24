@@ -8,7 +8,8 @@ from pathlib import Path
 
 from app.config import settings
 from app.database import init_db
-from app.routers import recipes, imports, batches, inventory, receipts, stores, ws, ingredients, auth, chef
+from app.routers import recipes, imports, batches, inventory, receipts, stores, ws, ingredients, auth, chef, meal_plans, stats_personal
+from app.utils.time import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +30,34 @@ def _bootstrap_db_from_seed():
         )
 
 
+async def _cleanup_zombie_jobs() -> None:
+    """Mark jobs stuck in running/queued as failed on startup (Celery may have died mid-task)."""
+    from datetime import timedelta
+    from sqlalchemy import update
+    from app.database import AsyncSessionLocal
+    from app.models.job import ImportJob
+
+    cutoff = utcnow() - timedelta(minutes=5)
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            update(ImportJob)
+            .where(ImportJob.status.in_(["running", "queued"]), ImportJob.created_at < cutoff)
+            .values(
+                status="failed",
+                finished_at=utcnow(),
+                error_log='["Zombie cleanup: server restarted while job was running"]',
+            )
+        )
+        await db.commit()
+        if result.rowcount:
+            logger.warning("Startup zombie cleanup: marked %d stuck jobs as failed", result.rowcount)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _bootstrap_db_from_seed()
     await init_db()
+    await _cleanup_zombie_jobs()
     await _seed_stores()
     await _seed_admin_user()
     yield
@@ -53,6 +78,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# Global error handler — item #18. Before this, bare ``except Exception``
+# in routers like receipts.py and chef.py would swallow errors silently.
+# Now every unhandled exception is logged with stack + request path, and
+# the client gets a stable ``{error, code, request_id}`` shape.
+import uuid
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    request_id = str(uuid.uuid4())[:8]
+    logger.exception(
+        "Unhandled exception [%s] %s %s",
+        request_id, request.method, request.url.path,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "internal_server_error",
+            "message": "Une erreur inattendue est survenue. Le problème a été loggé.",
+            "request_id": request_id,
+        },
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error_handler(request: Request, exc: RequestValidationError):
+    # Keep FastAPI's default 422 body but wrap it in our stable shape
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": "validation_error",
+            "message": "Paramètres de requête invalides.",
+            "details": exc.errors(),
+        },
+    )
+
 # API routes
 app.include_router(recipes.router)
 app.include_router(imports.router)
@@ -63,6 +128,8 @@ app.include_router(stores.router)
 app.include_router(ingredients.router)
 app.include_router(auth.router)
 app.include_router(chef.router)
+app.include_router(meal_plans.router)
+app.include_router(stats_personal.router)
 app.include_router(ws.router)
 
 # Serve uploaded files
@@ -73,33 +140,107 @@ app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
 @app.get("/api/health")
 async def health():
-    return {"status": "healthy", "version": "2.0.0"}
+    """Enriched health check — used by monitoring dashboards and the
+    settings page. Surfaces Redis availability, Celery worker count, DB
+    size, and the last successful import."""
+    import os
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import select, func
+    from app.database import AsyncSessionLocal
+    from app.models.job import ImportJob
+
+    status_out: dict = {"status": "healthy", "version": "2.0.0"}
+
+    # Redis — we swallow exceptions so the health endpoint itself never 500s
+    try:
+        import redis
+        r = redis.Redis.from_url(settings.REDIS_URL, socket_connect_timeout=1)
+        r.ping()
+        status_out["redis"] = {"up": True, "queue_depth": r.llen("celery")}
+    except Exception as e:
+        status_out["redis"] = {"up": False, "error": str(e)[:80]}
+
+    # Celery workers — inspect the broker for registered hostnames
+    try:
+        from app.workers.celery_app import celery_app
+        insp = celery_app.control.inspect(timeout=1.0)
+        active = insp.active() or {}
+        status_out["celery"] = {
+            "workers": list(active.keys()),
+            "worker_count": len(active),
+        }
+    except Exception as e:
+        status_out["celery"] = {"worker_count": 0, "error": str(e)[:80]}
+
+    # DB size + last import
+    try:
+        db_path = settings.DATABASE_URL.split("///")[-1]
+        if os.path.exists(db_path):
+            status_out["db"] = {
+                "size_mb": round(os.path.getsize(db_path) / 1_048_576, 1),
+                "path": db_path,
+            }
+        async with AsyncSessionLocal() as db:
+            last = (
+                await db.execute(
+                    select(ImportJob)
+                    .where(ImportJob.status == "completed")
+                    .order_by(ImportJob.finished_at.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if last:
+                status_out["last_successful_import"] = {
+                    "id": last.id,
+                    "type": last.job_type,
+                    "finished_at": last.finished_at.isoformat() if last.finished_at else None,
+                }
+            # Active jobs counter
+            count_active = await db.execute(
+                select(func.count(ImportJob.id)).where(
+                    ImportJob.status.in_(["running", "queued"])
+                )
+            )
+            status_out["active_jobs"] = count_active.scalar_one()
+    except Exception as e:
+        status_out["db_error"] = str(e)[:80]
+
+    return status_out
 
 
 @app.get("/api/stats")
 async def stats():
-    from sqlalchemy import select, func
-    from app.database import AsyncSessionLocal
-    from app.models.recipe import Recipe
-    from app.models.ingredient import IngredientMaster
-    from app.models.store import StoreProduct
+    """Top-level dashboard stats. Cached 60s in Redis — this is hit on every
+    Dashboard mount and any refresh interval cascades, so caching saves
+    ~4 COUNT queries per request (item #40)."""
+    from app.utils.cache import cached
 
-    async with AsyncSessionLocal() as db:
-        total_recipes = (await db.execute(select(func.count(Recipe.id)))).scalar_one()
-        ai_done = (await db.execute(
-            select(func.count(Recipe.id)).where(Recipe.status == "ai_done")
-        )).scalar_one()
-        total_ingredients = (await db.execute(select(func.count(IngredientMaster.id)))).scalar_one()
-        priced = (await db.execute(
-            select(func.count(StoreProduct.id)).where(StoreProduct.is_validated == True)  # noqa: E712
-        )).scalar_one()
+    @cached("stats", ttl=60)
+    async def _compute():
+        from sqlalchemy import select, func
+        from app.database import AsyncSessionLocal
+        from app.models.recipe import Recipe
+        from app.models.ingredient import IngredientMaster
+        from app.models.store import StoreProduct
 
-    return {
-        "total_recipes": total_recipes,
-        "ai_done_recipes": ai_done,
-        "total_ingredients": total_ingredients,
-        "priced_ingredients": priced,
-    }
+        async with AsyncSessionLocal() as db:
+            total_recipes = (await db.execute(select(func.count(Recipe.id)))).scalar_one()
+            ai_done = (await db.execute(
+                select(func.count(Recipe.id)).where(Recipe.status == "ai_done")
+            )).scalar_one()
+            total_ingredients = (await db.execute(select(func.count(IngredientMaster.id)))).scalar_one()
+            priced = (await db.execute(
+                select(func.count(StoreProduct.id)).where(StoreProduct.is_validated == True)  # noqa: E712
+            )).scalar_one()
+
+        return {
+            "total_recipes": total_recipes,
+            "ai_done_recipes": ai_done,
+            "total_ingredients": total_ingredients,
+            "priced_ingredients": priced,
+        }
+
+    return await _compute()
 
 
 async def _seed_stores():

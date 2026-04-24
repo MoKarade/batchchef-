@@ -1,11 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { batchesApi, type BatchPreview, type RecipeBrief } from "@/lib/api";
 import { ChefHat, Loader2, Sparkles, Hand } from "lucide-react";
 import { RecipeSlotPicker } from "./RecipeSlotPicker";
 import { BatchPreviewStep } from "./BatchPreviewStep";
+
+// sessionStorage key for batch-preview state — so the preview survives a
+// navigation to /recipes/{id} + browser back (user bug report: "je regarde
+// la recette du batch et je fais back, ça enlève le batch"). The state is
+// only meaningful until the user accepts the batch; once on /batches/{id}
+// we clear it so a fresh /batches/new starts clean.
+const SS_KEY = "batchchef:draft-preview-v1";
+
+interface DraftState {
+  step: Step;
+  mode: Mode;
+  preview: BatchPreview | null;
+  portions: number;
+  numRecipes: number;
+  vegetarian: boolean;
+  vegan: boolean;
+  mealSequence: string[];
+  maxCost: string;
+  maxPrep: string;
+  minHealth: string;
+  pickedRecipes: (RecipeBrief | null)[];
+}
 
 const MEAL_TYPES = [
   { value: "", label: "—" },
@@ -18,23 +40,65 @@ const MEAL_TYPES = [
 type Step = "configure" | "preview";
 type Mode = "auto" | "manual";
 
-export function BatchNewPage() {
-  const [step, setStep] = useState<Step>("configure");
-  const [mode, setMode] = useState<Mode>("auto");
-  const [preview, setPreview] = useState<BatchPreview | null>(null);
+function loadDraft(): DraftState | null {
+  try {
+    const raw = sessionStorage.getItem(SS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as DraftState;
+  } catch {
+    return null;
+  }
+}
 
-  const [portions, setPortions] = useState(20);
-  const [numRecipes, setNumRecipes] = useState(3);
-  const [vegetarian, setVegetarian] = useState(false);
-  const [vegan, setVegan] = useState(false);
-  const [mealSequence, setMealSequence] = useState<string[]>(["plat", "plat", "plat"]);
-  const [maxCost, setMaxCost] = useState<string>("");
-  const [maxPrep, setMaxPrep] = useState<string>("");
-  const [minHealth, setMinHealth] = useState<string>("");
+/**
+ * Exported so the accept flow can clear the draft once the batch is
+ * persisted (BatchPreviewStep calls this in its onSuccess).
+ */
+export function clearBatchDraft() {
+  try { sessionStorage.removeItem(SS_KEY); } catch {}
+}
+
+export function BatchNewPage() {
+  // Hydrate from sessionStorage ONCE on mount. If the user navigated away
+  // (e.g. to a recipe detail) and hit Back, we restore the entire form +
+  // preview exactly where they left off.
+  const stored = typeof window !== "undefined" ? loadDraft() : null;
+
+  const [step, setStep] = useState<Step>(stored?.step ?? "configure");
+  const [mode, setMode] = useState<Mode>(stored?.mode ?? "auto");
+  const [preview, setPreview] = useState<BatchPreview | null>(stored?.preview ?? null);
+
+  const [portions, setPortions] = useState(stored?.portions ?? 20);
+  const [numRecipes, setNumRecipes] = useState(stored?.numRecipes ?? 3);
+  const [vegetarian, setVegetarian] = useState(stored?.vegetarian ?? false);
+  const [vegan, setVegan] = useState(stored?.vegan ?? false);
+  const [mealSequence, setMealSequence] = useState<string[]>(
+    stored?.mealSequence ?? ["plat", "plat", "plat"],
+  );
+  const [maxCost, setMaxCost] = useState<string>(stored?.maxCost ?? "");
+  const [maxPrep, setMaxPrep] = useState<string>(stored?.maxPrep ?? "");
+  const [minHealth, setMinHealth] = useState<string>(stored?.minHealth ?? "");
 
   const [pickedRecipes, setPickedRecipes] = useState<(RecipeBrief | null)[]>(
-    Array(3).fill(null)
+    stored?.pickedRecipes ?? Array(3).fill(null),
   );
+
+  // Persist the whole draft on any relevant change. Cheap — sessionStorage
+  // writes are synchronous but <1ms for this payload size. Only runs
+  // client-side so SSR isn't affected.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const draft: DraftState = {
+      step, mode, preview, portions, numRecipes,
+      vegetarian, vegan, mealSequence, maxCost, maxPrep, minHealth,
+      pickedRecipes,
+    };
+    try {
+      sessionStorage.setItem(SS_KEY, JSON.stringify(draft));
+    } catch {
+      // Quota exceeded / private browsing — silently ignore
+    }
+  }, [step, mode, preview, portions, numRecipes, vegetarian, vegan, mealSequence, maxCost, maxPrep, minHealth, pickedRecipes]);
 
   const previewMut = useMutation({
     mutationFn: () => {
