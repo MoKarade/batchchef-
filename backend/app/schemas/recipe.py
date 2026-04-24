@@ -56,6 +56,9 @@ class RecipeDetail(RecipeBrief):
     lipids_per_portion: float | None = None
     ai_processed_at: datetime | None = None
     ingredients: list[RecipeIngredientOut] = []
+    # User annotations (items #10, #33)
+    user_notes: str | None = None
+    is_favorite: bool = False
 
 
 class RecipeList(BaseModel):

@@ -145,40 +145,21 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
         # (used in 2921 recipes) unlocks way more recipe coverage than 500
         # random long-tail items. When the job is interrupted, we lose the
         # tail (low-value) not the head.
-        from sqlalchemy import func as _sf
-        from app.models.recipe import RecipeIngredient as _RI
-
-        # Usage subquery: count RecipeIngredient rows pointing at THIS parent
-        # or at any of its variants. Then ORDER BY that count DESC so
-        # scraping 'beurre' (used in 2921 recipes) happens before the long
-        # tail of hyper-specific one-off ingredients.
-        from sqlalchemy.orm import aliased
-        _IM_child = aliased(IngredientMaster)
-        usage_sub = (
-            select(
-                IngredientMaster.id.label("pid"),
-                _sf.count(_RI.id).label("uses"),
-            )
-            .select_from(IngredientMaster)
-            .outerjoin(
-                _IM_child,
-                (_IM_child.id == IngredientMaster.id) | (_IM_child.parent_id == IngredientMaster.id),
-            )
-            .outerjoin(_RI, _RI.ingredient_master_id == _IM_child.id)
-            .where(IngredientMaster.parent_id.is_(None))
-            .group_by(IngredientMaster.id)
-            .subquery()
-        )
-
+        #
+        # Performance: we used to compute usage on-the-fly via a self-join
+        # on ingredient_master × ingredient_master × recipe_ingredient. On
+        # 21k×240k rows that took >10 min (jobs #80-82 never started).
+        # Now we read a pre-computed ``usage_count`` column maintained by
+        # ``app.services.ingredient_usage.refresh_usage_counts``. Init is
+        # instant.
         ing_q = (
             select(IngredientMaster)
-            .outerjoin(usage_sub, usage_sub.c.pid == IngredientMaster.id)
             .where(IngredientMaster.parent_id.is_(None))
-        )
-        ing_q = ing_q.where(
-            or_(
-                IngredientMaster.price_mapping_status.is_(None),
-                IngredientMaster.price_mapping_status != "invalid",
+            .where(
+                or_(
+                    IngredientMaster.price_mapping_status.is_(None),
+                    IngredientMaster.price_mapping_status != "invalid",
+                )
             )
         )
         if ingredient_ids:
@@ -190,7 +171,10 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
                     IngredientMaster.price_mapping_status != "mapped",
                 )
             )
-        ing_q = ing_q.order_by(_sf.coalesce(usage_sub.c.uses, 0).desc(), IngredientMaster.id.asc())
+        ing_q = ing_q.order_by(
+            IngredientMaster.usage_count.desc(),
+            IngredientMaster.id.asc(),
+        )
         ingredients = list((await db.execute(ing_q)).scalars().all())
 
         job.progress_total = len(ingredients)

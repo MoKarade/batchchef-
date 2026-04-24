@@ -457,10 +457,36 @@ async def ingredient_details(
 
 _BAD_CANONICAL = re.compile(r"^[\s\-_\d,./]+")
 
+# Gemini parse artefacts: unit-phrase fragments that ended up being treated as
+# canonical names when the LLM returned malformed output during classification.
+# Examples we saw in prod: "s_de_sel" (from "cuillères de sel"), "verres_deau"
+# (from "2 verres d'eau"), "s_de_muscade" (from "pincées de muscade").
+_FRAGMENT_PREFIXES = [
+    "s_de_", "s_a_", "s_à_", "es_de_", "e_de_",
+    "verres_de_", "verres_deau", "verre_de_", "verre_d_",
+    "cuilleres_de_", "cuillères_de_", "cuillere_de_",
+    "pincees_de_", "pincées_de_", "pincee_de_",
+    "cas_de_", "càs_de_", "cac_de_", "càc_de_",
+    "tasses_de_", "tasse_de_",
+    "grammes_de_", "gramme_de_", "g_de_",
+    "litres_de_", "litre_de_", "l_de_",
+    "ml_de_", "cl_de_", "dl_de_",
+]
+_FRAGMENT_PATTERN = re.compile(
+    r"^(" + "|".join(re.escape(p) for p in _FRAGMENT_PREFIXES) + ")",
+    re.IGNORECASE,
+)
+
 
 def _clean_canonical(raw: str) -> str:
     c = (raw or "").lower().strip()
     c = _BAD_CANONICAL.sub("", c)
+    # Strip Gemini unit-phrase fragments (iteratively — sometimes stacked)
+    for _ in range(3):
+        m = _FRAGMENT_PATTERN.match(c)
+        if not m:
+            break
+        c = c[m.end():]
     c = re.sub(r"\s+", "_", c)
     c = re.sub(r"_+", "_", c).strip("_ ")
     return c
@@ -489,7 +515,11 @@ async def repair_prefixes(db: AsyncSession = Depends(get_db)):
     skipped = 0
 
     for ing in rows:
-        if not _BAD_CANONICAL.match(ing.canonical_name or ""):
+        name = ing.canonical_name or ""
+        # Detect BOTH the legacy digit/dash prefix AND the new Gemini unit
+        # fragments ("s_de_sel", "verres_deau", "pincée_de_muscade"...).
+        has_bad = bool(_BAD_CANONICAL.match(name)) or bool(_FRAGMENT_PATTERN.match(name))
+        if not has_bad:
             continue
         scanned += 1
         clean = _clean_canonical(ing.canonical_name)
@@ -694,7 +724,7 @@ async def retry_missing_prices(db: AsyncSession = Depends(get_db)):
     ids = [r[0] for r in (await db.execute(pending_q)).all()]
     job = ImportJob(job_type="price_mapping", status="queued", progress_total=len(ids))
     db.add(job)
-    await db.flush()
+    await db.commit()
     await db.refresh(job)
     try:
         task = run_price_mapping.delay(job.id, None, ids)

@@ -176,6 +176,87 @@ async def classify_pending_recipes(
     return job
 
 
+@router.post("/recompute-costs")
+async def recompute_recipe_costs(
+    recipe_ids: list[int] | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Recompute ``estimated_cost_per_portion`` + ``pricing_status`` for each
+    recipe from the current StoreProduct prices. Call after a price-mapping
+    job completes, or manually from /gerer/settings.
+
+    Body (optional): ``[recipe_id, ...]`` to limit scope; null = all recipes.
+    """
+    from app.services.recipe_costs import recompute_recipes
+    return await recompute_recipes(db, recipe_ids=recipe_ids)
+
+
+@router.post("/refresh-ingredient-usage")
+async def refresh_ingredient_usage(db: AsyncSession = Depends(get_db)):
+    """Recompute the ``IngredientMaster.usage_count`` denormalized counter
+    from RecipeIngredient. Must be run after any bulk import so the price
+    mapping worker orders ingredients by true usage (most-used scraped first).
+    """
+    from app.services.ingredient_usage import refresh_usage_counts
+    return await refresh_usage_counts(db)
+
+
+class RecipePatch(BaseModel):
+    """User-facing edits on a recipe. Only the annotation/flag fields; the
+    scraped content (title/ingredients/instructions) is untouched."""
+    user_notes: str | None = None
+    is_favorite: bool | None = None
+
+
+@router.patch("/{recipe_id}")
+async def patch_recipe(
+    recipe_id: int,
+    body: RecipePatch,
+    db: AsyncSession = Depends(get_db),
+):
+    recipe = await db.get(Recipe, recipe_id)
+    if not recipe:
+        raise HTTPException(404, "Recipe not found")
+    patch = body.model_dump(exclude_unset=True)
+    for k, v in patch.items():
+        setattr(recipe, k, v)
+    await db.commit()
+    return {"id": recipe_id, **patch}
+
+
+class RecipeBatchRef(BaseModel):
+    batch_id: int
+    batch_name: str | None = None
+    portions: int
+    generated_at: str
+    status: str
+
+
+@router.get("/{recipe_id}/batches", response_model=list[RecipeBatchRef])
+async def get_recipe_batches(recipe_id: int, db: AsyncSession = Depends(get_db)):
+    """Return every Batch that contains ``recipe_id``. Shown in the recipe
+    detail page under "Utilisée dans ces batches"."""
+    from app.models.batch import Batch, BatchRecipe
+
+    q = (
+        select(BatchRecipe, Batch)
+        .join(Batch, Batch.id == BatchRecipe.batch_id)
+        .where(BatchRecipe.recipe_id == recipe_id, BatchRecipe.is_active == True)  # noqa: E712
+        .order_by(Batch.generated_at.desc())
+    )
+    rows = (await db.execute(q)).all()
+    return [
+        RecipeBatchRef(
+            batch_id=b.id,
+            batch_name=b.name,
+            portions=br.portions,
+            generated_at=b.generated_at.isoformat(),
+            status=b.status,
+        )
+        for br, b in rows
+    ]
+
+
 @router.patch("/{recipe_id}/ingredients/{ri_id}")
 async def update_recipe_ingredient(
     recipe_id: int,

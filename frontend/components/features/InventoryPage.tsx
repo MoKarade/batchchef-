@@ -6,11 +6,14 @@ import { inventoryApi } from "@/lib/api";
 import { Trash2, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import toast from "react-hot-toast";
 import { AddInventoryItemModal } from "./AddInventoryItemModal";
+import { useConfirm } from "@/components/shared/ConfirmDialog";
 
 export function InventoryPage() {
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
+  const { confirm, dialog } = useConfirm();
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["inventory"],
@@ -20,8 +23,27 @@ export function InventoryPage() {
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => inventoryApi.delete(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["inventory"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      toast.success("Article retiré");
+    },
+    onError: () => toast.error("Suppression impossible"),
   });
+
+  const handleDelete = async (item: { id: number; ingredient?: { display_name_fr: string } }) => {
+    if (
+      await confirm({
+        title: "Retirer cet article ?",
+        message: item.ingredient
+          ? `"${item.ingredient.display_name_fr}" sera supprimé de ton inventaire.`
+          : undefined,
+        destructive: true,
+        confirmLabel: "Retirer",
+      })
+    ) {
+      deleteMut.mutate(item.id);
+    }
+  };
 
   return (
     <div className="space-y-5 max-w-3xl">
@@ -74,8 +96,9 @@ export function InventoryPage() {
                 </td>
                 <td className="px-4 py-3">
                   <button
-                    onClick={() => deleteMut.mutate(item.id)}
+                    onClick={() => handleDelete(item)}
                     className="p-1.5 rounded-md hover:bg-destructive/10 text-destructive"
+                    title="Retirer"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -87,6 +110,7 @@ export function InventoryPage() {
       </div>
 
       <AddInventoryItemModal open={addOpen} onClose={() => setAddOpen(false)} />
+      {dialog}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { AlertTriangle, ArrowLeft, Check, Eye, ExternalLink, Loader2, ShoppingCa
 import { batchesApi, type BatchPreview } from "@/lib/api";
 import { formatPrice, healthColor, mealTypeLabel, categoryEmoji } from "@/lib/utils";
 import { RecipeModal } from "./RecipeModal";
+import { clearBatchDraft } from "./BatchNewPage";
 
 interface Props {
   preview: BatchPreview;
@@ -38,6 +39,10 @@ export function BatchPreviewStep({ preview, onBack }: Props) {
       }),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["batches"] });
+      // Batch is now persisted — wipe the draft preview so a fresh visit to
+      // /batches/new starts clean (otherwise the user sees their old
+      // preview restored on top of a batch that was already accepted).
+      clearBatchDraft();
       router.push(`/batches/${res.data.id}`);
     },
   });

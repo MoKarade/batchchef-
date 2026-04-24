@@ -48,6 +48,7 @@ class BatchOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     name: str | None = None
+    notes: str | None = None
     target_portions: int
     status: str
     total_estimated_cost: float | None = None

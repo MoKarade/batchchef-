@@ -5,8 +5,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { batchesApi, type ShoppingItem } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
-import { ArrowLeft, ShoppingCart, Loader2, Package, Check, Trash2, Boxes, ExternalLink } from "lucide-react";
+import { ArrowLeft, ShoppingCart, Loader2, Package, Check, Trash2, Boxes, ExternalLink, Store as StoreIcon } from "lucide-react";
 import Link from "next/link";
+import toast from "react-hot-toast";
+import { ShoppingExportButton } from "./ShoppingExportPanel";
+import { useConfirm } from "@/components/shared/ConfirmDialog";
 
 function ShoppingRow({
   batchId,
@@ -105,23 +108,49 @@ function ShoppingRow({
 export function ShoppingListPage({ batchId }: { batchId: number }) {
   const qc = useQueryClient();
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [storeFilter, setStoreFilter] = useState<string>("all");
 
   const { data: batch, isLoading } = useQuery({
     queryKey: ["batch", batchId],
     queryFn: () => batchesApi.get(batchId).then((r) => r.data),
   });
 
+  // Filtered by store (for the chips at the top). Grouping still runs
+  // on the filtered subset so each section header makes sense.
+  const filteredItems = useMemo(() => {
+    if (!batch) return [];
+    if (storeFilter === "all") return batch.shopping_items;
+    return batch.shopping_items.filter((i) => {
+      const n = i.store?.name?.toLowerCase() ?? "";
+      return n.includes(storeFilter.toLowerCase());
+    });
+  }, [batch, storeFilter]);
+
   const grouped = useMemo(() => {
-    if (!batch) return new Map<string, ShoppingItem[]>();
     const map = new Map<string, ShoppingItem[]>();
-    for (const it of batch.shopping_items) {
+    for (const it of filteredItems) {
       const key = it.store?.name ?? "Autre";
       const arr = map.get(key) ?? [];
       arr.push(it);
       map.set(key, arr);
     }
     return map;
+  }, [filteredItems]);
+
+  // All stores present in the full batch (for filter chips — never changes
+  // based on current filter)
+  const storesPresent = useMemo(() => {
+    if (!batch) return [];
+    const counts: Record<string, number> = {};
+    for (const it of batch.shopping_items) {
+      const name = it.store?.name?.toLowerCase() ?? "autre";
+      counts[name] = (counts[name] ?? 0) + 1;
+    }
+    return Object.entries(counts)
+      .filter(([n]) => n !== "autre")
+      .sort((a, b) => b[1] - a[1]);
   }, [batch]);
 
   const purchasable = useMemo(
@@ -187,24 +216,79 @@ export function ShoppingListPage({ batchId }: { batchId: number }) {
               {batch.total_estimated_cost != null && ` — Total estimé : ${formatPrice(batch.total_estimated_cost)}`}
             </p>
           </div>
-          <button
-            onClick={() => {
-              if (confirm("Supprimer définitivement ce batch et sa liste de courses ?")) {
-                deleteMut.mutate();
-              }
-            }}
-            disabled={deleteMut.isPending}
-            className="text-xs px-3 h-8 rounded-md border border-destructive/30 text-destructive hover:bg-destructive/10 inline-flex items-center gap-1 shrink-0"
-          >
-            {deleteMut.isPending ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Trash2 className="h-3 w-3" />
-            )}
-            Supprimer
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <ShoppingExportButton
+              items={filteredItems}
+              batchName={batch.name ?? `Batch #${batch.id}`}
+            />
+            <button
+              onClick={async () => {
+                if (
+                  await confirm({
+                    title: "Supprimer ce batch ?",
+                    message:
+                      "La liste de courses et toutes ses données seront perdues.",
+                    destructive: true,
+                    confirmLabel: "Supprimer",
+                  })
+                ) {
+                  deleteMut.mutate();
+                }
+              }}
+              disabled={deleteMut.isPending}
+              className="text-xs px-3 h-9 rounded-full border border-destructive/30 text-destructive hover:bg-destructive/10 inline-flex items-center gap-1 shrink-0"
+            >
+              {deleteMut.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Trash2 className="h-3 w-3" />
+              )}
+              Supprimer
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* ── Store filter pills ───────────────────────────────────── */}
+      {storesPresent.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mr-1 flex items-center gap-1">
+            <StoreIcon className="h-3 w-3" />
+            Magasin
+          </span>
+          <button
+            onClick={() => setStoreFilter("all")}
+            className={`h-8 rounded-full px-3 text-xs font-semibold transition ${
+              storeFilter === "all"
+                ? "bg-primary text-primary-foreground shadow"
+                : "bg-card border hover:bg-accent"
+            }`}
+          >
+            Tous · {batch.shopping_items.length}
+          </button>
+          {storesPresent.map(([name, count]) => {
+            const label = name.charAt(0).toUpperCase() + name.slice(1);
+            const active = storeFilter === name;
+            const specialCls =
+              active && name === "maxi"
+                ? "bg-[#e40046] text-white shadow"
+                : active && name === "costco"
+                ? "bg-[#004c91] text-white shadow"
+                : active
+                ? "bg-primary text-primary-foreground shadow"
+                : "bg-card border hover:bg-accent";
+            return (
+              <button
+                key={name}
+                onClick={() => setStoreFilter(name)}
+                className={`h-8 rounded-full px-3 text-xs font-semibold transition ${specialCls}`}
+              >
+                {label} · {count}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {purchasable.length > 0 && (
         <div className="flex items-center justify-between text-xs text-muted-foreground border-y py-2">
@@ -242,6 +326,8 @@ export function ShoppingListPage({ batchId }: { batchId: number }) {
         Cocher un article le marque comme acheté, déduit la quantité utilisée de l&apos;inventaire
         et ajoute le surplus (ex : 4,5 kg restants sur un sac de 5 kg) au stock.
       </p>
+
+      {dialog}
 
       {selectedIds.size > 0 && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-xl w-[calc(100%-2rem)]">

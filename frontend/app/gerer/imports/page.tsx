@@ -1,5 +1,5 @@
-import { ImportPage } from "@/components/features/ImportPage";
+import { ImportTrackingPage } from "@/components/features/ImportTrackingPage";
 
 export default function Page() {
-  return <ImportPage />;
+  return <ImportTrackingPage />;
 }

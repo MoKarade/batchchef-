@@ -41,6 +41,10 @@ export interface RecipeDetail extends RecipeBrief {
   lipids_per_portion?: number;
   ai_processed_at?: string;
   ingredients: RecipeIngredient[];
+  /** User annotation (free-form notes) — item #10 */
+  user_notes?: string | null;
+  /** Favorite flag — item #33 */
+  is_favorite?: boolean;
 }
 
 export interface RecipeIngredient {
@@ -83,11 +87,12 @@ export interface ImportJob {
 
 export interface Batch {
   id: number;
-  name?: string;
+  name?: string | null;
+  notes?: string | null;
   target_portions: number;
   status: string;
-  total_estimated_cost?: number;
-  total_portions?: number;
+  total_estimated_cost?: number | null;
+  total_portions?: number | null;
   generated_at: string;
   batch_recipes: BatchRecipe[];
   shopping_items: ShoppingItem[];
@@ -218,6 +223,14 @@ export interface ReceiptScan {
 
 // ─── API helpers ─────────────────────────────────────────────────────────────
 
+export interface RecipeBatchRef {
+  batch_id: number;
+  batch_name: string | null;
+  portions: number;
+  generated_at: string;
+  status: string;
+}
+
 export const recipesApi = {
   list: (params?: Record<string, unknown>) => api.get<RecipeList>("/api/recipes", { params }),
   get: (id: number) => api.get<RecipeDetail>(`/api/recipes/${id}`),
@@ -229,6 +242,19 @@ export const recipesApi = {
     unit?: string | null;
     note?: string | null;
   }) => api.patch(`/api/recipes/${recipeId}/ingredients/${riId}`, data),
+  patch: (id: number, data: { user_notes?: string | null; is_favorite?: boolean }) =>
+    api.patch(`/api/recipes/${id}`, data),
+  getBatches: (id: number) =>
+    api.get<RecipeBatchRef[]>(`/api/recipes/${id}/batches`),
+  recomputeCosts: (recipe_ids?: number[]) =>
+    api.post<{ updated: number; complete: number; incomplete: number; pending: number }>(
+      "/api/recipes/recompute-costs",
+      recipe_ids ?? null,
+    ),
+  refreshIngredientUsage: () =>
+    api.post<{ updated: number; parents: number; variants: number }>(
+      "/api/recipes/refresh-ingredient-usage",
+    ),
 };
 
 export const importsApi = {
@@ -328,6 +354,12 @@ export const batchesApi = {
   delete: (id: number) => api.delete(`/api/batches/${id}`),
   list: () => api.get<Batch[]>("/api/batches"),
   get: (id: number) => api.get<Batch>(`/api/batches/${id}`),
+  /** Partial update: name / notes / status */
+  patch: (id: number, data: { name?: string; notes?: string; status?: string }) =>
+    api.patch<Batch>(`/api/batches/${id}`, data),
+  /** Clone a batch with fresh shopping list — UX #9 "reproduire" */
+  duplicate: (id: number) =>
+    api.post<Batch>(`/api/batches/${id}/duplicate`),
   purchaseItem: (batchId: number, itemId: number) =>
     api.patch(`/api/batches/${batchId}/shopping-items/${itemId}/purchase`),
   unpurchaseItem: (batchId: number, itemId: number) =>
@@ -363,9 +395,58 @@ export interface ChefChatResponse {
   reply: string;
 }
 
+export interface FridgeSuggestion {
+  recipe_id: number;
+  title: string;
+  image_url: string | null;
+  health_score: number | null;
+  match_pct: number;
+  missing: string[];
+}
+
+export interface FridgeSuggestResponse {
+  fridge_items: string[];
+  suggestions: FridgeSuggestion[];
+}
+
 export const chefApi = {
   chat: (body: ChefChatRequest) =>
     api.post<ChefChatResponse>("/api/chef/chat", body),
+  suggestFromFridge: (limit = 8, min_match_pct = 0.5) =>
+    api.get<FridgeSuggestResponse>("/api/chef/suggest-from-fridge", {
+      params: { limit, min_match_pct },
+    }),
+};
+
+// ─── Personal stats (item #36) ──────────────────────────────────────────────
+export interface PersonalTopRecipe {
+  recipe_id: number;
+  title: string;
+  image_url: string | null;
+  times_used: number;
+  total_portions: number;
+}
+
+export interface PersonalWeekBucket {
+  week_start: string;
+  batches: number;
+  portions: number;
+}
+
+export interface PersonalStats {
+  window_days: number;
+  total_batches: number;
+  total_portions: number;
+  total_recipes_unique: number;
+  avg_portions_per_batch: number;
+  avg_cost_per_portion: number | null;
+  top_recipes: PersonalTopRecipe[];
+  weekly: PersonalWeekBucket[];
+}
+
+export const personalStatsApi = {
+  get: (days = 90) =>
+    api.get<PersonalStats>("/api/stats/personal", { params: { days } }),
 };
 
 export const storesApi = {
@@ -483,6 +564,55 @@ export interface ReceiptStats {
   top_ingredients: TopIngredient[];
   price_alerts: PriceAlert[];
 }
+
+// ─── Meal Plans (Trello-style weekly planner) ───────────────────────────────
+export interface PlannedMeal {
+  id: number;
+  recipe_id: number;
+  day_of_week: number;      // 0=Monday, 6=Sunday
+  meal_slot: "midi" | "soir" | "snack";
+  position: number;
+  portions: number;
+  notes?: string | null;
+  recipe?: RecipeBrief;
+}
+
+export interface MealPlan {
+  id: number;
+  user_id?: number | null;
+  week_start_date: string;   // ISO date of Monday
+  name?: string | null;
+  notes?: string | null;
+  created_at: string;
+  entries: PlannedMeal[];
+}
+
+export const mealPlansApi = {
+  list: () => api.get<MealPlan[]>("/api/meal-plans"),
+  current: () => api.get<MealPlan>("/api/meal-plans/current"),
+  get: (id: number) => api.get<MealPlan>(`/api/meal-plans/${id}`),
+  create: (data: { week_start_date?: string; name?: string }) =>
+    api.post<MealPlan>("/api/meal-plans", data),
+  remove: (id: number) => api.delete(`/api/meal-plans/${id}`),
+  addEntry: (planId: number, data: {
+    recipe_id: number;
+    day_of_week: number;
+    meal_slot: "midi" | "soir" | "snack";
+    portions?: number;
+    notes?: string | null;
+  }) => api.post<MealPlan>(`/api/meal-plans/${planId}/entries`, data),
+  moveEntry: (planId: number, entryId: number, data: {
+    day_of_week?: number;
+    meal_slot?: "midi" | "soir" | "snack";
+    position?: number;
+    portions?: number;
+    notes?: string | null;
+  }) => api.patch<MealPlan>(`/api/meal-plans/${planId}/entries/${entryId}`, data),
+  removeEntry: (planId: number, entryId: number) =>
+    api.delete(`/api/meal-plans/${planId}/entries/${entryId}`),
+  toBatch: (planId: number) =>
+    api.post<{ batch_id: number }>(`/api/meal-plans/${planId}/to-batch`),
+};
 
 export const receiptsApi = {
   list: () => api.get<ReceiptScan[]>("/api/receipts"),

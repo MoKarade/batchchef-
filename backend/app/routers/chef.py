@@ -189,3 +189,149 @@ async def chef_chat(body: ChefChatRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=502, detail=f"Chef AI unavailable: {e}")
 
     return ChefChatResponse(reply=reply.strip())
+
+
+# ── Item #23 — proactive suggestions from fridge ───────────────────────────
+class FridgeSuggestion(BaseModel):
+    recipe_id: int
+    title: str
+    image_url: str | None = None
+    health_score: float | None = None
+    match_pct: float  # 0..100 — fraction of ingredients already in the frigo
+    missing: list[str]  # human-readable ingredient names still needed
+
+
+class FridgeSuggestResponse(BaseModel):
+    fridge_items: list[str]
+    suggestions: list[FridgeSuggestion]
+
+
+@router.get("/suggest-from-fridge", response_model=FridgeSuggestResponse)
+async def suggest_from_fridge(
+    limit: int = 8,
+    min_match_pct: float = 0.5,
+    db: AsyncSession = Depends(get_db),
+):
+    """Suggest recipes the user can (almost) cook tonight from what's in the
+    frigo. No LLM call — pure set intersection on ingredient IDs. Fast and
+    deterministic.
+
+    Algorithm:
+      1. Collect ingredient_master_ids from InventoryItem (with quantity > 0).
+      2. Resolve to the full set {self + parent + all variants}.
+      3. For every recipe, score = len(fridge ∩ recipe_ings) / len(recipe_ings)
+      4. Keep recipes with score >= min_match_pct, sorted by score.
+    """
+    from sqlalchemy.orm import selectinload
+    from app.models.recipe import RecipeIngredient
+
+    # 1. Fridge ingredient ids
+    q = select(InventoryItem).options(selectinload(InventoryItem.ingredient)).where(
+        InventoryItem.quantity > 0,
+        InventoryItem.ingredient_master_id.is_not(None),
+    )
+    inv = list((await db.execute(q)).scalars().all())
+    fridge_ids: set[int] = set()
+    fridge_names: list[str] = []
+    for it in inv:
+        if it.ingredient_master_id:
+            fridge_ids.add(it.ingredient_master_id)
+            if it.ingredient:
+                fridge_names.append(it.ingredient.display_name_fr or it.ingredient.canonical_name)
+
+    if not fridge_ids:
+        return FridgeSuggestResponse(fridge_items=[], suggestions=[])
+
+    # 2. Expand via parent/child relationships — "beurre_demi_sel" in fridge
+    #    should match recipes needing "beurre" (the parent), and vice versa.
+    id_parent_q = select(IngredientMaster.id, IngredientMaster.parent_id)
+    id_parent = dict((await db.execute(id_parent_q)).all())
+    parent_children: dict[int, list[int]] = {}
+    for child_id, parent_id in id_parent.items():
+        if parent_id:
+            parent_children.setdefault(parent_id, []).append(child_id)
+
+    expanded: set[int] = set(fridge_ids)
+    for fid in fridge_ids:
+        # include parent
+        parent = id_parent.get(fid)
+        if parent:
+            expanded.add(parent)
+        # include siblings (variants of same parent) — optional; keeps the
+        # search loose. "j'ai du beurre demi-sel" → recipes using beurre salé
+        # are still plausible candidates.
+        if parent and parent in parent_children:
+            expanded.update(parent_children[parent])
+        # include own variants
+        if fid in parent_children:
+            expanded.update(parent_children[fid])
+
+    # 3. Score every AI-done recipe. We limit SQL to recipes that have at
+    #    least one ingredient present in the fridge to keep it fast.
+    ri_q = (
+        select(RecipeIngredient.recipe_id, RecipeIngredient.ingredient_master_id)
+        .where(RecipeIngredient.ingredient_master_id.is_not(None))
+    )
+    rows = list((await db.execute(ri_q)).all())
+
+    by_recipe: dict[int, set[int]] = {}
+    for rid, ing_id in rows:
+        by_recipe.setdefault(rid, set()).add(ing_id)
+
+    scored: list[tuple[int, float, set[int]]] = []
+    for rid, ings in by_recipe.items():
+        if not ings:
+            continue
+        hits = ings & expanded
+        if not hits:
+            continue
+        score = len(hits) / len(ings)
+        if score >= min_match_pct:
+            missing = ings - expanded
+            scored.append((rid, score, missing))
+
+    scored.sort(key=lambda t: -t[1])
+    top_ids = [rid for rid, _, _ in scored[: limit * 2]]  # over-fetch, we filter by AI status next
+
+    if not top_ids:
+        return FridgeSuggestResponse(fridge_items=fridge_names, suggestions=[])
+
+    # 4. Enrich with recipe metadata — drop non-ai_done
+    r_q = (
+        select(Recipe)
+        .where(Recipe.id.in_(top_ids), Recipe.status == "ai_done")
+    )
+    recipes_by_id = {r.id: r for r in (await db.execute(r_q)).scalars().all()}
+
+    # Look up missing ingredient names in one query
+    missing_ids = {mid for _, _, miss in scored for mid in miss}
+    name_q = select(IngredientMaster.id, IngredientMaster.display_name_fr, IngredientMaster.canonical_name).where(
+        IngredientMaster.id.in_(missing_ids)
+    )
+    names_by_id = {
+        row.id: (row.display_name_fr or row.canonical_name)
+        for row in (await db.execute(name_q)).all()
+    }
+
+    suggestions: list[FridgeSuggestion] = []
+    for rid, score, missing in scored:
+        r = recipes_by_id.get(rid)
+        if not r:
+            continue
+        suggestions.append(
+            FridgeSuggestion(
+                recipe_id=r.id,
+                title=r.title,
+                image_url=r.image_url,
+                health_score=r.health_score,
+                match_pct=round(score * 100, 1),
+                missing=[names_by_id.get(m, f"#{m}") for m in list(missing)[:6]],
+            )
+        )
+        if len(suggestions) >= limit:
+            break
+
+    return FridgeSuggestResponse(
+        fridge_items=fridge_names[:20],
+        suggestions=suggestions,
+    )

@@ -45,7 +45,7 @@ async def start_price_mapping(
         metadata_json=json.dumps({"store_codes": codes, "ingredient_ids": body.ingredient_ids}),
     )
     db.add(job)
-    await db.flush()
+    await db.commit()
     await db.refresh(job)
 
     try:
