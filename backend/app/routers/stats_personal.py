@@ -22,6 +22,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models.batch import Batch, BatchRecipe
 from app.models.recipe import Recipe
+from app.utils.time import utcnow
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
@@ -56,7 +57,7 @@ async def personal_stats(
     days: int = Query(90, ge=7, le=365),
     db: AsyncSession = Depends(get_db),
 ):
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = utcnow() - timedelta(days=days)
 
     # All batches in the window, with their batch_recipes eager-loaded
     q = (

@@ -17,6 +17,9 @@ class Store(Base):
 
     products: Mapped[list["StoreProduct"]] = relationship(back_populates="store")  # noqa
 
+    def __repr__(self) -> str:
+        return f"<Store id={self.id} code={self.code!r} type={self.type}>"
+
 
 class StoreProduct(Base):
     __tablename__ = "store_product"
@@ -53,6 +56,12 @@ class StoreProduct(Base):
     __table_args__ = (
         UniqueConstraint("ingredient_master_id", "store_id", "sku", name="uq_product_store_sku"),
     )
+
+    def __repr__(self) -> str:
+        return (
+            f"<StoreProduct id={self.id} store={self.store_id} ing={self.ingredient_master_id} "
+            f"price={self.price} validated={self.is_validated}>"
+        )
 
 
 class PriceHistory(Base):

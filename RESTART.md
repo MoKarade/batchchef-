@@ -11,9 +11,9 @@
 
 The script:
 1. Confirms the Redis Windows service is Running (auto-starts at boot anyway).
-2. Sweeps ports 8000/3000 for stale processes.
+2. Sweeps ports 8000/8001/3000 for stale processes.
 3. Opens **6 new PowerShell windows**, one per service:
-   - **API** (uvicorn with `--reload` on :8000)
+   - **API** (uvicorn with `--reload` on :8001)
    - **Worker 1, 2, 3** (Celery `--pool=solo`, parallel tasks)
    - **Beat** (scheduled: hourly zombie cleanup, nightly DB backup at 03:17)
    - **Frontend** (`npm run dev` on :3000)
@@ -27,7 +27,7 @@ The script:
 .\stop.ps1
 ```
 
-Kills everything listening on :8000 and :3000 plus any python.exe running celery/uvicorn. Leaves Redis running (it's a system service).
+Kills everything listening on :8001 and :3000 plus any python.exe running celery/uvicorn. Leaves Redis running (it's a system service).
 
 ## What's live after restart
 
@@ -79,7 +79,7 @@ From the frontend → `/imports` → the three chunks are gone (fail-cleaned). J
 ```powershell
 # All pending parents, in 3 parallel chunks
 $body = @{ store_codes = @('maxi', 'costco') } | ConvertTo-Json
-Invoke-RestMethod -Uri "http://localhost:8000/api/stores/map-prices" -Method Post -Body $body -ContentType "application/json"
+Invoke-RestMethod -Uri "http://localhost:8001/api/stores/map-prices" -Method Post -Body $body -ContentType "application/json"
 ```
 
 With the 3 workers running, it'll pick the top-usage pending parents and scrape them in parallel. Expected: ~500-1000 ingredients/hour with the new query.
@@ -96,7 +96,7 @@ Celery Beat runs:
 |---|---|
 | `/planifier` shows "API planif indisponible" | API didn't reload new routes — restart via `stop.ps1` + `start.ps1` |
 | `/api/health` says `redis.up: false` | `Start-Service Redis` (or `winget install Redis.Redis` if missing) |
-| Port 8000 "already in use" | `.\stop.ps1` then `.\start.ps1` |
+| Port 8001 "already in use" | `.\stop.ps1` then `.\start.ps1` |
 | Frontend shows old bundle | Hard refresh the browser (Ctrl+Shift+R) |
 | Celery logs "WorkerLostError" | A scrape timed out — `task_annotations` retry will re-queue it automatically (max 3) |
 | DB backup file growing huge | Retention is 7 days — older gzips are auto-deleted |
@@ -105,10 +105,10 @@ Celery Beat runs:
 
 ```powershell
 # Recompute recipe costs from current StoreProducts
-Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/recipes/recompute-costs"
+Invoke-RestMethod -Method Post -Uri "http://localhost:8001/api/recipes/recompute-costs"
 
 # Re-run the Gemini prefix cleanup (idempotent)
-Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/ingredients/repair-prefixes"
+Invoke-RestMethod -Method Post -Uri "http://localhost:8001/api/ingredients/repair-prefixes"
 
 # Force a DB backup now (instead of waiting for 03:17)
 # (from a worker window or new shell)

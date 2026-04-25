@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+// Default to :8001 to match supervisor.py / start.ps1. Override via
+// frontend/.env.local if your backend listens elsewhere.
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001";
 
 const nextConfig: NextConfig = {
   // Next 15/16 blocks dev assets from cross-origin hosts unless the host

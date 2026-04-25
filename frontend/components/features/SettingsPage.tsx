@@ -591,7 +591,7 @@ function GoogleTasksCard() {
               console.cloud.google.com
             </a>
             , active l&apos;API Google Tasks, et ajoute{" "}
-            <code className="text-[10px]">http://localhost:8000/api/auth/google/callback</code>{" "}
+            <code className="text-[10px]">http://localhost:8001/api/auth/google/callback</code>{" "}
             en redirect URI.
           </p>
         </div>

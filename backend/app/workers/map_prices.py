@@ -9,7 +9,6 @@ costco_sitemap.search() and costco_api.search_costco() for details).
 import asyncio
 import json
 import logging
-from datetime import datetime
 
 from app.workers.celery_app import celery_app
 from app.config import settings
@@ -139,7 +138,7 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
         if not job:
             return
         job.status = "running"
-        job.started_at = datetime.utcnow()
+        job.started_at = utcnow()
 
         stores_q = select(Store).where(Store.code.in_(codes))
         stores = {s.code: s for s in (await db.execute(stores_q)).scalars().all()}
@@ -193,7 +192,7 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
             job = await db.get(ImportJob, job_id)
             if job:
                 job.status = "completed"
-                job.finished_at = datetime.utcnow()
+                job.finished_at = utcnow()
                 await db.commit()
         await manager.broadcast(str(job_id), {"job_id": job_id, "status": "completed", "processed": 0})
         return
@@ -427,7 +426,7 @@ async def _run(job_id: int, store_codes: list[str] | None, ingredient_ids: list[
         job = await db.get(ImportJob, job_id)
         if job:
             job.status = final_status
-            job.finished_at = datetime.utcnow()
+            job.finished_at = utcnow()
             if not cancelled:
                 job.progress_current = len(ingredients)
             job.error_log = json.dumps(errors[:200])

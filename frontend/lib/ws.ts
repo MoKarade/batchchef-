@@ -21,8 +21,8 @@ import { importsApi } from "@/lib/api";
 const WS_URL =
   process.env.NEXT_PUBLIC_WS_URL ||
   (typeof window !== "undefined"
-    ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.hostname}:8000`
-    : "ws://localhost:8000");
+    ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.hostname}:8001`
+    : "ws://localhost:8001");
 
 export interface JobProgress {
   job_id: number;

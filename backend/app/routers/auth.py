@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import create_access_token, hash_password, verify_password, get_current_user, get_optional_user
 from app.database import get_db
 from app.models.user import User
+from app.utils.time import utcnow
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -171,8 +172,8 @@ _oauth_state: dict[str, tuple[int, datetime]] = {}
 
 
 def _gc_states() -> None:
-    import datetime as _dt
-    cutoff = _dt.datetime.utcnow() - _dt.timedelta(minutes=10)
+    from datetime import timedelta
+    cutoff = utcnow() - timedelta(minutes=10)
     for k in [k for k, (_, t) in _oauth_state.items() if t < cutoff]:
         _oauth_state.pop(k, None)
 
@@ -207,12 +208,10 @@ async def google_oauth_start(
     (or opens a popup). The ``state`` parameter is how we identify the
     user in the callback — we store user_id → state mapping in memory."""
     from app.services.google_tasks import build_consent_url, new_state_token
-    from datetime import datetime as _dt
-
     user = await resolve_effective_user(current, db)
     _gc_states()
     state = new_state_token()
-    _oauth_state[state] = (user.id, _dt.utcnow())
+    _oauth_state[state] = (user.id, utcnow())
     try:
         return GoogleAuthStart(consent_url=build_consent_url(state))
     except RuntimeError as e:

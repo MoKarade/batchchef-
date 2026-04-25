@@ -10,11 +10,11 @@ import logging
 import os
 import shutil
 import sqlite3
-from datetime import datetime
 from pathlib import Path
 
 from app.workers.celery_app import celery_app
 from app.config import settings
+from app.utils.time import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def run_db_backup(self):
         return {"skipped": True, "reason": "db_missing"}
 
     BACKUP_DIR.mkdir(exist_ok=True)
-    stamp = datetime.utcnow().strftime("%Y-%m-%d_%H%M")
+    stamp = utcnow().strftime("%Y-%m-%d_%H%M")
     target = BACKUP_DIR / f"batchchef-{stamp}.db"
 
     # SQLite's online backup API is the only safe way to snapshot a live DB

@@ -24,6 +24,12 @@ class Batch(Base):
         back_populates="batch", cascade="all, delete-orphan"
     )
 
+    def __repr__(self) -> str:
+        return (
+            f"<Batch id={self.id} name={self.name!r} "
+            f"target_portions={self.target_portions} status={self.status}>"
+        )
+
 
 class BatchRecipe(Base):
     __tablename__ = "batch_recipe"
@@ -36,6 +42,9 @@ class BatchRecipe(Base):
 
     batch: Mapped["Batch"] = relationship(back_populates="batch_recipes")
     recipe: Mapped["Recipe"] = relationship(back_populates="batch_recipes")  # noqa
+
+    def __repr__(self) -> str:
+        return f"<BatchRecipe batch={self.batch_id} recipe={self.recipe_id} portions={self.portions}>"
 
 
 class ShoppingListItem(Base):
@@ -63,3 +72,9 @@ class ShoppingListItem(Base):
     ingredient: Mapped["IngredientMaster"] = relationship()  # noqa
     store: Mapped["Store | None"] = relationship()  # noqa
     store_product: Mapped["StoreProduct | None"] = relationship()  # noqa
+
+    def __repr__(self) -> str:
+        return (
+            f"<ShoppingListItem batch={self.batch_id} ing={self.ingredient_master_id} "
+            f"qty={self.quantity_needed}{self.unit} purchased={self.is_purchased}>"
+        )

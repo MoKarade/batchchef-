@@ -19,6 +19,14 @@ Optional:
 
 Exit with Ctrl-C. All children receive SIGTERM (or CTRL_BREAK_EVENT on
 Windows), we wait up to 10 s for clean shutdown then kill hard.
+
+Windows note (Smart App Control):
+  We invoke ``<venv>/python.exe -m uvicorn`` / ``-m celery`` rather than
+  the venv launcher .exe shims (uvicorn.exe, celery.exe). On Windows 11
+  with Smart App Control enabled, those shims are unsigned and blocked
+  with ``os error 4551``. The PSF-signed python.exe is allowed, so going
+  through ``python -m`` is the portable workaround. See the feedback
+  memory ``feedback_windows_sac.md`` for the diagnosis.
 """
 from __future__ import annotations
 import argparse
@@ -140,21 +148,29 @@ async def run(extra_workers: int = 0) -> int:
     # Detect npm.cmd on Windows (npm is a .cmd wrapper, not a .exe)
     npm_cmd = "npm.cmd" if sys.platform == "win32" else "npm"
 
+    # Windows Smart App Control blocks unsigned launcher .exes (uvicorn.exe,
+    # celery.exe) that pip generates inside the venv. The PSF-signed
+    # python.exe is allowed, so we invoke modules with `python -m` instead.
+    venv_python = str(
+        BACKEND / ".venv" / ("Scripts" if sys.platform == "win32" else "bin") /
+        ("python.exe" if sys.platform == "win32" else "python")
+    )
+
     services: list[Service] = [
         Service(
             "api",
-            ["uv", "run", "uvicorn", "app.main:app", "--port", "8001"],
+            [venv_python, "-m", "uvicorn", "app.main:app", "--port", "8001"],
             cwd=BACKEND,
         ),
         Service(
             "worker",
-            ["uv", "run", "celery", "-A", "app.workers.celery_app", "worker",
+            [venv_python, "-m", "celery", "-A", "app.workers.celery_app", "worker",
              "--loglevel=info", "--pool=solo", "--hostname=w1@%h"],
             cwd=BACKEND,
         ),
         Service(
             "beat",
-            ["uv", "run", "celery", "-A", "app.workers.celery_app", "beat",
+            [venv_python, "-m", "celery", "-A", "app.workers.celery_app", "beat",
              "--loglevel=info"],
             cwd=BACKEND,
         ),
@@ -167,7 +183,7 @@ async def run(extra_workers: int = 0) -> int:
     for i in range(2, 2 + extra_workers):
         services.append(Service(
             f"wrk{i}",
-            ["uv", "run", "celery", "-A", "app.workers.celery_app", "worker",
+            [venv_python, "-m", "celery", "-A", "app.workers.celery_app", "worker",
              "--loglevel=info", "--pool=solo", f"--hostname=w{i}@%h"],
             cwd=BACKEND,
         ))

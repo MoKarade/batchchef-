@@ -29,3 +29,7 @@ class User(Base):
     google_refresh_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     google_access_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     google_access_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    def __repr__(self) -> str:
+        # email exposed in repr — single-user local deployment, not a leak risk.
+        return f"<User id={self.id} email={self.email!r} admin={self.is_admin}>"

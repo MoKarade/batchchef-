@@ -13,7 +13,7 @@ jusqu'à épuisement des URLs.
 
 | Composant | Techno |
 |---|---|
-| Backend API | FastAPI (Python 3.13) + SQLAlchemy 2.0 async + SQLite |
+| Backend API | FastAPI (Python 3.14) + SQLAlchemy 2.0 async + SQLite |
 | Workers | Celery + Redis (Windows : `--pool=solo`) |
 | Scrapers | Playwright + patchright (Costco anti-bot) |
 | AI | **Gemini 3 Flash Preview** (fallback 3.1 Flash Lite) |
@@ -45,7 +45,7 @@ cd ../frontend && npm install
 
 ```bash
 # Terminal 1 — API
-cd backend && uv run uvicorn app.main:app --reload --port 8000
+cd backend && uv run uvicorn app.main:app --reload --port 8001
 
 # Terminal 2 — Celery (requis pour tout job)
 cd backend && uv run celery -A app.workers.celery_app worker --loglevel=info --pool=solo

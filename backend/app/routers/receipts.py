@@ -11,6 +11,7 @@ from app.database import get_db
 from app.models.ingredient import IngredientMaster
 from app.models.receipt import ReceiptScan, ReceiptItem
 from app.models.store import StoreProduct
+from app.utils.time import utcnow
 from app.schemas.receipt import (
     ReceiptScanOut,
     ReceiptItemOut,
@@ -102,7 +103,7 @@ async def receipt_stats(
     months: int = Query(6, ge=1, le=24),
     db: AsyncSession = Depends(get_db),
 ):
-    cutoff = datetime.utcnow() - timedelta(days=months * 31)
+    cutoff = utcnow() - timedelta(days=months * 31)
     scans = (
         await db.execute(
             select(ReceiptScan)
@@ -123,7 +124,7 @@ async def receipt_stats(
         for wk, d in sorted(weekly_map.items())
     ]
 
-    now = datetime.utcnow()
+    now = utcnow()
     this_month = sum(
         (s.total_amount or 0.0) for s in scans
         if s.created_at.year == now.year and s.created_at.month == now.month

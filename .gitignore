@@ -151,3 +151,19 @@ backend/playwright-report/
 # Redis dump
 backend/dump.rdb
 dump.rdb
+
+# Celery beat schedule (runtime state — rewritten on every tick)
+backend/celerybeat-schedule
+backend/celerybeat-schedule-shm
+backend/celerybeat-schedule-wal
+
+# Supervisor per-service logs
+backend/logs/
+logs/
+
+# SQLite manual backups
+backend/*.db.bak
+
+# Frontend env (Next.js conventions)
+frontend/.env.local
+frontend/.env*.local

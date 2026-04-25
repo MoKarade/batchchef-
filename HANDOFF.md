@@ -242,7 +242,7 @@ docker run -d -p 6379:6379 redis:7-alpine
 
 # Terminal 2 — API (MUST use --reload or new routes are invisible)
 cd backend
-uv run uvicorn app.main:app --reload --port 8000
+uv run uvicorn app.main:app --reload --port 8001
 
 # Terminal 3 — Celery (Windows needs --pool=solo)
 cd backend
@@ -253,7 +253,7 @@ cd frontend
 npm run dev
 ```
 
-Open http://localhost:3000. API docs: http://localhost:8000/docs.
+Open http://localhost:3000. API docs: http://localhost:8001/docs.
 
 ### ⚠️ Gotcha that caused the "preview doesn't work" bug
 
@@ -263,7 +263,7 @@ Fix: kill uvicorn (`Stop-Process -Name python -Force` or find by PID) and restar
 
 Verify the routes are live:
 ```powershell
-curl http://localhost:8000/openapi.json | ConvertFrom-Json | ForEach-Object { $_.paths.PSObject.Properties.Name } | Where-Object { $_ -like '*batch*' }
+curl http://localhost:8001/openapi.json | ConvertFrom-Json | ForEach-Object { $_.paths.PSObject.Properties.Name } | Where-Object { $_ -like '*batch*' }
 ```
 Should include `/api/batches/preview` and `/api/batches/accept`.
 
@@ -300,7 +300,7 @@ Plan section 11b. Walk these paths in-browser:
 ## 7. Current repo state (April 2026)
 
 - Git: **branch `main`, one remote `origin` at `github.com/MoKarade/batchchef-`, single initial commit `cbb17a1`**. All the refonte changes are currently **uncommitted** (see `git status`).
-- Running processes (if left as-is): uvicorn on `127.0.0.1:8000` with `--reload`, 2 celery solo workers on Redis `:6379`.
+- Running processes (if left as-is): uvicorn on `127.0.0.1:8001` with `--reload`, 2 celery solo workers on Redis `:6379`.
 - Active import: **job #7** is running a `marmiton_bulk` for 500 URLs, kicked off during the last session so the DB catches up on recipes + ingredients. It will auto-cascade Fruiterie + Maxi/Costco when done.
 - DB counts at handoff time: 23 recipes, 167 ingredients, last completed batch import `job #6`.
 
@@ -366,10 +366,10 @@ cd backend; uv run pytest tests/
 
 # Kill and restart uvicorn (after adding new routes)
 Get-CimInstance Win32_Process -Filter "name='python.exe'" | Where-Object CommandLine -like '*uvicorn*' | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
-cd backend; uv run uvicorn app.main:app --reload --port 8000
+cd backend; uv run uvicorn app.main:app --reload --port 8001
 
 # Kick off a background Marmiton import
-curl -X POST http://localhost:8000/api/imports/marmiton -H "Content-Type: application/json" -d '{"limit": 500}'
+curl -X POST http://localhost:8001/api/imports/marmiton -H "Content-Type: application/json" -d '{"limit": 500}'
 
 # Inspect DB counts
 cd backend; uv run python -c "

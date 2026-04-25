@@ -61,6 +61,9 @@ class Recipe(Base):
     )
     batch_recipes: Mapped[list["BatchRecipe"]] = relationship(back_populates="recipe")  # noqa
 
+    def __repr__(self) -> str:
+        return f"<Recipe id={self.id} title={self.title!r} status={self.status}>"
+
 
 class RecipeIngredient(Base):
     __tablename__ = "recipe_ingredient"
@@ -76,6 +79,12 @@ class RecipeIngredient(Base):
 
     recipe: Mapped["Recipe"] = relationship(back_populates="ingredients")  # noqa
     ingredient: Mapped["IngredientMaster | None"] = relationship(back_populates="recipe_ingredients")  # noqa
+
+    def __repr__(self) -> str:
+        return (
+            f"<RecipeIngredient recipe_id={self.recipe_id} "
+            f"ing_id={self.ingredient_master_id} qty={self.quantity_per_portion}{self.unit or ''}>"
+        )
 
 
 Index("ix_ri_recipe", RecipeIngredient.recipe_id)

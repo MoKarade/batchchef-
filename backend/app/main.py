@@ -262,7 +262,7 @@ async def metrics():
             batches_total = (await db.execute(select(func.count(Batch.id)))).scalar_one()
             jobs_24h = (await db.execute(
                 select(ImportJob.job_type, ImportJob.status, func.count(ImportJob.id))
-                .where(ImportJob.created_at >= datetime.utcnow() - timedelta(hours=24))
+                .where(ImportJob.created_at >= utcnow() - timedelta(hours=24))
                 .group_by(ImportJob.job_type, ImportJob.status)
             )).all()
             shopping_items = (await db.execute(
@@ -366,14 +366,18 @@ async def _seed_stores():
     ]
 
     async with AsyncSessionLocal() as db:
+        added = 0
         for s in STORES:
             exists = (await db.execute(select(Store).where(Store.code == s["code"]))).scalar_one_or_none()
             if not exists:
                 db.add(Store(**s))
+                added += 1
             else:
                 exists.store_location_id = s["store_location_id"]
                 exists.website_url = s.get("website_url")
         await db.commit()
+        if added:
+            logger.info("Seeded %d new store(s)", added)
 
 
 async def _seed_admin_user():
@@ -398,6 +402,8 @@ async def _seed_admin_user():
                 is_admin=True,
             ))
             await db.commit()
+            logger.info("Seeded admin user %s", email)
         elif not verify_password(password, user.hashed_password):
             user.hashed_password = hash_password(password)
             await db.commit()
+            logger.info("Updated admin password for %s", email)

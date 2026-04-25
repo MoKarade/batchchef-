@@ -55,3 +55,10 @@ class IngredientMaster(Base):
     recipe_ingredients: Mapped[list["RecipeIngredient"]] = relationship(back_populates="ingredient")  # noqa
     store_products: Mapped[list["StoreProduct"]] = relationship(back_populates="ingredient")  # noqa
     inventory_items: Mapped[list["InventoryItem"]] = relationship(back_populates="ingredient")  # noqa
+
+    def __repr__(self) -> str:
+        kind = "variant" if self.parent_id is not None else "parent"
+        return (
+            f"<IngredientMaster id={self.id} {kind} name={self.canonical_name!r} "
+            f"status={self.price_mapping_status} usage={self.usage_count}>"
+        )

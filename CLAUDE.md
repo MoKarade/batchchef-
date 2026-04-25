@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Setup
 
-### Backend (FastAPI + Python 3.13)
+### Backend (FastAPI + Python 3.14)
 ```bash
 cd backend
 cp .env.example .env          # fill in GEMINI_API_KEY
@@ -27,7 +27,7 @@ npm install
 ### Running Locally (3 terminals)
 ```bash
 # Terminal 1 — API
-cd backend && uv run uvicorn app.main:app --reload --port 8000
+cd backend && uv run uvicorn app.main:app --reload --port 8001
 
 # Terminal 2 — Celery worker (required for import jobs)
 cd backend && uv run celery -A app.workers.celery_app worker --loglevel=info --pool=solo
@@ -56,7 +56,7 @@ cd backend && uv run pytest tests/
 ## Architecture
 
 ### Request Flow
-Browser → Next.js (`:3000`) → FastAPI (`:8000`) → SQLite / Redis+Celery
+Browser → Next.js (`:3000`) → FastAPI (`:8001`) → SQLite / Redis+Celery
 
 Next.js rewrites `/api/*`, `/ws/*`, `/uploads/*` to the FastAPI backend, so the frontend never calls the backend directly except through these rewrites.
 
@@ -114,7 +114,7 @@ When `import_marmiton` finishes with new `IngredientMaster` rows, it queues `pri
 - `MAXI_STORE_ID` — Maxi location ID (default: 8676)
 - `SCRAPE_CONCURRENCY` — parallel Playwright pages (default: 5)
 
-Frontend env (`.env.local`): `NEXT_PUBLIC_API_URL=http://localhost:8000`, `NEXT_PUBLIC_WS_URL=ws://localhost:8000`
+Frontend env (`.env.local`): `NEXT_PUBLIC_API_URL=http://localhost:8001`, `NEXT_PUBLIC_WS_URL=ws://localhost:8001`
 
 ### Non-obvious implementation details
 - **Ingredient names use underscores** for compound names (e.g., `huile_olive`, `poivre_noir`) — this is the Gemini standardization convention

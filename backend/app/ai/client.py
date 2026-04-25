@@ -170,7 +170,9 @@ async def call_claude(
 ) -> str:
     """Text-in, text-out Gemini call. Name kept for back-compat.
 
-    Tries primary model first; on any error falls back to lighter model.
+    Tries primary model first; on any error falls back through the model
+    chain (see ``_models_for_fallback``), and finally to Claude Haiku
+    when Gemini hard-fails (billing cap / quota exhausted).
     Concatenates `system` + `user` as a single prompt (Gemini's system
     instruction arg is model-dependent and noisier).
     """

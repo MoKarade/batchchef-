@@ -1,6 +1,6 @@
 import axios from "axios";
 
-// Relative base URL — Next.js rewrites proxy /api/* → FastAPI at port 8000
+// Relative base URL — Next.js rewrites proxy /api/* → FastAPI at port 8001
 export const api = axios.create({
   baseURL: "",
   headers: { "Content-Type": "application/json" },

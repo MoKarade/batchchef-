@@ -20,3 +20,9 @@ class ImportJob(Base):
     metadata_json: Mapped[str | None] = mapped_column(Text)
     cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    def __repr__(self) -> str:
+        return (
+            f"<ImportJob id={self.id} type={self.job_type} status={self.status} "
+            f"progress={self.progress_current}/{self.progress_total}>"
+        )

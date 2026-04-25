@@ -1,9 +1,18 @@
 import sys, json, os, sqlite3
+import tempfile
+from pathlib import Path
 sys.stdout.reconfigure(encoding='utf-8')
 from datetime import datetime, timedelta
 
-HIST = 'C:/Users/dessin14/AppData/Local/Temp/job_dashboard_history.json'
-DB   = 'C:/Users/dessin14/CascadeProjects/batch-cooking/backend/batchchef.db'
+# Resolve paths relative to this script so the dashboard works from any
+# checkout. Old hardcoded `C:/Users/dessin14/...` paths only worked on the
+# original dev box.
+_BACKEND = Path(__file__).resolve().parent
+HIST = os.environ.get(
+    "BATCHCHEF_DASHBOARD_HIST",
+    str(Path(tempfile.gettempdir()) / "job_dashboard_history.json"),
+)
+DB = os.environ.get("BATCHCHEF_DASHBOARD_DB", str(_BACKEND / "batchchef.db"))
 
 history = json.load(open(HIST)) if os.path.exists(HIST) else []
 
