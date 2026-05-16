@@ -67,3 +67,40 @@ def get_scale_factor(need_qty: float, need_unit: str, format_qty: float, format_
     if need_type != fmt_type:
         return 0.0  # incompatible (g vs ml)
     return need_base / fmt_base
+
+
+# Average weight per single item, in grams. Used as a fallback when the recipe
+# expresses a quantity in "pieces" but the store sells the ingredient by mass.
+# Values are rough but better than displaying absurd counts (eg. "48 apricots").
+# Lowercase canonical_name → grams per single item.
+WEIGHT_PER_UNIT_G: dict[str, float] = {
+    # Fruits
+    "pomme": 180, "poire": 180, "banane": 120, "orange": 180, "citron": 100,
+    "clementine": 80, "mandarine": 80, "peche": 150, "abricot": 40,
+    "abricot_sec": 8, "prune": 60, "kiwi": 80, "fraise": 15, "framboise": 3,
+    "mangue": 300, "avocat": 200, "tomate": 120, "tomate_cerise": 10,
+    "concombre": 250, "courgette": 200, "aubergine": 300,
+    # Légumes
+    "carotte": 60, "oignon": 110, "echalote": 20, "poireau": 150,
+    "pomme_de_terre": 150, "patate_douce": 200, "poivron": 160,
+    # Oeufs & dérivés
+    "oeuf": 60, "oeufs": 60, "jaune_oeuf": 18, "blanc_oeuf": 35,
+    # Herbes & épices (par unité)
+    "gousse_ail": 5, "ail": 5, "brin_thym": 1, "feuille_laurier": 0.5,
+    "brin_romarin": 1, "bouquet_persil": 25,
+}
+
+
+def convert_count_to_mass(canonical_name: str, qty: float) -> float | None:
+    """Convert a count-based quantity (e.g. '12 abricots') to grams using a
+    lookup table of average per-piece weights. Returns None if the ingredient
+    has no known weight — the caller should leave the unit as 'unite' in that
+    case."""
+    key = (canonical_name or "").strip().lower()
+    if key in WEIGHT_PER_UNIT_G:
+        return qty * WEIGHT_PER_UNIT_G[key]
+    # try parent form (strip common prefixes like "petit_", "gros_", "demi_")
+    for prefix in ("petit_", "gros_", "demi_", "moitie_", "morceau_"):
+        if key.startswith(prefix):
+            return convert_count_to_mass(key[len(prefix):], qty)
+    return None

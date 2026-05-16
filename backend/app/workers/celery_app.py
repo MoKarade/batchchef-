@@ -14,6 +14,9 @@ celery_app = Celery(
         "app.workers.estimate_fruiterie_prices",
         "app.workers.clean_display_names",
         "app.workers.classify_recipes",
+        "app.workers.retry_missing_prices",
+        "app.workers.continuous_import",
+        "app.workers.classify_ingredients",
     ],
 )
 
@@ -29,7 +32,11 @@ celery_app.conf.update(
 
 celery_app.conf.beat_schedule = {
     "validate-prices-weekly": {
-        "task": "prices.validate",
+        "task": "app.workers.validate_prices.run_price_validation",
         "schedule": crontab(hour=3, minute=0, day_of_week=1),  # Monday 03:00
+    },
+    "retry-missing-prices-daily": {
+        "task": "prices.retry_missing",
+        "schedule": crontab(hour=3, minute=30),  # daily 03:30
     },
 }

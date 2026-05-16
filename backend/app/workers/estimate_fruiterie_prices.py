@@ -47,7 +47,7 @@ async def _run(job_id: int, ingredient_ids: list[int] | None):
             await manager.broadcast(str(job_id), {"job_id": job_id, "status": "failed"})
             return
 
-        q = select(IngredientMaster)
+        q = select(IngredientMaster).where(IngredientMaster.is_produce.is_(True))
         if ingredient_ids:
             q = q.where(IngredientMaster.id.in_(ingredient_ids))
         ingredients = list((await db.execute(q)).scalars().all())

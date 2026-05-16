@@ -26,6 +26,7 @@ class StoreProduct(Base):
     store_id: Mapped[int] = mapped_column(Integer, ForeignKey("store.id"), nullable=False)
     product_name: Mapped[str | None] = mapped_column(String)
     product_url: Mapped[str | None] = mapped_column(String)
+    image_url: Mapped[str | None] = mapped_column(String)
     sku: Mapped[str | None] = mapped_column(String)
     price: Mapped[float | None] = mapped_column(Float)
     format_qty: Mapped[float | None] = mapped_column(Float)   # 500

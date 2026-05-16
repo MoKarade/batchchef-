@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Integer, String, Boolean, Float, DateTime, ForeignKey, func
+from sqlalchemy import Integer, String, Boolean, Float, DateTime, ForeignKey, JSON, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -31,8 +31,11 @@ class IngredientMaster(Base):
     carbs_per_100: Mapped[float | None] = mapped_column(Float)
     lipids_per_100: Mapped[float | None] = mapped_column(Float)
 
+    is_taxable: Mapped[bool] = mapped_column(Boolean, default=False)
     price_mapping_status: Mapped[str] = mapped_column(String, default="pending")  # pending|mapped|failed
     last_price_mapping_at: Mapped[datetime | None] = mapped_column(DateTime)
+    search_aliases: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    price_map_attempts: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     parent: Mapped["IngredientMaster | None"] = relationship(

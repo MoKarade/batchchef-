@@ -1,20 +1,18 @@
 """
-Batch-standardize raw ingredient names to canonical form.
-Sends up to 50 names per Gemini request.
-Returns structured results: {"canonical": str, "variant": str | None}
-  - canonical = Level-1 generic name (e.g. "thon", "ail")
-  - variant   = Level-2 specific form when a container/preparation is detected
-                (e.g. "thon_en_boite", "ail_en_poudre"), else null
+Batch-standardize raw ingredient names to canonical form via Claude.
+Sends up to 50 names per request.
 """
 import json
 import logging
 import re
-from app.ai.client import get_client
-from app.config import settings
+from app.ai.client import call_claude
+from app.ai.utils import parse_json_response
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """Tu es un expert culinaire. Pour chaque ingrédient brut reçu, retourne un objet JSON avec :
+_ALIASES_BATCH = 50
+
+STANDARDIZE_SYSTEM = """Tu es un expert culinaire. Pour chaque ingrédient brut reçu, retourne un objet JSON avec :
 - "canonical" : le nom générique de l'ingrédient (Level-1), singulier, sans adjectif, sans quantité, sans conditionnement.
 - "variant" : null OU le nom plus spécifique (Level-2) quand l'ingrédient est clairement dans une forme/conditionnement distinct.
 
@@ -53,48 +51,102 @@ class StandardizeResult:
 
 
 async def standardize_batch(raw_names: list[str]) -> list[StandardizeResult]:
-    """
-    Returns StandardizeResult for each raw_name.
-    Falls back to basic cleaning if AI fails.
-    """
+    """Returns StandardizeResult for each raw_name. Retries up to 3 times, falls back to basic cleaning."""
     if not raw_names:
         return []
 
-    client = get_client()
-    prompt = SYSTEM_PROMPT + f"\n\nInput: {json.dumps(raw_names, ensure_ascii=False)}"
+    user = f"Input: {json.dumps(raw_names, ensure_ascii=False)}"
 
-    try:
-        response = client.models.generate_content(
-            model=settings.GEMINI_MODEL,
-            contents=prompt,
-        )
-        text = response.text.strip()
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        result = json.loads(text)
-        if isinstance(result, list) and len(result) == len(raw_names):
-            out = []
-            for r in result:
-                if isinstance(r, dict):
-                    canonical = _sanitize_canonical(str(r.get("canonical", "")))
-                    raw_variant = r.get("variant")
-                    variant = _sanitize_canonical(str(raw_variant)) if raw_variant else None
-                    if variant == canonical:
-                        variant = None
-                    out.append(StandardizeResult(canonical, variant))
-                else:
-                    out.append(StandardizeResult(_sanitize_canonical(str(r))))
-            return out
-    except Exception as e:
-        logger.warning(f"Standardizer error: {e}")
+    for attempt in range(3):
+        try:
+            text = await call_claude(STANDARDIZE_SYSTEM, user)
+            result = parse_json_response(text)
+            if isinstance(result, list) and len(result) == len(raw_names):
+                out = []
+                for r in result:
+                    if isinstance(r, dict):
+                        canonical = _sanitize_canonical(str(r.get("canonical", "")))
+                        raw_variant = r.get("variant")
+                        variant = _sanitize_canonical(str(raw_variant)) if raw_variant else None
+                        if variant == canonical:
+                            variant = None
+                        out.append(StandardizeResult(canonical, variant))
+                    else:
+                        out.append(StandardizeResult(_sanitize_canonical(str(r))))
+                return out
+            raise ValueError(f"Unexpected response length: {len(result)} vs {len(raw_names)}")
+        except Exception as e:
+            if attempt < 2:
+                wait = 5 * (2 ** attempt)
+                logger.warning(f"Standardizer attempt {attempt + 1}/3 failed ({e}), retrying in {wait}s")
+                await asyncio.sleep(wait)
+            else:
+                logger.warning(f"Standardizer failed after 3 attempts: {e}")
 
     return [StandardizeResult(_basic_clean(n)) for n in raw_names]
 
 
+ALIASES_SYSTEM = """Tu es un expert des épiceries québécoises (Maxi, Costco, IGA).
+Pour chaque ingrédient culinaire reçu (sous forme de canonical_name avec underscores),
+génère exactement 3 alias de recherche en français québécois pour trouver ce produit en épicerie.
+
+Règles :
+- Alias 1 : forme correcte avec accents (ex. "bœuf haché")
+- Alias 2 : synonyme ou nom commercial courant au Québec (ex. "ground beef", "steak haché")
+- Alias 3 : forme abrégée ou variante packaging typique (ex. "boeuf haché maigre")
+- Toujours en minuscules. Jamais d'underscores dans les alias.
+- Si l'ingrédient est déjà simple (ex. "sel", "eau"), donne 3 variantes utiles quand même.
+
+Exemples :
+"boeuf_hache" → ["bœuf haché", "ground beef", "boeuf haché maigre"]
+"huile_olive"  → ["huile d'olive", "olive oil", "huile olive extra vierge"]
+"tomate"       → ["tomate", "tomatoes", "tomates fraîches"]
+"lait_entier"  → ["lait entier", "whole milk", "lait 3.25%"]
+
+Réponds UNIQUEMENT avec un JSON object où chaque clé est le canonical_name d'input
+et la valeur est un array de 3 strings."""
+
+
+async def generate_search_aliases(canonical_names: list[str]) -> dict[str, list[str]]:
+    """Generates 3 search aliases per canonical ingredient name, batched 50/request."""
+    if not canonical_names:
+        return {}
+
+    result: dict[str, list[str]] = {}
+
+    for chunk_start in range(0, len(canonical_names), _ALIASES_BATCH):
+        chunk = canonical_names[chunk_start: chunk_start + _ALIASES_BATCH]
+        user = f"Input: {json.dumps(chunk, ensure_ascii=False)}"
+
+        for attempt in range(3):
+            try:
+                text = await call_claude(ALIASES_SYSTEM, user)
+                parsed = parse_json_response(text)
+                if isinstance(parsed, dict):
+                    for name in chunk:
+                        aliases = parsed.get(name, [])
+                        if isinstance(aliases, list) and aliases:
+                            result[name] = [str(a) for a in aliases[:3] if a]
+                    break
+                raise ValueError(f"Expected dict, got {type(parsed)}")
+            except Exception as e:
+                if attempt < 2:
+                    wait = 5 * (2 ** attempt)
+                    logger.warning(f"Aliases attempt {attempt + 1}/3 failed ({e}), retrying in {wait}s")
+                    await asyncio.sleep(wait)
+                else:
+                    logger.warning(f"Aliases generation failed for chunk after 3 attempts: {e}")
+
+    # Fallback: generate basic alias from canonical_name itself
+    for name in canonical_names:
+        if name not in result:
+            result[name] = [name.replace("_", " ")]
+
+    return result
+
+
 def _sanitize_canonical(c: str) -> str:
-    """Defense-in-depth: remove leading digits/dashes Gemini may hallucinate."""
+    """Defense-in-depth: remove leading digits/dashes Claude may hallucinate."""
     c = c.lower().strip()
     c = re.sub(r"^[\s\-_\d,./]+", "", c)
     c = re.sub(r"_+", "_", c).strip("_ ")

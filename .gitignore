@@ -126,7 +126,9 @@ npm-debug.log
 # BatchChef specific
 backend/config.json
 backend/*.log
-backend/*.db
+# NOTE: batchchef.db is intentionally tracked so a fresh clone on another
+# machine has all the scraped recipes / prices / images already. Only the
+# SQLite lock/WAL sidecars are ignored.
 backend/*.db-shm
 backend/*.db-wal
 backend/server.log
@@ -145,3 +147,7 @@ backend/.venv/
 
 # Playwright
 backend/playwright-report/
+
+# Redis dump
+backend/dump.rdb
+dump.rdb

@@ -4,6 +4,7 @@ import axios from "axios";
 export const api = axios.create({
   baseURL: "",
   headers: { "Content-Type": "application/json" },
+  timeout: 30_000,
 });
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -111,6 +112,7 @@ export interface ShoppingItem {
   from_inventory_qty: number;
   is_purchased: boolean;
   purchased_at?: string;
+  product_url?: string;
   ingredient?: { id: number; canonical_name: string; display_name_fr: string };
   store?: { id: number; code: string; name: string };
 }
@@ -183,6 +185,11 @@ export interface IngredientMaster {
   usage_count?: number;
   store_product_count?: number;
   children_count?: number;
+  primary_image_url?: string | null;
+  primary_store_code?: string | null;
+  computed_price_per_kg?: number | null;
+  computed_unit_price?: number | null;
+  computed_unit_label?: string | null;
 }
 
 export interface ReceiptItem {
@@ -244,15 +251,81 @@ export interface BatchGenerateRequest {
   exclude_recipe_ids?: number[] | null;
 }
 
+export interface BatchPreviewRecipe {
+  id: number;
+  title: string;
+  image_url?: string;
+  meal_type?: string;
+  health_score?: number;
+  estimated_cost_per_portion?: number;
+  is_vegetarian: boolean;
+  is_vegan: boolean;
+  portions: number;
+}
+
+export interface ShoppingItemPreview {
+  ingredient_master_id: number;
+  quantity_needed: number;
+  unit: string;
+  format_qty?: number;
+  format_unit?: string;
+  packages_to_buy: number;
+  estimated_cost?: number;
+  from_inventory_qty: number;
+  product_url?: string;
+  ingredient?: { id: number; canonical_name: string; display_name_fr: string };
+  store?: { id: number; code: string; name: string };
+}
+
+export interface BatchPreview {
+  target_portions: number;
+  total_portions: number;
+  total_estimated_cost: number;
+  price_coverage: number;
+  unpriced_ingredients: string[];
+  recipes: BatchPreviewRecipe[];
+  shopping_items: ShoppingItemPreview[];
+}
+
+export interface PriceCoverageItem {
+  id: number;
+  canonical_name: string;
+  display_name_fr: string;
+  attempts: number;
+}
+
+export interface PriceCoverageOut {
+  total: number;
+  priced: number;
+  coverage_pct: number;
+  by_store: Record<string, number>;
+  unpriced: PriceCoverageItem[];
+}
+
+export interface BatchAcceptRequest {
+  target_portions: number;
+  recipes: Array<{ recipe_id: number; portions: number }>;
+  name?: string;
+}
+
 export const batchesApi = {
   generate: (req: BatchGenerateRequest) =>
     api.post<Batch>("/api/batches/generate", req),
+  preview: (req: BatchGenerateRequest) =>
+    api.post<BatchPreview>("/api/batches/preview", req),
+  accept: (req: BatchAcceptRequest) =>
+    api.post<Batch>("/api/batches/accept", req),
+  delete: (id: number) => api.delete(`/api/batches/${id}`),
   list: () => api.get<Batch[]>("/api/batches"),
   get: (id: number) => api.get<Batch>(`/api/batches/${id}`),
   purchaseItem: (batchId: number, itemId: number) =>
     api.patch(`/api/batches/${batchId}/shopping-items/${itemId}/purchase`),
   unpurchaseItem: (batchId: number, itemId: number) =>
     api.patch(`/api/batches/${batchId}/shopping-items/${itemId}/unpurchase`),
+  bulkPurchase: (batchId: number, itemIds: number[]) =>
+    api.post(`/api/batches/${batchId}/shopping-items/bulk-purchase`, {
+      item_ids: itemIds,
+    }),
 };
 
 export const inventoryApi = {
@@ -309,7 +382,51 @@ export const ingredientsApi = {
     api.post<{ scanned: number; renamed: number; merged: number; skipped: number }>(
       "/api/ingredients/repair-prefixes",
     ),
+  priceCoverage: () =>
+    api.get<PriceCoverageOut>("/api/ingredients/price-coverage"),
+  retryMissingPrices: () =>
+    api.post("/api/ingredients/retry-missing-prices"),
+  details: (id: number) =>
+    api.get<IngredientDetails>(`/api/ingredients/${id}/details`),
 };
+
+export interface StoreProductOut {
+  id: number;
+  store_id: number;
+  store_code?: string;
+  store_name?: string;
+  product_name?: string;
+  product_url?: string;
+  image_url?: string;
+  price?: number;
+  format_qty?: number;
+  format_unit?: string;
+  is_validated: boolean;
+  confidence_score?: number;
+  last_checked_at?: string;
+}
+
+export interface RecipeBriefForIng {
+  id: number;
+  title: string;
+  image_url?: string;
+  meal_type?: string;
+  servings?: number;
+  quantity_per_portion?: number;
+  unit?: string;
+}
+
+export interface PricePoint {
+  store_code: string;
+  price: number;
+  recorded_at: string;
+}
+
+export interface IngredientDetails extends IngredientMaster {
+  store_products: StoreProductOut[];
+  recipes: RecipeBriefForIng[];
+  price_history: PricePoint[];
+}
 
 export const receiptsApi = {
   list: () => api.get<ReceiptScan[]>("/api/receipts"),
