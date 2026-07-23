@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:3001"]
     HOST: str = "0.0.0.0"
 
+    # Hub perso (hubperso.com) — GET /api/hub/summary. Vide = route désactivée (503, fail-closed).
+    HUB_TOKEN: str = ""
+    # Base d'URL de l'UI BatchChef pour les deep links du widget hub (href absolu exigé).
+    HUB_APP_URL: str = "http://localhost:5173"
+
     PLAYWRIGHT_HEADLESS: bool = True
     MAXI_STORE_ID: str = "8676"
     MAXI_POSTAL_CODE: str = "G1M 3E5"  # Fleur-de-Lys, Québec

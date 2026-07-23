@@ -3,6 +3,14 @@
 Base URL: `http://localhost:8000`
 Swagger UI: `http://localhost:8000/docs`
 
+## Hub perso (hubperso.com)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/hub/summary` | Résumé BatchChef pour le dashboard hub, conforme au contrat [`@mokarade/hub-contract`](https://github.com/MoKarade/hub-contract) v1. Auth : header `x-hub-token` comparé en **temps constant** au secret `HUB_TOKEN` (env). Fail-closed : `503` si `HUB_TOKEN` non défini, `401` si jeton absent/faux. `Cache-Control: no-store`. Métriques réelles (recettes prêtes, batchs actifs, inventaire, courses à acheter, couverture de tarification, prix périmés) + alertes + status honnête (`building` si base vide, `degraded` sur import en échec, `error` sur panne de base). Aucune donnée inventée. |
+
+Config : `HUB_TOKEN` (secret, vide = route désactivée) et `HUB_APP_URL` (base des deep links du widget, défaut `http://localhost:5173`).
+
 ## Ingredients
 
 | Method | Path | Purpose |
