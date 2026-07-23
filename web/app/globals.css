@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+/* Mobile-first : l'écran principal est un téléphone à l'épicerie. Cibles tactiles
+   généreuses, contrastes nets, thème clair/sombre via prefers-color-scheme. */
+
+:root {
+  --accent: #c2410c; /* orange cuisine — même couleur que le widget hub */
+}
+
+body {
+  @apply bg-stone-50 text-stone-900 antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    @apply bg-stone-950 text-stone-100;
+  }
+}
