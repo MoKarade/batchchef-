@@ -9,6 +9,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
+import { normalizeQty } from "../units";
 
 const MODEL = process.env.BATCHCHEF_LLM_MODEL || "claude-haiku-4-5-20251001";
 
@@ -32,25 +33,67 @@ function extractJson(text: string): unknown {
 
 // ── 1. Parse de recette ────────────────────────────────────────────────────────
 
-export const ParsedRecipeSchema = z.object({
+// Schéma TOLÉRANT de la sortie LLM : `unit` est libre (« g », « cl », « c. à soupe »,
+// « tasse », « unité »…) et TOUT champ « vide » peut être null OU absent (`nullish`). La
+// normalisation vers g/ml/unite est faite APRÈS, en code (`normalizeQty`) — on ne compte
+// pas sur le LLM pour normaliser parfaitement (il glisse toujours), ce qui rendait l'import
+// fragile (un « c. à soupe » ou une clé `note` omise faisait planter tout l'import).
+export const RawParsedRecipeSchema = z.object({
   title: z.string().min(1).max(200),
-  servings: z.number().int().min(1).max(50),
-  imageUrl: z.string().url().nullable(),
-  instructions: z.string().max(20000).nullable(),
+  servings: z.number().int().min(1).max(50).nullish(),
+  imageUrl: z.string().url().nullish(),
+  instructions: z.string().max(20000).nullish(),
   ingredients: z
     .array(
       z.object({
         name: z.string().min(1).max(120),
-        canonical: z.string().min(1).max(80),
-        qty: z.number().positive().nullable(),
-        unit: z.enum(["g", "ml", "unite"]).nullable(),
-        note: z.string().max(200).nullable(),
+        canonical: z.string().min(1).max(80).nullish(),
+        qty: z.number().positive().nullish(),
+        unit: z.string().max(30).nullish(),
+        note: z.string().max(200).nullish(),
       }),
     )
     .min(1)
-    .max(60),
+    .max(80),
 });
-export type ParsedRecipe = z.infer<typeof ParsedRecipeSchema>;
+
+/** Recette NORMALISÉE (unités en g/ml/unite) — le format consommé par le reste de l'app. */
+export interface ParsedIngredient {
+  name: string;
+  canonical: string;
+  qty: number | null;
+  unit: "g" | "ml" | "unite" | null;
+  note: string | null;
+}
+export interface ParsedRecipe {
+  title: string;
+  servings: number;
+  imageUrl: string | null;
+  instructions: string | null;
+  ingredients: ParsedIngredient[];
+}
+
+/** Convertit la sortie LLM brute en recette normalisée (unités → g/ml/unite). */
+export function normalizeParsedRecipe(raw: z.infer<typeof RawParsedRecipeSchema>): ParsedRecipe {
+  return {
+    title: raw.title,
+    servings: raw.servings && raw.servings > 0 ? raw.servings : 4,
+    imageUrl: raw.imageUrl ?? null,
+    instructions: raw.instructions ?? null,
+    ingredients: raw.ingredients.map((i) => {
+      // Le texte de désambiguïsation des cuillères (thé vs soupe) vit dans unit/note.
+      const norm = normalizeQty(i.qty ?? null, i.unit ?? null, `${i.unit ?? ""} ${i.note ?? ""}`);
+      const canonical = (i.canonical ?? i.name).toLowerCase().trim();
+      return {
+        name: i.name,
+        canonical: canonical || i.name.toLowerCase().trim(),
+        qty: norm.qty,
+        unit: norm.unit,
+        note: i.note ?? null,
+      };
+    }),
+  };
+}
 
 const PARSE_SYSTEM = `Tu extrais une recette de cuisine depuis le texte d'une page web, en JSON strict.
 
@@ -58,9 +101,10 @@ Règles :
 - "servings" : le nombre de portions de RÉFÉRENCE de la page (défaut 4 si absent).
 - Chaque ingrédient : "name" (fr, tel qu'affiché), "canonical" (minuscules, singulier,
   sans adjectifs de préparation — ex. "poitrine de poulet", "oignon", "riz basmati"),
-  "qty" + "unit" NORMALISÉS : masses en "g" (1 kg → 1000), volumes en "ml" (1 L → 1000,
-  1 tasse → 250, 1 c. à soupe → 15, 1 c. à thé → 5), pièces en "unite" (2 oignons → 2).
-  Quantité introuvable ou "au goût" → qty: null, unit: null. Précision utile dans "note".
+  "qty" (nombre) et "unit" tels que dans la recette : "g", "kg", "ml", "cl", "l",
+  "c. à soupe", "c. à thé", "tasse", ou "unite" pour les pièces (2 oignons → qty 2, unit "unite").
+  Ne convertis PAS toi-même : donne la quantité et l'unité NATURELLES. Quantité absente ou
+  "au goût" → qty: null, unit: null. Une précision (facultative) va dans "note".
 - "instructions" : les étapes, texte simple, ou null si absentes.
 - "imageUrl" : l'URL absolue de la photo principale si évidente dans le texte, sinon null.
 - Tu n'INVENTES rien : ce qui n'est pas dans la page reste null.
@@ -92,7 +136,7 @@ export async function parseRecipeFromPage(pageText: string): Promise<ParsedRecip
   });
   const block = response.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") throw new Error("Réponse LLM vide.");
-  return ParsedRecipeSchema.parse(extractJson(block.text));
+  return normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text)));
 }
 
 // ── 2. Estimation de budget ────────────────────────────────────────────────────
