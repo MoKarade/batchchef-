@@ -5,10 +5,12 @@ export type GuardDecision =
   | { type: "unauthorized" }
   | { type: "redirect"; location: string };
 
-/** Routes publiques : Auth.js, login, assets Next. Tout le reste exige une session. */
+/** Routes publiques : Auth.js, login, endpoint hub (jeton), assets Next. Le reste exige une session. */
 export function isPublicPath(pathname: string): boolean {
   if (pathname === "/login" || pathname.startsWith("/login/")) return true;
   if (pathname.startsWith("/api/auth/")) return true;
+  // Endpoint hub : gardé par jeton x-hub-token dans la route, pas par session Google.
+  if (pathname === "/api/hub/summary") return true;
   if (
     pathname.startsWith("/_next/static/") ||
     pathname.startsWith("/_next/image") ||
