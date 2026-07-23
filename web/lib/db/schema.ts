@@ -1,0 +1,90 @@
+// lib/db/schema.ts — schéma Drizzle (Postgres/Neon).
+//
+// Phase 1 : recettes (bibliothèque perso), batchs, liste d'épicerie. Conçu pour accueillir
+// la Phase 2 sans casse : les prix OBSERVÉS (reçus) et l'inventaire seront des tables
+// additives ; `shopping_items.cost_kind` distingue déjà « estime » vs « confirme »
+// (no-fake-data : un montant affiché dit toujours d'où il vient).
+
+import {
+  boolean,
+  integer,
+  pgTable,
+  real,
+  serial,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
+
+/** Bibliothèque perso : recettes importées par URL (parse LLM) ou saisies à la main. */
+export const recipes = pgTable("recipes", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  /** URL d'origine si importée (n'importe quel site) ; null si saisie manuelle. */
+  sourceUrl: text("source_url"),
+  imageUrl: text("image_url"),
+  /** Nombre de portions de RÉFÉRENCE des quantités d'ingrédients. */
+  servings: integer("servings").notNull().default(4),
+  instructions: text("instructions"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const recipeIngredients = pgTable("recipe_ingredients", {
+  id: serial("id").primaryKey(),
+  recipeId: integer("recipe_id")
+    .notNull()
+    .references(() => recipes.id, { onDelete: "cascade" }),
+  /** Nom tel qu'affiché (fr), ex. « poitrines de poulet ». */
+  name: text("name").notNull(),
+  /** Clé de regroupement normalisée (minuscules, singulier approx.) pour l'agrégation. */
+  canonical: text("canonical").notNull(),
+  /** Quantité pour `recipes.servings` portions ; null = « au goût ». */
+  qty: real("qty"),
+  /** g | ml | unite — normalisée au parse (kg→g, l→ml, c. à soupe→ml…). */
+  unit: text("unit", { enum: ["g", "ml", "unite"] }),
+  note: text("note"),
+});
+
+export const batches = pgTable("batches", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  status: text("status", { enum: ["planifie", "courses", "cuisine", "termine"] })
+    .notNull()
+    .default("planifie"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const batchRecipes = pgTable("batch_recipes", {
+  id: serial("id").primaryKey(),
+  batchId: integer("batch_id")
+    .notNull()
+    .references(() => batches.id, { onDelete: "cascade" }),
+  recipeId: integer("recipe_id")
+    .notNull()
+    .references(() => recipes.id, { onDelete: "restrict" }),
+  /** Portions voulues pour CE batch (les quantités sont mises à l'échelle). */
+  portions: integer("portions").notNull(),
+});
+
+/** Liste d'épicerie agrégée d'un batch (générée, puis cochable en magasin). */
+export const shoppingItems = pgTable("shopping_items", {
+  id: serial("id").primaryKey(),
+  batchId: integer("batch_id")
+    .notNull()
+    .references(() => batches.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  canonical: text("canonical").notNull(),
+  qty: real("qty"),
+  unit: text("unit", { enum: ["g", "ml", "unite"] }),
+  /** Coût estimé CAD pour la quantité, ou null si inconnu. */
+  estCost: real("est_cost"),
+  /** Provenance du montant : « estime » (LLM) maintenant ; « confirme » (reçus) en Phase 2. */
+  costKind: text("cost_kind", { enum: ["estime", "confirme"] }),
+  checked: boolean("checked").notNull().default(false),
+  checkedAt: timestamp("checked_at", { withTimezone: true }),
+});
+
+export type Recipe = typeof recipes.$inferSelect;
+export type RecipeIngredient = typeof recipeIngredients.$inferSelect;
+export type Batch = typeof batches.$inferSelect;
+export type BatchRecipe = typeof batchRecipes.$inferSelect;
+export type ShoppingItem = typeof shoppingItems.$inferSelect;
