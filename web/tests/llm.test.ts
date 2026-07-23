@@ -2,33 +2,56 @@
 // et htmlToText nettoie sans perdre les URLs d'images candidates.
 
 import { describe, expect, it } from "vitest";
-import { CostEstimateSchema, ParsedRecipeSchema, htmlToText } from "../lib/llm";
+import {
+  CostEstimateSchema,
+  RawParsedRecipeSchema,
+  htmlToText,
+  normalizeParsedRecipe,
+} from "../lib/llm";
 
-describe("ParsedRecipeSchema", () => {
+describe("RawParsedRecipeSchema (tolérant) + normalizeParsedRecipe", () => {
   const valid = {
     title: "Poulet au beurre",
     servings: 4,
     imageUrl: null,
     instructions: "Cuire.",
-    ingredients: [
-      { name: "Poulet", canonical: "poulet", qty: 500, unit: "g", note: null },
-    ],
+    ingredients: [{ name: "Poulet", canonical: "poulet", qty: 500, unit: "g", note: null }],
   };
 
-  it("accepte une recette bien formée", () => {
-    expect(ParsedRecipeSchema.parse(valid).title).toBe("Poulet au beurre");
-  });
-  it("rejette une unité non normalisée (tasse, kg…)", () => {
-    expect(() =>
-      ParsedRecipeSchema.parse({
+  it("accepte les unités BRUTES du LLM et les normalise après (c. à soupe → 15 ml)", () => {
+    const norm = normalizeParsedRecipe(
+      RawParsedRecipeSchema.parse({
         ...valid,
-        ingredients: [{ ...valid.ingredients[0], unit: "tasse" }],
+        ingredients: [{ name: "Huile", canonical: "huile", qty: 2, unit: "c. à soupe", note: null }],
       }),
-    ).toThrow();
+    );
+    expect(norm.ingredients[0]).toMatchObject({ qty: 30, unit: "ml" });
   });
-  it("rejette une recette sans ingrédient ou aux portions absurdes", () => {
-    expect(() => ParsedRecipeSchema.parse({ ...valid, ingredients: [] })).toThrow();
-    expect(() => ParsedRecipeSchema.parse({ ...valid, servings: 0 })).toThrow();
+
+  it("tolère une clé `note` ABSENTE (le bug d'import) et les champs optionnels manquants", () => {
+    const norm = normalizeParsedRecipe(
+      RawParsedRecipeSchema.parse({
+        title: "Quiche",
+        servings: 6,
+        ingredients: [{ name: "Œufs", canonical: "oeuf", qty: 3, unit: "unite" }],
+      }),
+    );
+    expect(norm.ingredients[0]).toMatchObject({ qty: 3, unit: "unite", note: null });
+    expect(norm.imageUrl).toBeNull();
+  });
+
+  it("une unité inconnue → « au goût » (jamais un poids inventé), pas un rejet", () => {
+    const norm = normalizeParsedRecipe(
+      RawParsedRecipeSchema.parse({
+        ...valid,
+        ingredients: [{ name: "Persil", canonical: "persil", qty: 1, unit: "poignée", note: null }],
+      }),
+    );
+    expect(norm.ingredients[0]).toMatchObject({ qty: null, unit: null });
+  });
+
+  it("rejette encore une recette sans aucun ingrédient", () => {
+    expect(() => RawParsedRecipeSchema.parse({ ...valid, ingredients: [] })).toThrow();
   });
 });
 
