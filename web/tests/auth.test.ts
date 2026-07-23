@@ -24,6 +24,11 @@ describe("garde des chemins", () => {
     expect(isPublicPath("/recettes")).toBe(false);
     expect(isPublicPath("/courses/3")).toBe(false);
   });
+  it("l'endpoint hub est public (gardé par jeton dans la route, pas par session)", () => {
+    expect(isPublicPath("/api/hub/summary")).toBe(true);
+    // mais pas les autres routes /api (elles exigent une session)
+    expect(isPublicPath("/api/hub/other")).toBe(false);
+  });
   it("non authentifié : page → redirect login, API → 401", () => {
     expect(decideGuard({ isAuthenticated: false, pathname: "/batchs" })).toEqual({
       type: "redirect",
