@@ -210,3 +210,55 @@ export async function deleteBatch(batchId: number): Promise<ActionResult> {
     return fail(err);
   }
 }
+
+/**
+ * Copie une recette du CATALOGUE de découverte vers la bibliothèque perso. Duplication
+ * pure (le catalogue reste intact) ; les ingrédients sont déjà normalisés à l'import.
+ */
+export async function addCatalogRecipeToLibrary(
+  catalogRecipeId: number,
+): Promise<ActionResult & { id?: number }> {
+  try {
+    await requireSession();
+    const [cat] = await db
+      .select()
+      .from(schema.catalogRecipes)
+      .where(eq(schema.catalogRecipes.id, catalogRecipeId));
+    if (!cat) return { ok: false, error: "Recette du catalogue introuvable." };
+
+    const catIngs = await db
+      .select()
+      .from(schema.catalogIngredients)
+      .where(eq(schema.catalogIngredients.catalogRecipeId, catalogRecipeId));
+
+    const [row] = await db
+      .insert(schema.recipes)
+      .values({
+        title: cat.title,
+        sourceUrl: cat.sourceUrl,
+        imageUrl: cat.imageUrl,
+        servings: cat.servings,
+        instructions: cat.instructions,
+      })
+      .returning({ id: schema.recipes.id });
+    if (!row) return { ok: false, error: "Copie de la recette échouée." };
+
+    if (catIngs.length > 0) {
+      await db.insert(schema.recipeIngredients).values(
+        catIngs.map((i) => ({
+          recipeId: row.id,
+          name: i.name,
+          canonical: i.canonical,
+          qty: i.qty,
+          unit: i.unit,
+          note: i.note,
+        })),
+      );
+    }
+
+    revalidatePath("/recettes");
+    return { ok: true, id: row.id };
+  } catch (err) {
+    return fail(err);
+  }
+}

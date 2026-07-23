@@ -43,6 +43,20 @@ npm run dev
 Nouveau projet Vercel → ce repo → **Root Directory = `web`** → colle les variables
 d'env ci-dessus → Deploy. C'est tout (pas de worker, pas de base à héberger toi-même).
 
+## Catalogue de découverte (les 10 188 recettes de la V3)
+
+Un écran `/catalogue` cherchable, séparé de ta bibliothèque perso : tu y piges des idées
+et tu ajoutes ce qui t'intéresse (bouton « + Ma bibliothèque »). Peuplé une fois depuis
+l'ancienne base V3 (committée, `backend/batchchef.seed.db`), unités normalisées à l'import :
+
+```bash
+cd web
+DATABASE_URL='TON_URL_NEON' npm run db:migrate      # applique aussi la table catalogue (0001)
+DATABASE_URL='TON_URL_NEON' npm run catalog:import   # importe les 10 188 recettes (~1-2 min)
+```
+
+Relançable sans risque (vide d'abord le catalogue). Ne touche jamais ta bibliothèque ni tes batchs.
+
 ## Vérifications avant commit
 
 ```bash
