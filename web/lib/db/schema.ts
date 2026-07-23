@@ -83,7 +83,35 @@ export const shoppingItems = pgTable("shopping_items", {
   checkedAt: timestamp("checked_at", { withTimezone: true }),
 });
 
+// ── Catalogue de découverte (les 10 188 recettes Marmiton de la V3) ──────────────
+// Corpus SÉPARÉ de la bibliothèque perso : lecture seule, cherchable, source d'idées.
+// « Ajouter à ma bibliothèque » copie une entrée du catalogue vers recipes/recipeIngredients.
+// Peuplé une fois par scripts/import-catalog.ts (unités normalisées à l'import).
+
+export const catalogRecipes = pgTable("catalog_recipes", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  sourceUrl: text("source_url"),
+  imageUrl: text("image_url"),
+  servings: integer("servings").notNull().default(1),
+  instructions: text("instructions"),
+});
+
+export const catalogIngredients = pgTable("catalog_ingredients", {
+  id: serial("id").primaryKey(),
+  catalogRecipeId: integer("catalog_recipe_id")
+    .notNull()
+    .references(() => catalogRecipes.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  canonical: text("canonical").notNull(),
+  qty: real("qty"),
+  unit: text("unit", { enum: ["g", "ml", "unite"] }),
+  note: text("note"),
+});
+
 export type Recipe = typeof recipes.$inferSelect;
+export type CatalogRecipe = typeof catalogRecipes.$inferSelect;
+export type CatalogIngredient = typeof catalogIngredients.$inferSelect;
 export type RecipeIngredient = typeof recipeIngredients.$inferSelect;
 export type Batch = typeof batches.$inferSelect;
 export type BatchRecipe = typeof batchRecipes.$inferSelect;
