@@ -4,6 +4,7 @@ import Link from "next/link";
 import { and, ilike, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { CatalogueSearch } from "@/components/CatalogueSearch";
+import { RecipeCard } from "@/components/RecipeCard";
 
 export const dynamic = "force-dynamic";
 const PAGE = 24;
@@ -59,18 +60,7 @@ export default async function CataloguePage({
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {recipes.map((r) => (
               <li key={r.id}>
-                <Link
-                  href={`/catalogue/${r.id}`}
-                  className="flex h-full flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm dark:border-stone-800 dark:bg-stone-900"
-                >
-                  {r.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={r.imageUrl} alt="" className="aspect-video w-full object-cover" loading="lazy" />
-                  ) : (
-                    <div className="aspect-video w-full bg-stone-100 dark:bg-stone-800" />
-                  )}
-                  <span className="line-clamp-2 p-3 text-sm font-medium">{r.title}</span>
-                </Link>
+                <RecipeCard href={`/catalogue/${r.id}`} title={r.title} imageUrl={r.imageUrl} />
               </li>
             ))}
           </ul>
