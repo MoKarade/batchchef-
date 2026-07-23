@@ -1,7 +1,8 @@
-// / — accueil : l'état en un coup d'œil + les deux gestes principaux.
+// / — accueil : l'état en un coup d'œil, les deux gestes principaux, et tes recettes récentes.
 import Link from "next/link";
-import { count, eq, inArray } from "drizzle-orm";
+import { count, desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
+import { RecipeCard } from "@/components/RecipeCard";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,15 @@ export default async function HomePage() {
     .select({ n: count() })
     .from(schema.shoppingItems)
     .where(eq(schema.shoppingItems.checked, false));
+  const recent = await db
+    .select({
+      id: schema.recipes.id,
+      title: schema.recipes.title,
+      imageUrl: schema.recipes.imageUrl,
+    })
+    .from(schema.recipes)
+    .orderBy(desc(schema.recipes.createdAt))
+    .limit(6);
 
   const stats = [
     { label: "Recettes", value: recipeCount?.n ?? 0, href: "/recettes" },
@@ -51,10 +61,29 @@ export default async function HomePage() {
           Nouveau batch
         </Link>
       </div>
-      <p className="text-sm text-stone-500 dark:text-stone-400">
-        Le cycle : importe tes recettes → compose un batch → fais l’épicerie avec la liste
-        sur ton téléphone.
-      </p>
+
+      {recent.length > 0 ? (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">Recettes récentes</h2>
+            <Link href="/recettes" className="text-sm underline">
+              Tout voir
+            </Link>
+          </div>
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {recent.map((r) => (
+              <li key={r.id}>
+                <RecipeCard href={`/recettes/${r.id}`} title={r.title} imageUrl={r.imageUrl} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : (
+        <p className="text-sm text-stone-500 dark:text-stone-400">
+          Le cycle : importe tes recettes → compose un batch → fais l’épicerie avec la liste
+          sur ton téléphone.
+        </p>
+      )}
     </div>
   );
 }

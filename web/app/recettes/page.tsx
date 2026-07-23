@@ -1,14 +1,18 @@
-// /recettes — bibliothèque perso : import par URL + liste.
-import Link from "next/link";
+// /recettes — bibliothèque perso : import par URL + grille avec photos.
 import { desc } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { ImportRecipeForm } from "@/components/ImportRecipeForm";
+import { RecipeCard } from "@/components/RecipeCard";
 
 export const dynamic = "force-dynamic";
 
 export default async function RecipesPage() {
   const recipes = await db
-    .select()
+    .select({
+      id: schema.recipes.id,
+      title: schema.recipes.title,
+      imageUrl: schema.recipes.imageUrl,
+    })
     .from(schema.recipes)
     .orderBy(desc(schema.recipes.createdAt));
 
@@ -18,22 +22,13 @@ export default async function RecipesPage() {
       <ImportRecipeForm />
       {recipes.length === 0 ? (
         <p className="rounded-xl border border-dashed border-stone-300 p-6 text-center text-sm text-stone-500 dark:border-stone-700">
-          Aucune recette. Colle l’URL d’une recette que tu aimes pour commencer.
+          Aucune recette. Colle l’URL d’une recette que tu aimes, ou pige dans le catalogue.
         </p>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {recipes.map((r) => (
             <li key={r.id}>
-              <Link
-                href={`/recettes/${r.id}`}
-                className="flex h-full flex-col rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-stone-800 dark:bg-stone-900"
-              >
-                <span className="font-medium">{r.title}</span>
-                <span className="mt-1 text-xs text-stone-500">
-                  {r.servings} portions de référence
-                  {r.sourceUrl ? ` · ${new URL(r.sourceUrl).hostname}` : " · saisie manuelle"}
-                </span>
-              </Link>
+              <RecipeCard href={`/recettes/${r.id}`} title={r.title} imageUrl={r.imageUrl} />
             </li>
           ))}
         </ul>
