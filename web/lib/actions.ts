@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 import { eq, inArray } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db, schema } from "@/lib/db";
-import { aggregateShoppingList } from "@/lib/aggregate";
+import { aggregateShoppingList, fillMissingCosts } from "@/lib/aggregate";
 import { splitNewCatalogRecipes } from "@/lib/catalogSelect";
 import { estimateShoppingCosts, htmlToText, parseRecipeFromPage } from "@/lib/llm";
 
@@ -219,21 +219,25 @@ export async function createBatch(input: {
       )
       .returning({ id: schema.shoppingItems.id });
 
-    // Estimation best-effort — l'échec n'annule jamais le batch.
+    // Estimation : couverture 100 % garantie. Le LLM chiffre ce qu'il peut ; un filet
+    // déterministe (fillMissingCosts) donne un prix à TOUT le reste — même si le LLM est
+    // indisponible, aucun article ne part sans prix. Reste une estimation honnête.
     let estimationError: string | undefined;
+    let llmCosts: Array<number | null> = new Array(aggregated.length).fill(null);
     try {
-      const costs = await estimateShoppingCosts(aggregated); // aligné sur `aggregated`
-      for (let idx = 0; idx < costs.length; idx++) {
-        const cost = costs[idx];
-        const item = insertedItems[idx];
-        if (cost === null || cost === undefined || !item) continue;
-        await db
-          .update(schema.shoppingItems)
-          .set({ estCost: cost, costKind: "estime" })
-          .where(eq(schema.shoppingItems.id, item.id));
-      }
+      llmCosts = await estimateShoppingCosts(aggregated); // aligné sur `aggregated`
     } catch (err) {
       estimationError = err instanceof Error ? err.message : String(err);
+    }
+    const costs = fillMissingCosts(aggregated, llmCosts);
+    for (let idx = 0; idx < costs.length; idx++) {
+      const item = insertedItems[idx];
+      const cost = costs[idx];
+      if (!item || cost === undefined) continue;
+      await db
+        .update(schema.shoppingItems)
+        .set({ estCost: cost, costKind: "estime" })
+        .where(eq(schema.shoppingItems.id, item.id));
     }
 
     revalidatePath("/batchs");

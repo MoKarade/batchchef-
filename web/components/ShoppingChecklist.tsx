@@ -14,7 +14,6 @@ interface Item {
   qty: number | null;
   unit: "g" | "ml" | "unite" | null;
   estCost: number | null;
-  costKind: "estime" | "confirme" | null;
   checked: boolean;
 }
 
@@ -63,7 +62,6 @@ export function ShoppingChecklist({ items: initial }: { items: Item[] }) {
         {item.estCost !== null && (
           <span className="shrink-0 text-sm tabular-nums text-stone-500">
             {item.estCost.toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}
-            {item.costKind === "estime" && <span title="Prix estimé"> ≈</span>}
           </span>
         )}
       </button>
@@ -90,8 +88,7 @@ export function ShoppingChecklist({ items: initial }: { items: Item[] }) {
           {done.length}/{items.length} pris
         </span>
         <span className="tabular-nums">
-          Restant ≈ {restant.toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}
-          <span className="ml-1 text-xs text-stone-500">(estimé)</span>
+          Restant {restant.toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}
         </span>
       </div>
       <ul className="divide-y divide-stone-200 rounded-2xl border border-stone-200 bg-white text-base dark:divide-stone-800 dark:border-stone-800 dark:bg-stone-900">
