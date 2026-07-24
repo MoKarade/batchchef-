@@ -359,6 +359,96 @@ export async function toggleShoppingItem(itemId: number, checked: boolean): Prom
   }
 }
 
+type ShoppingUnit = "g" | "ml" | "unite" | null;
+
+interface ShoppingItemInput {
+  name: string;
+  qty: number | null;
+  unit: ShoppingUnit;
+  estCost: number | null;
+}
+
+/** Nettoie une saisie d'article : nom trimé, canonical dérivé, cohérence qty/unit, coût borné. */
+function cleanShoppingInput(input: ShoppingItemInput): {
+  name: string;
+  canonical: string;
+  qty: number | null;
+  unit: ShoppingUnit;
+  estCost: number | null;
+} | null {
+  const name = input.name.trim();
+  if (!name) return null;
+  const qty = input.qty !== null && Number.isFinite(input.qty) && input.qty > 0 ? input.qty : null;
+  const estCost =
+    input.estCost !== null && Number.isFinite(input.estCost) && input.estCost >= 0
+      ? Math.round(input.estCost * 100) / 100
+      : null;
+  return { name, canonical: name.toLowerCase(), qty, unit: qty === null ? null : input.unit, estCost };
+}
+
+/** Ajoute un article MANUEL (hors recettes) à la liste d'un batch. */
+export async function addShoppingItem(
+  batchId: number,
+  input: ShoppingItemInput,
+): Promise<ActionResult> {
+  try {
+    await requireSession();
+    const clean = cleanShoppingInput(input);
+    if (!clean) return { ok: false, error: "Donne un nom à l'article." };
+    await db.insert(schema.shoppingItems).values({
+      batchId,
+      name: clean.name,
+      canonical: clean.canonical,
+      qty: clean.qty,
+      unit: clean.unit,
+      estCost: clean.estCost,
+      costKind: clean.estCost !== null ? "estime" : null,
+    });
+    revalidatePath(`/courses/${batchId}`);
+    revalidatePath(`/batchs/${batchId}`);
+    return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Modifie un article de la liste (nom, quantité, unité, coût). */
+export async function updateShoppingItem(
+  itemId: number,
+  input: ShoppingItemInput,
+): Promise<ActionResult> {
+  try {
+    await requireSession();
+    const clean = cleanShoppingInput(input);
+    if (!clean) return { ok: false, error: "Donne un nom à l'article." };
+    await db
+      .update(schema.shoppingItems)
+      .set({
+        name: clean.name,
+        canonical: clean.canonical,
+        qty: clean.qty,
+        unit: clean.unit,
+        estCost: clean.estCost,
+        costKind: clean.estCost !== null ? "estime" : null,
+      })
+      .where(eq(schema.shoppingItems.id, itemId));
+    return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Retire un article de la liste. */
+export async function deleteShoppingItem(itemId: number): Promise<ActionResult> {
+  try {
+    await requireSession();
+    await db.delete(schema.shoppingItems).where(eq(schema.shoppingItems.id, itemId));
+    return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 export async function setBatchStatus(
   batchId: number,
   status: "planifie" | "courses" | "cuisine" | "termine",

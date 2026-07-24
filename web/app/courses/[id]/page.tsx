@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { ShoppingChecklist } from "@/components/ShoppingChecklist";
+import { ShoppingListEditor } from "@/components/ShoppingListEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,16 @@ export default async function ShoppingPage({
           unit: i.unit,
           estCost: i.estCost,
           checked: i.checked,
+        }))}
+      />
+      <ShoppingListEditor
+        batchId={id}
+        items={items.map((i) => ({
+          id: i.id,
+          name: i.name,
+          qty: i.qty,
+          unit: i.unit,
+          estCost: i.estCost,
         }))}
       />
     </div>
