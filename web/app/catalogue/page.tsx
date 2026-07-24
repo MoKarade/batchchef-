@@ -4,7 +4,7 @@ import Link from "next/link";
 import { and, ilike, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { CatalogueSearch } from "@/components/CatalogueSearch";
-import { RecipeCard } from "@/components/RecipeCard";
+import { CatalogueGrid } from "@/components/CatalogueGrid";
 
 export const dynamic = "force-dynamic";
 const PAGE = 24;
@@ -57,13 +57,10 @@ export default async function CataloguePage({
         </p>
       ) : (
         <>
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {recipes.map((r) => (
-              <li key={r.id}>
-                <RecipeCard href={`/catalogue/${r.id}`} title={r.title} imageUrl={r.imageUrl} />
-              </li>
-            ))}
-          </ul>
+          <p className="text-xs text-stone-500">
+            Coche les recettes (coin des cartes) pour en ajouter plusieurs d’un coup à ta bibliothèque.
+          </p>
+          <CatalogueGrid recipes={recipes} />
           {lastPage > 1 && (
             <div className="flex items-center justify-between text-sm">
               {page > 1 ? (
