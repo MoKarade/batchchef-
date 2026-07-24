@@ -11,7 +11,12 @@ import { db, schema } from "@/lib/db";
 import { aggregateShoppingList, fillMissingCosts } from "@/lib/aggregate";
 import { splitNewCatalogRecipes } from "@/lib/catalogSelect";
 import { clampServings, prepareIngredientRows, type EditableIngredient } from "@/lib/recipeEdit";
-import { estimateShoppingCosts, htmlToText, parseRecipeFromPage } from "@/lib/llm";
+import {
+  estimateShoppingCosts,
+  htmlToText,
+  parseRecipeFromPage,
+  verifyParsedRecipe,
+} from "@/lib/llm";
 
 async function requireSession(): Promise<void> {
   const session = await auth();
@@ -24,42 +29,97 @@ function fail(err: unknown): ActionResult {
   return { ok: false, error: err instanceof Error ? err.message : String(err) };
 }
 
-/** Importe une recette depuis une URL (n'importe quel site) via le parse LLM. */
-export async function importRecipeFromUrl(url: string): Promise<ActionResult & { id?: number }> {
+export interface RecipePreview {
+  title: string;
+  sourceUrl: string;
+  imageUrl: string | null;
+  servings: number;
+  instructions: string | null;
+  ingredients: Array<{ name: string; qty: number | null; unit: "g" | "ml" | "unite" | null; note: string | null }>;
+}
+
+/**
+ * Étape 1 de l'import : télécharge la page, parse (LLM) PUIS re-vérifie quantités/portions
+ * (2ᵉ passe LLM). Ne sauvegarde RIEN — retourne l'extraction pour validation manuelle avant
+ * enregistrement (Marc a le dernier mot sur chaque valeur).
+ */
+export async function parseRecipePreview(
+  url: string,
+): Promise<ActionResult & { recipe?: RecipePreview }> {
   try {
     await requireSession();
     const parsed = new URL(url); // valide le format
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
       return { ok: false, error: "URL http(s) uniquement." };
     }
-
     const page = await fetch(url, {
       headers: { "user-agent": "Mozilla/5.0 (BatchChef; +recette perso)" },
       signal: AbortSignal.timeout(15000),
     });
     if (!page.ok) return { ok: false, error: `Page injoignable (HTTP ${page.status}).` };
-    const recipe = await parseRecipeFromPage(htmlToText(await page.text()));
 
-    const [row] = await db
-      .insert(schema.recipes)
-      .values({
+    const text = htmlToText(await page.text());
+    const draft = await parseRecipeFromPage(text);
+    const recipe = await verifyParsedRecipe(text, draft); // analyse plus poussée avant validation
+
+    return {
+      ok: true,
+      recipe: {
         title: recipe.title,
         sourceUrl: url,
         imageUrl: recipe.imageUrl,
         servings: recipe.servings,
         instructions: recipe.instructions,
+        ingredients: recipe.ingredients.map((i) => ({
+          name: i.name,
+          qty: i.qty,
+          unit: i.unit,
+          note: i.note,
+        })),
+      },
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Étape 2 de l'import : enregistre la recette VALIDÉE/corrigée par Marc. */
+export async function saveImportedRecipe(input: {
+  title: string;
+  sourceUrl: string | null;
+  imageUrl: string | null;
+  servings: number;
+  instructions: string | null;
+  ingredients: EditableIngredient[];
+}): Promise<ActionResult & { id?: number }> {
+  try {
+    await requireSession();
+    const title = input.title.trim();
+    if (!title) return { ok: false, error: "Donne un titre à la recette." };
+    const servings = clampServings(input.servings);
+    const rows = prepareIngredientRows(input.ingredients);
+    if (rows.length === 0) return { ok: false, error: "Garde au moins un ingrédient (avec un nom)." };
+
+    const [row] = await db
+      .insert(schema.recipes)
+      .values({
+        title,
+        sourceUrl: input.sourceUrl,
+        imageUrl: input.imageUrl,
+        servings,
+        instructions: input.instructions,
       })
       .returning({ id: schema.recipes.id });
     if (!row) return { ok: false, error: "Insertion de la recette échouée." };
 
     await db.insert(schema.recipeIngredients).values(
-      recipe.ingredients.map((ing) => ({
+      rows.map((r) => ({
         recipeId: row.id,
-        name: ing.name,
-        canonical: ing.canonical.toLowerCase().trim(),
-        qty: ing.qty,
-        unit: ing.qty === null ? null : ing.unit,
-        note: ing.note,
+        name: r.name,
+        canonical: r.canonical,
+        qty: r.qty,
+        unit: r.unit,
+        note: r.note,
       })),
     );
 
