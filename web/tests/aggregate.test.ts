@@ -3,7 +3,7 @@
 // incompatibles JAMAIS additionnées, « au goût » dédupliqué, formatage fr-CA.
 
 import { describe, expect, it } from "vitest";
-import { aggregateShoppingList, formatQty } from "../lib/aggregate";
+import { aggregateShoppingList, formatQty, scaleQty } from "../lib/aggregate";
 
 const ing = (
   canonical: string,
@@ -70,6 +70,21 @@ describe("aggregateShoppingList", () => {
       { servings: 4, portions: 5, ingredients: [ing("oignon", 2, "unite")] },
     ]);
     expect(items[0]?.qty).toBe(2.5);
+  });
+});
+
+describe("scaleQty (vue cuisine : recette aux portions du batch)", () => {
+  it("met à l'échelle une quantité (200 g pour 4 → 400 g pour 8 portions)", () => {
+    expect(scaleQty(200, "g", 8, 4)).toBe(400);
+  });
+  it("« au goût » (null) reste null, jamais une quantité inventée", () => {
+    expect(scaleQty(null, null, 8, 4)).toBeNull();
+  });
+  it("arrondit les unités entamées (2 → 2,5 pour 5/4 portions)", () => {
+    expect(scaleQty(2, "unite", 5, 4)).toBe(2.5);
+  });
+  it("servings invalide (0) → pas de division par zéro (garde la quantité brute)", () => {
+    expect(scaleQty(100, "g", 4, 0)).toBe(100);
   });
 });
 

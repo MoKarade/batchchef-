@@ -1,5 +1,8 @@
 "use client";
 
+// Avancement du batch : stepper tactile (planifié → courses → cuisine → terminé).
+// Chaque étape est une grosse cible : toucher « Terminé » clôt le batch. Suppression à part.
+
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteBatch, setBatchStatus } from "@/lib/actions";
@@ -11,6 +14,8 @@ const STATUSES = [
   { value: "termine", label: "Terminé" },
 ] as const;
 
+type StatusValue = (typeof STATUSES)[number]["value"];
+
 export function BatchStatusControls({
   batchId,
   status,
@@ -18,30 +23,79 @@ export function BatchStatusControls({
   batchId: number;
   status: string;
 }) {
+  const [current, setCurrent] = useState<string>(status);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
+  const currentIndex = STATUSES.findIndex((s) => s.value === current);
+
+  const go = (value: StatusValue) => {
+    if (value === current) return;
+    setError(null);
+    setCurrent(value); // optimiste
+    startTransition(async () => {
+      const res = await setBatchStatus(batchId, value);
+      if (!res.ok) {
+        setError(res.error);
+        setCurrent(status); // rollback
+      }
+    });
+  };
+
+  const next = STATUSES[currentIndex + 1];
+
   return (
-    <div className="flex items-center gap-2">
-      <select
-        value={status}
-        disabled={pending}
-        onChange={(e) => {
-          const value = e.target.value as (typeof STATUSES)[number]["value"];
-          startTransition(async () => {
-            const res = await setBatchStatus(batchId, value);
-            if (!res.ok) setError(res.error);
-          });
-        }}
-        className="rounded-xl border border-stone-300 bg-white px-3 py-3 text-sm dark:border-stone-700 dark:bg-stone-900"
-      >
-        {STATUSES.map((s) => (
-          <option key={s.value} value={s.value}>
-            {s.label}
-          </option>
-        ))}
-      </select>
+    <div className="space-y-3">
+      <div>
+        <h2 className="mb-2 font-semibold">Avancement</h2>
+        <div className="grid grid-cols-4 gap-1 rounded-xl border border-stone-200 p-1 dark:border-stone-800">
+          {STATUSES.map((s, i) => {
+            const done = i < currentIndex;
+            const active = i === currentIndex;
+            return (
+              <button
+                key={s.value}
+                type="button"
+                disabled={pending}
+                onClick={() => go(s.value)}
+                aria-current={active ? "step" : undefined}
+                className={`rounded-lg px-2 py-2 text-xs font-medium transition disabled:opacity-60 ${
+                  active
+                    ? "text-white"
+                    : done
+                      ? "text-stone-700 dark:text-stone-300"
+                      : "text-stone-400 dark:text-stone-500"
+                }`}
+                style={active ? { backgroundColor: "var(--accent)" } : undefined}
+              >
+                {s.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Action principale : avancer d'une étape (dont « Terminer le batch » depuis Cuisine). */}
+      {next && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => go(next.value)}
+          className="w-full rounded-xl border-2 px-4 py-3 text-sm font-medium disabled:opacity-60"
+          style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+        >
+          {next.value === "termine" ? "Terminer le batch" : `Passer à « ${next.label} »`}
+        </button>
+      )}
+      {current === "termine" && (
+        <p className="rounded-xl bg-emerald-50 px-4 py-3 text-center text-sm font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+          Batch terminé.
+        </p>
+      )}
+
+      {error && <p className="text-xs text-red-600">{error}</p>}
+
       <button
         type="button"
         disabled={pending}
@@ -56,11 +110,10 @@ export function BatchStatusControls({
             router.push("/batchs");
           });
         }}
-        className="rounded-xl border border-stone-300 px-3 py-3 text-sm text-stone-600 dark:border-stone-700 dark:text-stone-400"
+        className="w-full rounded-xl border border-stone-300 px-4 py-2 text-sm text-stone-600 disabled:opacity-60 dark:border-stone-700 dark:text-stone-400"
       >
-        Suppr.
+        Supprimer le batch
       </button>
-      {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );
 }

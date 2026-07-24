@@ -141,39 +141,70 @@ export async function parseRecipeFromPage(pageText: string): Promise<ParsedRecip
 
 // ── 2. Estimation de budget ────────────────────────────────────────────────────
 
+// Réponse INDEXÉE : le LLM renvoie un coût par index d'article (pas par nom). Le matching
+// par index élimine toute perte due à un canonical reformulé (accent, pluriel, synonyme) —
+// c'était la cause de « presque aucun article n'a de prix ».
 export const CostEstimateSchema = z.object({
   items: z
     .array(
       z.object({
-        canonical: z.string().min(1),
-        /** Coût estimé CAD pour la quantité demandée ; null si trop incertain. */
+        i: z.number().int().min(0),
+        /** Coût estimé CAD pour la quantité demandée ; null seulement si vraiment inclassable. */
         estCost: z.number().min(0).max(500).nullable(),
       }),
     )
-    .max(80),
+    .max(200),
 });
 export type CostEstimate = z.infer<typeof CostEstimateSchema>;
 
+/** Réaligne la réponse indexée du LLM sur la liste d'entrée (longueur n). Index hors borne ignoré. */
+export function alignCosts(parsed: CostEstimate, n: number): Array<number | null> {
+  const out: Array<number | null> = new Array(n).fill(null);
+  for (const it of parsed.items) {
+    if (it.i >= 0 && it.i < n) out[it.i] = it.estCost;
+  }
+  return out;
+}
+
 const ESTIMATE_SYSTEM = `Tu estimes le coût d'achat d'articles d'épicerie à Québec (Canada), en CAD, prix réguliers de supermarché (type Maxi), taxes EXCLUES.
 
-Pour chaque article : le coût pour la QUANTITÉ demandée (pas le prix du format vendu).
-Sois réaliste et plutôt conservateur. Article trop ambigu → estCost: null (tu n'inventes pas).
+On te donne une liste NUMÉROTÉE d'ingrédients de cuisine courants. Pour CHAQUE numéro, donne
+le coût pour la QUANTITÉ demandée (pas le prix du format entier vendu en magasin).
 
-Réponds UNIQUEMENT avec l'objet JSON : {"items":[{"canonical":"...","estCost":1.23}, ...]}`;
+Ce sont des ingrédients ordinaires : tu SAIS les estimer. Donne TOUJOURS un prix réaliste.
+N'utilise estCost: null que si l'article est vraiment inclassable (nom incompréhensible) —
+ce doit être rarissime. Une quantité « au goût » (sel, poivre, épices) → estime la petite
+portion réellement utilisée (quelques cents à ~1 $), pas null.
 
+Réponds UNIQUEMENT avec le JSON, un objet par article avec son index i :
+{"items":[{"i":0,"estCost":4.50},{"i":1,"estCost":0.60}, ...]}`;
+
+/**
+ * Estime le coût de chaque article. Retourne un tableau ALIGNÉ sur `items` (même longueur,
+ * même ordre) : `number` (CAD) ou `null` (inclassable). Best-effort — l'appelant décide
+ * quoi faire d'un null (jamais un chiffre inventé côté app).
+ */
 export async function estimateShoppingCosts(
-  items: Array<{ canonical: string; qty: number | null; unit: string | null }>,
-): Promise<CostEstimate> {
+  items: Array<{ canonical: string; name?: string; qty: number | null; unit: string | null }>,
+): Promise<Array<number | null>> {
+  if (items.length === 0) return [];
   const list = items
-    .map((i) => `- ${i.canonical} : ${i.qty === null ? "quantité au goût" : `${i.qty} ${i.unit}`}`)
+    .map((it, idx) => {
+      const label =
+        it.name && it.name.toLowerCase() !== it.canonical.toLowerCase()
+          ? `${it.canonical} (${it.name})`
+          : it.canonical;
+      const qty = it.qty === null ? "quantité au goût" : `${it.qty} ${it.unit ?? ""}`.trim();
+      return `${idx}. ${label} : ${qty}`;
+    })
     .join("\n");
   const response = await client().messages.create({
     model: MODEL,
-    max_tokens: 3000,
+    max_tokens: 4000,
     system: ESTIMATE_SYSTEM,
     messages: [{ role: "user", content: `Articles :\n${list}` }],
   });
   const block = response.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") throw new Error("Réponse LLM vide.");
-  return CostEstimateSchema.parse(extractJson(block.text));
+  return alignCosts(CostEstimateSchema.parse(extractJson(block.text)), items.length);
 }

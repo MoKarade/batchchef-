@@ -1,8 +1,10 @@
-// /batchs/[id] — récap d'un batch : recettes/portions, budget honnête, statut.
+// /batchs/[id] — récap d'un batch : recettes à cuisiner (quantités AJUSTÉES aux portions
+// du batch), budget honnête, avancement du statut.
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
+import { formatQty, scaleQty } from "@/lib/aggregate";
 import { BatchStatusControls } from "@/components/BatchStatusControls";
 
 export const dynamic = "force-dynamic";
@@ -23,10 +25,20 @@ export default async function BatchDetailPage({
       portions: schema.batchRecipes.portions,
       recipeId: schema.batchRecipes.recipeId,
       title: schema.recipes.title,
+      servings: schema.recipes.servings,
+      instructions: schema.recipes.instructions,
     })
     .from(schema.batchRecipes)
     .innerJoin(schema.recipes, eq(schema.recipes.id, schema.batchRecipes.recipeId))
     .where(eq(schema.batchRecipes.batchId, id));
+
+  const recipeIds = recipeRows.map((r) => r.recipeId);
+  const ingredientRows = recipeIds.length
+    ? await db
+        .select()
+        .from(schema.recipeIngredients)
+        .where(inArray(schema.recipeIngredients.recipeId, recipeIds))
+    : [];
 
   const items = await db
     .select()
@@ -46,18 +58,55 @@ export default async function BatchDetailPage({
       </div>
 
       <section>
-        <h2 className="mb-2 font-semibold">Recettes</h2>
-        <ul className="divide-y divide-stone-200 rounded-2xl border border-stone-200 bg-white dark:divide-stone-800 dark:border-stone-800 dark:bg-stone-900">
-          {recipeRows.map((r) => (
-            <li key={r.recipeId} className="flex items-center justify-between px-4 py-3 text-sm">
-              <Link href={`/recettes/${r.recipeId}`} className="underline-offset-2 hover:underline">
-                {r.title}
-              </Link>
-              <span className="tabular-nums text-stone-600 dark:text-stone-400">
-                {r.portions} portions
-              </span>
-            </li>
-          ))}
+        <h2 className="mb-2 font-semibold">Recettes à cuisiner</h2>
+        <p className="mb-2 text-xs text-stone-500">
+          Quantités ajustées aux portions choisies pour ce batch. Touche une recette pour la déplier.
+        </p>
+        <ul className="space-y-2">
+          {recipeRows.map((r) => {
+            const ings = ingredientRows.filter((i) => i.recipeId === r.recipeId);
+            return (
+              <li
+                key={r.recipeId}
+                className="overflow-hidden rounded-2xl border border-stone-200 bg-white dark:border-stone-800 dark:bg-stone-900"
+              >
+                <details>
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+                    <span className="min-w-0 flex-1 font-medium">{r.title}</span>
+                    <span className="shrink-0 tabular-nums text-sm text-stone-500">
+                      {r.portions} portions
+                    </span>
+                  </summary>
+                  <div className="border-t border-stone-100 px-4 py-3 dark:border-stone-800">
+                    <ul className="divide-y divide-stone-100 dark:divide-stone-800">
+                      {ings.map((ing) => (
+                        <li key={ing.id} className="flex items-center justify-between py-2 text-sm">
+                          <span>
+                            {ing.name}
+                            {ing.note && <span className="text-stone-500"> — {ing.note}</span>}
+                          </span>
+                          <span className="tabular-nums text-stone-600 dark:text-stone-400">
+                            {formatQty(scaleQty(ing.qty, ing.unit, r.portions, r.servings), ing.unit)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    {r.instructions && (
+                      <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-stone-700 dark:text-stone-300">
+                        {r.instructions}
+                      </p>
+                    )}
+                    <Link
+                      href={`/recettes/${r.recipeId}`}
+                      className="mt-3 inline-block text-sm underline"
+                    >
+                      Fiche recette (portions de référence) →
+                    </Link>
+                  </div>
+                </details>
+              </li>
+            );
+          })}
         </ul>
       </section>
 
@@ -88,8 +137,9 @@ export default async function BatchDetailPage({
         >
           Ouvrir la liste d’épicerie ({items.length})
         </Link>
-        <BatchStatusControls batchId={batch.id} status={batch.status} />
       </div>
+
+      <BatchStatusControls batchId={batch.id} status={batch.status} />
     </div>
   );
 }
