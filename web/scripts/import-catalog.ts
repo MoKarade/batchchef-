@@ -84,18 +84,25 @@ async function main() {
   }
 
   // Insertion des ingrédients, résolus vers le nouvel id via l'URL de leur recette.
+  //
+  // IMPORTANT : la base seed stocke `quantity_per_portion` (quantité pour UNE portion),
+  // mais l'app attend une quantité POUR `servings` portions (cf. schema recipeIngredients).
+  // On multiplie donc par le nombre de portions de la recette pour retrouver le total —
+  // sinon les quantités du catalogue étaient divisées par ~servings (4× trop peu, etc.).
   const ingValues: Array<typeof schema.catalogIngredients.$inferInsert> = [];
   for (const r of recipeRows) {
     const url = r.marmiton_url ? String(r.marmiton_url) : null;
     const newId = url ? urlToNewId.get(url) : undefined;
     if (!newId) continue;
+    const servings = Number(r.servings) > 0 ? Number(r.servings) : 1;
     for (const ing of ingByRecipe.get(Number(r.id)) ?? []) {
       const norm = normalizeQty(numOrNull(ing.qty), ing.unit as string | null, String(ing.raw_text ?? ""));
+      const total = norm.qty === null ? null : Math.round(norm.qty * servings * 100) / 100;
       ingValues.push({
         catalogRecipeId: newId,
         name: String(ing.name ?? "ingrédient").slice(0, 200),
         canonical: String(ing.canonical ?? "").toLowerCase().trim().slice(0, 120) || "ingredient",
-        qty: norm.qty,
+        qty: total,
         unit: norm.unit,
         note: norm.qty === null && ing.raw_text ? String(ing.raw_text).slice(0, 200) : null,
       });
