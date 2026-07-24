@@ -72,6 +72,21 @@ export function aggregateShoppingList(recipes: RecipeForBatch[]): AggregatedItem
   return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name, "fr"));
 }
 
+/**
+ * Met une quantité d'ingrédient à l'échelle des portions voulues (pour la vue cuisine :
+ * chaque recette affichée aux portions du batch, pas à ses portions de référence).
+ * « au goût » (qty null) reste null. Servings ≤ 0 → pas de mise à l'échelle (null).
+ */
+export function scaleQty(
+  qty: number | null,
+  unit: AggregatedItem["unit"],
+  portions: number,
+  servings: number,
+): number | null {
+  if (qty === null || servings <= 0 || portions <= 0) return qty === null ? null : qty;
+  return round((qty * portions) / servings, unit);
+}
+
 /** « 1 250 g » → « 1,25 kg » ; « 750 ml » → « 750 ml » ; unités entières. Affichage fr-CA. */
 export function formatQty(qty: number | null, unit: AggregatedItem["unit"]): string {
   if (qty === null) return "au goût";

@@ -5,7 +5,7 @@
 // portent les écritures). Chaque échec est retourné comme message honnête, jamais avalé.
 
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db, schema } from "@/lib/db";
 import { aggregateShoppingList } from "@/lib/aggregate";
@@ -204,31 +204,33 @@ export async function createBatch(input: {
     await db.insert(schema.batchRecipes).values(
       selections.map((s) => ({ batchId: batch.id, recipeId: s.recipeId, portions: s.portions })),
     );
-    await db.insert(schema.shoppingItems).values(
-      aggregated.map((item) => ({
-        batchId: batch.id,
-        name: item.name,
-        canonical: item.canonical,
-        qty: item.qty,
-        unit: item.unit,
-      })),
-    );
+    // Insertion AVEC returning : on récupère les id dans l'ordre d'`aggregated`, ce qui
+    // permet de recoller les coûts par INDEX (pas par nom) — matching sûr à 100 %.
+    const insertedItems = await db
+      .insert(schema.shoppingItems)
+      .values(
+        aggregated.map((item) => ({
+          batchId: batch.id,
+          name: item.name,
+          canonical: item.canonical,
+          qty: item.qty,
+          unit: item.unit,
+        })),
+      )
+      .returning({ id: schema.shoppingItems.id });
 
     // Estimation best-effort — l'échec n'annule jamais le batch.
     let estimationError: string | undefined;
     try {
-      const estimate = await estimateShoppingCosts(aggregated);
-      for (const est of estimate.items) {
-        if (est.estCost === null) continue;
+      const costs = await estimateShoppingCosts(aggregated); // aligné sur `aggregated`
+      for (let idx = 0; idx < costs.length; idx++) {
+        const cost = costs[idx];
+        const item = insertedItems[idx];
+        if (cost === null || cost === undefined || !item) continue;
         await db
           .update(schema.shoppingItems)
-          .set({ estCost: est.estCost, costKind: "estime" })
-          .where(
-            and(
-              eq(schema.shoppingItems.batchId, batch.id),
-              eq(schema.shoppingItems.canonical, est.canonical.toLowerCase().trim()),
-            ),
-          );
+          .set({ estCost: cost, costKind: "estime" })
+          .where(eq(schema.shoppingItems.id, item.id));
       }
     } catch (err) {
       estimationError = err instanceof Error ? err.message : String(err);

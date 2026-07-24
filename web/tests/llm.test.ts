@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   CostEstimateSchema,
   RawParsedRecipeSchema,
+  alignCosts,
   htmlToText,
   normalizeParsedRecipe,
 } from "../lib/llm";
@@ -55,14 +56,26 @@ describe("RawParsedRecipeSchema (tolérant) + normalizeParsedRecipe", () => {
   });
 });
 
-describe("CostEstimateSchema", () => {
+describe("CostEstimateSchema (indexé) + alignCosts", () => {
   it("borne les coûts (0…500 $) et admet null (« je ne sais pas »)", () => {
-    expect(
-      CostEstimateSchema.parse({ items: [{ canonical: "riz", estCost: null }] }).items,
-    ).toHaveLength(1);
-    expect(() =>
-      CostEstimateSchema.parse({ items: [{ canonical: "riz", estCost: -1 }] }),
-    ).toThrow();
+    expect(CostEstimateSchema.parse({ items: [{ i: 0, estCost: null }] }).items).toHaveLength(1);
+    expect(() => CostEstimateSchema.parse({ items: [{ i: 0, estCost: -1 }] })).toThrow();
+  });
+
+  it("réaligne les coûts par index sur la liste d'entrée (ordre du LLM sans importance)", () => {
+    const parsed = CostEstimateSchema.parse({
+      items: [
+        { i: 2, estCost: 3 },
+        { i: 0, estCost: 1.5 },
+      ],
+    });
+    // index 1 absent de la réponse → null ; l'ordre renvoyé par le LLM n'a pas d'impact.
+    expect(alignCosts(parsed, 3)).toEqual([1.5, null, 3]);
+  });
+
+  it("ignore un index hors borne (jamais de débordement)", () => {
+    const parsed = CostEstimateSchema.parse({ items: [{ i: 9, estCost: 2 }] });
+    expect(alignCosts(parsed, 2)).toEqual([null, null]);
   });
 });
 
