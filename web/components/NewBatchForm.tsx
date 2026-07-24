@@ -4,6 +4,7 @@
 // À la création : liste agrégée générée + estimation budget (best-effort, honnête).
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBatch } from "@/lib/actions";
 
@@ -30,9 +31,16 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
 
   if (recipes.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-stone-300 p-6 text-center text-sm text-stone-500 dark:border-stone-700">
-        Importe d’abord des recettes dans ta bibliothèque.
-      </p>
+      <div className="space-y-3 rounded-xl border border-dashed border-stone-300 p-6 text-center text-sm text-stone-500 dark:border-stone-700">
+        <p>Ta bibliothèque est vide — un batch se compose de recettes que tu as déjà.</p>
+        <Link
+          href="/catalogue"
+          className="inline-block rounded-lg px-4 py-2 font-medium text-white"
+          style={{ backgroundColor: "var(--accent)" }}
+        >
+          Piger dans le catalogue
+        </Link>
+      </div>
     );
   }
 
@@ -118,6 +126,15 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
       >
         {pending ? "Génération de la liste…" : "Créer le batch"}
       </button>
+      {!pending && (!name.trim() || Object.keys(portions).length === 0) && (
+        <p className="text-center text-xs text-stone-500">
+          {!name.trim() && Object.keys(portions).length === 0
+            ? "Nomme le batch et coche au moins une recette pour l’activer."
+            : !name.trim()
+              ? "Donne un nom au batch pour l’activer."
+              : "Coche au moins une recette pour l’activer."}
+        </p>
+      )}
       {pending && (
         <p className="text-center text-xs text-stone-500">
           Agrégation des ingrédients + estimation du budget (quelques secondes)…
