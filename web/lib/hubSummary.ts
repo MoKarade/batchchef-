@@ -8,6 +8,7 @@
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { validateSummary, type HubSummary } from "@mokarade/hub-contract";
 import { db, schema } from "@/lib/db";
+import { totalLlmCostUsd } from "@/lib/llmUsage";
 
 const APP_COLOR = "#c2410c"; // orange cuisine
 const ACTIVE = ["planifie", "courses", "cuisine"] as const;
@@ -26,6 +27,8 @@ export interface BatchchefCounts {
   budgetRemaining: number;
   /** Batch actif le plus récent → lien direct « liste de courses » dans la carte du hub. */
   activeBatchId: number | null;
+  /** Coût LLM cumulé en USD (bloc usage du hub). */
+  llmCostUsd: number;
 }
 
 /** Compose un HubSummary VALIDÉ à partir des agrégats (jette si le payload dévie du contrat). */
@@ -77,6 +80,14 @@ export function composeBatchchefSummary(counts: BatchchefCounts, base = publicUr
     metrics,
     alerts,
     actions,
+    // Coût LLM cumulé (estimé) — facturé en USD par Anthropic.
+    usage: {
+      cost: {
+        amount: Math.round(counts.llmCostUsd * 100) / 100,
+        currency: "USD" as const,
+        period: "total" as const,
+      },
+    },
   };
 
   // Conformité prouvée à l'émission : un payload hors contrat jette ici, pas chez le hub.
@@ -116,6 +127,8 @@ export async function buildBatchchefSummary(): Promise<HubSummary> {
     .orderBy(desc(schema.batches.createdAt))
     .limit(1);
 
+  const llmCostUsd = await totalLlmCostUsd();
+
   return composeBatchchefSummary({
     recipes: recipes?.n ?? 0,
     batches: batches?.n ?? 0,
@@ -123,5 +136,6 @@ export async function buildBatchchefSummary(): Promise<HubSummary> {
     toBuy: toBuy?.n ?? 0,
     budgetRemaining: Number(budget?.sum ?? 0),
     activeBatchId: activeBatch?.id ?? null,
+    llmCostUsd,
   });
 }

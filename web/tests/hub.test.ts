@@ -13,17 +13,23 @@ const COUNTS = {
   toBuy: 4,
   budgetRemaining: 10,
   activeBatchId: null as number | null,
+  llmCostUsd: 0,
 };
 
 describe("composeBatchchefSummary (conforme au contrat)", () => {
   it("base vide → status 'building' (jamais des 0 qui font croire à un état 'ok')", () => {
     const s = composeBatchchefSummary(
-      { recipes: 0, batches: 0, activeBatches: 0, toBuy: 0, budgetRemaining: 0, activeBatchId: null },
+      { recipes: 0, batches: 0, activeBatches: 0, toBuy: 0, budgetRemaining: 0, activeBatchId: null, llmCostUsd: 0 },
       BASE,
     );
     expect(s.status).toBe("building");
     expect(s.app.id).toBe("batchchef");
     expect(s.contractVersion).toBe(1);
+  });
+
+  it("publie usage.cost (coût LLM en USD)", () => {
+    const s = composeBatchchefSummary({ ...COUNTS, llmCostUsd: 0.37 }, BASE);
+    expect(s.usage?.cost).toMatchObject({ amount: 0.37, currency: "USD", period: "total" });
   });
 
   it("avec des données → status 'ok', 4 métriques, action d'ouverture", () => {

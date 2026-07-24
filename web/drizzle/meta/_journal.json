@@ -15,6 +15,13 @@
       "when": 1784828852452,
       "tag": "0001_famous_scourge",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784909495789,
+      "tag": "0002_melted_miek",
+      "breakpoints": true
     }
   ]
 }

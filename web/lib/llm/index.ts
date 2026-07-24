@@ -10,6 +10,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { normalizeQty } from "../units";
+import { recordLlmUsage } from "../llmUsage";
 
 const MODEL = process.env.BATCHCHEF_LLM_MODEL || "claude-haiku-4-5-20251001";
 
@@ -134,6 +135,7 @@ export async function parseRecipeFromPage(pageText: string): Promise<ParsedRecip
     system: PARSE_SYSTEM,
     messages: [{ role: "user", content: `Texte de la page :\n\n${pageText}` }],
   });
+  void recordLlmUsage("parse", response.usage);
   const block = response.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") throw new Error("Réponse LLM vide.");
   return normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text)));
@@ -187,6 +189,7 @@ export async function verifyParsedRecipe(pageText: string, draft: ParsedRecipe):
         },
       ],
     });
+    void recordLlmUsage("verify", response.usage);
     const block = response.content.find((b) => b.type === "text");
     if (!block || block.type !== "text") return draft;
     return normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text)));
@@ -260,6 +263,7 @@ export async function estimateShoppingCosts(
     system: ESTIMATE_SYSTEM,
     messages: [{ role: "user", content: `Articles :\n${list}` }],
   });
+  void recordLlmUsage("estimate", response.usage);
   const block = response.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") throw new Error("Réponse LLM vide.");
   return alignCosts(CostEstimateSchema.parse(extractJson(block.text)), items.length);
