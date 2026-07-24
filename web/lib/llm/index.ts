@@ -139,6 +139,62 @@ export async function parseRecipeFromPage(pageText: string): Promise<ParsedRecip
   return normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text)));
 }
 
+const VERIFY_SYSTEM = `Tu es un vérificateur de recettes minutieux. On te donne le TEXTE d'une page de
+recette et une extraction JSON préliminaire. Corrige l'extraction pour qu'elle colle EXACTEMENT au texte.
+
+Contrôles prioritaires (source d'erreurs) :
+- "servings" : le vrai nombre de portions annoncé sur la page (« pour X personnes / parts »). Corrige-le
+  s'il est faux ; c'est capital car les quantités s'entendent pour ce nombre de portions.
+- chaque ingrédient : vérifie le NOMBRE et l'UNITÉ contre le texte. Corrige toute valeur erronée.
+  Unités : "g", "kg", "ml", "cl", "l", "c. à soupe", "c. à thé", "tasse", ou "unite" pour les pièces.
+  Quantité absente / « au goût » → qty null, unit null. N'INVENTE aucune quantité.
+- garde les ingrédients réels du texte ; n'en ajoute pas d'imaginaires, n'en retire pas de vrais.
+
+Réponds UNIQUEMENT avec l'objet JSON corrigé, même structure que l'extraction fournie.`;
+
+/** Convertit une recette normalisée en objet « brut » (pour la repasser au vérificateur). */
+function draftToRaw(r: ParsedRecipe): unknown {
+  return {
+    title: r.title,
+    servings: r.servings,
+    imageUrl: r.imageUrl,
+    instructions: r.instructions,
+    ingredients: r.ingredients.map((i) => ({
+      name: i.name,
+      canonical: i.canonical,
+      qty: i.qty,
+      unit: i.unit,
+      note: i.note,
+    })),
+  };
+}
+
+/**
+ * Deuxième passe : re-vérifie quantités et portions contre le texte de la page et corrige.
+ * C'est l'« analyse plus poussée » avant la validation manuelle. Best-effort : à la moindre
+ * anomalie (LLM muet, JSON hors schéma), on retombe sur le brouillon — jamais un plantage.
+ */
+export async function verifyParsedRecipe(pageText: string, draft: ParsedRecipe): Promise<ParsedRecipe> {
+  try {
+    const response = await client().messages.create({
+      model: MODEL,
+      max_tokens: 4000,
+      system: VERIFY_SYSTEM,
+      messages: [
+        {
+          role: "user",
+          content: `TEXTE DE LA PAGE :\n${pageText}\n\nEXTRACTION À VÉRIFIER :\n${JSON.stringify(draftToRaw(draft))}`,
+        },
+      ],
+    });
+    const block = response.content.find((b) => b.type === "text");
+    if (!block || block.type !== "text") return draft;
+    return normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text)));
+  } catch {
+    return draft; // la vérification ne doit jamais bloquer l'import
+  }
+}
+
 // ── 2. Estimation de budget ────────────────────────────────────────────────────
 
 // Réponse INDEXÉE : le LLM renvoie un coût par index d'article (pas par nom). Le matching
