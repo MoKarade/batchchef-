@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="BatchChef">
+  <defs>
+    <linearGradient id="bcbg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fb923c"/>
+      <stop offset="1" stop-color="#c2410c"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bcbg)"/>
+  <g fill="none" stroke="#ffffff" stroke-width="16" stroke-linecap="round" opacity="0.92">
+    <path d="M198 152c-20-18-20-38 0-56"/>
+    <path d="M256 152c-20-18-20-38 0-56"/>
+    <path d="M314 152c-20-18-20-38 0-56"/>
+  </g>
+  <g fill="#ffffff">
+    <circle cx="256" cy="196" r="20"/>
+    <rect x="122" y="212" width="268" height="40" rx="20"/>
+    <rect x="84" y="286" width="62" height="40" rx="20"/>
+    <rect x="366" y="286" width="62" height="40" rx="20"/>
+    <path d="M138 262h236v60a46 46 0 0 1-46 46H184a46 46 0 0 1-46-46z"/>
+  </g>
+</svg>
