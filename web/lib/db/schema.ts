@@ -109,6 +109,21 @@ export const catalogIngredients = pgTable("catalog_ingredients", {
   note: text("note"),
 });
 
+// ── Usage LLM (coût API) ─────────────────────────────────────────────────────────
+// Une ligne par appel LLM : tokens consommés + coût USD estimé. Sert au bloc `usage`
+// du summary hub (« Coûts & quotas »). Enregistrement best-effort : un échec n'interrompt
+// jamais le flux utilisateur (parse/estimation).
+export const llmUsage = pgTable("llm_usage", {
+  id: serial("id").primaryKey(),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  /** "parse" | "verify" | "estimate" — d'où vient l'appel. */
+  action: text("action").notNull(),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  /** Coût estimé en USD (tokens × tarif du modèle). */
+  costUsd: real("cost_usd").notNull().default(0),
+});
+
 export type Recipe = typeof recipes.$inferSelect;
 export type CatalogRecipe = typeof catalogRecipes.$inferSelect;
 export type CatalogIngredient = typeof catalogIngredients.$inferSelect;
