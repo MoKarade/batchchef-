@@ -21,6 +21,9 @@ const NAV = [
   { href: "/catalogue", label: "Catalogue" },
 ] as const;
 
+// Lien retour vers le hub perso (overridable par env si l'URL change).
+const HUB_URL = (process.env.NEXT_PUBLIC_HUB_URL || "https://hubperso.com").replace(/\/+$/, "");
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr-CA">
@@ -39,6 +42,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 {item.label}
               </Link>
             ))}
+            <a
+              href={HUB_URL}
+              className="ml-auto rounded-lg px-3 py-2 text-sm font-medium text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800"
+            >
+              ← Hub
+            </a>
           </nav>
         </header>
         <main className="mx-auto max-w-3xl px-3 py-5">{children}</main>
