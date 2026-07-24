@@ -3,7 +3,7 @@
 // incompatibles JAMAIS additionnées, « au goût » dédupliqué, formatage fr-CA.
 
 import { describe, expect, it } from "vitest";
-import { aggregateShoppingList, formatQty, scaleQty } from "../lib/aggregate";
+import { aggregateShoppingList, fillMissingCosts, formatQty, scaleQty } from "../lib/aggregate";
 
 const ing = (
   canonical: string,
@@ -85,6 +85,49 @@ describe("scaleQty (vue cuisine : recette aux portions du batch)", () => {
   });
   it("servings invalide (0) → pas de division par zéro (garde la quantité brute)", () => {
     expect(scaleQty(100, "g", 4, 0)).toBe(100);
+  });
+});
+
+describe("fillMissingCosts (couverture 100 %)", () => {
+  it("garde les coûts connus, comble les manquants → aucun null", () => {
+    const items = [
+      { qty: 500, unit: "g" as const },
+      { qty: 250, unit: "g" as const },
+      { qty: 2, unit: "unite" as const },
+    ];
+    const filled = fillMissingCosts(items, [5, null, null]);
+    expect(filled).toHaveLength(3);
+    expect(filled.every((c) => typeof c === "number" && c >= 0.05)).toBe(true);
+    expect(filled[0]).toBe(5);
+    // 5 $ pour 500 g → 0,01 $/g → 250 g ≈ 2,50 $ (moyenne du batch, pas un défaut)
+    expect(filled[1]).toBe(2.5);
+  });
+
+  it("« au goût » (qty null) reçoit une petite portion, jamais 0", () => {
+    const filled = fillMissingCosts([{ qty: null, unit: null }], [null]);
+    expect(filled[0]).toBeGreaterThan(0);
+  });
+
+  it("aucune référence connue → défaut prudent par unité (jamais null)", () => {
+    const filled = fillMissingCosts(
+      [
+        { qty: 1000, unit: "g" as const },
+        { qty: 3, unit: "unite" as const },
+      ],
+      [null, null],
+    );
+    expect(filled[0]).toBeGreaterThanOrEqual(0.05);
+    expect(filled[1]).toBeGreaterThanOrEqual(0.05);
+  });
+
+  it("LLM totalement indisponible (tout null) → tout est quand même chiffré", () => {
+    const items = [
+      { qty: 200, unit: "ml" as const },
+      { qty: null, unit: null },
+      { qty: 5, unit: "unite" as const },
+    ];
+    const filled = fillMissingCosts(items, [null, null, null]);
+    expect(filled.every((c) => c >= 0.05)).toBe(true);
   });
 });
 

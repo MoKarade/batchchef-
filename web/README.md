@@ -1,9 +1,9 @@
-# BatchChef web — la refonte (Phase 1)
+# BatchChef web
 
 Planificateur de batch cooking québécois, **100 % en ligne** : Next.js (Vercel) +
-Neon Postgres + LLM. Zéro Celery/Redis/Playwright — voir la décision de refonte
-(diagnostic du 2026-07-23) : les prix viendront des reçus (Phase 2) et des circulaires
-(Phase 3), jamais du scraping anti-bot.
+Neon Postgres + LLM. Zéro Celery/Redis/Playwright, zéro scraping anti-bot. Les prix
+d'épicerie sont **estimés** (LLM + filet déterministe, couverture 100 %) — jamais de
+scan de reçus ni de prix « réels » relevés.
 
 ## Ce que fait la Phase 1
 
@@ -14,8 +14,9 @@ Neon Postgres + LLM. Zéro Celery/Redis/Playwright — voir la décision de refo
   (mise à l'échelle, regroupement par ingrédient, jamais deux unités mélangées).
 - **Liste d'épicerie mobile** : plein écran téléphone, grosses cases, cochage optimiste
   qui tolère le réseau d'épicerie (échec → la case revient + bandeau).
-- **Budget honnête** : coûts **estimés** par LLM, toujours marqués « estimé » (badge ≈) ;
-  les prix réels arriveront des reçus en Phase 2. Aucune donnée inventée.
+- **Budget** : chaque article reçoit un coût **estimé** (LLM à Québec en CAD, taxes
+  exclues) ; un filet déterministe garantit qu'aucun article ne reste sans prix
+  (couverture 100 %). Ce sont des estimations, pas des prix relevés.
 - **Privé** : login Google mono-adresse (pattern du hub perso), middleware fail-closed.
 
 ## Démarrage
@@ -46,8 +47,8 @@ d'env ci-dessus → Deploy. C'est tout (pas de worker, pas de base à héberger 
 ## Catalogue de découverte (les 10 188 recettes de la V3)
 
 Un écran `/catalogue` cherchable, séparé de ta bibliothèque perso : tu y piges des idées
-et tu ajoutes ce qui t'intéresse (bouton « + Ma bibliothèque »). Peuplé une fois depuis
-l'ancienne base V3 (committée, `backend/batchchef.seed.db`), unités normalisées à l'import :
+et tu ajoutes ce qui t'intéresse (une ou plusieurs d'un coup). Peuplé une fois depuis la
+base seed committée (`web/data/batchchef.seed.db`), unités normalisées à l'import :
 
 ```bash
 cd web
@@ -63,9 +64,8 @@ Relançable sans risque (vide d'abord le catalogue). Ne touche jamais ta bibliot
 npm run typecheck && npm run test && npm run build
 ```
 
-## Suite (phases suivantes — cf. document de refonte)
+## Intégration hub
 
-- **Phase 2** : scan de reçus (photo → LLM) → prix RÉELS par ingrédient/magasin,
-  inventaire vivant (solde par mouvements).
-- **Phase 3** : spéciaux de la semaine (circulaires) + suggestions de batch.
-- **Phase 4** : endpoint `/hub/summary` (widget hubperso.com) + PWA complète.
+Endpoint `GET /api/hub/summary` (gardé par jeton `x-hub-token`) : le hub perso
+(hubperso) affiche un widget BatchChef (recettes, batchs actifs, articles à acheter,
+budget). Voir `lib/hubSummary.ts`.

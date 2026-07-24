@@ -1,5 +1,5 @@
-// scripts/import-catalog.ts — importe les 10 188 recettes Marmiton de l'ANCIENNE base V3
-// (backend/batchchef.seed.db, committée) dans le catalogue Neon. À lancer UNE fois :
+// scripts/import-catalog.ts — importe les 10 188 recettes Marmiton (base seed committée
+// dans web/data/batchchef.seed.db) dans le catalogue Neon. À lancer UNE fois :
 //
 //   cd web
 //   DATABASE_URL='postgres://...' npx tsx scripts/import-catalog.ts
@@ -16,7 +16,7 @@ import { db, schema } from "../lib/db";
 import { normalizeQty } from "../lib/units";
 
 const require = createRequire(import.meta.url);
-const SEED = path.resolve(process.cwd(), "..", "backend", "batchchef.seed.db");
+const SEED = path.resolve(process.cwd(), "data", "batchchef.seed.db");
 const RECIPE_BATCH = 400;
 const ING_BATCH = 800;
 

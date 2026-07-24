@@ -33,7 +33,6 @@ export default async function ShoppingPage({
           qty: i.qty,
           unit: i.unit,
           estCost: i.estCost,
-          costKind: i.costKind,
           checked: i.checked,
         }))}
       />

@@ -45,9 +45,7 @@ export default async function BatchDetailPage({
     .from(schema.shoppingItems)
     .where(eq(schema.shoppingItems.batchId, id));
 
-  const estimated = items.filter((i) => i.estCost !== null && i.costKind === "estime");
-  const totalEstime = estimated.reduce((sum, i) => sum + (i.estCost ?? 0), 0);
-  const unknownCount = items.length - estimated.length;
+  const totalCost = items.reduce((sum, i) => sum + (i.estCost ?? 0), 0);
   const totalPortions = recipeRows.reduce((sum, r) => sum + r.portions, 0);
 
   return (
@@ -112,20 +110,11 @@ export default async function BatchDetailPage({
 
       <section className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
         <h2 className="font-semibold">Budget d’épicerie</h2>
-        {estimated.length > 0 ? (
-          <p className="mt-1 text-2xl font-bold tabular-nums">
-            ≈ {totalEstime.toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}
-            <span className="ml-2 align-middle rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-              estimé
-            </span>
-          </p>
-        ) : (
-          <p className="mt-1 text-sm text-stone-500">Aucune estimation disponible.</p>
-        )}
+        <p className="mt-1 text-2xl font-bold tabular-nums">
+          {totalCost.toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}
+        </p>
         <p className="mt-1 text-xs text-stone-500">
-          {estimated.length} article(s) estimé(s)
-          {unknownCount > 0 && ` · ${unknownCount} sans estimation`} · taxes exclues — les
-          prix réels viendront de tes reçus (Phase 2).
+          {items.length} article(s) · taxes exclues.
         </p>
       </section>
 

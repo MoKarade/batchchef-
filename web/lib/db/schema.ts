@@ -1,9 +1,9 @@
 // lib/db/schema.ts — schéma Drizzle (Postgres/Neon).
 //
-// Phase 1 : recettes (bibliothèque perso), batchs, liste d'épicerie. Conçu pour accueillir
-// la Phase 2 sans casse : les prix OBSERVÉS (reçus) et l'inventaire seront des tables
-// additives ; `shopping_items.cost_kind` distingue déjà « estime » vs « confirme »
-// (no-fake-data : un montant affiché dit toujours d'où il vient).
+// Recettes (bibliothèque perso), batchs, liste d'épicerie. Les prix sont TOUJOURS des
+// estimations (LLM + filet déterministe, couverture 100 %) ; il n'y a pas de prix « réels »
+// relevés. La colonne `shopping_items.cost_kind` est conservée mais dormante (vestige,
+// non affichée) pour éviter une migration ; toute ligne vaut « estime ».
 
 import {
   boolean,
@@ -75,9 +75,9 @@ export const shoppingItems = pgTable("shopping_items", {
   canonical: text("canonical").notNull(),
   qty: real("qty"),
   unit: text("unit", { enum: ["g", "ml", "unite"] }),
-  /** Coût estimé CAD pour la quantité, ou null si inconnu. */
+  /** Coût estimé CAD pour la quantité (toujours renseigné : couverture 100 %). */
   estCost: real("est_cost"),
-  /** Provenance du montant : « estime » (LLM) maintenant ; « confirme » (reçus) en Phase 2. */
+  /** Colonne dormante (vestige) : toute ligne vaut « estime ». Non affichée. */
   costKind: text("cost_kind", { enum: ["estime", "confirme"] }),
   checked: boolean("checked").notNull().default(false),
   checkedAt: timestamp("checked_at", { withTimezone: true }),

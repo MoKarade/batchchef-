@@ -87,6 +87,45 @@ export function scaleQty(
   return round((qty * portions) / servings, unit);
 }
 
+/**
+ * Garantit un prix pour CHAQUE article (couverture 100 %). Les coûts déjà estimés par le
+ * LLM servent de référence : un article laissé sans prix reçoit le coût moyen PAR UNITÉ
+ * observé sur les articles de même unité de CE batch ; à défaut, un tarif prudent par unité ;
+ * « au goût » → petite portion. Toujours ≥ 0,05 $, arrondi au cent. Reste une ESTIMATION.
+ */
+export function fillMissingCosts(
+  items: Array<{ qty: number | null; unit: AggregatedItem["unit"] }>,
+  costs: Array<number | null>,
+): number[] {
+  const DEFAULT_PER_UNIT: Record<"g" | "ml" | "unite", number> = { g: 0.008, ml: 0.005, unite: 1.2 };
+  const AU_GOUT = 0.3; // pincée de sel / épices : petite portion d'usage
+  const FLOOR = 0.05;
+
+  // Coût moyen par unité observé sur les articles réellement chiffrés (qty connue > 0).
+  const acc: Record<string, { cost: number; qty: number }> = {};
+  items.forEach((it, i) => {
+    const c = costs[i];
+    if (c == null || it.qty == null || it.qty <= 0 || !it.unit) return;
+    const a = acc[it.unit] ?? { cost: 0, qty: 0 };
+    a.cost += c;
+    a.qty += it.qty;
+    acc[it.unit] = a;
+  });
+  const perUnit = (u: "g" | "ml" | "unite"): number => {
+    const a = acc[u];
+    return a && a.qty > 0 ? a.cost / a.qty : DEFAULT_PER_UNIT[u];
+  };
+
+  return items.map((it, i) => {
+    const known = costs[i];
+    let cost: number;
+    if (known != null) cost = known;
+    else if (it.qty != null && it.qty > 0 && it.unit) cost = perUnit(it.unit) * it.qty;
+    else cost = AU_GOUT;
+    return Math.max(FLOOR, Math.round(cost * 100) / 100);
+  });
+}
+
 /** « 1 250 g » → « 1,25 kg » ; « 750 ml » → « 750 ml » ; unités entières. Affichage fr-CA. */
 export function formatQty(qty: number | null, unit: AggregatedItem["unit"]): string {
   if (qty === null) return "au goût";
