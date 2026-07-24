@@ -10,6 +10,7 @@ import { auth } from "@/auth";
 import { db, schema } from "@/lib/db";
 import { aggregateShoppingList, fillMissingCosts } from "@/lib/aggregate";
 import { splitNewCatalogRecipes } from "@/lib/catalogSelect";
+import { clampServings, prepareIngredientRows, type EditableIngredient } from "@/lib/recipeEdit";
 import { estimateShoppingCosts, htmlToText, parseRecipeFromPage } from "@/lib/llm";
 
 async function requireSession(): Promise<void> {
@@ -132,6 +133,44 @@ export async function addCatalogRecipesToLibrary(
 
     revalidatePath("/recettes");
     return { ok: true, added, skipped };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Corrige une recette de la bibliothèque : nombre de portions de RÉFÉRENCE + ingrédients
+ * (nom, quantité, unité, note), avec ajout/suppression. C'est le levier du « 100 % précis » :
+ * toute erreur de détection est corrigeable à la main. Les ingrédients sont remplacés en bloc
+ * (suppression + réinsertion) — les batchs référencent la recette, pas les lignes, donc rien ne casse.
+ */
+export async function updateRecipe(input: {
+  recipeId: number;
+  servings: number;
+  ingredients: EditableIngredient[];
+}): Promise<ActionResult> {
+  try {
+    await requireSession();
+    const servings = clampServings(input.servings);
+    const rows = prepareIngredientRows(input.ingredients);
+    if (rows.length === 0) return { ok: false, error: "Garde au moins un ingrédient (avec un nom)." };
+
+    await db.update(schema.recipes).set({ servings }).where(eq(schema.recipes.id, input.recipeId));
+    await db.delete(schema.recipeIngredients).where(eq(schema.recipeIngredients.recipeId, input.recipeId));
+    await db.insert(schema.recipeIngredients).values(
+      rows.map((r) => ({
+        recipeId: input.recipeId,
+        name: r.name,
+        canonical: r.canonical,
+        qty: r.qty,
+        unit: r.unit,
+        note: r.note,
+      })),
+    );
+
+    revalidatePath(`/recettes/${input.recipeId}`);
+    revalidatePath("/recettes");
+    return { ok: true };
   } catch (err) {
     return fail(err);
   }
