@@ -41,10 +41,18 @@ export async function recordLlmUsage(
   }
 }
 
-/** Coût LLM cumulé en USD (arrondi au cent). */
+/**
+ * Coût LLM cumulé en USD (arrondi au cent). BEST-EFFORT : si la table n'existe pas encore
+ * (migration pas appliquée) ou toute autre panne, renvoie 0 — le coût est un BONUS, il ne
+ * doit JAMAIS casser le summary hub (sinon le widget BatchChef entier tombe en « error »).
+ */
 export async function totalLlmCostUsd(): Promise<number> {
-  const [row] = await db
-    .select({ sum: sql<number>`coalesce(sum(${schema.llmUsage.costUsd}), 0)` })
-    .from(schema.llmUsage);
-  return Math.round(Number(row?.sum ?? 0) * 100) / 100;
+  try {
+    const [row] = await db
+      .select({ sum: sql<number>`coalesce(sum(${schema.llmUsage.costUsd}), 0)` })
+      .from(schema.llmUsage);
+    return Math.round(Number(row?.sum ?? 0) * 100) / 100;
+  } catch {
+    return 0;
+  }
 }
