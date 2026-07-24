@@ -5,7 +5,7 @@
 // Deux couches : `composeBatchchefSummary` est PURE (agrégats → HubSummary validé, testable
 // sans base), `buildBatchchefSummary` lit Neon puis délègue à la première.
 
-import { and, count, eq, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { validateSummary, type HubSummary } from "@mokarade/hub-contract";
 import { db, schema } from "@/lib/db";
 
@@ -24,6 +24,8 @@ export interface BatchchefCounts {
   activeBatches: number;
   toBuy: number;
   budgetRemaining: number;
+  /** Batch actif le plus récent → lien direct « liste de courses » dans la carte du hub. */
+  activeBatchId: number | null;
 }
 
 /** Compose un HubSummary VALIDÉ à partir des agrégats (jette si le payload dévie du contrat). */
@@ -55,6 +57,18 @@ export function composeBatchchefSummary(counts: BatchchefCounts, base = publicUr
     });
   }
 
+  const actions: HubSummary["actions"] = [
+    { label: "Ouvrir BatchChef", kind: "link", href: base },
+  ];
+  // Lien direct vers la liste d'épicerie du batch actif le plus récent (si présent).
+  if (counts.activeBatchId !== null) {
+    actions.push({
+      label: "Liste d'épicerie",
+      kind: "link",
+      href: `${base}/courses/${counts.activeBatchId}`,
+    });
+  }
+
   const summary = {
     contractVersion: 1 as const,
     app: { id: "batchchef", name: "BatchChef", url: base, color: APP_COLOR },
@@ -62,7 +76,7 @@ export function composeBatchchefSummary(counts: BatchchefCounts, base = publicUr
     status,
     metrics,
     alerts,
-    actions: [{ label: "Ouvrir BatchChef", kind: "link" as const, href: base }],
+    actions,
   };
 
   // Conformité prouvée à l'émission : un payload hors contrat jette ici, pas chez le hub.
@@ -94,6 +108,13 @@ export async function buildBatchchefSummary(): Promise<HubSummary> {
         sql`${schema.shoppingItems.estCost} is not null`,
       ),
     );
+  // Batch actif le plus récent (pour le lien direct « liste de courses »).
+  const [activeBatch] = await db
+    .select({ id: schema.batches.id })
+    .from(schema.batches)
+    .where(inArray(schema.batches.status, [...ACTIVE]))
+    .orderBy(desc(schema.batches.createdAt))
+    .limit(1);
 
   return composeBatchchefSummary({
     recipes: recipes?.n ?? 0,
@@ -101,5 +122,6 @@ export async function buildBatchchefSummary(): Promise<HubSummary> {
     activeBatches: activeBatches?.n ?? 0,
     toBuy: toBuy?.n ?? 0,
     budgetRemaining: Number(budget?.sum ?? 0),
+    activeBatchId: activeBatch?.id ?? null,
   });
 }
