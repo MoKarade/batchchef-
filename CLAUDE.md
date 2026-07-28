@@ -19,6 +19,13 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   Action revérifie la session (`requireSession`).
 - **Unités normalisées** au parse (`lib/units.ts` → g/ml/unite ou null « au goût »).
 - **Fonctions pures testées** pour la logique (agrégation, mise à l'échelle, prix, jetons).
+- **Planchers de version, jamais redescendus.** `drizzle-orm ≥ 0.45.2` (injection SQL par
+  identifiants mal échappés, GHSA-gpj5-g38j-94v9, HIGH), et les `overrides` de `postcss` et
+  `sharp` qui ferment des failles que Next épingle lui-même. *Verrou* :
+  `web/tests/dependances.test.ts` — il inspecte **toutes** les copies du lockfile, pas
+  seulement la racine (Next embarquait sa propre `postcss` 8.4.31 dans son `node_modules`,
+  vulnérable et invisible depuis le premier niveau). Discrimination prouvée. Retirer un
+  `override` seulement après avoir mesuré `npm audit --omit=dev` → 0.
 
 ## Structure `web/`
 
@@ -37,6 +44,14 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
 ```bash
 cd web && npm run typecheck && npm run test && npm run build
 ```
+
+Et, après toute modification de dépendances : `npm audit --omit=dev` doit rendre **0**.
+Les quelques avis `moderate` restants sont **dev-only** (chaîne `esbuild` → `drizzle-kit`,
+serveur de développement) : ils ne touchent pas la production et `npm audit fix --force`
+proposerait de rétrograder Next en 9.x, ce qui casserait l'app.
+
+⚠️ La branche par défaut du dépôt est **`master`**, pas `main` — `main` est une vieille
+branche abandonnée qui a divergé. Repartir de `master`.
 
 ## Style (hérité du CLAUDE.md global de Marc)
 
