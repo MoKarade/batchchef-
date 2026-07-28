@@ -13,16 +13,22 @@
     "db:migrate": "drizzle-kit migrate",
     "catalog:import": "tsx scripts/import-catalog.ts"
   },
+  "//drizzle-orm": "Plancher 0.45.2 : en dessous, injection SQL par identifiants mal échappés (GHSA-gpj5-g38j-94v9, HIGH). Ne jamais redescendre. Une clé « // » ne se met qu'à la RACINE — npm refuse un nom de paquet invalide à l'intérieur de `dependencies`.",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
     "@mokarade/hub-contract": "github:MoKarade/hub-contract#2d37a61c337d485ab9ec716d9c7507972e807226",
     "@neondatabase/serverless": "^1.0.0",
-    "drizzle-orm": "^0.44.0",
+    "drizzle-orm": "^0.45.2",
     "next": "^15.5.4",
     "next-auth": "^5.0.0-beta.31",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zod": "^3.23.8"
+  },
+  "//overrides": "Failles HIGH dans des dépendances transitives que Next épingle lui-même : postcss (XSS + lecture de fichier arbitraire via sourceMappingURL) et sharp (libvips). Next 15.5.21 embarque encore postcss 8.4.31 dans son propre node_modules. À retirer dès qu'une version de Next les remonte d'elle-même — vérifier avec `npm audit --omit=dev`.",
+  "overrides": {
+    "postcss": "^8.5.24",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.0",
