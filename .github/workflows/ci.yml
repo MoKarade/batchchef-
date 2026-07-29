@@ -1,0 +1,102 @@
+name: CI
+
+# Ce dépôt est PUBLIC et n'avait AUCUNE vérification automatisée. C'est en partie
+# pourquoi une injection SQL par identifiants mal échappés (drizzle-orm < 0.45.2,
+# GHSA-gpj5-g38j-94v9, HIGH) a vécu en production sans que rien ne se déclenche : elle
+# n'a été découverte qu'en installant Drizzle dans un AUTRE dépôt (PR #22).
+#
+# Le job `gate` rejoue EXACTEMENT le gate du CLAUDE.md :
+#   cd web && npm run typecheck && npm run test && npm run build
+on:
+  push:
+    # La branche par défaut est `master` — `main` est une vieille branche abandonnée
+    # qui a divergé (voir CLAUDE.md). Ne pas l'ajouter ici : une CI verte sur une
+    # branche morte est un signal faux.
+    branches: [master]
+  pull_request:
+  # Le cron ne sert qu'au job `audit` : une vulnérabilité paraît sans qu'une ligne
+  # n'ait changé — c'est précisément le mode de découverte qui a manqué ici.
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Toute l'app vit dans `web/` (CLAUDE.md) : la racine ne porte que la documentation.
+defaults:
+  run:
+    working-directory: web
+
+jobs:
+  gate:
+    name: Gate (typecheck · tests · build)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          # Le lockfile n'est pas à la racine : sans ce chemin, le cache npm ne
+          # trouverait rien et se reconstruirait à chaque exécution.
+          cache-dependency-path: web/package-lock.json
+
+      # `npm ci` et non `npm install` : le lockfile est committé et fait autorité.
+      # C'est lui qui porte les planchers de version non négociables du CLAUDE.md
+      # (drizzle-orm ≥ 0.45.2, overrides postcss et sharp).
+      - name: Dépendances
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Parmi ces tests, `tests/dependances.test.ts` inspecte TOUTES les copies du
+      # lockfile — Next embarque sa propre postcss dans son node_modules, invisible
+      # depuis le premier niveau. C'est le verrou des planchers de version ; il ne
+      # servait à rien tant qu'aucune CI ne l'exécutait à chaque changement.
+      - name: Tests
+        run: npm run test
+
+      # Vérifié : le build ne demande AUCUNE variable d'environnement (ni Neon, ni
+      # Auth.js, ni la clé Anthropic) — la CI ne réclamera aucun secret.
+      - name: Build
+        run: npm run build
+
+  audit:
+    name: Audit des dépendances de production
+    runs-on: ubuntu-latest
+    # Job SÉPARÉ du gate, volontairement. Ici plus qu'ailleurs : c'est exactement ce
+    # job qui aurait signalé l'injection SQL de drizzle-orm, et il l'aurait fait un
+    # lundi matin sans qu'aucun commit n'ait eu lieu. Le garder hors du gate évite
+    # qu'un dépôt sain devienne « rouge » du jour au lendemain et qu'on prenne
+    # l'habitude du rouge — c'est ainsi qu'une CI cesse d'être lue.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Dépendances
+        run: npm ci
+
+      # `--omit=dev` → 0, la règle du CLAUDE.md. Les avis `moderate` restants sont
+      # dev-only (chaîne esbuild → drizzle-kit, serveur de développement) : ils ne
+      # touchent pas la production et `npm audit fix --force` proposerait de
+      # rétrograder Next en 9.x, ce qui casserait l'app.
+      - name: npm audit (production)
+        run: npm audit --omit=dev
+
+# ── Note sur le cron ──────────────────────────────────────────────────────────
+# GitHub désactive les workflows planifiés d'un dépôt resté 60 jours sans activité et
+# le signale par courriel. Si l'audit hebdomadaire cesse d'apparaître, c'est là qu'il
+# faut regarder — pas dans ce fichier.
