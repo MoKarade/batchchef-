@@ -3,7 +3,13 @@
 // incompatibles JAMAIS additionnées, « au goût » dédupliqué, formatage fr-CA.
 
 import { describe, expect, it } from "vitest";
-import { aggregateShoppingList, fillMissingCosts, formatQty, scaleQty } from "../lib/aggregate";
+import {
+  aggregateShoppingList,
+  fillMissingCosts,
+  formatQty,
+  scaleQty,
+  shoppingTitles,
+} from "../lib/aggregate";
 
 const ing = (
   canonical: string,
@@ -128,6 +134,36 @@ describe("fillMissingCosts (couverture 100 %)", () => {
     ];
     const filled = fillMissingCosts(items, [null, null, null]);
     expect(filled.every((c) => c >= 0.05)).toBe(true);
+  });
+});
+
+describe("shoppingTitles (export Tasks / partage)", () => {
+  const it3 = (name: string, qty: number | null, unit: "g" | "ml" | "unite" | null, checked = false) => ({
+    name,
+    qty,
+    unit,
+    checked,
+  });
+
+  it("un titre par article non coché, « nom — qté »", () => {
+    expect(shoppingTitles([it3("Poulet", 500, "g"), it3("Oignon", 2, "unite")])).toEqual([
+      "Poulet — 500 g",
+      "Oignon — 2",
+    ]);
+  });
+
+  it("ignore les articles cochés (déjà pris)", () => {
+    expect(shoppingTitles([it3("Riz", 1000, "g", true), it3("Lait", 2000, "ml")])).toEqual([
+      "Lait — 2 L",
+    ]);
+  });
+
+  it("« au goût » → juste le nom", () => {
+    expect(shoppingTitles([it3("Sel", null, null)])).toEqual(["Sel"]);
+  });
+
+  it("tout coché → repli sur toute la liste", () => {
+    expect(shoppingTitles([it3("Riz", 1000, "g", true)])).toEqual(["Riz — 1 kg"]);
   });
 });
 

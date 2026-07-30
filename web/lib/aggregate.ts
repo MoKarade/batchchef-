@@ -126,6 +126,19 @@ export function fillMissingCosts(
   });
 }
 
+/**
+ * Titres d'articles pour un export (Google Tasks, partage…) : un par article, « nom — qté »
+ * (ou juste le nom si « au goût »). N'exporte que le RESTANT à acheter (non coché) ; si tout
+ * est coché, exporte toute la liste (repli).
+ */
+export function shoppingTitles(
+  items: Array<{ name: string; qty: number | null; unit: AggregatedItem["unit"]; checked: boolean }>,
+): string[] {
+  const remaining = items.filter((i) => !i.checked);
+  const list = remaining.length > 0 ? remaining : items;
+  return list.map((i) => (i.qty !== null ? `${i.name} — ${formatQty(i.qty, i.unit)}` : i.name));
+}
+
 /** « 1 250 g » → « 1,25 kg » ; « 750 ml » → « 750 ml » ; unités entières. Affichage fr-CA. */
 export function formatQty(qty: number | null, unit: AggregatedItem["unit"]): string {
   if (qty === null) return "au goût";
