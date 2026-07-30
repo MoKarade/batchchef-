@@ -15,17 +15,21 @@ interface Item {
   checked: boolean;
 }
 
-/** Texte de la liste : titre + un article par ligne (seulement ce qui reste à acheter). */
+/**
+ * Prépare le partage. `title` va dans le TITRE de la note (champ séparé du Web Share) ;
+ * `body` = un article par ligne, SANS puce ni titre répété — pour qu'un « Afficher les
+ * cases à cocher » dans Keep donne une liste nette (une case par article, rien à nettoyer).
+ * N'exporte que le restant à acheter (articles non cochés).
+ */
 export function buildText(batchName: string, items: Item[]): { title: string; body: string } | null {
   const remaining = items.filter((i) => !i.checked);
   const list = remaining.length > 0 ? remaining : items;
   if (list.length === 0) return null;
   const title = `Épicerie — ${batchName}`;
-  const lines = list.map((i) => {
-    const qty = i.qty !== null ? ` — ${formatQty(i.qty, i.unit)}` : "";
-    return `- ${i.name}${qty}`;
-  });
-  return { title, body: `${title}\n${lines.join("\n")}` };
+  const body = list
+    .map((i) => (i.qty !== null ? `${i.name} — ${formatQty(i.qty, i.unit)}` : i.name))
+    .join("\n");
+  return { title, body };
 }
 
 export function ShareListButton({ batchName, items }: { batchName: string; items: Item[] }) {
@@ -37,14 +41,17 @@ export function ShareListButton({ batchName, items }: { batchName: string; items
     setMsg(null);
     const copie = async () => {
       try {
-        await navigator.clipboard.writeText(payload.body);
-        setMsg("Liste copiée — colle-la dans Keep.");
+        // Presse-papier : titre + liste (une ligne par article) pour un collage propre.
+        await navigator.clipboard.writeText(`${payload.title}\n${payload.body}`);
+        setMsg("Liste copiée — colle-la dans Keep, puis « Afficher les cases à cocher ».");
       } catch {
         setMsg("Partage indisponible sur cet appareil.");
       }
     };
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       try {
+        // `title` → titre de la note Keep ; `text` → corps (les articles, une case chacun
+        // une fois converti en liste). Séparés pour que le titre ne devienne pas une case.
         await navigator.share({ title: payload.title, text: payload.body });
       } catch (err) {
         // L'utilisateur a fermé le menu de partage : ce n'est pas une erreur.
@@ -66,7 +73,9 @@ export function ShareListButton({ batchName, items }: { batchName: string; items
       >
         Partager la liste (Keep, Notes…)
       </button>
-      {msg && <p className="text-center text-xs text-stone-500">{msg}</p>}
+      <p className="text-center text-xs text-stone-500">
+        {msg ?? "Dans Keep : ⋮ → « Afficher les cases à cocher » pour une liste cochable."}
+      </p>
     </div>
   );
 }

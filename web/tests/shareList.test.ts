@@ -11,10 +11,13 @@ const it2 = (name: string, qty: number | null, unit: "g" | "ml" | "unite" | null
 });
 
 describe("buildText", () => {
-  it("titre + articles à acheter (non cochés), quantités formatées", () => {
+  it("titre séparé + corps = un article par ligne SANS puce (liste nette après conversion Keep)", () => {
     const out = buildText("Semaine 1", [it2("Poulet", 500, "g"), it2("Oignon", 2, "unite")]);
     expect(out?.title).toBe("Épicerie — Semaine 1");
-    expect(out?.body).toBe("Épicerie — Semaine 1\n- Poulet — 500 g\n- Oignon — 2");
+    expect(out?.body).toBe("Poulet — 500 g\nOignon — 2");
+    // le titre n'est PAS répété dans le corps (sinon il deviendrait une case à cocher)
+    expect(out?.body).not.toContain("Épicerie");
+    expect(out?.body).not.toContain("- ");
   });
 
   it("n'exporte que le RESTANT (articles cochés = déjà dans le panier)", () => {
@@ -23,9 +26,9 @@ describe("buildText", () => {
     expect(out?.body).not.toContain("Riz");
   });
 
-  it("« au goût » (qty null) → pas de quantité affichée", () => {
+  it("« au goût » (qty null) → juste le nom, sans quantité", () => {
     const out = buildText("B", [it2("Sel", null, null)]);
-    expect(out?.body).toBe("Épicerie — B\n- Sel");
+    expect(out?.body).toBe("Sel");
   });
 
   it("tout coché → on exporte quand même toute la liste (repli)", () => {
