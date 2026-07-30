@@ -7,6 +7,7 @@ import { ShoppingChecklist } from "@/components/ShoppingChecklist";
 import { ShoppingListEditor } from "@/components/ShoppingListEditor";
 import { ShareListButton } from "@/components/ShareListButton";
 import { ExportTasksButton } from "@/components/ExportTasksButton";
+import { ReconnectGoogleButton } from "@/components/AuthButtons";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,13 @@ export default async function ShoppingPage({
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Épicerie — {batch.name}</h1>
       <ExportTasksButton batchId={id} />
+      {/* Si Google Tasks répond « reconnecte-toi » : ce bouton accorde la permission Tasks. */}
+      <details className="text-xs text-stone-500">
+        <summary className="cursor-pointer">Google Tasks demande de te reconnecter ?</summary>
+        <div className="mt-2">
+          <ReconnectGoogleButton redirectTo={`/courses/${id}`} />
+        </div>
+      </details>
       <ShareListButton
         batchName={batch.name}
         items={items.map((i) => ({ name: i.name, qty: i.qty, unit: i.unit, checked: i.checked }))}

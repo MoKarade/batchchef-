@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { SignOutButton } from "@/components/AuthButtons";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -42,12 +43,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 {item.label}
               </Link>
             ))}
-            <a
-              href={HUB_URL}
-              className="ml-auto rounded-lg px-3 py-2 text-sm font-medium text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800"
-            >
-              ← Hub
-            </a>
+            <div className="ml-auto flex items-center gap-1">
+              <a
+                href={HUB_URL}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-800"
+              >
+                ← Hub
+              </a>
+              <SignOutButton />
+            </div>
           </nav>
         </header>
         <main className="mx-auto max-w-3xl px-3 py-5">{children}</main>
