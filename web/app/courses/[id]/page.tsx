@@ -6,6 +6,7 @@ import { db, schema } from "@/lib/db";
 import { ShoppingChecklist } from "@/components/ShoppingChecklist";
 import { ShoppingListEditor } from "@/components/ShoppingListEditor";
 import { ShareListButton } from "@/components/ShareListButton";
+import { ExportTasksButton } from "@/components/ExportTasksButton";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ export default async function ShoppingPage({
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Épicerie — {batch.name}</h1>
+      <ExportTasksButton batchId={id} />
       <ShareListButton
         batchName={batch.name}
         items={items.map((i) => ({ name: i.name, qty: i.qty, unit: i.unit, checked: i.checked }))}

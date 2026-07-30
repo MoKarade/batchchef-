@@ -8,7 +8,8 @@ import { revalidatePath } from "next/cache";
 import { eq, inArray } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db, schema } from "@/lib/db";
-import { aggregateShoppingList, fillMissingCosts } from "@/lib/aggregate";
+import { aggregateShoppingList, fillMissingCosts, shoppingTitles } from "@/lib/aggregate";
+import { createTaskList } from "@/lib/googleTasks";
 import { splitNewCatalogRecipes } from "@/lib/catalogSelect";
 import { clampServings, prepareIngredientRows, type EditableIngredient } from "@/lib/recipeEdit";
 import {
@@ -341,6 +342,40 @@ export async function createBatch(input: {
 
     revalidatePath("/batchs");
     return { ok: true, id: batch.id, estimationError };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Exporte la liste d'épicerie d'un batch dans une NOUVELLE liste Google Tasks (cochable),
+ * nommée d'après le batch. Une liste par appel (« un groupe par batch »). N'exporte que le
+ * restant à acheter. Le jeton Google est lu côté serveur (auth()).
+ */
+export async function exportBatchToTasks(
+  batchId: number,
+): Promise<ActionResult & { count?: number }> {
+  try {
+    await requireSession();
+    const [batch] = await db.select().from(schema.batches).where(eq(schema.batches.id, batchId));
+    if (!batch) return { ok: false, error: "Batch introuvable." };
+
+    const items = await db
+      .select({
+        name: schema.shoppingItems.name,
+        qty: schema.shoppingItems.qty,
+        unit: schema.shoppingItems.unit,
+        checked: schema.shoppingItems.checked,
+      })
+      .from(schema.shoppingItems)
+      .where(eq(schema.shoppingItems.batchId, batchId));
+
+    const titles = shoppingTitles(items);
+    if (titles.length === 0) return { ok: false, error: "Liste vide — rien à exporter." };
+
+    const res = await createTaskList(`Épicerie — ${batch.name}`, titles);
+    if (!res.ok) return { ok: false, error: res.error ?? "Export impossible." };
+    return { ok: true, count: res.created };
   } catch (err) {
     return fail(err);
   }
