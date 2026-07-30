@@ -1,6 +1,10 @@
 // lib/googleTasks.ts — création d'une liste de courses COCHABLE dans Google Tasks (compte
 // perso de Marc). Une NOUVELLE liste (groupe) par appel. Server-side only : lit le jeton
 // d'accès Google depuis la session (auth()), jamais côté client.
+//
+// Erreurs DIAGNOSTIQUES : chaque échec dit précisément lequel des maillons cloche (jeton,
+// scope, projet Google Cloud) et remonte le message d'erreur de Google — souvent explicite
+// (« API pas activée dans ce projet », « insufficient authentication scopes »…).
 
 import { auth } from "@/auth";
 
@@ -17,19 +21,33 @@ function headers(accessToken: string): HeadersInit {
   return { authorization: `Bearer ${accessToken}`, "content-type": "application/json" };
 }
 
-/** Faut-il proposer à Marc de se reconnecter (scope/jeton manquant) ? */
-const RECONNECT = "Reconnecte-toi à Google (bouton en haut) pour autoriser l'écriture dans Google Tasks.";
+/** Extrait le message d'erreur lisible d'une réponse d'erreur Google (JSON {error:{message}}). */
+function googleError(body: string): string {
+  try {
+    const j = JSON.parse(body) as { error?: { message?: string; status?: string } };
+    return j.error?.message ? `Google : ${j.error.message}` : "";
+  } catch {
+    return body.slice(0, 200);
+  }
+}
 
-/**
- * Crée une liste Google Tasks nommée `listTitle` et y insère chaque titre comme tâche
- * cochable. L'ordre d'affichage de Tasks met les nouvelles tâches EN HAUT : on insère donc
- * en ordre inverse pour que la liste se lise de haut en bas comme la liste de courses.
- */
 export async function createTaskList(listTitle: string, taskTitles: string[]): Promise<TasksExportResult> {
   const session = await auth();
-  const accessToken = session?.accessToken;
-  if (!accessToken || session?.tokenError) return { ok: false, error: RECONNECT };
-  if (session?.hasTasksScope === false) return { ok: false, error: RECONNECT };
+  if (!session) return { ok: false, error: "Session absente — reconnecte-toi." };
+  if (session.tokenError) {
+    return { ok: false, error: `Jeton Google en erreur (${session.tokenError}) — clique « Reconnecter Google ».` };
+  }
+  if (!session.accessToken) {
+    return { ok: false, error: "Aucun jeton Google (accessToken absent) — clique « Reconnecter Google »." };
+  }
+  if (session.hasTasksScope === false) {
+    return {
+      ok: false,
+      error:
+        "Permission Tasks non accordée : le consentement Google n'a pas inclus les tâches. Clique « Reconnecter Google » et coche/accepte l'accès à tes tâches.",
+    };
+  }
+  const accessToken = session.accessToken;
 
   let listRes: Response;
   try {
@@ -42,11 +60,22 @@ export async function createTaskList(listTitle: string, taskTitles: string[]): P
   } catch {
     return { ok: false, error: "Google Tasks injoignable — réessaie." };
   }
-  if (listRes.status === 401 || listRes.status === 403) return { ok: false, error: RECONNECT };
-  if (!listRes.ok) return { ok: false, error: `Google Tasks : création de la liste (HTTP ${listRes.status}).` };
+  if (!listRes.ok) {
+    const body = await listRes.text().catch(() => "");
+    console.error("[tasks] création de liste échouée", listRes.status, body);
+    const g = googleError(body);
+    if (listRes.status === 401) return { ok: false, error: `Jeton Google refusé (401). ${g} — reconnecte-toi.` };
+    if (listRes.status === 403) {
+      return {
+        ok: false,
+        error: `Accès refusé (403). ${g} — vérifie que l'API « Google Tasks » est activée dans LE MÊME projet Google Cloud que ton client OAuth, puis « Reconnecter Google ».`,
+      };
+    }
+    return { ok: false, error: `Google Tasks : HTTP ${listRes.status}. ${g}` };
+  }
 
   const list = (await listRes.json()) as { id?: string };
-  if (!list.id) return { ok: false, error: "Google Tasks : liste sans identifiant." };
+  if (!list.id) return { ok: false, error: "Google Tasks : liste créée sans identifiant." };
 
   let created = 0;
   for (const title of [...taskTitles].reverse()) {
