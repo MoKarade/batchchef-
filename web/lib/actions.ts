@@ -9,7 +9,7 @@ import { eq, inArray } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db, schema } from "@/lib/db";
 import { aggregateShoppingList, fillMissingCosts, shoppingTitles } from "@/lib/aggregate";
-import { createTaskList } from "@/lib/googleTasks";
+import { upsertTaskList } from "@/lib/googleTasks";
 import { splitNewCatalogRecipes } from "@/lib/catalogSelect";
 import { clampServings, prepareIngredientRows, type EditableIngredient } from "@/lib/recipeEdit";
 import {
@@ -344,7 +344,7 @@ export async function createBatch(input: {
       if (!item || cost === undefined) continue;
       await db
         .update(schema.shoppingItems)
-        .set({ estCost: cost, costKind: "estime" })
+        .set({ estCost: cost })
         .where(eq(schema.shoppingItems.id, item.id));
     }
 
@@ -356,13 +356,15 @@ export async function createBatch(input: {
 }
 
 /**
- * Exporte la liste d'épicerie d'un batch dans une NOUVELLE liste Google Tasks (cochable),
- * nommée d'après le batch. Une liste par appel (« un groupe par batch »). N'exporte que le
- * restant à acheter. Le jeton Google est lu côté serveur (auth()).
+ * Exporte la liste d'épicerie d'un batch vers Google Tasks (cochable), une liste par
+ * batch : le PREMIER export en crée une, chaque export SUIVANT met à jour la même liste
+ * (id mémorisé sur `batches.googleTaskListId`) — ajouter un article puis réexporter ne
+ * duplique jamais un groupe. N'exporte que le restant à acheter. Le jeton Google est lu
+ * côté serveur (auth()).
  */
 export async function exportBatchToTasks(
   batchId: number,
-): Promise<ActionResult & { count?: number }> {
+): Promise<ActionResult & { count?: number; updated?: boolean }> {
   try {
     await requireSession();
     const [batch] = await db.select().from(schema.batches).where(eq(schema.batches.id, batchId));
@@ -381,9 +383,12 @@ export async function exportBatchToTasks(
     const titles = shoppingTitles(items);
     if (titles.length === 0) return { ok: false, error: "Liste vide — rien à exporter." };
 
-    const res = await createTaskList(`Épicerie — ${batch.name}`, titles);
+    const res = await upsertTaskList(`Épicerie — ${batch.name}`, titles, batch.googleTaskListId);
     if (!res.ok) return { ok: false, error: res.error ?? "Export impossible." };
-    return { ok: true, count: res.created };
+    if (res.listId && res.listId !== batch.googleTaskListId) {
+      await db.update(schema.batches).set({ googleTaskListId: res.listId }).where(eq(schema.batches.id, batchId));
+    }
+    return { ok: true, count: res.created, updated: batch.googleTaskListId === res.listId };
   } catch (err) {
     return fail(err);
   }
@@ -445,7 +450,6 @@ export async function addShoppingItem(
       qty: clean.qty,
       unit: clean.unit,
       estCost: clean.estCost,
-      costKind: clean.estCost !== null ? "estime" : null,
     });
     revalidatePath(`/courses/${batchId}`);
     revalidatePath(`/batchs/${batchId}`);
@@ -472,7 +476,6 @@ export async function updateShoppingItem(
         qty: clean.qty,
         unit: clean.unit,
         estCost: clean.estCost,
-        costKind: clean.estCost !== null ? "estime" : null,
       })
       .where(eq(schema.shoppingItems.id, itemId));
     return { ok: true };

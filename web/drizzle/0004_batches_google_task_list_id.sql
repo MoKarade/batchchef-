@@ -1,0 +1,1 @@
+ALTER TABLE "batches" ADD COLUMN "google_task_list_id" text;

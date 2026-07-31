@@ -3,6 +3,7 @@
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
+import { shoppingChecklistKey } from "@/lib/aggregate";
 import { ShoppingChecklist } from "@/components/ShoppingChecklist";
 import { ShoppingListEditor } from "@/components/ShoppingListEditor";
 import { ShareListButton } from "@/components/ShareListButton";
@@ -43,10 +44,7 @@ export default async function ShoppingPage({
         items={items.map((i) => ({ name: i.name, qty: i.qty, unit: i.unit, checked: i.checked }))}
       />
       <ShoppingChecklist
-        // Clé dérivée du contenu (hors `checked`) : un ajout/édition/suppression via
-        // « Modifier la liste » (qui fait router.refresh()) force un remount — sinon le
-        // useState interne du composant garde son vieux tableau d'articles.
-        key={items.map((i) => `${i.id}:${i.qty}:${i.unit}:${i.estCost}`).join("|")}
+        key={shoppingChecklistKey(items)}
         items={items.map((i) => ({
           id: i.id,
           name: i.name,

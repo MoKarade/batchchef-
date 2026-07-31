@@ -18,7 +18,7 @@ export function CatalogueSearch({ initial }: { initial: string }) {
         type="search"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Chercher une recette (ex. poulet, curry, tarte…)"
+        placeholder="Chercher une recette ou un ingrédient (ex. poulet, gingembre, tarte…)"
         className="min-w-0 flex-1 rounded-xl border border-stone-300 bg-white px-3 py-3 text-sm dark:border-stone-700 dark:bg-stone-900"
       />
       <button type="submit" className="rounded-xl px-4 py-3 text-sm font-medium text-white" style={{ backgroundColor: "var(--accent)" }}>

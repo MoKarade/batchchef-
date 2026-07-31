@@ -8,6 +8,7 @@ import {
   fillMissingCosts,
   formatQty,
   scaleQty,
+  shoppingChecklistKey,
   shoppingTitles,
 } from "../lib/aggregate";
 
@@ -164,6 +165,39 @@ describe("shoppingTitles (export Tasks / partage)", () => {
 
   it("tout coché → repli sur toute la liste", () => {
     expect(shoppingTitles([it3("Riz", 1000, "g", true)])).toEqual(["Riz — 1 kg"]);
+  });
+});
+
+describe("shoppingChecklistKey (remount de ShoppingChecklist — cf. bug sitrep)", () => {
+  const item = (id: number, qty: number | null, unit: "g" | "ml" | "unite" | null, estCost: number | null) => ({
+    id,
+    qty,
+    unit,
+    estCost,
+  });
+
+  it("change quand un article est ajouté", () => {
+    const before = shoppingChecklistKey([item(1, 500, "g", 5)]);
+    const after = shoppingChecklistKey([item(1, 500, "g", 5), item(2, 2, "unite", 1)]);
+    expect(after).not.toBe(before);
+  });
+
+  it("change quand un article est supprimé", () => {
+    const before = shoppingChecklistKey([item(1, 500, "g", 5), item(2, 2, "unite", 1)]);
+    const after = shoppingChecklistKey([item(1, 500, "g", 5)]);
+    expect(after).not.toBe(before);
+  });
+
+  it("change quand la quantité ou le prix d'un article édité", () => {
+    const before = shoppingChecklistKey([item(1, 500, "g", 5)]);
+    expect(shoppingChecklistKey([item(1, 750, "g", 5)])).not.toBe(before);
+    expect(shoppingChecklistKey([item(1, 500, "g", 6)])).not.toBe(before);
+  });
+
+  it("stable pour la même liste (le cochage seul ne doit pas forcer un remount)", () => {
+    const a = shoppingChecklistKey([item(1, 500, "g", 5), item(2, 2, "unite", 1)]);
+    const b = shoppingChecklistKey([item(1, 500, "g", 5), item(2, 2, "unite", 1)]);
+    expect(a).toBe(b);
   });
 });
 
