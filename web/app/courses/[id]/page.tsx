@@ -43,6 +43,10 @@ export default async function ShoppingPage({
         items={items.map((i) => ({ name: i.name, qty: i.qty, unit: i.unit, checked: i.checked }))}
       />
       <ShoppingChecklist
+        // Clé dérivée du contenu (hors `checked`) : un ajout/édition/suppression via
+        // « Modifier la liste » (qui fait router.refresh()) force un remount — sinon le
+        // useState interne du composant garde son vieux tableau d'articles.
+        key={items.map((i) => `${i.id}:${i.qty}:${i.unit}:${i.estCost}`).join("|")}
         items={items.map((i) => ({
           id: i.id,
           name: i.name,

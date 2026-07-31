@@ -30,6 +30,11 @@ function fail(err: unknown): ActionResult {
   return { ok: false, error: err instanceof Error ? err.message : String(err) };
 }
 
+/** Violation de contrainte FK Postgres (code 23503) — cf. NeonDbError. */
+function isForeignKeyViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && err.code === "23503";
+}
+
 export interface RecipePreview {
   title: string;
   sourceUrl: string;
@@ -244,11 +249,14 @@ export async function deleteRecipe(recipeId: number): Promise<ActionResult> {
     await db.delete(schema.recipes).where(eq(schema.recipes.id, recipeId));
     revalidatePath("/recettes");
     return { ok: true };
-  } catch {
-    return {
-      ok: false,
-      error: "Suppression impossible : la recette est utilisée par un batch.",
-    };
+  } catch (err) {
+    if (isForeignKeyViolation(err)) {
+      return {
+        ok: false,
+        error: "Suppression impossible : la recette est utilisée par un batch.",
+      };
+    }
+    return fail(err);
   }
 }
 
