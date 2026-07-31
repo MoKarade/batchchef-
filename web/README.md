@@ -44,6 +44,12 @@ npm run dev
 Nouveau projet Vercel → ce repo → **Root Directory = `web`** → colle les variables
 d'env ci-dessus → Deploy. C'est tout (pas de worker, pas de base à héberger toi-même).
 
+**Migrations automatiques** : le script `vercel-build` (que Vercel utilise à la place de
+`build` s'il est présent) lance `db:migrate` avant `next build`, à CHAQUE déploiement
+(prod et previews). Rien à lancer à la main sur ta machine après un changement de schéma —
+`git push` suffit. Idempotent : une migration déjà appliquée est ignorée (table de suivi
+Drizzle), donc plusieurs déploiements qui se chevauchent ne rejouent rien deux fois.
+
 ## Catalogue de découverte (les 10 188 recettes de la V3)
 
 Un écran `/catalogue` cherchable, séparé de ta bibliothèque perso : tu y piges des idées

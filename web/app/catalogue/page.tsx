@@ -1,7 +1,8 @@
-// /catalogue — les 10 188 recettes Marmiton, cherchables. Source d'idées, séparée de
-// ta bibliothèque perso.
+// /catalogue — les 10 188 recettes Marmiton, cherchables par titre OU par ingrédient
+// (« gingembre » retrouve toute recette qui en contient, pas seulement dans le titre).
+// Source d'idées, séparée de ta bibliothèque perso.
 import Link from "next/link";
-import { and, ilike, sql } from "drizzle-orm";
+import { and, eq, exists, ilike, or, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { CatalogueSearch } from "@/components/CatalogueSearch";
 import { CatalogueGrid } from "@/components/CatalogueGrid";
@@ -17,7 +18,23 @@ export default async function CataloguePage({
   const sp = await searchParams;
   const q = (sp.q ?? "").trim();
   const page = Math.max(1, Number(sp.p) || 1);
-  const where = q ? ilike(schema.catalogRecipes.title, `%${q}%`) : undefined;
+
+  // Un ingrédient de la recette contient q → EXISTS corrélé (pas de doublon même si
+  // plusieurs ingrédients matchent, contrairement à un JOIN classique).
+  const ingredientMatch = q
+    ? exists(
+        db
+          .select({ x: sql`1` })
+          .from(schema.catalogIngredients)
+          .where(
+            and(
+              eq(schema.catalogIngredients.catalogRecipeId, schema.catalogRecipes.id),
+              ilike(schema.catalogIngredients.name, `%${q}%`),
+            ),
+          ),
+      )
+    : undefined;
+  const where = q ? or(ilike(schema.catalogRecipes.title, `%${q}%`), ingredientMatch) : undefined;
 
   const countRows = await db
     .select({ n: sql<number>`count(*)::int` })
@@ -44,7 +61,8 @@ export default async function CataloguePage({
       <div>
         <h1 className="text-xl font-bold">Catalogue de découverte</h1>
         <p className="mt-1 text-sm text-stone-500">
-          {total.toLocaleString("fr-CA")} recettes — cherche une idée, ajoute-la à ta bibliothèque.
+          {total.toLocaleString("fr-CA")} recettes — cherche par titre ou par ingrédient, ajoute une idée à ta
+          bibliothèque.
         </p>
       </div>
       <CatalogueSearch initial={q} />

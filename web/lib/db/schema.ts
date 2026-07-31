@@ -2,8 +2,7 @@
 //
 // Recettes (bibliothèque perso), batchs, liste d'épicerie. Les prix sont TOUJOURS des
 // estimations (LLM + filet déterministe, couverture 100 %) ; il n'y a pas de prix « réels »
-// relevés. La colonne `shopping_items.cost_kind` est conservée mais dormante (vestige,
-// non affichée) pour éviter une migration ; toute ligne vaut « estime ».
+// relevés — pas de suivi de prix magasin prévu (trop de friction pour la valeur).
 
 import {
   boolean,
@@ -51,6 +50,8 @@ export const batches = pgTable("batches", {
     .notNull()
     .default("planifie"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Id de la liste Google Tasks déjà créée pour ce batch (réexport = mise à jour, pas doublon). */
+  googleTaskListId: text("google_task_list_id"),
 });
 
 export const batchRecipes = pgTable("batch_recipes", {
@@ -77,8 +78,6 @@ export const shoppingItems = pgTable("shopping_items", {
   unit: text("unit", { enum: ["g", "ml", "unite"] }),
   /** Coût estimé CAD pour la quantité (toujours renseigné : couverture 100 %). */
   estCost: real("est_cost"),
-  /** Colonne dormante (vestige) : toute ligne vaut « estime ». Non affichée. */
-  costKind: text("cost_kind", { enum: ["estime", "confirme"] }),
   checked: boolean("checked").notNull().default(false),
   checkedAt: timestamp("checked_at", { withTimezone: true }),
 });

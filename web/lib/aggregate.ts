@@ -139,6 +139,19 @@ export function shoppingTitles(
   return list.map((i) => (i.qty !== null ? `${i.name} — ${formatQty(i.qty, i.unit)}` : i.name));
 }
 
+/**
+ * Clé React pour `<ShoppingChecklist key=...>` : dérivée du contenu (hors `checked`, qui
+ * reste géré en optimiste par le composant). Un ajout/suppression/édition de prix ou de
+ * quantité change la clé → remount forcé, sinon le `useState(initial)` du composant garde
+ * son vieux tableau après un `router.refresh()` (cf. bug sitrep : article ajouté invisible,
+ * article supprimé qui restait cochable comme un fantôme).
+ */
+export function shoppingChecklistKey(
+  items: Array<{ id: number; qty: number | null; unit: AggregatedItem["unit"]; estCost: number | null }>,
+): string {
+  return items.map((i) => `${i.id}:${i.qty}:${i.unit}:${i.estCost}`).join("|");
+}
+
 /** « 1 250 g » → « 1,25 kg » ; « 750 ml » → « 750 ml » ; unités entières. Affichage fr-CA. */
 export function formatQty(qty: number | null, unit: AggregatedItem["unit"]): string {
   if (qty === null) return "au goût";

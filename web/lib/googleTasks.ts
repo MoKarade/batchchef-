@@ -13,9 +13,13 @@ const API = "https://tasks.googleapis.com/tasks/v1";
 export interface TasksExportResult {
   ok: boolean;
   error?: string;
-  /** Nombre de tâches créées (articles). */
+  /** Nombre de tâches AJOUTÉES (les articles déjà présents dans la liste ne sont pas dupliqués). */
   created?: number;
+  /** Id de la liste Google Tasks utilisée (nouvelle ou réutilisée) — à persister sur le batch. */
+  listId?: string;
 }
+
+type ListResult = { ok: true; id: string } | { ok: false; error: string };
 
 function headers(accessToken: string): HeadersInit {
   return { authorization: `Bearer ${accessToken}`, "content-type": "application/json" };
@@ -49,6 +53,7 @@ export async function createTaskList(listTitle: string, taskTitles: string[]): P
   }
   const accessToken = session.accessToken;
 
+async function createTaskListOnly(accessToken: string, listTitle: string): Promise<ListResult> {
   let listRes: Response;
   try {
     listRes = await fetch(`${API}/users/@me/lists`, {
@@ -78,7 +83,7 @@ export async function createTaskList(listTitle: string, taskTitles: string[]): P
   if (!list.id) return { ok: false, error: "Google Tasks : liste créée sans identifiant." };
 
   let created = 0;
-  for (const title of [...taskTitles].reverse()) {
+  for (const title of [...toCreate].reverse()) {
     try {
       const r = await fetch(`${API}/lists/${list.id}/tasks`, {
         method: "POST",
@@ -91,5 +96,5 @@ export async function createTaskList(listTitle: string, taskTitles: string[]): P
       // une tâche ratée n'annule pas les autres — compte honnête retourné
     }
   }
-  return { ok: true, created };
+  return { ok: true, created, listId: list.id };
 }

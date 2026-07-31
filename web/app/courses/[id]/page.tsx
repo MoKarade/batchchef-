@@ -3,6 +3,7 @@
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
+import { shoppingChecklistKey } from "@/lib/aggregate";
 import { ShoppingChecklist } from "@/components/ShoppingChecklist";
 import { ShoppingListEditor } from "@/components/ShoppingListEditor";
 import { ShareListButton } from "@/components/ShareListButton";

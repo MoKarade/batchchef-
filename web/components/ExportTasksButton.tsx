@@ -1,7 +1,8 @@
 "use client";
 
-// Bouton « Envoyer vers Google Tasks » : crée une NOUVELLE liste cochable dans Google Tasks
-// (un groupe par batch), sur le compte Google de Marc. La création se fait côté serveur
+// Bouton « Envoyer vers Google Tasks » : le PREMIER export crée une liste cochable dans
+// Google Tasks (un groupe par batch), les suivants la mettent à jour (nouveaux articles
+// ajoutés, rien dupliqué) — sur le compte Google de Marc. Tout se fait côté serveur
 // (Server Action) avec le jeton Google de la session.
 
 import { useState, useTransition } from "react";
@@ -19,10 +20,14 @@ export function ExportTasksButton({ batchId }: { batchId: number }) {
         setMsg({ ok: false, text: res.error });
         return;
       }
-      setMsg({
-        ok: true,
-        text: `Liste créée dans Google Tasks (${res.count ?? 0} article${(res.count ?? 0) > 1 ? "s" : ""}). Ouvre l'app Google Tasks pour la cocher.`,
-      });
+      const count = res.count ?? 0;
+      const article = count > 1 ? "articles" : "article";
+      const text = res.updated
+        ? count > 0
+          ? `Liste Google Tasks mise à jour (+${count} ${article}). Ouvre l'app pour la cocher.`
+          : "Liste Google Tasks déjà à jour — aucun nouvel article."
+        : `Liste créée dans Google Tasks (${count} ${article}). Ouvre l'app Google Tasks pour la cocher.`;
+      setMsg({ ok: true, text });
     });
 
   return (
@@ -34,7 +39,7 @@ export function ExportTasksButton({ batchId }: { batchId: number }) {
         className="w-full rounded-xl px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
         style={{ backgroundColor: "var(--accent)" }}
       >
-        {pending ? "Création dans Google Tasks…" : "Envoyer vers Google Tasks (liste cochable)"}
+        {pending ? "Envoi vers Google Tasks…" : "Envoyer vers Google Tasks (liste cochable)"}
       </button>
       {msg && (
         <p
