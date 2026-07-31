@@ -18,6 +18,9 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
   const [name, setName] = useState("");
   const [portions, setPortions] = useState<Record<number, number>>({});
   const [error, setError] = useState<string | null>(null);
+  // Batch créé mais estimation LLM tombée sur le filet déterministe : on le dit avant
+  // de partir, plutôt que de rediriger en silence sur des prix moins précis.
+  const [fallbackNotice, setFallbackNotice] = useState<{ id: number; error: string } | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -28,6 +31,26 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
       else next[id] = base;
       return next;
     });
+
+  if (fallbackNotice) {
+    return (
+      <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-6 text-sm dark:border-amber-800 dark:bg-amber-950">
+        <p className="font-medium text-amber-800 dark:text-amber-200">Batch créé — budget approximatif.</p>
+        <p className="text-amber-700 dark:text-amber-300">
+          L&apos;estimation précise par IA a échoué ({fallbackNotice.error}) : les prix viennent d&apos;un
+          tarif moyen de secours, pas de l&apos;estimation habituelle. Tu peux les corriger dans la liste
+          d&apos;épicerie.
+        </p>
+        <Link
+          href={`/batchs/${fallbackNotice.id}`}
+          className="inline-block rounded-lg px-4 py-2 font-medium text-white"
+          style={{ backgroundColor: "var(--accent)" }}
+        >
+          Voir le batch →
+        </Link>
+      </div>
+    );
+  }
 
   if (recipes.length === 0) {
     return (
@@ -60,6 +83,14 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
           });
           if (!res.ok) {
             setError(res.error);
+            return;
+          }
+          if (!res.id) {
+            setError("Batch créé mais identifiant manquant — retourne à la liste des batchs.");
+            return;
+          }
+          if (res.estimationError) {
+            setFallbackNotice({ id: res.id, error: res.estimationError });
             return;
           }
           router.push(`/batchs/${res.id}`);
