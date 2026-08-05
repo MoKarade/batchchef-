@@ -53,6 +53,25 @@ proposerait de rétrograder Next en 9.x, ce qui casserait l'app.
 ⚠️ La branche par défaut du dépôt est **`master`**, pas `main` — `main` est une vieille
 branche abandonnée qui a divergé. Repartir de `master`.
 
+## Après un merge : vérifier le DÉPLOIEMENT, pas seulement la CI
+
+**CI verte ne veut pas dire « en ligne ».** Ce sont deux systèmes indépendants : la CI
+juge le code, Vercel construit et sert. Un merge peut passer le gate et ne jamais être
+déployé — la branche reste verte, le site continue de servir l'ancien build, et rien
+n'est rouge nulle part.
+
+Vécu le 31/07/2026 : quatre projets Vercel ont cessé de créer des déploiements pendant
+~3 h (l'intégration Git n'a rien reçu). DriveAI et JobAI ont rattrapé au push suivant ;
+BatchChef et Hubperso n'en ont pas eu — leur commit d'en-têtes de sécurité est resté
+**cinq jours** en attente sans que personne ne le voie. BatchChef servait toujours des
+réponses sans aucun en-tête de sécurité alors que la PR était mergée.
+
+Donc, après un merge qui change ce qui est servi (en-têtes, `next.config.ts`,
+middleware, variables de build) : vérifier qu'un déploiement de production a bien été
+créé et qu'il est `READY`, puis **contrôler l'effet sur la réponse HTTP réelle** — un
+en-tête se lit dans la réponse, il ne se déduit pas du fichier source. Rattrapage :
+tableau de bord Vercel → Deployments → « … » → Redeploy.
+
 ## Style (hérité du CLAUDE.md global de Marc)
 
 - Réponses, commits et docs **en français** (`feat:`, `fix:`, `docs:`…).
