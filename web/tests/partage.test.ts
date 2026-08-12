@@ -7,6 +7,7 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import {
   CACHE_PARTAGE,
+  CLE_CAPTURE_PREFIXE,
   CLE_META,
   CLE_VIDEO,
   normaliserPartage,
@@ -88,14 +89,26 @@ describe("verrous entre le service worker et le code applicatif", () => {
     expect(sw).toContain(`"${CACHE_PARTAGE}"`);
     expect(sw).toContain(`"${CLE_VIDEO}"`);
     expect(sw).toContain(`"${CLE_META}"`);
+    expect(sw).toContain(`"${CLE_CAPTURE_PREFIXE}"`);
   });
 
   it("le worker ne met en cache QUE le partage (aucun cache hors-ligne de pages privées)", () => {
     // BatchChef affiche des données personnelles derrière une session : un cache de
     // réponses les laisserait sur l'appareil et servirait des écrans périmés.
     const misesEnCache = sw.match(/cache\.put\(/g) ?? [];
-    expect(misesEnCache.length).toBe(2); // la vidéo et ses métadonnées, rien d'autre
+    expect(misesEnCache.length).toBe(3); // vidéo, captures, métadonnées — rien d'autre
     expect(sw).not.toContain("addAll");
+  });
+
+  it("le worker trie les fichiers par TYPE, pas par nom de champ", () => {
+    // Android range parfois une image dans le champ « video » : se fier au nom du champ
+    // traiterait la capture comme une vidéo illisible et perdrait le texte.
+    expect(sw).toContain('startsWith("image/")');
+  });
+
+  it("le worker purge les captures du partage précédent", () => {
+    // Sans ça, deux publications successives se mélangeraient dans une même recette.
+    expect(sw).toMatch(/cache\.delete\(cle\)/);
   });
 });
 
@@ -110,14 +123,17 @@ describe("verrous du manifeste PWA", () => {
     };
   };
 
-  it("déclare une cible de partage POST multipart acceptant une vidéo", () => {
+  it("déclare une cible de partage POST multipart acceptant vidéos ET images", () => {
     // Sans method POST + multipart, Android ne transmet AUCUN fichier : le partage se
-    // réduirait à une URL, et l'app n'aurait rien à analyser.
+    // réduirait à une URL, et l'app n'aurait rien à analyser. Sans `image/*`, BatchChef
+    // n'apparaîtrait pas quand on partage une CAPTURE D'ÉCRAN de la légende.
     expect(manifeste.share_target?.method).toBe("POST");
     expect(manifeste.share_target?.enctype).toBe("multipart/form-data");
-    const champ = manifeste.share_target?.params?.files?.[0];
-    expect(champ?.name).toBe("video");
-    expect(champ?.accept).toContain("video/*");
+    const champs = manifeste.share_target?.params?.files ?? [];
+    const accepts = champs.flatMap((c) => c.accept);
+    expect(champs.map((c) => c.name)).toEqual(["video", "captures"]);
+    expect(accepts).toContain("video/*");
+    expect(accepts).toContain("image/*");
   });
 
   it("la page visée par le partage existe vraiment", () => {

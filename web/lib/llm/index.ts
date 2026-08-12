@@ -235,17 +235,21 @@ export const MAX_CAPTION_CHARS = 8000;
 /** En dessous, la description est trop maigre pour arbitrer quoi que ce soit. */
 export const MIN_CAPTION_FOR_VERIFY = 40;
 
-const MEDIA_SYSTEM = `Tu extrais une recette de cuisine depuis une vidéo de réseau social, en JSON strict.
+const MEDIA_SYSTEM = `Tu extrais une recette de cuisine depuis une publication de réseau social, en JSON strict.
 
-On te donne, dans l'ordre :
-- des IMAGES prises à intervalles réguliers dans la vidéo, en ordre chronologique (parfois aucune) ;
-- la DESCRIPTION publiée par l'auteur avec la vidéo (parfois absente).
+On te donne, dans l'ordre, tout ou partie de ceci :
+- des CAPTURES D'ÉCRAN de la publication : ce sont des images de TEXTE (la légende, la liste
+  d'ingrédients). Lis-les mot à mot, c'est la source la plus fiable des quantités ;
+- des IMAGES prises à intervalles réguliers dans la vidéo, en ordre chronologique ;
+- la DESCRIPTION publiée par l'auteur (texte brut).
 
 Comment les combiner :
-- La DESCRIPTION prime quand les deux se contredisent : c'est l'auteur qui l'a écrite, et
-  c'est là que les quantités exactes sont presque toujours données.
-- Les IMAGES servent à lire le texte affiché à l'écran (c'est souvent là que sont les
-  quantités), à reconnaître les ingrédients et à retrouver l'ORDRE des gestes.
+- Le TEXTE prime sur ce que tu crois voir : la description publiée et les captures d'écran
+  font foi, dans cet ordre, quand quelque chose se contredit.
+- Les IMAGES DE LA VIDÉO servent à lire le texte affiché à l'écran, à reconnaître les
+  ingrédients et à retrouver l'ORDRE des gestes.
+- Une capture d'écran coupée en plein milieu d'une phrase se poursuit sur la suivante :
+  recolle-les plutôt que de traiter chacune isolément.
 
 Règles :
 - "servings" : le nombre de portions SEULEMENT s'il est annoncé (à l'écran ou dans la
@@ -268,27 +272,48 @@ Réponds UNIQUEMENT avec l'objet JSON.`;
 export interface MediaInput {
   /** Images JPEG en base64 (sans préfixe data:), ordre chronologique. Peut être vide. */
   frames: string[];
+  /** Captures d'écran de la publication (images de TEXTE). Peut être vide. */
+  captures?: string[];
   /** Description publiée avec la vidéo. Peut être vide. */
   caption: string;
 }
 
-/** Extrait une recette d'une vidéo (images) et/ou de sa description. */
+function blocImage(data: string): Anthropic.ContentBlockParam {
+  return { type: "image", source: { type: "base64", media_type: "image/jpeg", data } };
+}
+
+/** Extrait une recette d'une vidéo, de captures d'écran et/ou d'une description. */
 export async function parseRecipeFromMedia(input: MediaInput): Promise<ParsedRecipe> {
   const caption = input.caption.trim().slice(0, MAX_CAPTION_CHARS);
-  const content: Anthropic.ContentBlockParam[] = input.frames.map((data) => ({
-    type: "image",
-    source: { type: "base64", media_type: "image/jpeg", data },
-  }));
+  const captures = input.captures ?? [];
+  const content: Anthropic.ContentBlockParam[] = [];
 
-  const entete =
-    input.frames.length > 0
-      ? `${input.frames.length} image(s) de la vidéo, en ordre chronologique, ci-dessus.`
-      : "Aucune image disponible : appuie-toi uniquement sur la description.";
+  // Les captures d'abord, étiquetées : sans ça, le modèle traite une image de texte comme
+  // une image de cuisine et se met à décrire l'écran au lieu de le LIRE.
+  if (captures.length > 0) {
+    content.push({
+      type: "text",
+      text: `${captures.length} CAPTURE(S) D'ÉCRAN de la publication ci-dessous — lis le texte qu'elles contiennent :`,
+    });
+    content.push(...captures.map(blocImage));
+  }
+
+  if (input.frames.length > 0) {
+    content.push({
+      type: "text",
+      text: `${input.frames.length} IMAGE(S) DE LA VIDÉO ci-dessous, en ordre chronologique :`,
+    });
+    content.push(...input.frames.map(blocImage));
+  }
+
+  const rien = captures.length === 0 && input.frames.length === 0;
   content.push({
     type: "text",
     text: caption
-      ? `${entete}\n\nDESCRIPTION PUBLIÉE AVEC LA VIDÉO :\n${caption}`
-      : `${entete}\n\nAucune description n'a été fournie.`,
+      ? `DESCRIPTION PUBLIÉE :\n${caption}`
+      : rien
+        ? "Aucune image ni description fournie."
+        : "Aucune description n'a été fournie : appuie-toi sur les images ci-dessus.",
   });
 
   const response = await client().messages.create({

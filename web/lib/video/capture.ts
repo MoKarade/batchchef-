@@ -33,6 +33,50 @@ export interface CaptureResult {
 const EVENT_TIMEOUT_MS = 8000;
 
 /**
+ * Réduit une IMAGE (capture d'écran de la légende, photo d'une recette) au même format que
+ * les images tirées d'une vidéo : JPEG borné, encodé en base64.
+ *
+ * Une capture d'écran de téléphone fait ~1080×2400 : l'envoyer telle quelle coûterait des
+ * tokens sans rien ajouter — le texte reste lisible après réduction, c'est lui qui compte.
+ */
+export async function reduireImage(file: File): Promise<string> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await chargerImage(objectUrl);
+    const size = scaledSize(image.naturalWidth, image.naturalHeight);
+    if (size.width === 0 || size.height === 0) {
+      throw new Error(`Image illisible : ${file.name}`);
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = size.width;
+    canvas.height = size.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas indisponible : impossible de réduire l'image.");
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+    return dataUrl.slice(dataUrl.indexOf(",") + 1);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function chargerImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const timer = setTimeout(() => reject(new Error("Image trop longue à charger.")), EVENT_TIMEOUT_MS);
+    image.onload = () => {
+      clearTimeout(timer);
+      resolve(image);
+    };
+    image.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error("Image illisible par le navigateur."));
+    };
+    image.src = src;
+  });
+}
+
+/**
  * Extrait des images réparties sur toute la durée de la vidéo.
  * Lève une erreur EXPLICITE si le navigateur ne sait pas lire le fichier ou si la vidéo
  * est inexploitable — jamais un tableau vide silencieux qui passerait pour « rien à voir ».
@@ -40,6 +84,8 @@ const EVENT_TIMEOUT_MS = 8000;
 export async function captureFrames(
   file: File,
   onProgress?: (done: number, total: number) => void,
+  /** Budget d'octets laissé à la vidéo — les captures d'écran se servent en premier. */
+  budgetMax: number = MAX_TOTAL_BASE64_BYTES,
 ): Promise<CaptureResult> {
   const objectUrl = URL.createObjectURL(file);
   const video = document.createElement("video");
@@ -88,9 +134,11 @@ export async function captureFrames(
       throw new Error("Aucune image n'a pu être extraite de la vidéo.");
     }
 
-    const budget = fitBudget(shots.map(base64Bytes), MAX_TOTAL_BASE64_BYTES);
+    const budget = fitBudget(shots.map(base64Bytes), budgetMax);
     if (budget.keptIndexes.length === 0) {
-      throw new Error("Images trop lourdes même après réduction : essaie une vidéo plus courte.");
+      throw new Error(
+        "Plus de place pour les images de la vidéo : retire une capture d'écran ou prends une vidéo plus courte.",
+      );
     }
 
     return {

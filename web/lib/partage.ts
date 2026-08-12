@@ -15,6 +15,8 @@ export const CACHE_PARTAGE = "batchchef-partage";
 export const CLE_VIDEO = "/__partage/video";
 /** Clé des métadonnées (titre, texte, url) dans ce cache. */
 export const CLE_META = "/__partage/meta";
+/** Préfixe des captures d'écran partagées : une clé par image (`…/capture/0`, `/1`…). */
+export const CLE_CAPTURE_PREFIXE = "/__partage/capture/";
 
 export interface PartageRecu {
   titre?: string | null;

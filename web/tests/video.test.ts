@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  MAX_CAPTURES,
   MAX_FRAMES,
   base64Bytes,
   fitBudget,
@@ -10,6 +11,7 @@ import {
   frameTimestamps,
   isLikelyBase64,
   pickEvenly,
+  repartirBudget,
   scaledSize,
 } from "../lib/video/frames";
 
@@ -101,6 +103,38 @@ describe("fitBudget", () => {
 
   it("aucune image en entrée → aucune en sortie", () => {
     expect(fitBudget([], 1000)).toEqual({ keptIndexes: [], totalBytes: 0, dropped: 0 });
+  });
+});
+
+describe("repartirBudget (captures d'écran vs images de vidéo)", () => {
+  it("sert les CAPTURES en premier : elles portent le texte, donc les quantités", () => {
+    // Budget pour 3 images seulement. Les captures doivent passer avant les frames —
+    // garder une douzième image de casserole en jetant la liste d'ingrédients serait absurde.
+    const r = repartirBudget([1000, 1000], [1000, 1000, 1000, 1000], 3000);
+    expect(r.capturesGardees).toEqual([0, 1]);
+    expect(r.framesGardees).toHaveLength(1);
+    expect(r.totalBytes).toBeLessThanOrEqual(3000);
+  });
+
+  it("laisse tout le budget à la vidéo quand il n'y a aucune capture", () => {
+    const r = repartirBudget([], [1000, 1000, 1000], 3000);
+    expect(r.capturesGardees).toEqual([]);
+    expect(r.framesGardees).toEqual([0, 1, 2]);
+    expect(r.framesEcartees).toBe(0);
+  });
+
+  it("plafonne le nombre de captures et COMPTE celles qui sautent", () => {
+    const trop = new Array(MAX_CAPTURES + 2).fill(10);
+    const r = repartirBudget(trop, [], 1_000_000);
+    expect(r.capturesGardees).toHaveLength(MAX_CAPTURES);
+    expect(r.capturesEcartees).toBe(2);
+  });
+
+  it("une capture trop lourde pour le budget est écartée, pas tronquée", () => {
+    const r = repartirBudget([5000], [100], 1000);
+    expect(r.capturesGardees).toEqual([]);
+    expect(r.capturesEcartees).toBe(1);
+    expect(r.framesGardees).toEqual([0]); // le reliquat profite quand même à la vidéo
   });
 });
 

@@ -20,6 +20,12 @@ export const JPEG_QUALITY = 0.72;
  */
 export const MAX_TOTAL_BASE64_BYTES = 3_000_000;
 
+/**
+ * Captures d'écran maximum acceptées en une fois (la légende d'un reel tient en 2-3 écrans).
+ * Ce sont des images fournies telles quelles, pas extraites d'une vidéo.
+ */
+export const MAX_CAPTURES = 4;
+
 /** Durée minimale d'une vidéo exploitable (s). En dessous, il n'y a rien à échantillonner. */
 const MIN_DURATION_SEC = 0.5;
 
@@ -106,6 +112,48 @@ export function fitBudget(sizes: number[], maxTotal = MAX_TOTAL_BASE64_BYTES): B
     }
   }
   return { keptIndexes: [], totalBytes: 0, dropped: n };
+}
+
+export interface RepartitionBudget {
+  /** Indices des captures d'écran conservées. */
+  capturesGardees: number[];
+  /** Indices des images de vidéo conservées. */
+  framesGardees: number[];
+  totalBytes: number;
+  capturesEcartees: number;
+  framesEcartees: number;
+}
+
+/**
+ * Répartit le budget entre captures d'écran et images de vidéo.
+ *
+ * Les CAPTURES PASSENT EN PREMIER, et c'est le point important : une capture de la légende
+ * porte les quantités écrites, alors qu'une image de vidéo ne montre souvent qu'un geste.
+ * À budget serré, sacrifier une capture pour garder une douzième image de casserole
+ * reviendrait à jeter la recette pour garder l'illustration.
+ */
+export function repartirBudget(
+  taillesCaptures: number[],
+  taillesFrames: number[],
+  maxTotal = MAX_TOTAL_BASE64_BYTES,
+): RepartitionBudget {
+  const capturesGardees: number[] = [];
+  let utilise = 0;
+  for (let i = 0; i < taillesCaptures.length && i < MAX_CAPTURES; i++) {
+    const taille = taillesCaptures[i] ?? 0;
+    if (utilise + taille > maxTotal) break;
+    capturesGardees.push(i);
+    utilise += taille;
+  }
+
+  const budgetFrames = fitBudget(taillesFrames, Math.max(0, maxTotal - utilise));
+  return {
+    capturesGardees,
+    framesGardees: budgetFrames.keptIndexes,
+    totalBytes: utilise + budgetFrames.totalBytes,
+    capturesEcartees: taillesCaptures.length - capturesGardees.length,
+    framesEcartees: budgetFrames.dropped,
+  };
 }
 
 /** Taille en octets d'une chaîne base64 (c'est elle qui transite, pas le binaire). */

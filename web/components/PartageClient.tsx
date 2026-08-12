@@ -19,6 +19,7 @@ import {
 
 interface Recu extends PartageNormalise {
   fichier: File | null;
+  captures: File[];
   /** Champs BRUTS transmis par Android, tels quels — voir `DiagnosticPartage`. */
   brut: { titre: string; texte: string; url: string };
 }
@@ -59,6 +60,7 @@ export function PartageClient({ erreurWorker }: { erreurWorker: boolean }) {
           aVideo?: boolean;
           nom?: string;
           type?: string;
+          captures?: { cle: string; nom: string; type: string }[];
         };
 
         let fichier: File | null = null;
@@ -72,10 +74,21 @@ export function PartageClient({ erreurWorker }: { erreurWorker: boolean }) {
           }
         }
 
+        const captures: File[] = [];
+        for (const decrite of meta.captures ?? []) {
+          const reponse = await cache.match(decrite.cle);
+          if (!reponse) continue;
+          const blob = await reponse.blob();
+          captures.push(
+            new File([blob], decrite.nom, { type: decrite.type || blob.type || "image/jpeg" }),
+          );
+        }
+
         // Consommé : on vide, sinon un rechargement de page relancerait une analyse
         // (et un appel LLM) sur un partage déjà traité.
         await cache.delete(CLE_META);
         await cache.delete(CLE_VIDEO);
+        for (const decrite of meta.captures ?? []) await cache.delete(decrite.cle);
 
         if (annule) return;
         const brut = {
@@ -84,7 +97,7 @@ export function PartageClient({ erreurWorker }: { erreurWorker: boolean }) {
           url: meta.url ?? "",
         };
         const { lien, description } = normaliserPartage(brut);
-        setEtat({ kind: "pret", recu: { lien, description, fichier, brut } });
+        setEtat({ kind: "pret", recu: { lien, description, fichier, captures, brut } });
       } catch (err) {
         if (annule) return;
         setEtat({
@@ -115,25 +128,27 @@ export function PartageClient({ erreurWorker }: { erreurWorker: boolean }) {
   }
 
   const { recu } = etat;
-  const sansContenu = !recu.fichier && recu.description.trim().length === 0;
+  const aDesImages = Boolean(recu.fichier) || recu.captures.length > 0;
+  const sansContenu = !aDesImages && recu.description.trim().length === 0;
 
   return (
     <div className="space-y-3">
       {sansContenu && (
         <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
           Instagram n’a partagé que le lien — ni la vidéo, ni la légende. C’est sa limite, pas
-          celle de BatchChef : reviens sur le reel, appuie longuement sur la description pour
-          la copier, et colle-la ici. Ou enregistre la vidéo puis repartage-la depuis la
-          galerie.
+          celle de BatchChef. Trois façons de lui donner le contenu : appuie longuement sur la
+          légende → Copier, puis « Coller » ci-dessous ; ou fais une capture d’écran de la
+          légende et ajoute-la ; ou enregistre la vidéo et repartage-la depuis la galerie.
         </p>
       )}
       <ImportVideoForm
         lienInitial={recu.lien ?? ""}
         descriptionInitiale={recu.description}
         fichierInitial={recu.fichier}
-        demarrerAuto={Boolean(recu.fichier)}
+        capturesInitiales={recu.captures}
+        demarrerAuto={aDesImages}
       />
-      <DiagnosticPartage brut={recu.brut} fichier={recu.fichier} />
+      <DiagnosticPartage brut={recu.brut} fichier={recu.fichier} captures={recu.captures} />
     </div>
   );
 }
@@ -149,19 +164,27 @@ export function PartageClient({ erreurWorker }: { erreurWorker: boolean }) {
 function DiagnosticPartage({
   brut,
   fichier,
+  captures,
 }: {
   brut: { titre: string; texte: string; url: string };
   fichier: File | null;
+  captures: File[];
 }) {
   const lignes: [string, string][] = [
     ["title", brut.titre || "— (vide)"],
     ["text", brut.texte || "— (vide)"],
     ["url", brut.url || "— (vide)"],
     [
-      "fichier",
+      "vidéo",
       fichier
         ? `${fichier.name} · ${fichier.type || "type inconnu"} · ${(fichier.size / 1_000_000).toFixed(1)} Mo`
-        : "— (aucun fichier partagé)",
+        : "— (aucune vidéo partagée)",
+    ],
+    [
+      "images",
+      captures.length > 0
+        ? captures.map((c) => `${c.name} · ${c.type || "type inconnu"}`).join("\n")
+        : "— (aucune image partagée)",
     ],
   ];
 

@@ -23,6 +23,7 @@ import {
   type ParsedRecipe,
 } from "@/lib/llm";
 import {
+  MAX_CAPTURES,
   MAX_FRAMES,
   MAX_TOTAL_BASE64_BYTES,
   base64Bytes,
@@ -116,6 +117,7 @@ function toPreview(recipe: ParsedRecipe, sourceUrl: string | null): RecipePrevie
  */
 export async function parseRecipeFromVideo(input: {
   frames: string[];
+  captures?: string[];
   caption: string;
   sourceUrl: string | null;
 }): Promise<ActionResult & { recipe?: RecipePreview }> {
@@ -123,22 +125,29 @@ export async function parseRecipeFromVideo(input: {
     await requireSession();
 
     const frames = Array.isArray(input.frames) ? input.frames : [];
+    const captures = Array.isArray(input.captures) ? input.captures : [];
     const caption = (input.caption ?? "").trim().slice(0, MAX_CAPTION_CHARS);
 
-    if (frames.length === 0 && caption.length === 0) {
-      return { ok: false, error: "Donne au moins la vidéo ou sa description." };
+    if (frames.length === 0 && captures.length === 0 && caption.length === 0) {
+      return {
+        ok: false,
+        error: "Donne au moins la vidéo, une capture d'écran ou la description.",
+      };
     }
     // Gardes de taille : la plateforme rejette une requête trop grosse AVANT notre code —
     // autant échouer ici avec un message qui dit quoi faire.
     if (frames.length > MAX_FRAMES) {
       return { ok: false, error: `Trop d'images (${frames.length} > ${MAX_FRAMES}).` };
     }
-    if (!frames.every((f) => typeof f === "string" && isLikelyBase64(f))) {
-      return { ok: false, error: "Images illisibles : reprends l'analyse de la vidéo." };
+    if (captures.length > MAX_CAPTURES) {
+      return { ok: false, error: `Trop de captures d'écran (${captures.length} > ${MAX_CAPTURES}).` };
     }
-    const total = frames.reduce((sum, f) => sum + base64Bytes(f), 0);
+    if (![...frames, ...captures].every((f) => typeof f === "string" && isLikelyBase64(f))) {
+      return { ok: false, error: "Images illisibles : reprends l'analyse." };
+    }
+    const total = [...frames, ...captures].reduce((sum, f) => sum + base64Bytes(f), 0);
     if (total > MAX_TOTAL_BASE64_BYTES) {
-      return { ok: false, error: "Images trop lourdes : essaie une vidéo plus courte." };
+      return { ok: false, error: "Images trop lourdes : réduis le nombre de captures ou la durée." };
     }
 
     let sourceUrl: string | null = null;
@@ -150,7 +159,7 @@ export async function parseRecipeFromVideo(input: {
       sourceUrl = parsed.toString();
     }
 
-    const draft = await parseRecipeFromMedia({ frames, caption });
+    const draft = await parseRecipeFromMedia({ frames, captures, caption });
     // 2ᵉ passe seulement s'il y a une description à confronter : sans texte, il n'y a rien
     // à vérifier, et une passe supplémentaire ne ferait qu'inventer de l'assurance.
     const recipe = caption ? await verifyRecipeAgainstCaption(caption, draft) : draft;
