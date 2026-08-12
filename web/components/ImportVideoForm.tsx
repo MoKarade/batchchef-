@@ -8,7 +8,7 @@
 // L'app ne va rien chercher chez Instagram (pas de scraping) : Marc fournit la vidéo et/ou
 // la description, le lien ne sert que de source affichée sur la recette.
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { parseRecipeFromVideo, type RecipePreview } from "@/lib/actions";
 import { RecipeDraftEditor } from "@/components/RecipeDraftEditor";
 import { captureFrames } from "@/lib/video/capture";
@@ -20,15 +20,30 @@ interface Lu {
   dropped: number;
 }
 
-export function ImportVideoForm() {
-  const [lien, setLien] = useState("");
-  const [description, setDescription] = useState("");
-  const [fichier, setFichier] = useState<File | null>(null);
+export interface ImportVideoFormProps {
+  /** Valeurs pré-remplies (partage Android : cf. app/partage). */
+  lienInitial?: string;
+  descriptionInitiale?: string;
+  fichierInitial?: File | null;
+  /** Lance l'analyse dès l'affichage — utilisé quand le partage a apporté une vidéo. */
+  demarrerAuto?: boolean;
+}
+
+export function ImportVideoForm({
+  lienInitial = "",
+  descriptionInitiale = "",
+  fichierInitial = null,
+  demarrerAuto = false,
+}: ImportVideoFormProps = {}) {
+  const [lien, setLien] = useState(lienInitial);
+  const [description, setDescription] = useState(descriptionInitiale);
+  const [fichier, setFichier] = useState<File | null>(fichierInitial);
   const [preview, setPreview] = useState<RecipePreview | null>(null);
   const [lu, setLu] = useState<Lu | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const inputFichier = useRef<HTMLInputElement>(null);
+  const dejaLance = useRef(false);
 
   const busy = phase.kind !== "idle";
   const pretAAnalyser = Boolean(fichier) || description.trim().length > 0;
@@ -71,6 +86,17 @@ export function ImportVideoForm() {
       setPhase({ kind: "idle" });
     }
   };
+
+  // Partage Android avec vidéo : on enchaîne sans faire retaper quoi que ce soit. Le garde
+  // `dejaLance` tient aussi bien le double-rendu de StrictMode qu'un re-rendu de parent —
+  // relancer l'analyse coûterait un second appel LLM pour le même contenu.
+  useEffect(() => {
+    if (!demarrerAuto || dejaLance.current) return;
+    dejaLance.current = true;
+    void analyser();
+    // `analyser` est recréé à chaque rendu ; le garde ci-dessus est ce qui borne l'exécution.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demarrerAuto]);
 
   if (preview) {
     return (
