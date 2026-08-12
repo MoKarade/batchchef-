@@ -15,6 +15,17 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
 - **No fake data.** Un parse douteux est rejeté (Zod), jamais inséré sale. Les prix sont
   des **estimations** (LLM + filet déterministe, couverture 100 %) — jamais présentés comme
   des prix relevés. Pas de scraping, pas de reçus.
+- **Pas de scraping, y compris pour les vidéos.** L'import vidéo ne va RIEN chercher chez
+  Instagram/TikTok : c'est Marc qui dépose le fichier et colle la description (contenu
+  auquel il a accès), le lien ne sert que de `sourceUrl`. Un jour où l'on voudra « juste
+  récupérer la légende depuis l'URL », c'est ce garde-fou qu'on serait en train de lever.
+- **Un chiffre par défaut se DIT.** Une vidéo n'annonce presque jamais ses portions ; le
+  défaut 4 est affiché comme un défaut à corriger (`servingsGuessed`), parce que toutes les
+  quantités de la liste d'épicerie sont mises à l'échelle à partir de lui. Même règle pour
+  tout futur champ qu'on remplirait faute de source.
+- **Le coût publié au hub suit le modèle RÉELLEMENT appelé.** Deux modèles cohabitent
+  (texte Haiku, vision Sonnet) : `lib/llmUsage.ts` tarife par modèle. Ajouter une ligne à sa
+  table dès qu'un nouveau modèle est utilisé, sinon son coût est compté au tarif d'Haiku.
 - **Server-side only.** Fetch, jetons et écritures restent côté serveur ; chaque Server
   Action revérifie la session (`requireSession`).
 - **Unités normalisées** au parse (`lib/units.ts` → g/ml/unite ou null « au goût »).
@@ -34,7 +45,8 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
 | `app/` | routes (recettes, batchs, courses, catalogue, `/api/hub/summary`) |
 | `lib/actions.ts` | Server Actions (import, batch, liste, statut, catalogue) |
 | `lib/aggregate.ts` | agrégation liste d'épicerie, mise à l'échelle, filet de prix (purs) |
-| `lib/llm/` | parse de recette + estimation de coûts (Zod, honnête) |
+| `lib/llm/` | parse de recette (page web **et** vidéo) + estimation de coûts (Zod, honnête) |
+| `lib/video/` | `frames.ts` = échantillonnage/budget (PUR, testé) · `capture.ts` = extraction `<video>`+`<canvas>` **dans le navigateur** (la vidéo ne monte jamais au serveur) |
 | `lib/db/` | schéma Drizzle + connexion Neon paresseuse |
 | `lib/hubSummary.ts` | résumé conforme `@mokarade/hub-contract` (widget hub perso) |
 | `data/batchchef.seed.db` | base seed du catalogue (10 188 recettes) |

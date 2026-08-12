@@ -13,11 +13,21 @@ import { upsertTaskList } from "@/lib/googleTasks";
 import { splitNewCatalogRecipes } from "@/lib/catalogSelect";
 import { clampServings, prepareIngredientRows, type EditableIngredient } from "@/lib/recipeEdit";
 import {
+  MAX_CAPTION_CHARS,
   estimateShoppingCosts,
   htmlToText,
+  parseRecipeFromMedia,
   parseRecipeFromPage,
   verifyParsedRecipe,
+  verifyRecipeAgainstCaption,
+  type ParsedRecipe,
 } from "@/lib/llm";
+import {
+  MAX_FRAMES,
+  MAX_TOTAL_BASE64_BYTES,
+  base64Bytes,
+  isLikelyBase64,
+} from "@/lib/video/frames";
 
 async function requireSession(): Promise<void> {
   const session = await auth();
@@ -37,9 +47,12 @@ function isForeignKeyViolation(err: unknown): boolean {
 
 export interface RecipePreview {
   title: string;
-  sourceUrl: string;
+  /** URL d'origine ; null pour une vidéo déposée sans lien. */
+  sourceUrl: string | null;
   imageUrl: string | null;
   servings: number;
+  /** `true` = la source n'annonçait aucune portion, 4 est un défaut à corriger (pas une donnée). */
+  servingsGuessed: boolean;
   instructions: string | null;
   ingredients: Array<{ name: string; qty: number | null; unit: "g" | "ml" | "unite" | null; note: string | null }>;
 }
@@ -68,22 +81,81 @@ export async function parseRecipePreview(
     const draft = await parseRecipeFromPage(text);
     const recipe = await verifyParsedRecipe(text, draft); // analyse plus poussée avant validation
 
-    return {
-      ok: true,
-      recipe: {
-        title: recipe.title,
-        sourceUrl: url,
-        imageUrl: recipe.imageUrl,
-        servings: recipe.servings,
-        instructions: recipe.instructions,
-        ingredients: recipe.ingredients.map((i) => ({
-          name: i.name,
-          qty: i.qty,
-          unit: i.unit,
-          note: i.note,
-        })),
-      },
-    };
+    return { ok: true, recipe: toPreview(recipe, url) };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Projette une recette parsée vers l'écran de validation (une seule conversion, partagée). */
+function toPreview(recipe: ParsedRecipe, sourceUrl: string | null): RecipePreview {
+  return {
+    title: recipe.title,
+    sourceUrl,
+    imageUrl: recipe.imageUrl,
+    servings: recipe.servings,
+    servingsGuessed: recipe.servingsGuessed,
+    instructions: recipe.instructions,
+    ingredients: recipe.ingredients.map((i) => ({
+      name: i.name,
+      qty: i.qty,
+      unit: i.unit,
+      note: i.note,
+    })),
+  };
+}
+
+/**
+ * Import depuis une VIDÉO (Instagram & co) : images extraites dans le navigateur + description
+ * collée par Marc. Comme l'import par URL, ça ne sauvegarde RIEN — l'extraction part à l'écran
+ * de validation, seul ce que Marc confirme entre en base.
+ *
+ * Le fichier vidéo lui-même n'arrive jamais ici : seules les images réduites transitent.
+ * L'app ne va RIEN chercher chez Instagram (pas de scraping — cf. CLAUDE.md) : c'est Marc qui
+ * fournit le contenu auquel il a accès, et le lien ne sert que de source affichée.
+ */
+export async function parseRecipeFromVideo(input: {
+  frames: string[];
+  caption: string;
+  sourceUrl: string | null;
+}): Promise<ActionResult & { recipe?: RecipePreview }> {
+  try {
+    await requireSession();
+
+    const frames = Array.isArray(input.frames) ? input.frames : [];
+    const caption = (input.caption ?? "").trim().slice(0, MAX_CAPTION_CHARS);
+
+    if (frames.length === 0 && caption.length === 0) {
+      return { ok: false, error: "Donne au moins la vidéo ou sa description." };
+    }
+    // Gardes de taille : la plateforme rejette une requête trop grosse AVANT notre code —
+    // autant échouer ici avec un message qui dit quoi faire.
+    if (frames.length > MAX_FRAMES) {
+      return { ok: false, error: `Trop d'images (${frames.length} > ${MAX_FRAMES}).` };
+    }
+    if (!frames.every((f) => typeof f === "string" && isLikelyBase64(f))) {
+      return { ok: false, error: "Images illisibles : reprends l'analyse de la vidéo." };
+    }
+    const total = frames.reduce((sum, f) => sum + base64Bytes(f), 0);
+    if (total > MAX_TOTAL_BASE64_BYTES) {
+      return { ok: false, error: "Images trop lourdes : essaie une vidéo plus courte." };
+    }
+
+    let sourceUrl: string | null = null;
+    if (input.sourceUrl && input.sourceUrl.trim()) {
+      const parsed = new URL(input.sourceUrl.trim()); // format invalide → catch
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+        return { ok: false, error: "Lien http(s) uniquement." };
+      }
+      sourceUrl = parsed.toString();
+    }
+
+    const draft = await parseRecipeFromMedia({ frames, caption });
+    // 2ᵉ passe seulement s'il y a une description à confronter : sans texte, il n'y a rien
+    // à vérifier, et une passe supplémentaire ne ferait qu'inventer de l'assurance.
+    const recipe = caption ? await verifyRecipeAgainstCaption(caption, draft) : draft;
+
+    return { ok: true, recipe: toPreview(recipe, sourceUrl) };
   } catch (err) {
     return fail(err);
   }

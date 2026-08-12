@@ -20,6 +20,10 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
   // Photos de recettes : domaines arbitraires. `https:` interdit au moins le HTTP en clair.
   "img-src 'self' data: blob: https:",
+  // Import vidéo : le fichier déposé est lu localement via une URL blob: (extraction des
+  // images dans le navigateur). Sans cette ligne, `default-src 'self'` le bloquerait au
+  // passage en enforcé — et la fonctionnalité mourrait en silence.
+  "media-src 'self' blob:",
   "font-src 'self' data:",
   // Les appels Google Tasks et Anthropic partent du SERVEUR (Server Actions), jamais du
   // navigateur → 'self' suffit.
@@ -47,6 +51,13 @@ const nextConfig: NextConfig = {
   // Images de recettes : URLs externes arbitraires (sites de recettes) → pas d'optimisation
   // serveur (coût/allowlist) ; on sert les <img> telles quelles.
   images: { unoptimized: true },
+  experimental: {
+    // L'import vidéo poste jusqu'à 12 images JPEG en base64 (~3 Mo bornés côté client ET
+    // revérifiés côté serveur). Le défaut d'une Server Action est 1 Mo : sans ce relèvement,
+    // l'analyse échouerait dès la première vraie vidéo. 4 Mo reste sous la limite de 4,5 Mo
+    // d'une fonction serverless Vercel, qui rejetterait la requête avant notre code.
+    serverActions: { bodySizeLimit: "4mb" },
+  },
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },

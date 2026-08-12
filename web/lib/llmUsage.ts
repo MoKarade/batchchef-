@@ -4,16 +4,50 @@
 import { sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 
-// Tarif du modèle par million de tokens (USD). Défaut : Haiku 4.5 (approximatif —
-// override possible via env si le tarif change). Le coût affiché reste une estimation.
-const PRICE = {
+/** Tarif d'un modèle, en USD par million de tokens. */
+export interface Tarif {
+  inputPerMTok: number;
+  outputPerMTok: number;
+}
+
+// Tarif par défaut : Haiku 4.5 (le modèle du parse texte), override possible via env.
+const TARIF_DEFAUT: Tarif = {
   inputPerMTok: Number(process.env.BATCHCHEF_LLM_PRICE_IN ?? 1.0),
   outputPerMTok: Number(process.env.BATCHCHEF_LLM_PRICE_OUT ?? 5.0),
 };
 
+// L'app n'appelle plus un seul modèle : le parse texte tourne sur Haiku, la lecture d'une
+// vidéo sur un modèle vision. Facturer les deux au même tarif SOUS-ESTIMERAIT le coût publié
+// au hub — un chiffre faux, pas une approximation. D'où cette table, indexée par PRÉFIXE
+// d'identifiant (« claude-haiku-4-5-20251001 » tombe bien sur « claude-haiku-4-5 »).
+const TARIFS: ReadonlyArray<readonly [string, Tarif]> = [
+  ["claude-haiku-4-5", { inputPerMTok: 1, outputPerMTok: 5 }],
+  ["claude-sonnet-5", { inputPerMTok: 3, outputPerMTok: 15 }],
+  ["claude-sonnet-4-6", { inputPerMTok: 3, outputPerMTok: 15 }],
+  ["claude-opus-5", { inputPerMTok: 5, outputPerMTok: 25 }],
+  ["claude-opus-4-8", { inputPerMTok: 5, outputPerMTok: 25 }],
+];
+
+/**
+ * Tarif d'un modèle. Modèle inconnu → tarif par défaut : c'est une SUPPOSITION, assumée
+ * (le hub publie ce coût comme une estimation). Ajouter une ligne ci-dessus dès qu'un
+ * nouveau modèle est utilisé, sinon son coût est compté à celui d'Haiku.
+ */
+export function tarifPourModele(model: string | null | undefined): Tarif {
+  const id = (model ?? "").trim().toLowerCase();
+  for (const [prefixe, tarif] of TARIFS) {
+    if (id.startsWith(prefixe)) return tarif;
+  }
+  return TARIF_DEFAUT;
+}
+
 /** Coût USD d'un appel à partir des tokens (fonction pure, testable). */
-export function costUsd(inputTokens: number, outputTokens: number): number {
-  const c = (inputTokens / 1e6) * PRICE.inputPerMTok + (outputTokens / 1e6) * PRICE.outputPerMTok;
+export function costUsd(
+  inputTokens: number,
+  outputTokens: number,
+  tarif: Tarif = TARIF_DEFAUT,
+): number {
+  const c = (inputTokens / 1e6) * tarif.inputPerMTok + (outputTokens / 1e6) * tarif.outputPerMTok;
   return Math.round(c * 1e6) / 1e6; // 6 décimales : les fractions de cent comptent
 }
 
@@ -22,10 +56,14 @@ interface AnthropicUsage {
   output_tokens?: number;
 }
 
+/** D'où vient l'appel — « video » = lecture d'images extraites d'une vidéo. */
+export type LlmAction = "parse" | "verify" | "estimate" | "video";
+
 /** Enregistre un appel LLM. Best-effort : avale ses propres erreurs (jamais bloquant). */
 export async function recordLlmUsage(
-  action: "parse" | "verify" | "estimate",
+  action: LlmAction,
   usage: AnthropicUsage | null | undefined,
+  model: string,
 ): Promise<void> {
   try {
     const inputTokens = usage?.input_tokens ?? 0;
@@ -34,7 +72,7 @@ export async function recordLlmUsage(
       action,
       inputTokens,
       outputTokens,
-      costUsd: costUsd(inputTokens, outputTokens),
+      costUsd: costUsd(inputTokens, outputTokens, tarifPourModele(model)),
     });
   } catch {
     // Télémétrie non bloquante — on n'échoue jamais un import à cause du log de coût.
