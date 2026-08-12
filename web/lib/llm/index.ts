@@ -1,8 +1,9 @@
-// lib/llm/index.ts — les deux usages LLM de la Phase 1, côté serveur uniquement.
+// lib/llm/index.ts — les usages LLM de l'app, côté serveur uniquement.
 //
-// 1. parseRecipeFromUrl : page de recette (n'importe quel site) → JSON structuré validé
+// 1. parseRecipeFromPage : page de recette (n'importe quel site) → JSON structuré validé
 //    (titre, portions, ingrédients aux unités NORMALISÉES g/ml/unite, instructions).
-// 2. estimateShoppingCosts : liste d'épicerie → coûts ESTIMÉS (épicerie à Québec, CAD),
+// 2. parseRecipeFromMedia : images extraites d'une vidéo (+ description publiée) → même JSON.
+// 3. estimateShoppingCosts : liste d'épicerie → coûts ESTIMÉS (épicerie à Québec, CAD),
 //    toujours marqués « estime » — jamais présentés comme des prix réels (no-fake-data).
 //
 // Réponses validées par Zod : un JSON hors schéma → erreur honnête, jamais un état sale.
@@ -13,6 +14,11 @@ import { normalizeQty } from "../units";
 import { recordLlmUsage } from "../llmUsage";
 
 const MODEL = process.env.BATCHCHEF_LLM_MODEL || "claude-haiku-4-5-20251001";
+// Lire une vidéo, c'est déchiffrer du texte incrusté sur des images réduites et suivre des
+// gestes : nettement plus dur que parser une page HTML. D'où un modèle vision plus capable
+// ici. Le surcoût réel est de l'ordre du cent par vidéo (12 images ~768 px ≈ 5 000 tokens),
+// et il est publié au hub comme le reste (cf. lib/llmUsage.ts, tarif PAR modèle).
+const VISION_MODEL = process.env.BATCHCHEF_LLM_MODEL_VISION || "claude-sonnet-5";
 
 function client(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -69,6 +75,13 @@ export interface ParsedIngredient {
 export interface ParsedRecipe {
   title: string;
   servings: number;
+  /**
+   * `true` quand la source n'annonce AUCUN nombre de portions et qu'on a mis 4 par défaut.
+   * Un reel de cuisine ne dit presque jamais « pour 4 personnes » : afficher « 4 » sans le
+   * signaler donnerait un chiffre plausible et faux, alors que TOUTES les quantités de la
+   * liste d'épicerie sont mises à l'échelle à partir de lui.
+   */
+  servingsGuessed: boolean;
   imageUrl: string | null;
   instructions: string | null;
   ingredients: ParsedIngredient[];
@@ -76,9 +89,11 @@ export interface ParsedRecipe {
 
 /** Convertit la sortie LLM brute en recette normalisée (unités → g/ml/unite). */
 export function normalizeParsedRecipe(raw: z.infer<typeof RawParsedRecipeSchema>): ParsedRecipe {
+  const annonce = Boolean(raw.servings && raw.servings > 0);
   return {
     title: raw.title,
-    servings: raw.servings && raw.servings > 0 ? raw.servings : 4,
+    servings: annonce ? (raw.servings as number) : 4,
+    servingsGuessed: !annonce,
     imageUrl: raw.imageUrl ?? null,
     instructions: raw.instructions ?? null,
     ingredients: raw.ingredients.map((i) => {
@@ -135,7 +150,7 @@ export async function parseRecipeFromPage(pageText: string): Promise<ParsedRecip
     system: PARSE_SYSTEM,
     messages: [{ role: "user", content: `Texte de la page :\n\n${pageText}` }],
   });
-  void recordLlmUsage("parse", response.usage);
+  void recordLlmUsage("parse", response.usage, MODEL);
   const block = response.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") throw new Error("Réponse LLM vide.");
   return normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text)));
@@ -189,12 +204,150 @@ export async function verifyParsedRecipe(pageText: string, draft: ParsedRecipe):
         },
       ],
     });
-    void recordLlmUsage("verify", response.usage);
+    void recordLlmUsage("verify", response.usage, MODEL);
     const block = response.content.find((b) => b.type === "text");
     if (!block || block.type !== "text") return draft;
-    return normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text)));
+    return preserveGuessFlag(draft, normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text))));
   } catch {
     return draft; // la vérification ne doit jamais bloquer l'import
+  }
+}
+
+/**
+ * Une 2ᵉ passe qui RECOPIE le nombre de portions du brouillon ne l'a pas lu dans la source :
+ * sans ça, un « 4 » deviné à la 1ʳᵉ passe reviendrait vérifié à la 2ᵉ et le drapeau tomberait
+ * en silence. Un nombre DIFFÉRENT, lui, vient forcément du texte → drapeau levé.
+ */
+function preserveGuessFlag(draft: ParsedRecipe, verified: ParsedRecipe): ParsedRecipe {
+  if (!draft.servingsGuessed) return verified;
+  return { ...verified, servingsGuessed: verified.servings === draft.servings };
+}
+
+// ── 1 bis. Recette depuis une vidéo (images + description) ─────────────────────
+//
+// L'API Anthropic ne lit pas une vidéo : on lui envoie des IMAGES extraites dans le
+// navigateur (cf. lib/video/), plus la description publiée avec la vidéo quand Marc l'a
+// collée. Aucune des deux sources n'est obligatoire seule — mais il en faut au moins une,
+// et c'est l'appelant qui le garantit (cf. la Server Action).
+
+/** Longueur maximale de la description prise en compte (une légende de reel est courte). */
+export const MAX_CAPTION_CHARS = 8000;
+/** En dessous, la description est trop maigre pour arbitrer quoi que ce soit. */
+export const MIN_CAPTION_FOR_VERIFY = 40;
+
+const MEDIA_SYSTEM = `Tu extrais une recette de cuisine depuis une vidéo de réseau social, en JSON strict.
+
+On te donne, dans l'ordre :
+- des IMAGES prises à intervalles réguliers dans la vidéo, en ordre chronologique (parfois aucune) ;
+- la DESCRIPTION publiée par l'auteur avec la vidéo (parfois absente).
+
+Comment les combiner :
+- La DESCRIPTION prime quand les deux se contredisent : c'est l'auteur qui l'a écrite, et
+  c'est là que les quantités exactes sont presque toujours données.
+- Les IMAGES servent à lire le texte affiché à l'écran (c'est souvent là que sont les
+  quantités), à reconnaître les ingrédients et à retrouver l'ORDRE des gestes.
+
+Règles :
+- "servings" : le nombre de portions SEULEMENT s'il est annoncé (à l'écran ou dans la
+  description). Sinon null — ne devine pas, ne mets pas 4 « pour faire joli ».
+- Chaque ingrédient : "name" (fr, tel qu'affiché), "canonical" (minuscules, singulier,
+  sans adjectifs de préparation — ex. "poitrine de poulet", "oignon", "riz basmati"),
+  "qty" (nombre) et "unit" tels qu'annoncés : "g", "kg", "ml", "cl", "l", "c. à soupe",
+  "c. à thé", "tasse", ou "unite" pour les pièces (2 oignons → qty 2, unit "unite").
+  Ne convertis PAS toi-même. Un ingrédient VU mais dont la quantité n'est annoncée nulle
+  part → qty: null, unit: null. N'estime JAMAIS une quantité d'après l'image.
+- "instructions" : les étapes de préparation, NUMÉROTÉES, une par ligne ("1. ...").
+  Décris ce qui est réellement fait : gestes, ordre, et uniquement les durées, températures
+  ou réglages qui sont ÉCRITS à l'écran ou dans la description. N'invente aucun chiffre.
+  Si un moment de la recette n'est pas montré, ne comble pas le trou.
+- "imageUrl" : toujours null.
+- Tu n'INVENTES rien. Ce que la vidéo et la description ne disent pas reste null.
+
+Réponds UNIQUEMENT avec l'objet JSON.`;
+
+export interface MediaInput {
+  /** Images JPEG en base64 (sans préfixe data:), ordre chronologique. Peut être vide. */
+  frames: string[];
+  /** Description publiée avec la vidéo. Peut être vide. */
+  caption: string;
+}
+
+/** Extrait une recette d'une vidéo (images) et/ou de sa description. */
+export async function parseRecipeFromMedia(input: MediaInput): Promise<ParsedRecipe> {
+  const caption = input.caption.trim().slice(0, MAX_CAPTION_CHARS);
+  const content: Anthropic.ContentBlockParam[] = input.frames.map((data) => ({
+    type: "image",
+    source: { type: "base64", media_type: "image/jpeg", data },
+  }));
+
+  const entete =
+    input.frames.length > 0
+      ? `${input.frames.length} image(s) de la vidéo, en ordre chronologique, ci-dessus.`
+      : "Aucune image disponible : appuie-toi uniquement sur la description.";
+  content.push({
+    type: "text",
+    text: caption
+      ? `${entete}\n\nDESCRIPTION PUBLIÉE AVEC LA VIDÉO :\n${caption}`
+      : `${entete}\n\nAucune description n'a été fournie.`,
+  });
+
+  const response = await client().messages.create({
+    model: VISION_MODEL,
+    max_tokens: 4000,
+    system: MEDIA_SYSTEM,
+    messages: [{ role: "user", content }],
+  });
+  void recordLlmUsage("video", response.usage, VISION_MODEL);
+  const block = response.content.find((b) => b.type === "text");
+  if (!block || block.type !== "text") throw new Error("Réponse LLM vide.");
+  return normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text)));
+}
+
+const CAPTION_VERIFY_SYSTEM = `Tu vérifies une recette extraite d'une VIDÉO contre la DESCRIPTION publiée avec elle.
+
+⚠️ La description est PARTIELLE par nature : beaucoup d'ingrédients n'apparaissent qu'à l'écran
+dans la vidéo, et tu ne vois pas la vidéo. Donc :
+- Ne SUPPRIME jamais un ingrédient au motif qu'il est absent de la description.
+- N'AJOUTE pas d'ingrédient que la description ne mentionne pas.
+- Corrige UNIQUEMENT ce que la description CONTREDIT : une quantité, une unité, un nombre de
+  portions, un nom manifestement erroné.
+- "servings" : corrige-le seulement si la description annonce un nombre. Sinon laisse tel quel.
+- Laisse les instructions intactes sauf contradiction explicite.
+
+Réponds UNIQUEMENT avec l'objet JSON corrigé, même structure que l'extraction fournie.`;
+
+/**
+ * 2ᵉ passe pour une recette issue d'une vidéo : recale les quantités sur la description.
+ * Best-effort — à la moindre anomalie on garde le brouillon, jamais un plantage.
+ *
+ * Volontairement SÉPARÉE de `verifyParsedRecipe` : celle-ci demande de coller EXACTEMENT au
+ * texte fourni, ce qui, sur une description partielle, effacerait tous les ingrédients que
+ * seule la vidéo montrait.
+ */
+export async function verifyRecipeAgainstCaption(
+  caption: string,
+  draft: ParsedRecipe,
+): Promise<ParsedRecipe> {
+  const texte = caption.trim().slice(0, MAX_CAPTION_CHARS);
+  if (texte.length < MIN_CAPTION_FOR_VERIFY) return draft; // rien à confronter
+  try {
+    const response = await client().messages.create({
+      model: VISION_MODEL,
+      max_tokens: 4000,
+      system: CAPTION_VERIFY_SYSTEM,
+      messages: [
+        {
+          role: "user",
+          content: `DESCRIPTION PUBLIÉE :\n${texte}\n\nEXTRACTION À VÉRIFIER :\n${JSON.stringify(draftToRaw(draft))}`,
+        },
+      ],
+    });
+    void recordLlmUsage("verify", response.usage, VISION_MODEL);
+    const block = response.content.find((b) => b.type === "text");
+    if (!block || block.type !== "text") return draft;
+    return preserveGuessFlag(draft, normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text))));
+  } catch {
+    return draft;
   }
 }
 
@@ -263,7 +416,7 @@ export async function estimateShoppingCosts(
     system: ESTIMATE_SYSTEM,
     messages: [{ role: "user", content: `Articles :\n${list}` }],
   });
-  void recordLlmUsage("estimate", response.usage);
+  void recordLlmUsage("estimate", response.usage, MODEL);
   const block = response.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") throw new Error("Réponse LLM vide.");
   return alignCosts(CostEstimateSchema.parse(extractJson(block.text)), items.length);

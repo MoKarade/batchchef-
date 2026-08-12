@@ -10,6 +10,10 @@ scan de reçus ni de prix « réels » relevés.
 - **Bibliothèque de recettes** : colle l'URL d'une recette (n'importe quel site) → un
   LLM extrait titre, portions, ingrédients aux unités normalisées (g/ml/unité),
   instructions. Validation Zod stricte : un parse douteux est rejeté, jamais inséré sale.
+- **Import depuis une vidéo** (reel Instagram, TikTok, Short) : dépose la vidéo et/ou colle
+  la description publiée → images extraites **dans le navigateur** (`<video>` + `<canvas>`,
+  zéro dépendance) puis lues par un modèle vision, qui rend ingrédients et préparation
+  détaillée. Même écran de validation que l'import par URL. Détails plus bas.
 - **Batchs** : choisis tes recettes + portions → liste d'épicerie agrégée
   (mise à l'échelle, regroupement par ingrédient, jamais deux unités mélangées).
 - **Liste d'épicerie mobile** : plein écran téléphone, grosses cases, cochage optimiste
@@ -49,6 +53,43 @@ d'env ci-dessus → Deploy. C'est tout (pas de worker, pas de base à héberger 
 (prod et previews). Rien à lancer à la main sur ta machine après un changement de schéma —
 `git push` suffit. Idempotent : une migration déjà appliquée est ignorée (table de suivi
 Drizzle), donc plusieurs déploiements qui se chevauchent ne rejouent rien deux fois.
+
+## Import depuis une vidéo (reel Instagram & co)
+
+Sur `/recettes`, le bloc « Depuis une vidéo » prend trois entrées, toutes indépendantes :
+
+| Entrée | Rôle |
+|---|---|
+| Lien du reel | facultatif — devient la `sourceUrl` de la recette. **Rien n'est téléchargé depuis ce lien.** |
+| Vidéo (fichier) | facultative — lue localement, jamais téléversée |
+| Description publiée | facultative mais **recommandée** : c'est là que sont les quantités |
+
+Il faut au moins la vidéo **ou** la description (garde rejouée côté serveur).
+
+**Pourquoi Marc fournit le contenu au lieu que l'app aille le chercher.** Instagram interdit
+l'aspiration de ses pages et la bloque activement ; le principe « pas de scraping » du projet
+s'applique tel quel. L'app ne fait donc aucune requête vers Instagram : Marc, lui, a
+légitimement accès au contenu via son compte.
+
+**Comment la vidéo est lue.** L'API Anthropic ne prend pas de vidéo. Le navigateur extrait
+4 à 12 images réparties sur toute la durée (`lib/video/`), réduites à 768 px et encodées en
+JPEG ; seules ces images partent au serveur, sous un plafond de 3 Mo revérifié côté serveur
+(la limite serverless Vercel est à 4,5 Mo). Si des images doivent être écartées faute de
+place, elles sont **comptées et affichées** — jamais coupées en silence, et la sélection reste
+répartie sur la durée plutôt que tronquée au début.
+
+⚠️ **L'audio n'est pas transcrit.** Une recette dite uniquement à l'oral, sans texte à
+l'écran ni description, ne sera pas récupérée intégralement. C'est la limite assumée : il
+n'existe pas de transcription gratuite côté serveur dans cette stack.
+
+**Portions.** Un reel annonce rarement « pour 4 personnes ». Quand la source ne dit rien, la
+valeur reste 4 mais l'écran de validation l'affiche comme un **défaut à corriger**, pas comme
+une donnée — toutes les quantités de la liste d'épicerie en dépendent.
+
+**Modèle et coût.** La lecture d'images tourne sur un modèle vision
+(`BATCHCHEF_LLM_MODEL_VISION`, défaut `claude-sonnet-5`) alors que le parse texte reste sur
+Haiku (`BATCHCHEF_LLM_MODEL`). Le coût publié au hub applique le tarif **du modèle
+réellement appelé** (`lib/llmUsage.ts`) : de l'ordre de 1 à 2 ¢ par vidéo.
 
 ## Catalogue de découverte (les 10 188 recettes de la V3)
 

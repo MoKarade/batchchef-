@@ -54,6 +54,18 @@ describe("RawParsedRecipeSchema (tolérant) + normalizeParsedRecipe", () => {
   it("rejette encore une recette sans aucun ingrédient", () => {
     expect(() => RawParsedRecipeSchema.parse({ ...valid, ingredients: [] })).toThrow();
   });
+
+  it("signale un nombre de portions DEVINÉ (une vidéo n'annonce presque jamais « pour 4 »)", () => {
+    // servings absent → 4 par défaut, mais le drapeau dit que ce 4 n'est pas une donnée.
+    const devine = normalizeParsedRecipe(
+      RawParsedRecipeSchema.parse({ ...valid, servings: null }),
+    );
+    expect(devine).toMatchObject({ servings: 4, servingsGuessed: true });
+
+    // servings annoncé → aucun avertissement à afficher.
+    const annonce = normalizeParsedRecipe(RawParsedRecipeSchema.parse({ ...valid, servings: 6 }));
+    expect(annonce).toMatchObject({ servings: 6, servingsGuessed: false });
+  });
 });
 
 describe("CostEstimateSchema (indexé) + alignCosts", () => {
