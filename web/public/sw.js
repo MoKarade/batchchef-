@@ -15,6 +15,7 @@
 const CACHE_PARTAGE = "batchchef-partage";
 const CLE_VIDEO = "/__partage/video";
 const CLE_META = "/__partage/meta";
+const CLE_CAPTURE_PREFIXE = "/__partage/capture/";
 
 // Prendre la main tout de suite : sans ça, le premier partage après l'installation
 // tomberait sur un worker encore en attente et le POST partirait au serveur (405).
@@ -36,14 +37,27 @@ self.addEventListener("fetch", (event) => {
       try {
         const form = await event.request.formData();
         const cache = await caches.open(CACHE_PARTAGE);
-        const fichier = form.get("video");
-        const aVideo = fichier && typeof fichier !== "string" && fichier.size > 0;
 
-        if (aVideo) {
+        // Un nouveau partage repart de zéro : sinon les captures du partage précédent
+        // seraient recollées à celui-ci, et la recette mélangerait deux publications.
+        for (const cle of await cache.keys()) {
+          if (new URL(cle.url).pathname.startsWith(CLE_CAPTURE_PREFIXE)) await cache.delete(cle);
+        }
+
+        // Tri par TYPE, pas par nom de champ : Android range parfois une image dans le
+        // champ « video » (certaines apps ne proposent qu'un seul champ fichier). Se fier au
+        // nom du champ perdrait la capture en la traitant comme une vidéo illisible.
+        const fichiers = [...form.getAll("video"), ...form.getAll("captures")].filter(
+          (f) => typeof f !== "string" && f.size > 0,
+        );
+        const captures = fichiers.filter((f) => (f.type || "").startsWith("image/"));
+        const video = fichiers.find((f) => !(f.type || "").startsWith("image/"));
+
+        if (video) {
           await cache.put(
             CLE_VIDEO,
-            new Response(fichier, {
-              headers: { "content-type": fichier.type || "video/mp4" },
+            new Response(video, {
+              headers: { "content-type": video.type || "video/mp4" },
             }),
           );
         } else {
@@ -51,13 +65,27 @@ self.addEventListener("fetch", (event) => {
           await cache.delete(CLE_VIDEO);
         }
 
+        for (let i = 0; i < captures.length; i++) {
+          await cache.put(
+            CLE_CAPTURE_PREFIXE + i,
+            new Response(captures[i], {
+              headers: { "content-type": captures[i].type || "image/jpeg" },
+            }),
+          );
+        }
+
         const meta = {
           titre: form.get("title") || "",
           texte: form.get("text") || "",
           url: form.get("url") || "",
-          aVideo: Boolean(aVideo),
-          nom: aVideo ? fichier.name || "video.mp4" : "",
-          type: aVideo ? fichier.type || "video/mp4" : "",
+          aVideo: Boolean(video),
+          nom: video ? video.name || "video.mp4" : "",
+          type: video ? video.type || "video/mp4" : "",
+          captures: captures.map((f, i) => ({
+            cle: CLE_CAPTURE_PREFIXE + i,
+            nom: f.name || `capture-${i}.jpg`,
+            type: f.type || "image/jpeg",
+          })),
         };
         await cache.put(
           CLE_META,

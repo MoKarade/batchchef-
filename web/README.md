@@ -57,19 +57,32 @@ Drizzle), donc plusieurs déploiements qui se chevauchent ne rejouent rien deux 
 ## Partager un reel vers BatchChef (Android)
 
 BatchChef s'installe comme une app (PWA) et apparaît alors dans la **feuille de partage**
-d'Android. Une fois installée :
+d'Android.
 
-1. Sur le reel → **Enregistrer la vidéo** (elle va dans la galerie).
-2. Galerie → **Partager** → **BatchChef**.
-3. L'app s'ouvre, lit la vidéo et propose la recette. Tu relis, tu enregistres.
-
-**Installation** : ouvre BatchChef dans Chrome → menu ⋮ → « Installer l'application ».
+**Installation** : ouvre BatchChef dans Chrome → menu ⋮ → **« Install »** (pas « Create
+shortcut » / « Ajouter à l'écran d'accueil », qui ne crée qu'un raccourci incapable de
+recevoir un partage). Ouvre l'app une fois ensuite, pour que le service worker s'active.
 
 ⚠️ **Instagram ne partage jamais le fichier vidéo à une autre app** — « Partager → autre
-application » n'envoie qu'une **URL**. C'est pour ça que l'étape « Enregistrer la vidéo »
-existe. Un partage direct depuis Instagram fonctionne quand même : BatchChef reçoit le lien,
-te le dit franchement, et te demande de coller la description (appui long sur la légende du
-reel → Copier) — ce qui suffit dans la majorité des cas.
+application » n'envoie qu'une **URL**. D'où les trois façons de lui donner le contenu, toutes
+combinables :
+
+| Ce que tu partages / donnes | Ce que BatchChef en fait |
+|---|---|
+| **Capture d'écran** de la légende (Partager → BatchChef) | le modèle vision **lit le texte** de l'image — le moyen de récupérer une légende qui ne se copie pas |
+| **Description copiée** (appui long sur la légende → Copier) | bouton **« Coller »** dans le formulaire, un tap |
+| **Vidéo** enregistrée puis partagée depuis la Galerie | découpée en images pour lire ce qui n'est montré qu'à l'écran |
+
+Le partage lance l'analyse tout seul dès qu'il apporte une image (capture ou vidéo) ; tu
+relis l'extraction et tu enregistres.
+
+**Priorité du budget** : les captures d'écran passent avant les images de la vidéo. Elles
+portent les quantités écrites, alors qu'une image de vidéo ne montre souvent qu'un geste —
+sacrifier une capture pour garder une douzième casserole reviendrait à jeter la recette.
+
+**Ce que le partage a transmis** : l'écran `/partage` affiche les champs bruts reçus
+(`title`, `text`, `url`, fichiers). Ce que chaque app y met n'est documenté nulle part —
+ce bloc rend la question mesurable au lieu de supposée.
 
 **Comment ça marche techniquement.** Le manifeste déclare une `share_target` en POST
 multipart vers `/partage`. Un **service worker** (`public/sw.js`) intercepte ce POST *dans

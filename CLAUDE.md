@@ -16,9 +16,15 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   des **estimations** (LLM + filet déterministe, couverture 100 %) — jamais présentés comme
   des prix relevés. Pas de scraping, pas de reçus.
 - **Pas de scraping, y compris pour les vidéos.** L'import vidéo ne va RIEN chercher chez
-  Instagram/TikTok : c'est Marc qui dépose le fichier et colle la description (contenu
-  auquel il a accès), le lien ne sert que de `sourceUrl`. Un jour où l'on voudra « juste
-  récupérer la légende depuis l'URL », c'est ce garde-fou qu'on serait en train de lever.
+  Instagram/TikTok : c'est Marc qui dépose le fichier, la capture d'écran ou la description
+  (contenu auquel il a accès), le lien ne sert que de `sourceUrl`. Un jour où l'on voudra
+  « juste récupérer la légende depuis l'URL », c'est ce garde-fou qu'on serait en train de
+  lever. Corollaire assumé : Instagram ne partageant qu'une URL, l'app FOURNIT trois chemins
+  d'entrée (capture d'écran lue par le modèle vision, texte collé, vidéo depuis la galerie)
+  au lieu d'aller chercher ce qu'elle n'a pas le droit de prendre.
+- **Une capture d'écran prime sur une image de vidéo.** Le budget d'images
+  (`repartirBudget`) sert les captures en premier : elles portent les quantités écrites,
+  une image de vidéo ne montre souvent qu'un geste.
 - **Un chiffre par défaut se DIT.** Une vidéo n'annonce presque jamais ses portions ; le
   défaut 4 est affiché comme un défaut à corriger (`servingsGuessed`), parce que toutes les
   quantités de la liste d'épicerie sont mises à l'échelle à partir de lui. Même règle pour
