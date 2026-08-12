@@ -19,6 +19,8 @@ import {
 
 interface Recu extends PartageNormalise {
   fichier: File | null;
+  /** Champs BRUTS transmis par Android, tels quels — voir `DiagnosticPartage`. */
+  brut: { titre: string; texte: string; url: string };
 }
 
 type Etat =
@@ -76,12 +78,13 @@ export function PartageClient({ erreurWorker }: { erreurWorker: boolean }) {
         await cache.delete(CLE_VIDEO);
 
         if (annule) return;
-        const { lien, description } = normaliserPartage({
-          titre: meta.titre,
-          texte: meta.texte,
-          url: meta.url,
-        });
-        setEtat({ kind: "pret", recu: { lien, description, fichier } });
+        const brut = {
+          titre: meta.titre ?? "",
+          texte: meta.texte ?? "",
+          url: meta.url ?? "",
+        };
+        const { lien, description } = normaliserPartage(brut);
+        setEtat({ kind: "pret", recu: { lien, description, fichier, brut } });
       } catch (err) {
         if (annule) return;
         setEtat({
@@ -130,6 +133,53 @@ export function PartageClient({ erreurWorker }: { erreurWorker: boolean }) {
         fichierInitial={recu.fichier}
         demarrerAuto={Boolean(recu.fichier)}
       />
+      <DiagnosticPartage brut={recu.brut} fichier={recu.fichier} />
     </div>
+  );
+}
+
+/**
+ * Ce que l'app source a RÉELLEMENT transmis, champ par champ.
+ *
+ * Ce que chaque app met dans un partage Android n'est écrit nulle part et varie d'une app à
+ * l'autre : le supposer conduit à débattre au lieu de mesurer. Ce bloc rend la question
+ * tranchable en un partage — et il parle même quand tout est vide, parce qu'un diagnostic
+ * muet ne distingue pas « rien reçu » de « pas branché ».
+ */
+function DiagnosticPartage({
+  brut,
+  fichier,
+}: {
+  brut: { titre: string; texte: string; url: string };
+  fichier: File | null;
+}) {
+  const lignes: [string, string][] = [
+    ["title", brut.titre || "— (vide)"],
+    ["text", brut.texte || "— (vide)"],
+    ["url", brut.url || "— (vide)"],
+    [
+      "fichier",
+      fichier
+        ? `${fichier.name} · ${fichier.type || "type inconnu"} · ${(fichier.size / 1_000_000).toFixed(1)} Mo`
+        : "— (aucun fichier partagé)",
+    ],
+  ];
+
+  return (
+    <details className="rounded-xl border border-stone-200 p-3 text-sm dark:border-stone-800">
+      <summary className="cursor-pointer text-stone-500">Ce que le partage a transmis</summary>
+      <dl className="mt-2 space-y-2">
+        {lignes.map(([cle, valeur]) => (
+          <div key={cle}>
+            <dt className="text-xs font-medium text-stone-500">{cle}</dt>
+            <dd className="break-words whitespace-pre-wrap">{valeur}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-2 text-xs text-stone-500">
+        C’est l’app source (Instagram, Galerie…) qui décide de ce qu’elle met ici. BatchChef
+        n’a accès à rien d’autre.
+      </p>
+    </details>
   );
 }
