@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import {
   CACHE_PARTAGE,
@@ -13,6 +14,25 @@ import {
 
 function lire(chemin: string): string {
   return readFileSync(resolve(process.cwd(), chemin), "utf8");
+}
+
+/**
+ * Fichiers RÉELLEMENT suivis par git sous un chemin donné.
+ *
+ * Vécu le 2026-08-12 : `.gitignore` héritait de Gatsby une règle `public`, qui chez Next
+ * exclut des fichiers SOURCE. Le manifeste, le service worker et les icônes existaient sur
+ * le disque — gate local vert — sans jamais entrer dans le dépôt : la fonctionnalité aurait
+ * été mergée puis absente de la production, sans une seule erreur. Un garde qui regarde le
+ * disque ne voit pas ça ; celui-ci regarde ce que git emporte.
+ *
+ * Échoue si git est indisponible : « je ne peux pas vérifier » n'est pas « c'est bon ».
+ */
+function fichiersSuivisParGit(prefixe: string): string[] {
+  const sortie = execFileSync("git", ["ls-files", "--", prefixe], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+  });
+  return sortie.split("\n").filter(Boolean);
 }
 
 describe("normaliserPartage", () => {
@@ -115,6 +135,26 @@ describe("verrous du manifeste PWA", () => {
         existsSync(resolve(process.cwd(), "public", icone.src.replace(/^\//, ""))),
         `icône ${icone.src} absente de public/`,
       ).toBe(true);
+    }
+  });
+});
+
+describe("les assets PWA sont VERSIONNÉS, pas seulement présents", () => {
+  // Le vrai risque n'est pas qu'un fichier manque sur ma machine : c'est qu'il y soit et
+  // n'entre jamais dans le dépôt. Un `.gitignore` trop large suffit, et rien ne le signale.
+  const suivis = fichiersSuivisParGit("public");
+
+  it("git suit le manifeste, le service worker et les icônes", () => {
+    for (const attendu of [
+      "public/manifest.webmanifest",
+      "public/sw.js",
+      "public/icone-192.png",
+      "public/icone-512.png",
+    ]) {
+      expect(
+        suivis,
+        `${attendu} n'est pas suivi par git — il ne sera pas déployé, et le partage sera mort en silence`,
+      ).toContain(attendu);
     }
   });
 });
