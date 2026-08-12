@@ -53,6 +53,12 @@ const PLANCHERS: readonly { paquet: string; minimum: string; faille: string }[] 
     minimum: "0.35.3",
     faille: "GHSA-f88m-g3jw-g9cj — failles libvips héritées (HIGH)",
   },
+  {
+    paquet: "nanoid",
+    minimum: "3.3.17",
+    faille:
+      "GHSA-2v37-7h3g-55p8 — un générateur personnalisé boucle indéfiniment quand size vaut 0 (HIGH). Tiré par postcss, lui-même tiré par Next.",
+  },
 ];
 
 const pkg = lireJson("package.json");
