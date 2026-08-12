@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { SignOutButton } from "@/components/AuthButtons";
+import { EnregistrerServiceWorker } from "@/components/EnregistrerServiceWorker";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -55,6 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </nav>
         </header>
         <main className="mx-auto max-w-3xl px-3 py-5">{children}</main>
+        <EnregistrerServiceWorker />
       </body>
     </html>
   );

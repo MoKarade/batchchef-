@@ -54,6 +54,34 @@ d'env ci-dessus → Deploy. C'est tout (pas de worker, pas de base à héberger 
 `git push` suffit. Idempotent : une migration déjà appliquée est ignorée (table de suivi
 Drizzle), donc plusieurs déploiements qui se chevauchent ne rejouent rien deux fois.
 
+## Partager un reel vers BatchChef (Android)
+
+BatchChef s'installe comme une app (PWA) et apparaît alors dans la **feuille de partage**
+d'Android. Une fois installée :
+
+1. Sur le reel → **Enregistrer la vidéo** (elle va dans la galerie).
+2. Galerie → **Partager** → **BatchChef**.
+3. L'app s'ouvre, lit la vidéo et propose la recette. Tu relis, tu enregistres.
+
+**Installation** : ouvre BatchChef dans Chrome → menu ⋮ → « Installer l'application ».
+
+⚠️ **Instagram ne partage jamais le fichier vidéo à une autre app** — « Partager → autre
+application » n'envoie qu'une **URL**. C'est pour ça que l'étape « Enregistrer la vidéo »
+existe. Un partage direct depuis Instagram fonctionne quand même : BatchChef reçoit le lien,
+te le dit franchement, et te demande de coller la description (appui long sur la légende du
+reel → Copier) — ce qui suffit dans la majorité des cas.
+
+**Comment ça marche techniquement.** Le manifeste déclare une `share_target` en POST
+multipart vers `/partage`. Un **service worker** (`public/sw.js`) intercepte ce POST *dans
+le navigateur*, range la vidéo dans le Cache Storage et redirige vers `/partage` en GET ;
+la page relit le cache côté client. Conséquence : **la vidéo ne transite jamais par le
+serveur**, exactement comme pour un dépôt manuel. Le worker ne met rien d'autre en cache —
+pas de mode hors-ligne, parce que les écrans de BatchChef affichent des données
+personnelles derrière une session.
+
+⚠️ **iOS n'est pas couvert** : Safari ne permet pas à une PWA de s'inscrire dans la feuille
+de partage. Sur iPhone, il faut passer par le formulaire de `/recettes`.
+
 ## Import depuis une vidéo (reel Instagram & co)
 
 Sur `/recettes`, le bloc « Depuis une vidéo » prend trois entrées, toutes indépendantes :

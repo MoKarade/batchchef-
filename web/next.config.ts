@@ -28,6 +28,11 @@ const CSP = [
   // Les appels Google Tasks et Anthropic partent du SERVEUR (Server Actions), jamais du
   // navigateur → 'self' suffit.
   "connect-src 'self'",
+  // PWA : le service worker qui reçoit les partages Android, et le manifeste qui déclare
+  // la cible de partage. Explicites plutôt que dépendants du repli sur `default-src` —
+  // une CSP se lit, elle ne se déduit pas.
+  "worker-src 'self'",
+  "manifest-src 'self'",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   // Le flux OAuth Google poste vers accounts.google.com depuis le formulaire de connexion.

@@ -47,9 +47,21 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
 | `lib/aggregate.ts` | agrégation liste d'épicerie, mise à l'échelle, filet de prix (purs) |
 | `lib/llm/` | parse de recette (page web **et** vidéo) + estimation de coûts (Zod, honnête) |
 | `lib/video/` | `frames.ts` = échantillonnage/budget (PUR, testé) · `capture.ts` = extraction `<video>`+`<canvas>` **dans le navigateur** (la vidéo ne monte jamais au serveur) |
+| `lib/partage.ts` + `public/sw.js` | cible de partage Android (PWA). Le service worker intercepte le POST **côté navigateur** : la vidéo partagée ne transite pas par le serveur |
 | `lib/db/` | schéma Drizzle + connexion Neon paresseuse |
 | `lib/hubSummary.ts` | résumé conforme `@mokarade/hub-contract` (widget hub perso) |
 | `data/batchchef.seed.db` | base seed du catalogue (10 188 recettes) |
+
+## Workflow git (décision Marc, 2026-08-12)
+
+Branche `claude/<slug>` → commits en français → push → PR → **Claude merge lui-même**
+(squash sur `master`), sans demander. Le gate local + la CI sont les filets ; le merge n'est
+pas un point de décision de Marc. Corollaire : tout ce qui doit partir avec le lot (doc,
+tests, leçons) est committé AVANT le merge — une PR mergée ne se rattrape pas.
+
+⚠️ Après un squash-merge, GitHub supprime la branche : repartir de `master`
+(`git fetch origin master && git checkout -B <branche> origin/master`) avant la tâche
+suivante, jamais empiler sur l'historique déjà mergé.
 
 ## Vérifications avant commit
 

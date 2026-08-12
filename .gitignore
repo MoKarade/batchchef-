@@ -80,6 +80,14 @@ dist
 .cache/
 public
 
+# ⚠️ Chez Gatsby, `public` est une sortie de build — chez Next.js, c'est du SOURCE.
+# La règle générique ci-dessus excluait `web/public/` (manifeste PWA, service worker,
+# icônes) : les fichiers restaient sur le disque, le gate local passait, et la
+# fonctionnalité n'était tout simplement pas déployée. Il faut réinclure le RÉPERTOIRE
+# avant son contenu — git ne descend pas dans un dossier exclu.
+!web/public/
+!web/public/**
+
 # Storybook build outputs
 .out
 .storybook-out
