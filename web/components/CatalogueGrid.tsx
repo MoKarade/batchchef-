@@ -93,7 +93,7 @@ export function CatalogueGrid({ recipes }: { recipes: CatalogItem[] }) {
 
       {/* Barre d'action collante : n'apparaît qu'avec une sélection. */}
       {selected.size > 0 && (
-        <div className="sticky bottom-3 z-10 flex items-center gap-3 rounded-2xl border border-stone-200 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-stone-700 dark:bg-stone-900/95">
+        <div className="sticky bottom-3 z-10 flex items-center gap-3 rounded-2xl border border-[var(--bordure)] bg-white/95 p-3 shadow-lg backdrop-blur  /95">
           <span className="text-sm font-medium">
             {selected.size} sélectionnée{selected.size > 1 ? "s" : ""}
           </span>
@@ -101,7 +101,7 @@ export function CatalogueGrid({ recipes }: { recipes: CatalogItem[] }) {
             type="button"
             onClick={clear}
             disabled={pending}
-            className="ml-auto rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-stone-700"
+            className="ml-auto rounded-lg border border-[var(--bordure)] px-3 py-2 text-sm disabled:opacity-50 "
           >
             Vider
           </button>

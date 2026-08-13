@@ -39,24 +39,23 @@ export default async function HomePage() {
           <Link
             key={s.label}
             href={s.href}
-            className="rounded-2xl border border-stone-200 bg-white p-4 text-center shadow-sm dark:border-stone-800 dark:bg-stone-900"
+            className="rounded-2xl border border-[var(--bordure)] bg-white p-4 text-center shadow-sm  "
           >
             <div className="text-2xl font-bold tabular-nums">{s.value}</div>
-            <div className="mt-1 text-xs text-stone-600 dark:text-stone-400">{s.label}</div>
+            <div className="mt-1 text-xs doux">{s.label}</div>
           </Link>
         ))}
       </div>
       <div className="flex flex-col gap-3 sm:flex-row">
         <Link
           href="/recettes"
-          className="flex-1 rounded-xl border border-stone-300 px-4 py-3 text-center font-medium dark:border-stone-700"
+          className="flex-1 rounded-xl border border-[var(--bordure)] px-4 py-3 text-center font-medium "
         >
           + Importer une recette
         </Link>
         <Link
           href="/batchs/nouveau"
-          className="flex-1 rounded-xl px-4 py-3 text-center font-medium text-white"
-          style={{ backgroundColor: "var(--accent)" }}
+          className="bouton bouton-principal flex-1"
         >
           Nouveau batch
         </Link>
@@ -65,7 +64,7 @@ export default async function HomePage() {
       {recent.length > 0 ? (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Recettes récentes</h2>
+            <h2 className="text-lg font-semibold">Recettes récentes</h2>
             <Link href="/recettes" className="text-sm underline">
               Tout voir
             </Link>
@@ -79,7 +78,7 @@ export default async function HomePage() {
           </ul>
         </section>
       ) : (
-        <p className="text-sm text-stone-500 dark:text-stone-400">
+        <p className="text-sm doux">
           Le cycle : importe tes recettes → compose un batch → fais l’épicerie avec la liste
           sur ton téléphone.
         </p>

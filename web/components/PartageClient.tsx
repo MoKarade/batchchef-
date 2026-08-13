@@ -119,13 +119,13 @@ export function PartageClient({
   }, [erreurWorker]);
 
   if (etat.kind === "chargement") {
-    return <p className="text-sm text-stone-500">Récupération du partage…</p>;
+    return <p className="text-sm doux">Récupération du partage…</p>;
   }
 
   if (etat.kind === "vide") {
     return (
       <div className="space-y-3">
-        <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+        <p className="rounded-lg alerte p-3 text-sm">
           {etat.motif} Tu peux quand même déposer la vidéo ou coller la description ci-dessous.
         </p>
         <ImportVideoForm transcriptionActive={transcriptionActive} />
@@ -140,7 +140,7 @@ export function PartageClient({
   return (
     <div className="space-y-3">
       {sansContenu && (
-        <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+        <div className="rounded-lg alerte p-3 text-sm">
           <p className="font-medium">Instagram n’a partagé que le lien.</p>
           <p className="mt-1">
             Ni la vidéo, ni la légende : c’est sa limite, et elle vaut pour toute app. Un
@@ -211,17 +211,17 @@ function DiagnosticPartage({
   ];
 
   return (
-    <details className="rounded-xl border border-stone-200 p-3 text-sm dark:border-stone-800">
-      <summary className="cursor-pointer text-stone-500">Ce que le partage a transmis</summary>
+    <details className="rounded-xl border border-[var(--bordure)] p-3 text-sm ">
+      <summary className="cursor-pointer doux">Ce que le partage a transmis</summary>
       <dl className="mt-2 space-y-2">
         {lignes.map(([cle, valeur]) => (
           <div key={cle}>
-            <dt className="text-xs font-medium text-stone-500">{cle}</dt>
+            <dt className="text-xs font-medium doux">{cle}</dt>
             <dd className="break-words whitespace-pre-wrap">{valeur}</dd>
           </div>
         ))}
       </dl>
-      <p className="mt-2 text-xs text-stone-500">
+      <p className="mt-2 text-xs doux">
         C’est l’app source (Instagram, Galerie…) qui décide de ce qu’elle met ici. BatchChef
         n’a accès à rien d’autre.
       </p>

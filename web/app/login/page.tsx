@@ -8,13 +8,13 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   return (
-    <div className="mx-auto mt-16 max-w-sm rounded-2xl border border-stone-200 bg-white p-8 text-center shadow-sm dark:border-stone-800 dark:bg-stone-900">
+    <div className="mx-auto mt-16 max-w-sm rounded-2xl border border-[var(--bordure)] bg-white p-8 text-center shadow-sm  ">
       <h1 className="text-xl font-bold">BatchChef</h1>
-      <p className="mt-2 text-sm text-stone-600 dark:text-stone-400">
+      <p className="mt-2 text-sm doux">
         App privée — connexion Google requise.
       </p>
       {params.error === "AccessDenied" && (
-        <p className="mt-3 rounded-lg bg-red-50 p-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+        <p className="mt-3 rounded-lg erreur p-2 text-sm">
           Accès non autorisé pour ce compte.
         </p>
       )}

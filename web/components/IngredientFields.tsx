@@ -36,14 +36,14 @@ export function IngredientFields({
     <div className="space-y-2">
       <ul className="space-y-2">
         {rows.map((r, idx) => (
-          <li key={idx} className="space-y-2 rounded-xl border border-stone-200 p-3 dark:border-stone-800">
+          <li key={idx} className="space-y-2 rounded-xl border border-[var(--bordure)] p-3 ">
             <input
               type="text"
               value={r.name}
               onChange={(e) => setRow(idx, { name: e.target.value })}
               placeholder="Nom de l’ingrédient"
               disabled={disabled}
-              className="w-full rounded-lg border border-stone-300 bg-white px-2 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+              className="champ text-sm"
             />
             <div className="flex flex-wrap items-center gap-2">
               <input
@@ -53,7 +53,7 @@ export function IngredientFields({
                 onChange={(e) => setRow(idx, { qty: e.target.value })}
                 placeholder="Qté"
                 disabled={disabled}
-                className="w-20 rounded-lg border border-stone-300 bg-white px-2 py-2 text-center text-sm tabular-nums dark:border-stone-700 dark:bg-stone-900"
+                className="w-20 rounded-lg border border-[var(--bordure)] bg-white px-2 py-2 text-center text-sm tabular-nums  "
               />
               <select
                 value={r.unit ?? "augout"}
@@ -61,7 +61,7 @@ export function IngredientFields({
                   setRow(idx, { unit: e.target.value === "augout" ? null : (e.target.value as Unit) })
                 }
                 disabled={disabled}
-                className="rounded-lg border border-stone-300 bg-white px-2 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+                className="champ text-sm"
               >
                 <option value="g">{UNIT_LABEL.g}</option>
                 <option value="ml">{UNIT_LABEL.ml}</option>
@@ -74,14 +74,14 @@ export function IngredientFields({
                 onChange={(e) => setRow(idx, { note: e.target.value })}
                 placeholder="Note (facultatif)"
                 disabled={disabled}
-                className="min-w-0 flex-1 rounded-lg border border-stone-300 bg-white px-2 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+                className="min-w-0 flex-1 champ text-sm"
               />
               <button
                 type="button"
                 onClick={() => removeRow(idx)}
                 disabled={disabled}
                 aria-label="Supprimer l’ingrédient"
-                className="rounded-lg border border-stone-300 px-3 py-2 text-sm text-stone-500 dark:border-stone-700"
+                className="rounded-lg border border-[var(--bordure)] px-3 py-2 text-sm doux "
               >
                 Retirer
               </button>
@@ -93,7 +93,7 @@ export function IngredientFields({
         type="button"
         onClick={addRow}
         disabled={disabled}
-        className="w-full rounded-xl border border-dashed border-stone-300 px-3 py-2 text-sm text-stone-600 dark:border-stone-700 dark:text-stone-400"
+        className="w-full rounded-xl border border-dashed border-[var(--bordure)] px-3 py-2 text-sm doux  "
       >
         + Ajouter un ingrédient
       </button>

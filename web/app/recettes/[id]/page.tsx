@@ -32,11 +32,11 @@ export default async function RecipeDetailPage({
       )}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold">{recipe.title}</h1>
+          <h1 className="text-2xl font-bold">{recipe.title}</h1>
           {/* D'où vient cette recette : la bibliothèque mélange ce que Marc a apporté et
               ce qu'il a pioché dans le catalogue de 10 188 recettes. Une origine absente
               (recettes antérieures à la colonne) se DIT, elle ne se devine pas. */}
-          <p className="mt-1 text-sm text-stone-500">
+          <p className="mt-1 text-sm doux">
             {libelleOrigine(recipe.origine)}
             {" · "}
             <time dateTime={recipe.createdAt.toISOString()}>
@@ -74,14 +74,15 @@ export default async function RecipeDetailPage({
       {recipe.instructions && (
         <section>
           <h2 className="mb-2 font-semibold">Préparation</h2>
-          <p className="whitespace-pre-line rounded-2xl border border-stone-200 bg-white p-4 text-sm leading-relaxed dark:border-stone-800 dark:bg-stone-900">
+          <p className="whitespace-pre-line rounded-2xl border border-[var(--bordure)] bg-white p-4 text-sm leading-relaxed  ">
             {recipe.instructions}
           </p>
         </section>
       )}
 
-      <Link href="/batchs/nouveau" className="inline-block text-sm underline">
-        → Composer un batch avec cette recette
+      {/* Le geste qui SUIT une recette : un lien souligné se confondait avec le reste. */}
+      <Link href="/batchs/nouveau" className="bouton bouton-second w-full">
+        Composer un batch avec cette recette
       </Link>
     </article>
   );
