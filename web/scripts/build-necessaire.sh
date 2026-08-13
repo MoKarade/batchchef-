@@ -11,10 +11,17 @@
 # résout en CONSTRUISANT. La liste des exemptions est FERMÉE ; celle de ce qui construit est
 # ouverte. Se tromper dans un sens coûte un déploiement ; dans l'autre, ça fige la prod.
 #
-# Pourquoi ce script existe : le quota de déploiements gratuits est PARTAGÉ entre tous les
-# projets Vercel de Marc. Le 2026-08-12 il a été épuisé (« more than 100 per day »), bloquant
-# tous les projets pendant 24 h — alors qu'une bonne partie des commits ne touchait que de la
+# Pourquoi ce script existe : le quota de déploiements est PARTAGÉ entre tous les projets
+# Vercel de Marc. Le 2026-08-12 il a été épuisé (« more than 100 per day »), bloquant tous les
+# projets pendant 24 h — alors qu'une bonne partie des commits ne touchait que de la
 # documentation et des tests, c'est-à-dire rien de ce que le site sert.
+#
+# Le 2026-08-13, deuxième épuisement le même jour, et Marc est passé au plan Pro. Le script
+# RESTE, pour deux raisons : le plan payant déplace le plafond, il ne le supprime pas ; et un
+# build qui ne change rien de ce qui est servi reste du temps et de l'énergie dépensés pour
+# rien. Ce qui change, c'est que le quota n'est plus la raison PRINCIPALE — donc si un jour ce
+# script gêne un diagnostic, le désactiver temporairement ne bloquera plus les cinq autres
+# projets.
 
 set -u
 

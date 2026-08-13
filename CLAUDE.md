@@ -110,8 +110,20 @@ réponses sans aucun en-tête de sécurité alors que la PR était mergée.
 Donc, après un merge qui change ce qui est servi (en-têtes, `next.config.ts`,
 middleware, variables de build) : vérifier qu'un déploiement de production a bien été
 créé et qu'il est `READY`, puis **contrôler l'effet sur la réponse HTTP réelle** — un
-en-tête se lit dans la réponse, il ne se déduit pas du fichier source. Rattrapage :
-tableau de bord Vercel → Deployments → « … » → Redeploy.
+en-tête se lit dans la réponse, il ne se déduit pas du fichier source.
+
+⚠️ **Un merge peut produire ZÉRO déploiement, sans que rien ne soit rouge.** Vécu le
+13/08/2026 : le quota partagé étant épuisé, le merge de la PR #42 n'a créé aucun build. La
+CI était verte, la PR mergée, `master` à jour — et la production servait toujours le commit
+précédent. La vérification n'est donc pas « le déploiement a-t-il réussi ? » mais d'abord
+« existe-t-il ? ».
+
+⚠️ **Et le rattrapage n'est PAS « Redeploy ».** Redeploy rejoue le commit du déploiement
+EXISTANT, pas le dernier commit de `master` : sur un commit qui n'a jamais été déployé, il
+n'y a rien à rejouer, et rejouer le voisin reconstruirait l'ancien code (leçon JobAI, même
+famille). Le seul déclencheur fiable est un NOUVEAU push sur `master`. Attention alors à
+l'`ignoreCommand` : un commit qui ne touche que `*.md` ou `web/tests/*` serait ignoré — le
+commit de rattrapage doit toucher un fichier hors exemptions.
 
 ## Style (hérité du CLAUDE.md global de Marc)
 
