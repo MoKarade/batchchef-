@@ -23,7 +23,7 @@ export default async function PartagePage({
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold">Recette partagée</h1>
-        <p className="mt-1 text-sm text-stone-500">
+        <p className="mt-1 text-sm doux">
           Vérifie l’extraction avant d’enregistrer — c’est ce que tu valides qui entre dans ta
           bibliothèque.
         </p>

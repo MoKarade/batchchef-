@@ -50,7 +50,7 @@ export function ImportRecipeForm() {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="Colle l’URL d’une recette (n’importe quel site)"
-          className="min-w-0 flex-1 rounded-xl border border-stone-300 bg-white px-3 py-3 text-sm dark:border-stone-700 dark:bg-stone-900"
+          className="min-w-0 flex-1 rounded-xl border border-[var(--bordure)] bg-white px-3 py-3 text-sm  "
           disabled={pending}
         />
         <button
@@ -63,12 +63,12 @@ export function ImportRecipeForm() {
         </button>
       </div>
       {pending && (
-        <p className="text-xs text-stone-500">
+        <p className="text-xs doux">
           Lecture de la page, extraction puis vérification de la recette (20-30 s)…
         </p>
       )}
       {error && (
-        <p className="rounded-lg bg-red-50 p-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+        <p className="rounded-lg erreur p-2 text-sm">
           {error}
         </p>
       )}

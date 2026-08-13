@@ -99,20 +99,20 @@ export function RecipeDraftEditor({
     });
 
   return (
-    <div className="space-y-3 rounded-2xl border border-stone-200 p-4 dark:border-stone-800">
+    <div className="space-y-3 carte p-4">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold">Vérifie avant d’enregistrer</h2>
         <button
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="text-sm text-stone-500 underline"
+          className="text-sm doux underline"
         >
           Annuler
         </button>
       </div>
       {hint ?? (
-        <p className="text-xs text-stone-500">
+        <p className="text-xs doux">
           Analyse relue par le LLM. Corrige le titre, les portions ou une quantité si besoin —
           c’est ce que tu valides qui est enregistré.
         </p>
@@ -173,13 +173,13 @@ export function RecipeDraftEditor({
       )}
 
       <label className="block text-sm">
-        <span className="mb-1 block text-stone-500">Titre</span>
+        <span className="mb-1 block doux">Titre</span>
         <input
           type="text"
           value={draft.title}
           onChange={(e) => setDraft({ ...draft, title: e.target.value })}
           disabled={pending}
-          className="w-full rounded-lg border border-stone-300 bg-white px-2 py-2 dark:border-stone-700 dark:bg-stone-900"
+          className="champ"
         />
       </label>
 
@@ -188,12 +188,12 @@ export function RecipeDraftEditor({
           voyait donc jamais le champ, et la recette finissait sans lien vers sa vidéo. */}
       <div className="text-sm">
         <div className="mb-1 flex items-center justify-between gap-2">
-          <span className="text-stone-500">Lien de la source (facultatif)</span>
+          <span className="doux">Lien de la source (facultatif)</span>
           <button
             type="button"
             onClick={() => void collerLien()}
             disabled={pending}
-            className="rounded-lg border border-stone-300 px-3 py-1 text-xs font-medium disabled:opacity-50 dark:border-stone-700"
+            className="rounded-lg border border-[var(--bordure)] px-3 py-1 text-xs font-medium disabled:opacity-50 "
           >
             Coller
           </button>
@@ -205,16 +205,16 @@ export function RecipeDraftEditor({
           onChange={(e) => setDraft({ ...draft, sourceUrl: e.target.value })}
           disabled={pending}
           placeholder="https://www.instagram.com/reel/…"
-          className="w-full rounded-lg border border-stone-300 bg-white px-2 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+          className="champ text-sm"
         />
-        <p className="mt-1 text-xs text-stone-500">
+        <p className="mt-1 text-xs doux">
           Gardé avec la recette pour pouvoir revoir la vidéo plus tard. Rien n’est téléchargé
           depuis ce lien.
         </p>
       </div>
 
       <label className="flex items-center gap-3 text-sm">
-        <span className="shrink-0 text-stone-500">Portions de référence</span>
+        <span className="shrink-0 doux">Portions de référence</span>
         <input
           type="number"
           min={1}
@@ -222,11 +222,11 @@ export function RecipeDraftEditor({
           value={draft.servings}
           onChange={(e) => setDraft({ ...draft, servings: e.target.value, servingsGuessed: false })}
           disabled={pending}
-          className="w-20 rounded-lg border border-stone-300 bg-white px-2 py-2 text-center tabular-nums dark:border-stone-700 dark:bg-stone-900"
+          className="w-20 rounded-lg border border-[var(--bordure)] bg-white px-2 py-2 text-center tabular-nums  "
         />
       </label>
       {draft.servingsGuessed && (
-        <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+        <p className="rounded-lg alerte p-2 text-xs">
           Aucune portion annoncée par la source : 4 est un défaut, pas une donnée. Toutes les
           quantités de la liste d’épicerie seront mises à l’échelle à partir de ce nombre.
         </p>
@@ -239,19 +239,19 @@ export function RecipeDraftEditor({
       />
 
       <label className="block text-sm">
-        <span className="mb-1 block text-stone-500">Préparation</span>
+        <span className="mb-1 block doux">Préparation</span>
         <textarea
           value={draft.instructions}
           onChange={(e) => setDraft({ ...draft, instructions: e.target.value })}
           disabled={pending}
           rows={8}
           placeholder="Étapes de la recette"
-          className="w-full rounded-lg border border-stone-300 bg-white px-2 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+          className="champ text-sm"
         />
       </label>
 
       {error && (
-        <p className="rounded-lg bg-red-50 p-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+        <p className="rounded-lg erreur p-2 text-sm">
           {error}
         </p>
       )}
@@ -260,8 +260,7 @@ export function RecipeDraftEditor({
         type="button"
         onClick={save}
         disabled={pending || !draft.title.trim()}
-        className="w-full rounded-xl px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
-        style={{ backgroundColor: "var(--accent)" }}
+        className="bouton bouton-principal w-full"
       >
         {pending ? "Enregistrement…" : "Enregistrer la recette"}
       </button>

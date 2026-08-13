@@ -37,11 +37,11 @@ export default async function CatalogueDetailPage({
 
       <section>
         <h2 className="mb-2 font-semibold">Ingrédients (pour {recipe.servings} portion{recipe.servings > 1 ? "s" : ""})</h2>
-        <ul className="divide-y divide-stone-200 rounded-2xl border border-stone-200 bg-white dark:divide-stone-800 dark:border-stone-800 dark:bg-stone-900">
+        <ul className="divide-y divide-[var(--bordure)] rounded-2xl border border-[var(--bordure)] bg-white   ">
           {ingredients.map((ing) => (
             <li key={ing.id} className="flex items-center justify-between px-4 py-3 text-sm">
-              <span>{ing.name}{ing.note && <span className="text-stone-500"> — {ing.note}</span>}</span>
-              <span className="tabular-nums text-stone-600 dark:text-stone-400">{formatQty(ing.qty, ing.unit)}</span>
+              <span>{ing.name}{ing.note && <span className="doux"> — {ing.note}</span>}</span>
+              <span className="tabular-nums doux">{formatQty(ing.qty, ing.unit)}</span>
             </li>
           ))}
         </ul>
@@ -50,7 +50,7 @@ export default async function CatalogueDetailPage({
       {recipe.instructions && (
         <section>
           <h2 className="mb-2 font-semibold">Préparation</h2>
-          <p className="whitespace-pre-line rounded-2xl border border-stone-200 bg-white p-4 text-sm leading-relaxed dark:border-stone-800 dark:bg-stone-900">
+          <p className="whitespace-pre-line rounded-2xl border border-[var(--bordure)] bg-white p-4 text-sm leading-relaxed  ">
             {recipe.instructions}
           </p>
         </section>

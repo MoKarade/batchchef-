@@ -54,7 +54,7 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
 
   if (recipes.length === 0) {
     return (
-      <div className="space-y-3 rounded-xl border border-dashed border-stone-300 p-6 text-center text-sm text-stone-500 dark:border-stone-700">
+      <div className="space-y-3 rounded-xl border border-dashed border-[var(--bordure)] p-6 text-center text-sm doux ">
         <p>Ta bibliothèque est vide — un batch se compose de recettes que tu as déjà.</p>
         <Link
           href="/catalogue"
@@ -103,11 +103,11 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Nom du batch (ex. Semaine du 28 juillet)"
-        className="w-full rounded-xl border border-stone-300 bg-white px-3 py-3 text-sm dark:border-stone-700 dark:bg-stone-900"
+        className="w-full rounded-xl border border-[var(--bordure)] bg-white px-3 py-3 text-sm  "
         disabled={pending}
       />
 
-      <ul className="divide-y divide-stone-200 rounded-2xl border border-stone-200 bg-white dark:divide-stone-800 dark:border-stone-800 dark:bg-stone-900">
+      <ul className="divide-y divide-[var(--bordure)] rounded-2xl border border-[var(--bordure)] bg-white   ">
         {recipes.map((r) => {
           const selected = r.id in portions;
           return (
@@ -133,7 +133,7 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
                     onChange={(e) =>
                       setPortions((prev) => ({ ...prev, [r.id]: Number(e.target.value) }))
                     }
-                    className="w-16 rounded-lg border border-stone-300 bg-white px-2 py-2 text-center tabular-nums dark:border-stone-700 dark:bg-stone-900"
+                    className="w-16 rounded-lg border border-[var(--bordure)] bg-white px-2 py-2 text-center tabular-nums  "
                     disabled={pending}
                   />
                   portions
@@ -145,7 +145,7 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
       </ul>
 
       {error && (
-        <p className="rounded-lg bg-red-50 p-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+        <p className="rounded-lg erreur p-2 text-sm">
           {error}
         </p>
       )}
@@ -158,7 +158,7 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
         {pending ? "Génération de la liste…" : "Créer le batch"}
       </button>
       {!pending && (!name.trim() || Object.keys(portions).length === 0) && (
-        <p className="text-center text-xs text-stone-500">
+        <p className="text-center text-xs doux">
           {!name.trim() && Object.keys(portions).length === 0
             ? "Nomme le batch et coche au moins une recette pour l’activer."
             : !name.trim()
@@ -167,7 +167,7 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
         </p>
       )}
       {pending && (
-        <p className="text-center text-xs text-stone-500">
+        <p className="text-center text-xs doux">
           Agrégation des ingrédients + estimation du budget (quelques secondes)…
         </p>
       )}

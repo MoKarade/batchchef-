@@ -14,7 +14,7 @@ export function AddToLibraryButton({ catalogRecipeId }: { catalogRecipeId: numbe
       <button
         type="button"
         onClick={() => router.push("/recettes")}
-        className="shrink-0 rounded-xl border border-stone-300 px-3 py-2 text-sm dark:border-stone-700"
+        className="shrink-0 rounded-xl border border-[var(--bordure)] px-3 py-2 text-sm "
       >
         ✓ Ajoutée — voir
       </button>

@@ -60,7 +60,7 @@ export default async function CataloguePage({
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold">Catalogue de découverte</h1>
-        <p className="mt-1 text-sm text-stone-500">
+        <p className="mt-1 text-sm doux">
           {total.toLocaleString("fr-CA")} recettes — cherche par titre ou par ingrédient, ajoute une idée à ta
           bibliothèque.
         </p>
@@ -68,31 +68,31 @@ export default async function CataloguePage({
       <CatalogueSearch initial={q} />
 
       {recipes.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-stone-300 p-6 text-center text-sm text-stone-500 dark:border-stone-700">
+        <p className="rounded-xl border border-dashed border-[var(--bordure)] p-6 text-center text-sm doux ">
           {total === 0
             ? "Catalogue vide — lance l’import (npm run catalog:import) pour peupler les 10 188 recettes."
             : "Aucun résultat pour cette recherche."}
         </p>
       ) : (
         <>
-          <p className="text-xs text-stone-500">
+          <p className="text-xs doux">
             Coche les recettes (coin des cartes) pour en ajouter plusieurs d’un coup à ta bibliothèque.
           </p>
           <CatalogueGrid recipes={recipes} />
           {lastPage > 1 && (
             <div className="flex items-center justify-between text-sm">
               {page > 1 ? (
-                <Link href={qs(page - 1)} className="rounded-lg border border-stone-300 px-3 py-2 dark:border-stone-700">
+                <Link href={qs(page - 1)} className="rounded-lg border border-[var(--bordure)] px-3 py-2 ">
                   ← Précédent
                 </Link>
               ) : (
                 <span />
               )}
-              <span className="text-stone-500">
+              <span className="doux">
                 Page {page} / {lastPage.toLocaleString("fr-CA")}
               </span>
               {page < lastPage ? (
-                <Link href={qs(page + 1)} className="rounded-lg border border-stone-300 px-3 py-2 dark:border-stone-700">
+                <Link href={qs(page + 1)} className="rounded-lg border border-[var(--bordure)] px-3 py-2 ">
                   Suivant →
                 </Link>
               ) : (

@@ -240,7 +240,7 @@ export function ImportVideoForm({
         vignettes={vignettes}
         onCancel={reset}
         hint={
-          <p className="text-xs text-stone-500">
+          <p className="text-xs doux">
             {lu ? `${resumeSources(lu, description)}. ` : ""}
             Une publication annonce rarement les quantités exactes : relis chaque ligne, c’est
             ce que tu valides qui est enregistré.
@@ -252,7 +252,7 @@ export function ImportVideoForm({
 
   return (
     <form
-      className="space-y-3 rounded-2xl border border-stone-200 p-4 dark:border-stone-800"
+      className="space-y-3 carte p-4"
       onSubmit={(e) => {
         e.preventDefault();
         void analyser();
@@ -260,7 +260,7 @@ export function ImportVideoForm({
     >
       <div>
         <h2 className="font-semibold">Depuis une vidéo</h2>
-        <p className="mt-1 text-xs text-stone-500">
+        <p className="mt-1 text-xs doux">
           La voie normale : un <strong>enregistrement d’écran</strong> du reel, légende dépliée —
           il porte à la fois les gestes, les quantités affichées et le texte. Instagram ne laisse
           pas enregistrer la vidéo elle-même, mais ton téléphone sait filmer son propre écran.
@@ -269,19 +269,19 @@ export function ImportVideoForm({
       </div>
 
       <label className="block text-sm">
-        <span className="mb-1 block text-stone-500">Lien de la publication (facultatif)</span>
+        <span className="mb-1 block doux">Lien de la publication (facultatif)</span>
         <input
           type="url"
           value={lien}
           onChange={(e) => setLien(e.target.value)}
           placeholder="https://www.instagram.com/reel/…"
           disabled={busy}
-          className="w-full rounded-lg border border-stone-300 bg-white px-2 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+          className="champ text-sm"
         />
       </label>
 
       <div className="text-sm">
-        <span className="mb-1 block text-stone-500">
+        <span className="mb-1 block doux">
           Vidéo — l’enregistrement d’écran du reel, légende dépliée
         </span>
         <input
@@ -289,17 +289,17 @@ export function ImportVideoForm({
           accept="video/*"
           onChange={(e) => setFichier(e.target.files?.[0] ?? null)}
           disabled={busy}
-          className="w-full rounded-lg border border-stone-300 bg-white px-2 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-stone-100 file:px-3 file:py-1 file:text-sm dark:border-stone-700 dark:bg-stone-900 dark:file:bg-stone-800"
+          className="w-full rounded-lg border border-[var(--bordure)] bg-white px-2 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-douce)] file:px-3 file:py-1 file:text-sm   dark:file:bg-[var(--surface-douce)]"
         />
         {fichier && (
-          <p className="mt-1 text-xs text-stone-500">
+          <p className="mt-1 text-xs doux">
             {fichier.name} · {(fichier.size / 1_000_000).toFixed(1)} Mo
           </p>
         )}
       </div>
 
       <div className="text-sm">
-        <span className="mb-1 block text-stone-500">
+        <span className="mb-1 block doux">
           Captures d’écran (facultatif, si tu n’as pas d’enregistrement)
         </span>
         <input
@@ -308,10 +308,10 @@ export function ImportVideoForm({
           multiple
           onChange={(e) => setCaptures(Array.from(e.target.files ?? []))}
           disabled={busy}
-          className="w-full rounded-lg border border-stone-300 bg-white px-2 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-stone-100 file:px-3 file:py-1 file:text-sm dark:border-stone-700 dark:bg-stone-900 dark:file:bg-stone-800"
+          className="w-full rounded-lg border border-[var(--bordure)] bg-white px-2 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-douce)] file:px-3 file:py-1 file:text-sm   dark:file:bg-[var(--surface-douce)]"
         />
         {captures.length > 0 && (
-          <p className="mt-1 text-xs text-stone-500">
+          <p className="mt-1 text-xs doux">
             {captures.length} capture(s) — le texte y sera lu.
           </p>
         )}
@@ -334,12 +334,12 @@ export function ImportVideoForm({
 
       <div className="text-sm">
         <div className="mb-1 flex items-center justify-between gap-2">
-          <span className="text-stone-500">Description publiée</span>
+          <span className="doux">Description publiée</span>
           <button
             type="button"
             onClick={() => void collerDescription()}
             disabled={busy}
-            className="rounded-lg border border-stone-300 px-3 py-1 text-xs font-medium disabled:opacity-50 dark:border-stone-700"
+            className="rounded-lg border border-[var(--bordure)] px-3 py-1 text-xs font-medium disabled:opacity-50 "
           >
             Coller
           </button>
@@ -350,39 +350,38 @@ export function ImportVideoForm({
           rows={5}
           placeholder="Appui long sur la légende du reel → Copier, puis « Coller » ici."
           disabled={busy}
-          className="w-full rounded-lg border border-stone-300 bg-white px-2 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+          className="champ text-sm"
         />
       </div>
 
       <button
         type="submit"
         disabled={busy || !pretAAnalyser}
-        className="w-full rounded-xl px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
-        style={{ backgroundColor: "var(--accent)" }}
+        className="bouton bouton-principal w-full"
       >
         {busy ? "Analyse…" : "Analyser"}
       </button>
 
       {phase.kind === "captures" && (
-        <p className="text-xs text-stone-500">Préparation des captures d’écran…</p>
+        <p className="text-xs doux">Préparation des captures d’écran…</p>
       )}
       {phase.kind === "video" && (
-        <p className="text-xs text-stone-500">
+        <p className="text-xs doux">
           {phase.etape === "reperage"
             ? `Repérage des écrans de la vidéo${phase.total > 0 ? ` — ${phase.done}/${phase.total}` : "…"}`
             : `Extraction des images retenues — ${phase.done}/${phase.total}`}
         </p>
       )}
       {phase.kind === "transcription" && (
-        <p className="text-xs text-stone-500">Transcription de la bande sonore…</p>
+        <p className="text-xs doux">Transcription de la bande sonore…</p>
       )}
       {phase.kind === "analyse" && (
-        <p className="text-xs text-stone-500">
+        <p className="text-xs doux">
           Extraction de la recette (ingrédients + préparation), 20-40 s…
         </p>
       )}
       {error && (
-        <p className="rounded-lg bg-red-50 p-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+        <p className="rounded-lg erreur p-2 text-sm">
           {error}
         </p>
       )}

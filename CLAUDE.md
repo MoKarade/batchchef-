@@ -93,6 +93,27 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   vulnérable et invisible depuis le premier niveau). Discrimination prouvée. Retirer un
   `override` seulement après avoir mesuré `npm audit --omit=dev` → 0.
 
+## Direction visuelle (décision de Marc, 13/08/2026)
+
+**Identité d'app de cuisine, pas de tableau de bord.** Les deux écrans les plus utilisés —
+la liste d'épicerie et une recette — se lisent DEBOUT, une main occupée, parfois sous les
+néons d'un supermarché.
+
+- **Les couleurs vivent dans `app/globals.css`, en variables, et NULLE PART ailleurs.** Le
+  vocabulaire est `.carte` / `.bouton` / `.champ` / `.doux` / `.alerte` / `.erreur`. Avant,
+  288 chaînes de classes recopiées réinventaient bordures et gris d'un écran à l'autre :
+  c'est ce qui faisait dériver l'ensemble à chaque page ajoutée.
+- **L'accent (`--accent`) ne sert QU'À l'action principale.** Ailleurs, il ment sur ce qui
+  est cliquable.
+- **Navigation en bas sur téléphone** (`components/Navigation.tsx`), en haut à partir de
+  `sm`. `estOngletActif` est pure et testée — un onglet allume sa SECTION, `/` est traité à
+  part. ⚠️ `env(safe-area-inset-bottom)` + `viewportFit: "cover"` : sans eux la barre passe
+  sous la barre de gestes d'Android.
+- **Cibles tactiles ≥ 44 px, champs à 16 px** (en dessous, iOS zoome tout seul).
+- ⚠️ **Pas de police téléchargée.** `next/font/google` va chercher les fichiers AU BUILD :
+  dépendance réseau au déploiement, et tout build hors ligne casse. Les piles système
+  donnent déjà le contraste serif (titres) / sans (texte).
+
 ## Structure `web/`
 
 | Chemin | Rôle |

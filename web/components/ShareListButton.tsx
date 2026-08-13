@@ -73,7 +73,7 @@ export function ShareListButton({ batchName, items }: { batchName: string; items
       >
         Partager la liste (Keep, Notes…)
       </button>
-      <p className="text-center text-xs text-stone-500">
+      <p className="text-center text-xs doux">
         {msg ?? "Dans Keep : ⋮ → « Afficher les cases à cocher » pour une liste cochable."}
       </p>
     </div>

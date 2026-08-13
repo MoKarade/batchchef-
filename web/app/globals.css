@@ -155,4 +155,16 @@ h3 {
   .doux {
     color: var(--texte-doux);
   }
+
+  /* Un avertissement et une erreur ne sont pas des nuances de gris : elles ont leur
+     propre couleur, déclarée UNE fois. Elles étaient recopiées à la main dans huit
+     fichiers, avec des teintes qui ne correspondaient déjà plus entre elles. */
+  .alerte {
+    background-color: var(--alerte-fond);
+    color: var(--alerte-texte);
+  }
+  .erreur {
+    background-color: var(--erreur-fond);
+    color: var(--erreur-texte);
+  }
 }
