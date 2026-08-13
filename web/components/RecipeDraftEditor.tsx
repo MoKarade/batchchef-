@@ -11,7 +11,8 @@ import { IngredientFields, rowToEditable, type EditRow } from "@/components/Ingr
 
 interface Draft {
   title: string;
-  sourceUrl: string | null;
+  /** Chaîne (et non `string | null`) : c'est un champ de saisie, vide = pas de lien. */
+  sourceUrl: string;
   imageUrl: string | null;
   servings: string;
   servingsGuessed: boolean;
@@ -22,7 +23,7 @@ interface Draft {
 function toDraft(r: RecipePreview): Draft {
   return {
     title: r.title,
-    sourceUrl: r.sourceUrl,
+    sourceUrl: r.sourceUrl ?? "",
     imageUrl: r.imageUrl,
     servings: String(r.servings),
     servingsGuessed: r.servingsGuessed,
@@ -51,12 +52,31 @@ export function RecipeDraftEditor({
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
+  /** Colle le lien depuis le presse-papiers — le geste qui suit un « Copier le lien ». */
+  const collerLien = async () => {
+    setError(null);
+    try {
+      const texte = (await navigator.clipboard.readText()).trim();
+      if (!texte) {
+        setError("Le presse-papiers est vide.");
+        return;
+      }
+      setDraft((d) => ({ ...d, sourceUrl: texte }));
+    } catch {
+      // Refus dit, jamais avalé : sinon le bouton semblerait ne rien faire.
+      setError("Le navigateur a refusé l’accès au presse-papiers — colle à la main.");
+    }
+  };
+
   const save = () =>
     startTransition(async () => {
       setError(null);
       const res = await saveImportedRecipe({
         title: draft.title,
-        sourceUrl: draft.sourceUrl,
+        sourceUrl: draft.sourceUrl.trim() || null,
+        // L'origine vient de l'aperçu, pas d'un champ : c'est le chemin d'import qui la
+        // connaît, et le serveur la revérifie de toute façon.
+        origine: preview.origine,
         imageUrl: draft.imageUrl,
         servings: Number(draft.servings) || 1,
         instructions: draft.instructions.trim() || null,
@@ -99,6 +119,36 @@ export function RecipeDraftEditor({
           className="w-full rounded-lg border border-stone-300 bg-white px-2 py-2 dark:border-stone-700 dark:bg-stone-900"
         />
       </label>
+
+      {/* Le lien de la source se saisit ICI et nulle part ailleurs : quand le partage
+          Android démarre l'analyse tout seul, l'écran du formulaire est sauté — Marc ne
+          voyait donc jamais le champ, et la recette finissait sans lien vers sa vidéo. */}
+      <div className="text-sm">
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <span className="text-stone-500">Lien de la source (facultatif)</span>
+          <button
+            type="button"
+            onClick={() => void collerLien()}
+            disabled={pending}
+            className="rounded-lg border border-stone-300 px-3 py-1 text-xs font-medium disabled:opacity-50 dark:border-stone-700"
+          >
+            Coller
+          </button>
+        </div>
+        <input
+          type="url"
+          inputMode="url"
+          value={draft.sourceUrl}
+          onChange={(e) => setDraft({ ...draft, sourceUrl: e.target.value })}
+          disabled={pending}
+          placeholder="https://www.instagram.com/reel/…"
+          className="w-full rounded-lg border border-stone-300 bg-white px-2 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+        />
+        <p className="mt-1 text-xs text-stone-500">
+          Gardé avec la recette pour pouvoir revoir la vidéo plus tard. Rien n’est téléchargé
+          depuis ce lien.
+        </p>
+      </div>
 
       <label className="flex items-center gap-3 text-sm">
         <span className="shrink-0 text-stone-500">Portions de référence</span>

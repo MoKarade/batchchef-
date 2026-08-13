@@ -20,6 +20,12 @@ export const recipes = pgTable("recipes", {
   title: text("title").notNull(),
   /** URL d'origine si importée (n'importe quel site) ; null si saisie manuelle. */
   sourceUrl: text("source_url"),
+  /**
+   * D'où vient la recette : "video" / "page" (apportées par Marc) ou "catalogue".
+   * NULL pour les recettes créées avant cette colonne — on ne devine pas leur provenance,
+   * l'affichage dit alors « origine non enregistrée ». Cf. `lib/origine.ts`.
+   */
+  origine: text("origine"),
   imageUrl: text("image_url"),
   /** Nombre de portions de RÉFÉRENCE des quantités d'ingrédients. */
   servings: integer("servings").notNull().default(4),

@@ -2,7 +2,38 @@
 // bornage des portions) — la garantie « 100 % précis » repose sur cette correction.
 
 import { describe, expect, it } from "vitest";
-import { clampServings, prepareIngredientRows } from "../lib/recipeEdit";
+import { clampServings, normaliserLienSource, prepareIngredientRows } from "../lib/recipeEdit";
+
+describe("normaliserLienSource", () => {
+  it("garde un lien http(s) et le normalise", () => {
+    expect(normaliserLienSource("https://www.instagram.com/reel/abc")).toEqual({
+      lien: "https://www.instagram.com/reel/abc",
+      valide: true,
+    });
+    expect(normaliserLienSource("  http://exemple.test/r  ").lien).toBe("http://exemple.test/r");
+  });
+
+  it("champ vide = pas de lien, et c'est un état NORMAL, pas une erreur", () => {
+    expect(normaliserLienSource("")).toEqual({ lien: null, valide: true });
+    expect(normaliserLienSource(null)).toEqual({ lien: null, valide: true });
+    expect(normaliserLienSource("   ")).toEqual({ lien: null, valide: true });
+  });
+
+  it("refuse tout schéma exécutable — ce lien devient un <a href> sur la page", () => {
+    // Depuis que le lien est ÉDITABLE à l'écran de validation, il n'est plus filtré par le
+    // chemin d'import. Sans cette garde, un « javascript:… » collé par mégarde deviendrait
+    // un lien exécutable sur la page de recette.
+    for (const mauvais of [
+      "javascript:alert(1)",
+      "JavaScript:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+      "file:///etc/passwd",
+      "pas une url",
+    ]) {
+      expect(normaliserLienSource(mauvais)).toEqual({ lien: null, valide: false });
+    }
+  });
+});
 
 describe("clampServings", () => {
   it("borne à un entier 1…50", () => {
