@@ -69,6 +69,14 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
 - **Server-side only.** Fetch, jetons et écritures restent côté serveur ; chaque Server
   Action revérifie la session (`requireSession`).
 - **Unités normalisées** au parse (`lib/units.ts` → g/ml/unite ou null « au goût »).
+- **La source peut être dans une autre langue ; la sortie est toujours française.** Une
+  partie des reels sont en anglais. Deux conséquences non négociables : `lib/units.ts`
+  connaît les unités impériales (cup, oz, lb, tbsp…) — sans elles, TOUTES les quantités
+  d'un reel anglais tombaient en `null` et la liste d'épicerie sortait sans un chiffre,
+  sans une seule erreur affichée ; et le `canonical` est TOUJOURS en français parce que
+  c'est la **clé de regroupement** de la liste (« chicken breast » et « poitrine de
+  poulet » feraient deux lignes qui ne fusionnent jamais). Un contenant sans taille fixe
+  (`can`, `package`, `bunch`) reste `null` : on n'invente pas un poids.
 - **Fonctions pures testées** pour la logique (agrégation, mise à l'échelle, prix, jetons).
 - **Planchers de version, jamais redescendus.** `drizzle-orm ≥ 0.45.2` (injection SQL par
   identifiants mal échappés, GHSA-gpj5-g38j-94v9, HIGH), et les `overrides` de `postcss` et

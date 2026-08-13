@@ -198,6 +198,18 @@ Règles :
 - "imageUrl" : l'URL absolue de la photo principale si évidente dans le texte, sinon null.
 - Tu n'INVENTES rien : ce qui n'est pas dans la page reste null.
 
+⚠️ LA SOURCE PEUT ÊTRE DANS N'IMPORTE QUELLE LANGUE (beaucoup de reels sont en anglais).
+Quoi qu'il arrive, tu réponds en FRANÇAIS :
+- "canonical" est TOUJOURS en français, même si la source dit « chicken breast » ou
+  « all-purpose flour ». C'est la CLÉ de regroupement de la liste d'épicerie : un
+  « chicken breast » anglais et une « poitrine de poulet » française deviendraient deux
+  lignes distinctes qui ne fusionneraient jamais.
+- "title" et "instructions" sont traduits en français.
+- "name" peut garder la formulation de la source si elle est parlante, mais en français
+  de préférence.
+- Les unités restent celles ANNONCÉES ("cup", "oz", "lb", "tbsp"…) : la conversion est
+  faite par le code, pas par toi. Ne convertis JAMAIS toi-même.
+
 Réponds UNIQUEMENT avec l'objet JSON.`;
 
 /** Convertit une page HTML en texte brut borné (le LLM n'a pas besoin du markup). */
@@ -348,6 +360,18 @@ Règles :
   Si un moment de la recette n'est pas montré, ne comble pas le trou.
 - "imageUrl" : toujours null.
 - Tu n'INVENTES rien. Ce que la vidéo et la description ne disent pas reste null.
+
+⚠️ LA SOURCE PEUT ÊTRE DANS N'IMPORTE QUELLE LANGUE (beaucoup de reels sont en anglais).
+Quoi qu'il arrive, tu réponds en FRANÇAIS :
+- "canonical" est TOUJOURS en français, même si la source dit « chicken breast » ou
+  « all-purpose flour ». C'est la CLÉ de regroupement de la liste d'épicerie : un
+  « chicken breast » anglais et une « poitrine de poulet » française deviendraient deux
+  lignes distinctes qui ne fusionneraient jamais.
+- "title" et "instructions" sont traduits en français.
+- "name" peut garder la formulation de la source si elle est parlante, mais en français
+  de préférence.
+- Les unités restent celles ANNONCÉES ("cup", "oz", "lb", "tbsp"…) : la conversion est
+  faite par le code, pas par toi. Ne convertis JAMAIS toi-même.
 
 Réponds UNIQUEMENT avec l'objet JSON.`;
 
