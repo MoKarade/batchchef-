@@ -1,18 +1,158 @@
 @import "tailwindcss";
 
-/* Mobile-first : l'écran principal est un téléphone à l'épicerie. Cibles tactiles
-   généreuses, contrastes nets, thème clair/sombre via prefers-color-scheme. */
+/* ─────────────────────────────────────────────────────────────────────────────
+   BatchChef — socle visuel.
+
+   Direction assumée (décision de Marc, 13/08/2026) : une identité d'APP DE CUISINE,
+   pas un tableau de bord. Les deux écrans les plus utilisés — la liste d'épicerie et
+   une recette — se lisent DEBOUT, une main occupée, parfois sous les néons d'un
+   supermarché. Tout part de là : contraste franc, cibles larges, hiérarchie nette.
+
+   ⚠️ Pas de police téléchargée. `next/font/google` va chercher les fichiers au BUILD :
+   ça ajoute une dépendance réseau à un déploiement, et ça casserait tout build hors
+   ligne. Les piles système donnent déjà le contraste serif/sans qui fait l'identité,
+   pour zéro octet et zéro requête.
+
+   Les couleurs vivent en VARIABLES et nulle part ailleurs. Avant, 288 chaînes de
+   classes recopiées réinventaient bordures et gris d'un écran à l'autre : c'est ce qui
+   faisait dériver l'ensemble dès qu'on ajoutait une page.
+   ───────────────────────────────────────────────────────────────────────────── */
 
 :root {
-  --accent: #c2410c; /* orange cuisine — même couleur que le widget hub */
-}
+  /* Fonds et surfaces — blanc cassé chaud plutôt que gris froid. */
+  --fond: #faf8f5;
+  --surface: #ffffff;
+  --surface-douce: #f5f1ec;
+  --bordure: #e5ded4;
 
-body {
-  @apply bg-stone-50 text-stone-900 antialiased;
+  /* Textes. `--texte-doux` vise 7:1 sur `--surface` : l'ancien gris clair était
+     illisible en plein jour, et c'est exactement la situation d'usage. */
+  --texte: #1c1917;
+  --texte-doux: #57534e;
+
+  /* L'accent ne sert QU'À l'action principale. Partout ailleurs, il ment sur ce qui
+     est cliquable. */
+  --accent: #c2410c;
+  --accent-fonce: #9a3412;
+  --accent-doux: #fff1e9;
+  --sur-accent: #ffffff;
+
+  /* Sémantique — un seul endroit pour « ça va » / « attention ». */
+  --alerte-fond: #fef3c7;
+  --alerte-texte: #78350f;
+  --erreur-fond: #fee2e2;
+  --erreur-texte: #991b1b;
+
+  --rayon: 1rem;
+  --ombre: 0 1px 2px rgb(28 25 23 / 0.06), 0 4px 12px rgb(28 25 23 / 0.04);
+
+  --police-titre: ui-serif, Georgia, "Times New Roman", serif;
+  --police-texte: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
-  body {
-    @apply bg-stone-950 text-stone-100;
+  :root {
+    --fond: #12100e;
+    --surface: #1c1917;
+    --surface-douce: #262220;
+    --bordure: #332e2a;
+
+    --texte: #f5f5f4;
+    --texte-doux: #b3aca5;
+
+    /* Un orange plus clair : le ton de jour n'a pas assez de contraste sur fond noir. */
+    --accent: #f97316;
+    --accent-fonce: #ea580c;
+    --accent-doux: #2a1a10;
+    --sur-accent: #1c1917;
+
+    --alerte-fond: #3a2a08;
+    --alerte-texte: #fcd34d;
+    --erreur-fond: #3f1618;
+    --erreur-texte: #fca5a5;
+
+    --ombre: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 12px rgb(0 0 0 / 0.3);
+  }
+}
+
+body {
+  background-color: var(--fond);
+  color: var(--texte);
+  font-family: var(--police-texte);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Les titres portent l'identité « cuisine » : c'est le seul endroit où le serif sert. */
+h1,
+h2,
+h3 {
+  font-family: var(--police-titre);
+  letter-spacing: -0.01em;
+}
+
+/* Le contour de focus est une fonctionnalité, pas une verrue : l'app se navigue aussi
+   au clavier, et un contour retiré ne se remarque que par celui qui en a besoin. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@layer components {
+  /* Une surface posée sur le fond. Un seul endroit pour la bordure, l'arrondi et l'ombre. */
+  .carte {
+    background-color: var(--surface);
+    border: 1px solid var(--bordure);
+    border-radius: var(--rayon);
+    box-shadow: var(--ombre);
+  }
+
+  /* Cibles tactiles : 44 px de haut minimum, la main est souvent occupée. */
+  .bouton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.625rem 1rem;
+    border-radius: 0.75rem;
+    font-weight: 500;
+    font-size: 0.9375rem;
+    transition: background-color 120ms ease;
+  }
+  .bouton:disabled {
+    opacity: 0.5;
+  }
+
+  .bouton-principal {
+    background-color: var(--accent);
+    color: var(--sur-accent);
+  }
+  .bouton-principal:hover:not(:disabled) {
+    background-color: var(--accent-fonce);
+  }
+
+  .bouton-second {
+    background-color: var(--surface);
+    color: var(--texte);
+    border: 1px solid var(--bordure);
+  }
+  .bouton-second:hover:not(:disabled) {
+    background-color: var(--surface-douce);
+  }
+
+  .champ {
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.625rem 0.75rem;
+    background-color: var(--surface);
+    color: var(--texte);
+    border: 1px solid var(--bordure);
+    border-radius: 0.75rem;
+    font-size: 1rem; /* 16 px : en dessous, iOS zoome tout seul à la mise au point. */
+  }
+
+  .doux {
+    color: var(--texte-doux);
   }
 }
