@@ -21,7 +21,12 @@ import { parseRecipeFromVideo, type RecipePreview } from "@/lib/actions";
 import { RecipeDraftEditor } from "@/components/RecipeDraftEditor";
 import { captureFrames, reduireImage, type EtapeCapture } from "@/lib/video/capture";
 import { extraireAudio } from "@/lib/audio/extraction";
-import { MAX_TOTAL_BASE64_BYTES, base64Bytes, repartirBudget } from "@/lib/video/frames";
+import {
+  MAX_TOTAL_BASE64_BYTES,
+  base64Bytes,
+  choisirVignette,
+  repartirBudget,
+} from "@/lib/video/frames";
 
 type Phase =
   | { kind: "idle" }
@@ -72,6 +77,7 @@ export function ImportVideoForm({
   const [captures, setCaptures] = useState<File[]>(capturesInitiales);
   const [preview, setPreview] = useState<RecipePreview | null>(null);
   const [lu, setLu] = useState<Lu | null>(null);
+  const [vignettes, setVignettes] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const dejaLance = useRef(false);
@@ -82,6 +88,7 @@ export function ImportVideoForm({
   const reset = () => {
     setPreview(null);
     setLu(null);
+    setVignettes([]);
   };
 
   /** Colle la description depuis le presse-papiers (le geste après un « Copier » dans Instagram). */
@@ -109,6 +116,7 @@ export function ImportVideoForm({
     let distincts = 0;
     let transcript = "";
     let audio: string | null = null;
+    let vignettesVideo: string[] = [];
 
     try {
       // 1. Les captures d'abord : elles portent le texte, donc les quantités.
@@ -130,6 +138,7 @@ export function ImportVideoForm({
           MAX_TOTAL_BASE64_BYTES - utilise,
         );
         frames = capture.frames;
+        vignettesVideo = capture.vignettes;
         ecartees += capture.dropped;
         sondes = capture.sondes;
         distincts = capture.distincts;
@@ -197,7 +206,15 @@ export function ImportVideoForm({
         distincts,
         audio,
       });
-      setPreview(res.recipe);
+      setVignettes(vignettesVideo);
+      // Une recette tirée d'un reel n'a pas d'URL d'image : le prompt force imageUrl à null.
+      // On lui donne un VRAI plan de la vidéo, choisi au milieu par défaut et modifiable.
+      const parDefaut = choisirVignette(vignettesVideo.length);
+      setPreview(
+        parDefaut >= 0
+          ? { ...res.recipe, imageUrl: vignettesVideo[parDefaut] ?? null }
+          : res.recipe,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -220,6 +237,7 @@ export function ImportVideoForm({
     return (
       <RecipeDraftEditor
         preview={preview}
+        vignettes={vignettes}
         onCancel={reset}
         hint={
           <p className="text-xs text-stone-500">

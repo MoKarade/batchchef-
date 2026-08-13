@@ -8,6 +8,7 @@ import {
   MAX_ECHANTILLONS,
   SEUIL_QUASI_IDENTIQUE,
   base64Bytes,
+  choisirVignette,
   distanceEmpreintes,
   ecarterQuasiIdentiques,
   echantillonnerInstants,
@@ -237,5 +238,20 @@ describe("isLikelyBase64 / base64Bytes", () => {
 
   it("mesure la chaîne transmise, pas le binaire décodé", () => {
     expect(base64Bytes("YWJjZA==")).toBe(8);
+  });
+});
+
+describe("choisirVignette", () => {
+  it("propose le MILIEU : ni le titre du début, ni le logo de la fin", () => {
+    // Sur un enregistrement d'écran, la fin est souvent la légende défilante — une photo
+    // de recette qui ne montrerait que du texte.
+    expect(choisirVignette(5)).toBe(2);
+    expect(choisirVignette(4)).toBe(1);
+    expect(choisirVignette(1)).toBe(0);
+  });
+
+  it("aucune vignette → aucun choix (jamais l'index 0 d'un tableau vide)", () => {
+    expect(choisirVignette(0)).toBe(-1);
+    expect(choisirVignette(-3)).toBe(-1);
   });
 });

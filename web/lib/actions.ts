@@ -15,6 +15,7 @@ import { MAX_TRANSCRIPT_CHARS } from "@/lib/transcription";
 import { estOrigine, type OrigineRecette } from "@/lib/origine";
 import {
   clampServings,
+  normaliserImage,
   normaliserLienSource,
   prepareIngredientRows,
   type EditableIngredient,
@@ -223,7 +224,9 @@ export async function saveImportedRecipe(input: {
         // écrite telle quelle : l'affichage ne doit jamais attribuer à Marc une recette
         // dont on ne sait rien.
         origine: estOrigine(input.origine) ? input.origine : null,
-        imageUrl: input.imageUrl,
+        // Photo : http(s) d'un site, ou vignette embarquée tirée de la vidéo. Bornée et
+        // filtrée ici — elle devient un <img src> sur la page de recette.
+        imageUrl: normaliserImage(input.imageUrl),
         servings,
         instructions: input.instructions,
       })

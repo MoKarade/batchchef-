@@ -39,10 +39,19 @@ function toDraft(r: RecipePreview): Draft {
 
 export function RecipeDraftEditor({
   preview,
+  vignettes = [],
   onCancel,
   hint,
 }: {
   preview: RecipePreview;
+  /**
+   * Écrans de la vidéo proposés comme PHOTO de la recette.
+   *
+   * Le prompt vidéo force `imageUrl` à null : sans ça, toute recette venue d'un reel
+   * arrivait sans image et la bibliothèque était une grille de rectangles gris. Ce ne sont
+   * pas des illustrations génériques — ce sont de vrais plans de SA vidéo.
+   */
+  vignettes?: string[];
   onCancel: () => void;
   /** Message de contexte propre à la source (ex. nombre d'images lues). */
   hint?: ReactNode;
@@ -107,6 +116,60 @@ export function RecipeDraftEditor({
           Analyse relue par le LLM. Corrige le titre, les portions ou une quantité si besoin —
           c’est ce que tu valides qui est enregistré.
         </p>
+      )}
+
+      {/* La photo, en premier : c'est ce qu'on voit d'abord dans la bibliothèque. */}
+      {(draft.imageUrl || vignettes.length > 0) && (
+        <div className="space-y-2">
+          {draft.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={draft.imageUrl}
+              alt="Photo choisie pour la recette"
+              className="aspect-video w-full rounded-xl object-cover"
+            />
+          ) : (
+            <p className="rounded-xl border border-dashed p-4 text-center text-xs doux" style={{ borderColor: "var(--bordure)" }}>
+              Aucune photo — la recette s’affichera sans image.
+            </p>
+          )}
+          {vignettes.length > 0 && (
+            <>
+              <p className="text-xs doux">
+                Photo de la recette — choisis un autre moment de la vidéo si celui-ci ne dit rien.
+              </p>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {vignettes.map((vignette, i) => {
+                  const actif = draft.imageUrl === vignette;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setDraft({ ...draft, imageUrl: vignette })}
+                      disabled={pending}
+                      aria-label={`Écran ${i + 1}`}
+                      aria-pressed={actif}
+                      className="shrink-0 overflow-hidden rounded-lg border-2"
+                      style={{ borderColor: actif ? "var(--accent)" : "var(--bordure)" }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={vignette} alt="" className="h-14 w-20 object-cover" />
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => setDraft({ ...draft, imageUrl: null })}
+                  disabled={pending}
+                  className="shrink-0 rounded-lg border-2 px-3 text-xs doux"
+                  style={{ borderColor: draft.imageUrl ? "var(--bordure)" : "var(--accent)" }}
+                >
+                  Sans photo
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       <label className="block text-sm">
