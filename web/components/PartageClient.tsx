@@ -134,12 +134,24 @@ export function PartageClient({ erreurWorker }: { erreurWorker: boolean }) {
   return (
     <div className="space-y-3">
       {sansContenu && (
-        <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-          Instagram n’a partagé que le lien — ni la vidéo, ni la légende. C’est sa limite, pas
-          celle de BatchChef. Trois façons de lui donner le contenu : appuie longuement sur la
-          légende → Copier, puis « Coller » ci-dessous ; ou fais une capture d’écran de la
-          légende et ajoute-la ; ou enregistre la vidéo et repartage-la depuis la galerie.
-        </p>
+        <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          <p className="font-medium">Instagram n’a partagé que le lien.</p>
+          <p className="mt-1">
+            Ni la vidéo, ni la légende : c’est sa limite, et elle vaut pour toute app. Deux
+            façons de donner le contenu à BatchChef :
+          </p>
+          <ol className="mt-2 list-decimal space-y-1 pl-5">
+            <li>
+              <strong>Captures d’écran</strong> — capture la légende, et les moments de la vidéo
+              où les quantités s’affichent. Partage-les depuis la Galerie (ou la notification de
+              capture) : le texte y sera lu.
+            </li>
+            <li>
+              <strong>Copier la légende</strong> — appui long sur le texte du reel → Copier, puis
+              le bouton « Coller » ci-dessous.
+            </li>
+          </ol>
+        </div>
       )}
       <ImportVideoForm
         lienInitial={recu.lien ?? ""}

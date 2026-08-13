@@ -170,8 +170,9 @@ export function ImportVideoForm({
       <div>
         <h2 className="font-semibold">Depuis une vidéo</h2>
         <p className="mt-1 text-xs text-stone-500">
-          Dépose la vidéo, des captures d’écran de la légende, colle le texte — ou tout à la
-          fois. Tout est lu dans ton navigateur : rien n’est envoyé tel quel.
+          Des captures d’écran suffisent — Instagram ne laisse pas enregistrer la vidéo de la
+          plupart des reels. Ajoute la vidéo si tu l’as, colle le texte si tu peux le copier.
+          Tout est lu dans ton navigateur : rien n’est envoyé tel quel.
         </p>
       </div>
 
@@ -205,7 +206,7 @@ export function ImportVideoForm({
 
       <div className="text-sm">
         <span className="mb-1 block text-stone-500">
-          Captures d’écran de la légende (quand le texte ne se copie pas)
+          Captures d’écran — la légende, et les moments où les quantités s’affichent
         </span>
         <input
           type="file"

@@ -21,10 +21,16 @@ export const JPEG_QUALITY = 0.72;
 export const MAX_TOTAL_BASE64_BYTES = 3_000_000;
 
 /**
- * Captures d'écran maximum acceptées en une fois (la légende d'un reel tient en 2-3 écrans).
- * Ce sont des images fournies telles quelles, pas extraites d'une vidéo.
+ * Captures d'écran maximum acceptées en une fois. Ce sont des images fournies telles
+ * quelles, pas extraites d'une vidéo.
+ *
+ * Relevé de 4 à 8 le 2026-08-13 : le plafond initial supposait que les captures COMPLÈTENT
+ * la vidéo (« la légende tient en 2-3 écrans »). Or Instagram ne laisse pas enregistrer la
+ * vidéo de la plupart des reels — les captures deviennent donc le chemin PRINCIPAL, et il
+ * leur faut de la place pour la légende ET les moments où les quantités s'affichent.
+ * Coût : 8 captures réduites ≈ 640 Ko de base64, soit un cinquième du budget total.
  */
-export const MAX_CAPTURES = 4;
+export const MAX_CAPTURES = 8;
 
 /** Durée minimale d'une vidéo exploitable (s). En dessous, il n'y a rien à échantillonner. */
 const MIN_DURATION_SEC = 0.5;
