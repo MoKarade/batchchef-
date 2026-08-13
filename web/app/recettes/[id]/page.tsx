@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { DeleteRecipeButton } from "@/components/DeleteRecipeButton";
 import { RecipeEditor } from "@/components/RecipeEditor";
+import { ajouteeParMarc, formatDateAjout, libelleOrigine } from "@/lib/origine";
 
 export const dynamic = "force-dynamic";
 
@@ -32,13 +33,29 @@ export default async function RecipeDetailPage({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold">{recipe.title}</h1>
-          {recipe.sourceUrl && (
-            <p className="mt-1 text-sm text-stone-500">
-              <a href={recipe.sourceUrl} target="_blank" rel="noreferrer noopener" className="underline">
-                source
-              </a>
-            </p>
-          )}
+          {/* D'où vient cette recette : la bibliothèque mélange ce que Marc a apporté et
+              ce qu'il a pioché dans le catalogue de 10 188 recettes. Une origine absente
+              (recettes antérieures à la colonne) se DIT, elle ne se devine pas. */}
+          <p className="mt-1 text-sm text-stone-500">
+            {libelleOrigine(recipe.origine)}
+            {" · "}
+            <time dateTime={recipe.createdAt.toISOString()}>
+              {formatDateAjout(recipe.createdAt)}
+            </time>
+            {recipe.sourceUrl && (
+              <>
+                {" · "}
+                <a
+                  href={recipe.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="underline"
+                >
+                  {ajouteeParMarc(recipe.origine) ? "revoir la source" : "source"}
+                </a>
+              </>
+            )}
+          </p>
         </div>
         <DeleteRecipeButton recipeId={recipe.id} />
       </div>

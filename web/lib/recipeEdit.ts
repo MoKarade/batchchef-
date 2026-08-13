@@ -17,6 +17,33 @@ export interface PreparedIngredient {
   note: string | null;
 }
 
+/**
+ * Normalise le lien de source saisi par Marc, ou rend `null`.
+ *
+ * ⚠️ Ce lien devient un `<a href>` sur la page de recette. Depuis qu'il est ÉDITABLE à
+ * l'écran de validation, il n'est plus filtré par le chemin d'import qui le validait en
+ * amont : sans cette garde, un `javascript:…` collé par mégarde deviendrait un lien
+ * exécutable. Seuls http et https passent — même règle que côté partage.
+ *
+ * Une chaîne vide rend `null` (pas de lien), ce qui est un état normal, pas une erreur.
+ */
+export function normaliserLienSource(valeur: string | null | undefined): {
+  lien: string | null;
+  valide: boolean;
+} {
+  const brut = (valeur ?? "").trim();
+  if (!brut) return { lien: null, valide: true };
+  try {
+    const parsed = new URL(brut);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return { lien: null, valide: false };
+    }
+    return { lien: parsed.toString(), valide: true };
+  } catch {
+    return { lien: null, valide: false };
+  }
+}
+
 /** Borne le nombre de portions de référence à un entier valide (1…50). */
 export function clampServings(n: number): number {
   if (!Number.isFinite(n)) return 1;

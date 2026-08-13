@@ -58,7 +58,11 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
 - **Un chiffre par défaut se DIT.** Une vidéo n'annonce presque jamais ses portions ; le
   défaut 4 est affiché comme un défaut à corriger (`servingsGuessed`), parce que toutes les
   quantités de la liste d'épicerie sont mises à l'échelle à partir de lui. Même règle pour
-  tout futur champ qu'on remplirait faute de source.
+  tout futur champ qu'on remplirait faute de source. Idem pour la **provenance**
+  (`lib/origine.ts`) : la bibliothèque mélange ce que Marc a apporté et ce qu'il a pioché
+  dans le catalogue de 10 188 recettes, et une origine absente rend « Origine non
+  enregistrée » — jamais « ajoutée par toi », qui lui attribuerait des recettes qu'il n'a
+  jamais choisies.
 - **Le coût publié au hub suit le modèle RÉELLEMENT appelé.** Deux modèles cohabitent
   (texte Haiku, vision Sonnet) : `lib/llmUsage.ts` tarife par modèle. Ajouter une ligne à sa
   table dès qu'un nouveau modèle est utilisé, sinon son coût est compté au tarif d'Haiku.

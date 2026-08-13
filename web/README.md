@@ -158,6 +158,21 @@ n'existe pas de transcription gratuite côté serveur dans cette stack.
 valeur reste 4 mais l'écran de validation l'affiche comme un **défaut à corriger**, pas comme
 une donnée — toutes les quantités de la liste d'épicerie en dépendent.
 
+**Le lien de la source se saisit à l'écran de validation.** Un partage depuis la Galerie
+(l'enregistrement d'écran) n'apporte aucune URL, et le démarrage automatique saute le
+formulaire : le champ vit donc sur l'écran de validation, avec un bouton **« Coller »** pour
+l'adresse du reel copiée depuis Instagram. Il est enregistré avec la recette pour pouvoir
+revoir la vidéo plus tard — **rien n'est téléchargé depuis ce lien**. Comme il est
+désormais éditable, il est revalidé côté serveur (`normaliserLienSource`) : http/https
+uniquement, parce qu'il devient un `<a href>` sur la page de recette.
+
+**Provenance.** La bibliothèque mélange deux choses : les recettes que tu as apportées
+(vidéo, page web) et celles piochées dans le catalogue. La colonne `origine` les distingue,
+et la page de recette l'affiche avec la date d'ajout — « Ajoutée par toi, depuis une vidéo ·
+13 août 2026 ». Les recettes créées avant cette colonne affichent « Origine non
+enregistrée » : on ne devine pas une provenance qu'on n'a pas enregistrée. La date est
+rendue dans le fuseau du Québec, pas celui du serveur.
+
 **Modèle et coût.** La lecture d'images tourne sur un modèle vision
 (`BATCHCHEF_LLM_MODEL_VISION`, défaut `claude-sonnet-5`) alors que le parse texte reste sur
 Haiku (`BATCHCHEF_LLM_MODEL`). Le coût publié au hub applique le tarif **du modèle
