@@ -44,6 +44,33 @@ export function normaliserLienSource(valeur: string | null | undefined): {
   }
 }
 
+/** Taille maximale d'une photo de recette embarquée (data: URL). ~40 Ko attendus. */
+export const MAX_IMAGE_OCTETS = 300_000;
+
+/**
+ * Normalise la photo d'une recette : URL http(s) d'un site, ou image EMBARQUÉE en data:
+ * (la vignette tirée d'une vidéo, qui n'a pas d'URL puisqu'elle n'existe nulle part ailleurs).
+ *
+ * ⚠️ Cette valeur devient un `<img src>`. Elle vient soit d'un modèle, soit du client :
+ * aucune des deux n'est de confiance. On n'accepte donc QUE http(s) et data:image, et on
+ * borne la taille — une data: URL non bornée est un moyen simple de faire grossir la base
+ * sans que personne ne s'en aperçoive.
+ */
+export function normaliserImage(valeur: string | null | undefined): string | null {
+  const brut = (valeur ?? "").trim();
+  if (!brut) return null;
+  if (/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(brut)) {
+    return brut.length <= MAX_IMAGE_OCTETS ? brut : null;
+  }
+  try {
+    const parsed = new URL(brut);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 /** Borne le nombre de portions de référence à un entier valide (1…50). */
 export function clampServings(n: number): number {
   if (!Number.isFinite(n)) return 1;
