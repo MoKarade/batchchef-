@@ -10,6 +10,7 @@ import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import type { JWT } from "next-auth/jwt";
 import { isAuthorizedEmail } from "@/lib/authorized";
+import { cookiesSessionPartagee } from "@/lib/sessionPartagee";
 
 export const TASKS_SCOPE = "https://www.googleapis.com/auth/tasks";
 
@@ -62,6 +63,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   session: { strategy: "jwt" },
+  // ── CONNEXION UNIQUE ENTRE LES APPS DU HUB ───────────────────────────────────────
+  // Avec `AUTH_COOKIE_DOMAIN=.hubperso.com`, le cookie de session est déclaré sur le
+  // domaine parent : le navigateur l'envoie à TOUS les sous-domaines. Combiné à un
+  // `AUTH_SECRET` IDENTIQUE dans chaque app (le JWT est chiffré avec — sans le même
+  // secret, l'app reçoit le cookie mais n'en tire rien), se connecter à une app vaut
+  // pour toutes. Corollaire assumé : une DÉCONNEXION vaut aussi pour toutes.
+  //
+  // ⚠️ BatchChef est la seule app à ne PAS être encore sous `hubperso.com` : tant
+  // qu'elle sert `batchchef-glu8-chi.vercel.app`, un cookie de domaine parent y serait
+  // rejeté et la variable doit rester vide. C'est sans danger — variable non définie ⇒
+  // comportement natif, cookie limité à l'hôte. Voir `lib/sessionPartagee.ts`.
+  //
+  // ⚠️ Le JWT de BatchChef porte, LUI, les jetons Google (accès + rafraîchissement,
+  // scope Tasks). Les partager entre sous-domaines est le but recherché — c'est ce qui
+  // évite un second consentement — mais ça élève l'enjeu du cookie : voir la
+  // revérification d'adresse dans `jwt` plus bas.
+  cookies: cookiesSessionPartagee(process.env.AUTH_COOKIE_DOMAIN),
   // Requis en local/self-hosted (sinon UntrustedHost) ; sans risque, les redirect URIs
   // sont verrouillés côté Google.
   trustHost: true,
@@ -70,7 +88,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn({ user }) {
       return isAuthorizedEmail(user?.email, process.env.AUTHORIZED_EMAIL);
     },
-    async jwt({ token, account }) {
+    async jwt({ token, account, user }) {
+      // ⚠️ REVÉRIFICATION À CHAQUE LECTURE — c'est la contrepartie du cookie partagé.
+      //
+      // `signIn` ne tourne qu'à la CONNEXION. Le cookie devenant lisible par tous les
+      // sous-domaines, BatchChef accepterait sans broncher une session fabriquée par
+      // une autre app du hub. Aujourd'hui c'est cohérent — les apps partagent la même
+      // AUTHORIZED_EMAIL — mais ça ne l'est que par coïncidence de configuration.
+      //
+      // L'enjeu est plus élevé ici qu'ailleurs : ce jeton porte l'accès Google Tasks
+      // ET le refresh_token. Renvoyer `null` INVALIDE la session (Auth.js v5), donc
+      // aucune Server Action ne peut lire le jeton. Ce contrôle vient AVANT tout le
+      // reste : ne rafraîchissons pas un jeton pour une session qu'on va refuser.
+      if (user?.email) token.email = user.email;
+      if (!isAuthorizedEmail(token.email, process.env.AUTHORIZED_EMAIL)) return null;
+
       // Connexion initiale : on capture les jetons Google.
       if (account) {
         token.accessToken = account.access_token;
