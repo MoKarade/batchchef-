@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { Analytics } from "@vercel/analytics/next";
 import { SignOutButton } from "@/components/AuthButtons";
 import { EnregistrerServiceWorker } from "@/components/EnregistrerServiceWorker";
 import "./globals.css";
@@ -57,6 +58,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </header>
         <main className="mx-auto max-w-3xl px-3 py-5">{children}</main>
         <EnregistrerServiceWorker />
+        <Analytics />
       </body>
     </html>
   );
