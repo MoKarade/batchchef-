@@ -45,24 +45,97 @@ function extractJson(text: string): unknown {
 // normalisation vers g/ml/unite est faite APRÈS, en code (`normalizeQty`) — on ne compte
 // pas sur le LLM pour normaliser parfaitement (il glisse toujours), ce qui rendait l'import
 // fragile (un « c. à soupe » ou une clé `note` omise faisait planter tout l'import).
+/** Clés sous lesquelles un modèle range le texte quand il rend une étape en OBJET. */
+const CLES_TEXTE = ["text", "texte", "instruction", "etape", "step", "description", "value"];
+
+/** Un élément de liste ramené à du texte, ou `null` s'il n'est pas réductible honnêtement. */
+function elementEnTexte(element: unknown): string | null {
+  if (typeof element === "string") return element;
+  if (typeof element === "number" && Number.isFinite(element)) return String(element);
+  if (element && typeof element === "object") {
+    for (const cle of CLES_TEXTE) {
+      const valeur = (element as Record<string, unknown>)[cle];
+      if (typeof valeur === "string" && valeur.trim()) return valeur;
+    }
+  }
+  return null;
+}
+
+/**
+ * Ramène à du texte une valeur que le modèle a pu rendre en LISTE.
+ *
+ * Vécu le 13/08/2026 : demandées « numérotées, une par ligne », les instructions sont
+ * revenues en tableau — Zod a refusé toute la recette après un appel vision déjà payé.
+ * C'est une variation de FORME, pas une donnée douteuse : la recette était bonne.
+ *
+ * ⚠️ Si un seul élément n'est pas réductible en texte, on rend la valeur d'ORIGINE : le
+ * schéma la refusera avec son message. Fabriquer un « [object Object] » serait pire que
+ * l'erreur — ce serait de la fausse donnée présentée comme une étape de recette.
+ */
+export function aplatirTexte(valeur: unknown, separateur = "\n"): unknown {
+  if (!Array.isArray(valeur)) return valeur;
+  const lignes = valeur.map(elementEnTexte);
+  if (lignes.some((l) => l === null)) return valeur;
+  return lignes.join(separateur);
+}
+
+/**
+ * Un nombre rendu en CHAÎNE (« 4 », « 2,5 ») redevient un nombre.
+ *
+ * Strictement numérique : « environ 4 » ou « 1/2 » ne sont PAS convertis et le schéma les
+ * refuse. Deviner y serait plus grave qu'ailleurs — `servings` met à l'échelle toutes les
+ * quantités de la liste d'épicerie, et `qty` EST la quantité.
+ */
+export function aplatirNombre(valeur: unknown): unknown {
+  if (typeof valeur !== "string") return valeur;
+  const brut = valeur.trim();
+  if (!/^\d+([.,]\d+)?$/.test(brut)) return valeur;
+  return Number(brut.replace(",", "."));
+}
+
 export const RawParsedRecipeSchema = z.object({
   title: z.string().min(1).max(200),
-  servings: z.number().int().min(1).max(50).nullish(),
+  servings: z.preprocess(aplatirNombre, z.number().int().min(1).max(50).nullish()),
   imageUrl: z.string().url().nullish(),
-  instructions: z.string().max(20000).nullish(),
+  instructions: z.preprocess((v) => aplatirTexte(v, "\n"), z.string().max(20000).nullish()),
   ingredients: z
     .array(
       z.object({
         name: z.string().min(1).max(120),
         canonical: z.string().min(1).max(80).nullish(),
-        qty: z.number().positive().nullish(),
+        qty: z.preprocess(aplatirNombre, z.number().positive().nullish()),
         unit: z.string().max(30).nullish(),
-        note: z.string().max(200).nullish(),
+        note: z.preprocess((v) => aplatirTexte(v, ", "), z.string().max(200).nullish()),
       }),
     )
     .min(1)
     .max(80),
 });
+
+/**
+ * Décrit un refus de schéma en NOMMANT le champ fautif.
+ *
+ * Le message brut de Zod (« Expected string, received array ») ne dit pas OÙ : on ne peut
+ * ni corriger, ni même savoir quel champ soupçonner. Vécu le 13/08 — un aller-retour entier
+ * perdu à deviner. Trois issues suffisent à situer le problème ; le reste est compté.
+ */
+export function decrireIssuesZod(erreur: z.ZodError, max = 3): string {
+  const vues = erreur.issues.slice(0, max).map((issue) => {
+    const chemin = issue.path.length > 0 ? issue.path.join(".") : "(racine)";
+    return `${chemin} : ${issue.message}`;
+  });
+  const reste = erreur.issues.length - vues.length;
+  return vues.join(" · ") + (reste > 0 ? ` (+${reste} autre(s))` : "");
+}
+
+/** Valide la sortie du modèle et la normalise, ou échoue en DISANT quel champ cloche. */
+export function analyserSortieRecette(brut: unknown): ParsedRecipe {
+  const resultat = RawParsedRecipeSchema.safeParse(brut);
+  if (!resultat.success) {
+    throw new Error(`Réponse du modèle hors schéma — ${decrireIssuesZod(resultat.error)}`);
+  }
+  return normalizeParsedRecipe(resultat.data);
+}
 
 /** Recette NORMALISÉE (unités en g/ml/unite) — le format consommé par le reste de l'app. */
 export interface ParsedIngredient {
@@ -153,7 +226,7 @@ export async function parseRecipeFromPage(pageText: string): Promise<ParsedRecip
   void recordLlmUsage("parse", response.usage, MODEL);
   const block = response.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") throw new Error("Réponse LLM vide.");
-  return normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text)));
+  return analyserSortieRecette(extractJson(block.text));
 }
 
 const VERIFY_SYSTEM = `Tu es un vérificateur de recettes minutieux. On te donne le TEXTE d'une page de
@@ -207,7 +280,7 @@ export async function verifyParsedRecipe(pageText: string, draft: ParsedRecipe):
     void recordLlmUsage("verify", response.usage, MODEL);
     const block = response.content.find((b) => b.type === "text");
     if (!block || block.type !== "text") return draft;
-    return preserveGuessFlag(draft, normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text))));
+    return preserveGuessFlag(draft, analyserSortieRecette(extractJson(block.text)));
   } catch {
     return draft; // la vérification ne doit jamais bloquer l'import
   }
@@ -334,7 +407,7 @@ export async function parseRecipeFromMedia(input: MediaInput): Promise<ParsedRec
   void recordLlmUsage("video", response.usage, VISION_MODEL);
   const block = response.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") throw new Error("Réponse LLM vide.");
-  return normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text)));
+  return analyserSortieRecette(extractJson(block.text));
 }
 
 const CAPTION_VERIFY_SYSTEM = `Tu vérifies une recette extraite d'une VIDÉO contre la DESCRIPTION publiée avec elle.
@@ -379,7 +452,7 @@ export async function verifyRecipeAgainstCaption(
     void recordLlmUsage("verify", response.usage, VISION_MODEL);
     const block = response.content.find((b) => b.type === "text");
     if (!block || block.type !== "text") return draft;
-    return preserveGuessFlag(draft, normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text))));
+    return preserveGuessFlag(draft, analyserSortieRecette(extractJson(block.text)));
   } catch {
     return draft;
   }

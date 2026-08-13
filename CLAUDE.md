@@ -26,6 +26,15 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   la voie normale est l'**enregistrement d'écran** que Marc produit lui-même (un seul fichier
   porte les gestes, les quantités affichées ET la légende dépliée), avec en repli les
   captures d'écran et le texte collé.
+- **Le schéma tolère la FORME, jamais le FOND — et un refus NOMME le champ.** Un modèle
+  varie dans la façon de rendre (instructions en tableau plutôt qu'en texte, nombre en
+  chaîne) : ces variations sont normalisées (`aplatirTexte`, `aplatirNombre`), sinon une
+  recette juste est jetée après un appel vision déjà payé. Mais on ne devine JAMAIS le fond :
+  « environ 4 » ne devient pas `4` (toutes les quantités de l'épicerie s'échelonnent sur
+  `servings`), et une étape non réductible en texte fait échouer plutôt que de produire un
+  « [object Object] » présenté comme une consigne. Tout refus passe par
+  `analyserSortieRecette`, qui dit QUEL champ cloche — le message brut de Zod (« Expected
+  string, received array ») ne le dit pas, et coûte un aller-retour entier à deviner.
 - **Un service worker n'intercepte QUE des navigations.** Une Server Action de Next POSTe
   vers l'URL de la page COURANTE : depuis `/partage`, l'analyse poste donc elle aussi vers
   `/partage`. Un worker qui teste « POST + bon chemin » l'avale et répond une redirection
