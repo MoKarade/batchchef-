@@ -1,5 +1,11 @@
-// /courses/[id] — LA liste d'épicerie, pensée téléphone en magasin : plein écran,
-// grosses cibles tactiles, cochage optimiste.
+// /courses/[id] — LA liste d'épicerie, pensée téléphone en magasin.
+//
+// ⚠️ ORDRE VOULU, et c'est le cœur de la refonte du 13/08/2026 : la LISTE d'abord, ses
+// outils ensuite. Avant, quatre contrôles secondaires (export Google Tasks, dépliant de
+// reconnexion, partage) s'empilaient AVANT la liste — au magasin, il fallait scroller pour
+// atteindre la seule chose dont on ait besoin debout. L'export et le partage sont des
+// gestes d'AVANT-départ ; ils n'ont rien à faire sur le chemin du geste quotidien.
+
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
@@ -29,20 +35,12 @@ export default async function ShoppingPage({
     .orderBy(asc(schema.shoppingItems.name));
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold">Épicerie — {batch.name}</h1>
-      <ExportTasksButton batchId={id} />
-      {/* Si Google Tasks répond « reconnecte-toi » : ce bouton accorde la permission Tasks. */}
-      <details className="text-xs text-stone-500">
-        <summary className="cursor-pointer">Google Tasks demande de te reconnecter ?</summary>
-        <div className="mt-2">
-          <ReconnectGoogleButton redirectTo={`/courses/${id}`} />
-        </div>
-      </details>
-      <ShareListButton
-        batchName={batch.name}
-        items={items.map((i) => ({ name: i.name, qty: i.qty, unit: i.unit, checked: i.checked }))}
-      />
+    <div className="space-y-5">
+      <div>
+        <p className="text-sm doux">Épicerie</p>
+        <h1 className="text-2xl font-bold">{batch.name}</h1>
+      </div>
+
       <ShoppingChecklist
         key={shoppingChecklistKey(items)}
         items={items.map((i) => ({
@@ -54,16 +52,45 @@ export default async function ShoppingPage({
           checked: i.checked,
         }))}
       />
-      <ShoppingListEditor
-        batchId={id}
-        items={items.map((i) => ({
-          id: i.id,
-          name: i.name,
-          qty: i.qty,
-          unit: i.unit,
-          estCost: i.estCost,
-        }))}
-      />
+
+      {/* Tout ce qui se fait AVANT de partir, replié sous un seul dépliant. */}
+      <details className="carte overflow-hidden">
+        <summary className="cursor-pointer px-4 py-3 font-medium">Outils de la liste</summary>
+        <div className="space-y-4 border-t px-4 py-4" style={{ borderColor: "var(--bordure)" }}>
+          <div className="space-y-2">
+            <ExportTasksButton batchId={id} />
+            <ShareListButton
+              batchName={batch.name}
+              items={items.map((i) => ({
+                name: i.name,
+                qty: i.qty,
+                unit: i.unit,
+                checked: i.checked,
+              }))}
+            />
+            {/* Si Google Tasks répond « reconnecte-toi » : ce bouton accorde la permission. */}
+            <details className="text-xs doux">
+              <summary className="cursor-pointer py-1">
+                Google Tasks demande de te reconnecter ?
+              </summary>
+              <div className="mt-2">
+                <ReconnectGoogleButton redirectTo={`/courses/${id}`} />
+              </div>
+            </details>
+          </div>
+
+          <ShoppingListEditor
+            batchId={id}
+            items={items.map((i) => ({
+              id: i.id,
+              name: i.name,
+              qty: i.qty,
+              unit: i.unit,
+              estCost: i.estCost,
+            }))}
+          />
+        </div>
+      </details>
     </div>
   );
 }
