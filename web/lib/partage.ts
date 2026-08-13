@@ -18,6 +18,38 @@ export const CLE_META = "/__partage/meta";
 /** Préfixe des captures d'écran partagées : une clé par image (`…/capture/0`, `/1`…). */
 export const CLE_CAPTURE_PREFIXE = "/__partage/capture/";
 
+/** Chemin visé par la `share_target` du manifeste — donc le seul POST à intercepter. */
+export const CHEMIN_PARTAGE = "/partage";
+
+export interface RequeteInterceptable {
+  method: string;
+  pathname: string;
+  /** `Request.mode` : « navigate » pour une navigation, autre chose pour un `fetch()`. */
+  mode: string;
+}
+
+/**
+ * Le service worker doit-il intercepter cette requête ?
+ *
+ * ⚠️ LE PIÈGE QUI A COÛTÉ UNE SESSION ENTIÈRE (13/08/2026). Une Server Action de Next
+ * POSTe vers l'URL de la PAGE COURANTE. Quand on est sur `/partage` — c'est-à-dire
+ * exactement après un partage Android — l'analyse de la vidéo poste donc elle aussi vers
+ * `/partage`. Un worker qui se contente de tester « POST + /partage » avale cette requête
+ * et répond une redirection 303 à la place du résultat : le navigateur affiche
+ * « An unexpected response was received from the server », rien n'atteint le serveur, et
+ * les journaux sont VIDES puisque la réponse a été fabriquée dans le téléphone.
+ *
+ * Le discriminant est `mode` : le POST d'un Web Share Target est une NAVIGATION
+ * (spécification Web Share Target), alors qu'une Server Action passe par `fetch()` et vaut
+ * donc « cors » ou « same-origin ». C'est une propriété standard, pas un détail interne de
+ * Next : elle ne bougera pas à la prochaine montée de version.
+ */
+export function doitIntercepterPartage(requete: RequeteInterceptable): boolean {
+  if (requete.method.toUpperCase() !== "POST") return false;
+  if (requete.pathname !== CHEMIN_PARTAGE) return false;
+  return requete.mode === "navigate";
+}
+
 export interface PartageRecu {
   titre?: string | null;
   texte?: string | null;

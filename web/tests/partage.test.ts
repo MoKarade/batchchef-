@@ -7,9 +7,11 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import {
   CACHE_PARTAGE,
+  CHEMIN_PARTAGE,
   CLE_CAPTURE_PREFIXE,
   CLE_META,
   CLE_VIDEO,
+  doitIntercepterPartage,
   normaliserPartage,
 } from "../lib/partage";
 
@@ -79,6 +81,31 @@ describe("normaliserPartage", () => {
   });
 });
 
+describe("doitIntercepterPartage", () => {
+  const partageAndroid = { method: "POST", pathname: CHEMIN_PARTAGE, mode: "navigate" };
+
+  it("intercepte le partage Android, qui est une NAVIGATION", () => {
+    expect(doitIntercepterPartage(partageAndroid)).toBe(true);
+    expect(doitIntercepterPartage({ ...partageAndroid, method: "post" })).toBe(true);
+  });
+
+  it("LAISSE PASSER une Server Action, qui poste vers la MÊME url en fetch()", () => {
+    // Le bug vécu le 13/08/2026, et la seule raison d'être de cette fonction : l'analyse
+    // de la vidéo tourne sur /partage, donc sa Server Action poste vers /partage. Un
+    // worker qui ne teste que « POST + /partage » lui répond une redirection 303 à la
+    // place du résultat. Les deux modes qu'un fetch() de même origine peut porter.
+    expect(doitIntercepterPartage({ ...partageAndroid, mode: "cors" })).toBe(false);
+    expect(doitIntercepterPartage({ ...partageAndroid, mode: "same-origin" })).toBe(false);
+  });
+
+  it("ignore tout ce qui n'est pas un POST vers le chemin de partage", () => {
+    expect(doitIntercepterPartage({ ...partageAndroid, method: "GET" })).toBe(false);
+    expect(doitIntercepterPartage({ ...partageAndroid, pathname: "/recettes" })).toBe(false);
+    // Un sous-chemin n'est pas la cible de partage : seule l'égalité stricte compte.
+    expect(doitIntercepterPartage({ ...partageAndroid, pathname: "/partage/autre" })).toBe(false);
+  });
+});
+
 describe("verrous entre le service worker et le code applicatif", () => {
   // Un service worker est un fichier statique : il ne peut rien importer de `lib/`. Les
   // clés de cache y sont donc DUPLIQUÉES, et une divergence casserait le partage en
@@ -98,6 +125,15 @@ describe("verrous entre le service worker et le code applicatif", () => {
     const misesEnCache = sw.match(/cache\.put\(/g) ?? [];
     expect(misesEnCache.length).toBe(3); // vidéo, captures, métadonnées — rien d'autre
     expect(sw).not.toContain("addAll");
+  });
+
+  it("le worker LAISSE PASSER les Server Actions, qui postent vers la même URL", () => {
+    // Le bug du 13/08 : une Server Action de Next poste vers l'URL de la page courante,
+    // donc vers /partage quand on est sur /partage. Le worker l'avalait et répondait une
+    // redirection 303 — « An unexpected response was received from the server », et zéro
+    // trace côté serveur puisque la réponse était fabriquée dans le téléphone.
+    // Le discriminant standard est `mode` : un Web Share Target NAVIGUE, un fetch() non.
+    expect(sw).toContain('event.request.mode !== "navigate"');
   });
 
   it("le worker trie les fichiers par TYPE, pas par nom de champ", () => {

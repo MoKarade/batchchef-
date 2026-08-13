@@ -29,7 +29,16 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  if (event.request.method !== "POST" || url.pathname !== "/partage") return;
+  // ⚠️ `mode === "navigate"` N'EST PAS UN DÉTAIL. Une Server Action de Next POSTe vers l'URL
+  // de la PAGE COURANTE : depuis /partage, l'analyse de la vidéo poste donc elle aussi vers
+  // /partage. Sans ce test, ce worker l'avale et répond une redirection 303 au lieu du
+  // résultat — le navigateur affiche « An unexpected response was received from the server »
+  // et RIEN n'atteint le serveur (journaux vides, diagnostic à l'aveugle : vécu le 13/08).
+  // Le POST d'un Web Share Target est une NAVIGATION ; un fetch() de Server Action, non.
+  // Logique identique à `doitIntercepterPartage` dans lib/partage.ts, verrouillée par test.
+  if (event.request.method !== "POST") return;
+  if (url.pathname !== "/partage") return;
+  if (event.request.mode !== "navigate") return;
 
   event.respondWith(
     (async () => {

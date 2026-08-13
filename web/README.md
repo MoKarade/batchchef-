@@ -91,7 +91,14 @@ ce bloc rend la question mesurable au lieu de supposée.
 **Comment ça marche techniquement.** Le manifeste déclare une `share_target` en POST
 multipart vers `/partage`. Un **service worker** (`public/sw.js`) intercepte ce POST *dans
 le navigateur*, range la vidéo dans le Cache Storage et redirige vers `/partage` en GET ;
-la page relit le cache côté client. Conséquence : **la vidéo ne transite jamais par le
+la page relit le cache côté client.
+
+⚠️ Le worker n'intercepte que les **navigations** (`request.mode === "navigate"`), et c'est
+vital : une Server Action de Next poste vers l'URL de la page courante, donc vers `/partage`
+quand l'analyse tourne sur cet écran. Sans cette condition, le worker avale la requête
+d'analyse et répond une redirection — le navigateur affiche « An unexpected response was
+received from the server » et rien n'apparaît dans les journaux du serveur, puisque la
+réponse n'a jamais quitté le téléphone. Conséquence : **la vidéo ne transite jamais par le
 serveur**, exactement comme pour un dépôt manuel. Le worker ne met rien d'autre en cache —
 pas de mode hors-ligne, parce que les écrans de BatchChef affichent des données
 personnelles derrière une session.

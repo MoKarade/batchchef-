@@ -26,6 +26,16 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   la voie normale est l'**enregistrement d'écran** que Marc produit lui-même (un seul fichier
   porte les gestes, les quantités affichées ET la légende dépliée), avec en repli les
   captures d'écran et le texte collé.
+- **Un service worker n'intercepte QUE des navigations.** Une Server Action de Next POSTe
+  vers l'URL de la page COURANTE : depuis `/partage`, l'analyse poste donc elle aussi vers
+  `/partage`. Un worker qui teste « POST + bon chemin » l'avale et répond une redirection
+  303 au lieu du résultat — le navigateur affiche « An unexpected response was received from
+  the server » et **les journaux serveur sont vides**, puisque la réponse a été fabriquée
+  dans le téléphone. Diagnostic : « erreur opaque + aucune trace côté serveur » ⇒ regarder le
+  worker AVANT l'authentification. Le discriminant est `request.mode === "navigate"`
+  (standard Web Share Target), jamais un en-tête interne de Next. Verrouillé des deux côtés
+  par `tests/partage.test.ts` (`doitIntercepterPartage` + tripwire sur `sw.js`),
+  discrimination prouvée par mutation.
 - **Une vidéo se sonde DENSÉMENT et se trie par ÉCRAN, jamais à intervalle fixe.** Mesuré :
   ~12 images réparties sur 30-45 s laissaient une carte de quantité affichée 2 s passer une
   fois sur deux. `lib/video/frames.ts` sonde à la seconde, ne garde qu'une empreinte 8×8 par
