@@ -63,6 +63,13 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   dans le catalogue de 10 188 recettes, et une origine absente rend « Origine non
   enregistrée » — jamais « ajoutée par toi », qui lui attribuerait des recettes qu'il n'a
   jamais choisies.
+- **La transcription audio est une source d'APPOINT, jamais un arbitre.** La reconnaissance
+  vocale se trompe surtout sur les nombres et les unités — ce qui compte le plus ici. Le
+  prompt lui interdit de contredire un écrit (texte à l'écran, description) ; elle ne sert
+  qu'à compléter, et une quantité entendue mais incertaine devient `qty: null`. L'audio
+  seul ne suffit d'ailleurs pas à lancer une extraction. `GROQ_API_KEY` absente ⇒
+  « transcription non configurée » (intégration éteinte), à distinguer d'un échec, qui
+  affiche le motif du fournisseur : les confondre les rendrait tous deux invisibles.
 - **Le coût publié au hub suit le modèle RÉELLEMENT appelé.** Deux modèles cohabitent
   (texte Haiku, vision Sonnet) : `lib/llmUsage.ts` tarife par modèle. Ajouter une ligne à sa
   table dès qu'un nouveau modèle est utilisé, sinon son coût est compté au tarif d'Haiku.

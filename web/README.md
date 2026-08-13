@@ -150,9 +150,23 @@ Seules les images retenues partent au serveur, sous un plafond de 3 Mo revérifi
 place, elles sont **comptées et affichées** — jamais coupées en silence. L'écran de validation
 dit les trois nombres : instants sondés, écrans distincts, images envoyées.
 
-⚠️ **L'audio n'est pas transcrit.** Une recette dite uniquement à l'oral, sans texte à
-l'écran ni description, ne sera pas récupérée intégralement. C'est la limite assumée : il
-n'existe pas de transcription gratuite côté serveur dans cette stack.
+**L'audio est transcrit** (depuis le 13/08/2026). La piste sonore est extraite **dans le
+navigateur** (`lib/audio/`), ramenée à 16 kHz mono — le format que Whisper consomme — et
+envoyée en WAV à `POST /api/transcription`, qui appelle Groq. La vidéo, elle, ne monte
+toujours pas : ce qui part est ~32 Ko par seconde d'audio, borné à **2 minutes** (au-delà,
+la requête dépasserait la limite de 4,5 Mo d'une fonction Vercel — la troncature est alors
+**affichée**, jamais silencieuse).
+
+⚠️ **La transcription est la source la MOINS fiable, et le prompt le dit explicitement.**
+La reconnaissance vocale se trompe surtout sur les nombres et les unités, c'est-à-dire
+exactement ce qui compte. Elle ne peut donc jamais contredire un texte lu à l'écran ou la
+description : elle sert à **compléter** ce qu'aucun écrit ne dit. Une quantité entendue mais
+incertaine devient `qty: null` — « au goût » honnête plutôt qu'un nombre mal compris qui
+entrerait dans la liste d'épicerie sans que rien ne le signale.
+
+Sans `GROQ_API_KEY`, tout fonctionne comme avant et l'écran de validation affiche
+« transcription non configurée » : une intégration éteinte n'est pas une panne, et les deux
+se distinguent à l'écran. Un échec réel affiche le motif rendu par le fournisseur.
 
 **Portions.** Un reel annonce rarement « pour 4 personnes ». Quand la source ne dit rien, la
 valeur reste 4 mais l'écran de validation l'affiche comme un **défaut à corriger**, pas comme

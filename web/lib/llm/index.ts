@@ -12,6 +12,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { normalizeQty } from "../units";
 import { recordLlmUsage } from "../llmUsage";
+import { MAX_TRANSCRIPT_CHARS } from "../transcription";
 
 const MODEL = process.env.BATCHCHEF_LLM_MODEL || "claude-haiku-4-5-20251001";
 // Lire une vidéo, c'est déchiffrer du texte incrusté sur des images réduites et suivre des
@@ -328,7 +329,8 @@ On te donne, dans l'ordre, tout ou partie de ceci :
 - des IMAGES DE LA VIDÉO, en ordre chronologique, prises aux moments où l'écran CHANGE
   (elles sont donc espacées IRRÉGULIÈREMENT : deux images consécutives peuvent être séparées
   d'une seconde comme de vingt) ;
-- la DESCRIPTION publiée par l'auteur (texte brut).
+- la DESCRIPTION publiée par l'auteur (texte brut) ;
+- une TRANSCRIPTION AUTOMATIQUE de ce qui est DIT à l'oral dans la vidéo.
 
 ⚠️ La vidéo est souvent un ENREGISTREMENT D'ÉCRAN du téléphone : certaines de ses images ne
 montrent alors aucune cuisine, mais l'interface de l'application avec la LÉGENDE dépliée,
@@ -336,6 +338,17 @@ c'est-à-dire un plein écran de texte. Traite ces images-là comme des captures
 mot à mot, ce sont elles qui portent les quantités. Ignore ce qui appartient à l'interface
 (nombre de mentions J'aime, commentaires, boutons, nom du compte) sauf s'il fait partie de la
 recette.
+
+⚠️ LA TRANSCRIPTION EST LA SOURCE LA MOINS FIABLE, et de loin. Elle est produite par
+reconnaissance vocale : elle se trompe surtout sur les NOMBRES et les UNITÉS, précisément ce
+qui compte le plus ici. Règles STRICTES :
+- Elle ne contredit JAMAIS un texte lu à l'écran ni la description. En cas de désaccord,
+  l'écrit gagne, toujours.
+- Elle sert à COMPLÉTER : un ingrédient ou une étape qu'on n'entend que dans la voix, et
+  qu'aucun écrit ne mentionne, peut être ajouté.
+- Une quantité qui n'apparaît QUE dans la transcription et dont tu n'es pas certain →
+  qty: null. Un « au goût » honnête vaut mieux qu'un nombre mal entendu : toutes les
+  quantités de la liste d'épicerie en dépendent.
 
 Comment les combiner :
 - Le TEXTE prime sur ce que tu crois voir : la description publiée et le texte LU dans les
@@ -382,6 +395,8 @@ export interface MediaInput {
   captures?: string[];
   /** Description publiée avec la vidéo. Peut être vide. */
   caption: string;
+  /** Transcription de l'audio. Peut être vide (muette, désactivée ou en échec). */
+  transcript?: string;
 }
 
 function blocImage(data: string): Anthropic.ContentBlockParam {
@@ -410,6 +425,17 @@ export async function parseRecipeFromMedia(input: MediaInput): Promise<ParsedRec
       text: `${input.frames.length} IMAGE(S) DE LA VIDÉO ci-dessous, en ordre chronologique :`,
     });
     content.push(...input.frames.map(blocImage));
+  }
+
+  const transcript = (input.transcript ?? "").trim().slice(0, MAX_TRANSCRIPT_CHARS);
+  if (transcript) {
+    content.push({
+      type: "text",
+      text:
+        "TRANSCRIPTION AUTOMATIQUE de la bande sonore (reconnaissance vocale, ERREURS " +
+        "FRÉQUENTES sur les chiffres et les unités — ne l'utilise jamais pour contredire " +
+        `un écrit) :\n${transcript}`,
+    });
   }
 
   const rien = captures.length === 0 && input.frames.length === 0;
