@@ -5,61 +5,34 @@
 // courses cochable dans Google Tasks. Le jeton d'accès Google est stocké dans le JWT
 // (chiffré, httpOnly) et rafraîchi automatiquement ; il est lu UNIQUEMENT côté serveur
 // (Server Actions) — jamais rendu au client (pas de SessionProvider portant le jeton).
+//
+// Depuis la connexion unique, les portées et la mécanique des jetons vivent dans
+// `lib/jetonsGoogle.ts`, IDENTIQUE dans les quatre apps Auth.js. Raison : le cookie de
+// session est partagé, donc n'importe laquelle peut minter le jeton que BatchChef
+// utilisera. Si elle seule demandait Tasks, se connecter par le hub laisserait BatchChef
+// connecté mais sans droit d'écriture.
 
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
-import type { JWT } from "next-auth/jwt";
 import { isAuthorizedEmail } from "@/lib/authorized";
 import { cookiesSessionPartagee } from "@/lib/sessionPartagee";
+import {
+  PARAMS_AUTORISATION,
+  PORTEE_TASKS,
+  majJetonsGoogle,
+} from "@/lib/jetonsGoogle";
 
-export const TASKS_SCOPE = "https://www.googleapis.com/auth/tasks";
-
-/** Rafraîchit le jeton d'accès Google via le refresh_token. Erreur → marque le token. */
-async function refreshGoogleToken(token: JWT): Promise<JWT> {
-  try {
-    if (!token.refreshToken) throw new Error("pas de refresh_token");
-    const res = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID ?? "",
-        client_secret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-        grant_type: "refresh_token",
-        refresh_token: token.refreshToken,
-      }),
-      signal: AbortSignal.timeout(10000),
-    });
-    const data = (await res.json()) as {
-      access_token?: string;
-      expires_in?: number;
-      refresh_token?: string;
-      error?: string;
-    };
-    if (!res.ok || !data.access_token) throw new Error(data.error ?? `HTTP ${res.status}`);
-    return {
-      ...token,
-      accessToken: data.access_token,
-      expiresAt: Math.floor(Date.now() / 1000) + (data.expires_in ?? 3600),
-      refreshToken: data.refresh_token ?? token.refreshToken,
-      error: undefined,
-    };
-  } catch {
-    return { ...token, error: "RefreshAccessTokenError" };
-  }
-}
+/** Conservé sous son ancien nom : `lib/googleTasks.ts` et les tests s'en servent. */
+export const TASKS_SCOPE = PORTEE_TASKS;
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      authorization: {
-        params: {
-          scope: `openid email profile ${TASKS_SCOPE}`,
-          access_type: "offline", // → refresh_token
-          prompt: "consent", // consentement forcé une fois pour obtenir le refresh_token
-        },
-      },
+      // Portées et paramètres IDENTIQUES dans les quatre apps Auth.js : c'est ce qui
+      // permet à n'importe laquelle de minter un jeton utilisable par les autres.
+      authorization: { params: PARAMS_AUTORISATION },
     }),
   ],
   session: { strategy: "jwt" },
@@ -103,19 +76,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user?.email) token.email = user.email;
       if (!isAuthorizedEmail(token.email, process.env.AUTHORIZED_EMAIL)) return null;
 
-      // Connexion initiale : on capture les jetons Google.
-      if (account) {
-        token.accessToken = account.access_token;
-        token.refreshToken = account.refresh_token;
-        token.expiresAt = typeof account.expires_at === "number" ? account.expires_at : undefined;
-        token.scope = account.scope;
-        token.error = undefined;
-        return token;
-      }
-      // Jeton encore valide (marge 60 s) → on le garde.
-      if (token.expiresAt && Date.now() < token.expiresAt * 1000 - 60_000) return token;
-      // Expiré → rafraîchit (ou marque l'erreur si pas de refresh_token).
-      return await refreshGoogleToken(token);
+      // Capture à la connexion, renouvellement ensuite. Logique partagée par les
+      // quatre apps : celle par laquelle on passe rafraîchit pour toutes.
+      return await majJetonsGoogle(token, account);
     },
     async session({ session, token }) {
       // Champs SERVER-SIDE ONLY (lus par les Server Actions via auth()). Le jeton Google
