@@ -36,25 +36,43 @@ export const MAX_CAPTURES = 8;
 const MIN_DURATION_SEC = 0.5;
 
 /**
- * Nombre d'images à prendre selon la durée : une vidéo de 8 s n'a pas besoin de 12 images,
- * une de 3 min si. ~1 image / 4 s, bornée à [4, MAX_FRAMES].
+ * Intervalle de SONDAGE de la vidéo (s) — à ne pas confondre avec le nombre d'images
+ * envoyées au LLM (`MAX_FRAMES`).
+ *
+ * Pourquoi une seconde. L'échantillonnage régulier d'avant prenait ~12 images réparties sur
+ * la durée, soit une toutes les 3 à 4 s sur un reel de 30 à 45 s. Une carte « 250 g de
+ * beurre » affichée 2 s n'avait alors qu'une chance sur deux d'être vue : le fichier
+ * contenait la quantité, notre échantillonnage la manquait. À une sonde par seconde, une
+ * carte de 2 s est vue deux fois.
  */
-export function frameCountFor(durationSec: number): number {
-  if (!Number.isFinite(durationSec) || durationSec < MIN_DURATION_SEC) return 0;
-  return Math.max(4, Math.min(MAX_FRAMES, Math.round(durationSec / 4)));
-}
+export const INTERVALLE_ECHANTILLON_SEC = 1;
 
 /**
- * Instants (en secondes) où prendre les images, répartis sur toute la durée.
+ * Plafond du nombre d'instants sondés. Chaque sonde coûte un `seek` de l'élément <video>,
+ * qui est LENT sur téléphone : sans plafond, un enregistrement d'écran de cinq minutes
+ * ferait attendre Marc plusieurs minutes. Au-delà, l'intervalle s'élargit tout seul.
+ */
+export const MAX_ECHANTILLONS = 90;
+
+/**
+ * Instants (en secondes) à SONDER, denses et répartis sur toute la durée.
  * On vise le MILIEU de chaque tranche : t=0 est souvent noir et la toute fin souvent un
  * écran de logo — deux images qui coûteraient des tokens sans rien apprendre.
  */
-export function frameTimestamps(durationSec: number, count: number): number[] {
+export function echantillonnerInstants(
+  durationSec: number,
+  intervalleSec = INTERVALLE_ECHANTILLON_SEC,
+  maxEchantillons = MAX_ECHANTILLONS,
+): number[] {
   if (!Number.isFinite(durationSec) || durationSec < MIN_DURATION_SEC) return [];
-  if (!Number.isInteger(count) || count <= 0) return [];
+  if (!(intervalleSec > 0) || !(maxEchantillons > 0)) return [];
+  // `ceil` et non `floor` : c'est ce qui garantit un écart RÉEL ≤ `intervalleSec` entre deux
+  // sondes. Avec `floor`, une vidéo de 40,5 s donnerait 40 sondes espacées de 1,0125 s — et
+  // la promesse « une carte de 2 s est vue deux fois » cesserait d'être vraie.
+  const n = Math.min(Math.floor(maxEchantillons), Math.max(1, Math.ceil(durationSec / intervalleSec)));
   const out: number[] = [];
-  for (let i = 0; i < count; i++) {
-    out.push(round2((durationSec * (i + 0.5)) / count));
+  for (let i = 0; i < n; i++) {
+    out.push(round2((durationSec * (i + 0.5)) / n));
   }
   return out;
 }
@@ -91,6 +109,100 @@ export function pickEvenly(n: number, k: number): number[] {
     if (out[out.length - 1] !== idx) out.push(idx);
   }
   return out;
+}
+
+// ── Repérage des écrans DISTINCTS ──────────────────────────────────────────────
+//
+// Sonder une image par seconde ne sert à rien si on envoie ensuite douze images quasi
+// identiques au LLM. Ce qu'on veut, c'est un exemplaire de chaque ÉCRAN : la légende
+// dépliée, chaque carte de quantité, chaque geste. D'où une empreinte minuscule par
+// instant sondé, et le rejet des sondes qui ne disent rien de neuf.
+
+/** Côté de la grille d'empreinte (8×8 = 64 valeurs de gris). */
+export const EMPREINTE_COTE = 8;
+
+/**
+ * En dessous de cette distance, deux images disent la même chose.
+ *
+ * Volontairement BAS. Se tromper en gardant une image de trop ne coûte rien — `pickEvenly`
+ * la retirera si la place manque. Se tromper en écartant une carte de quantité fait perdre
+ * la ligne de la recette qu'on cherchait, sans que rien ne le signale. Les deux erreurs ne
+ * se valent pas, le seuil penche donc du côté qui garde.
+ */
+export const SEUIL_QUASI_IDENTIQUE = 0.02;
+
+/**
+ * Empreinte en niveaux de gris d'une image, calculée depuis des pixels RGBA.
+ * Retourne `cote * cote` moyennes (0-255), ou `[]` si l'entrée est incohérente — jamais
+ * une empreinte partielle, qui se comparerait silencieusement à côté.
+ */
+export function empreinte(
+  pixels: ArrayLike<number>,
+  width: number,
+  height: number,
+  cote = EMPREINTE_COTE,
+): number[] {
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) return [];
+  if (!Number.isInteger(cote) || cote <= 0) return [];
+  if (pixels.length < width * height * 4) return [];
+
+  const out: number[] = [];
+  for (let cy = 0; cy < cote; cy++) {
+    const y0 = Math.floor((cy * height) / cote);
+    const y1 = Math.max(y0 + 1, Math.floor(((cy + 1) * height) / cote));
+    for (let cx = 0; cx < cote; cx++) {
+      const x0 = Math.floor((cx * width) / cote);
+      const x1 = Math.max(x0 + 1, Math.floor(((cx + 1) * width) / cote));
+      let somme = 0;
+      let n = 0;
+      for (let y = y0; y < y1 && y < height; y++) {
+        for (let x = x0; x < x1 && x < width; x++) {
+          const p = (y * width + x) * 4;
+          // Luminance perçue : un texte blanc sur fond coloré doit ressortir comme du contraste.
+          somme += 0.299 * (pixels[p] ?? 0) + 0.587 * (pixels[p + 1] ?? 0) + 0.114 * (pixels[p + 2] ?? 0);
+          n++;
+        }
+      }
+      out.push(n > 0 ? somme / n : 0);
+    }
+  }
+  return out;
+}
+
+/**
+ * Distance entre deux empreintes, ramenée à [0, 1] (0 = identiques).
+ * Deux empreintes incomparables (longueurs différentes, vides) rendent 1 : « je ne sais pas »
+ * doit conduire à GARDER l'image, jamais à l'écarter en silence.
+ */
+export function distanceEmpreintes(a: number[], b: number[]): number {
+  if (a.length === 0 || a.length !== b.length) return 1;
+  let somme = 0;
+  for (let i = 0; i < a.length; i++) somme += Math.abs((a[i] as number) - (b[i] as number));
+  return Math.min(1, somme / a.length / 255);
+}
+
+/**
+ * Garde un exemplaire de chaque écran distinct, dans l'ordre chronologique.
+ *
+ * La comparaison se fait avec la dernière image GARDÉE, pas avec la précédente : sur un
+ * défilement lent (la légende qu'on fait glisser), chaque image ressemble à sa voisine
+ * immédiate alors que l'écran a complètement changé en cinq secondes. Comparer de proche en
+ * proche ne garderait qu'une seule image de toute la légende.
+ */
+export function ecarterQuasiIdentiques(
+  empreintes: number[][],
+  seuil = SEUIL_QUASI_IDENTIQUE,
+): number[] {
+  if (empreintes.length === 0) return [];
+  const gardes = [0];
+  let reference = empreintes[0] as number[];
+  for (let i = 1; i < empreintes.length; i++) {
+    const courante = empreintes[i] as number[];
+    if (distanceEmpreintes(reference, courante) < seuil) continue;
+    gardes.push(i);
+    reference = courante;
+  }
+  return gardes;
 }
 
 export interface BudgetResult {

@@ -6,9 +6,11 @@
 //   2. Écran de VALIDATION partagé (RecipeDraftEditor) → « Enregistrer ».
 //
 // Trois sources, toutes facultatives, au moins une requise :
-//   - la VIDÉO (ce qui n'est montré qu'à l'écran) ;
-//   - des CAPTURES D'ÉCRAN de la légende (le moyen de récupérer un texte qu'on ne peut pas
-//     copier — le modèle vision les LIT) ;
+//   - la VIDÉO, en pratique un ENREGISTREMENT D'ÉCRAN du reel avec la légende dépliée. C'est
+//     la voie normale : Instagram n'autorise pas le téléchargement du fichier, mais le
+//     téléphone sait filmer son propre écran, et un seul fichier porte alors les gestes, les
+//     quantités affichées ET le texte de la légende ;
+//   - des CAPTURES D'ÉCRAN (repli quand il n'y a pas d'enregistrement) ;
 //   - la DESCRIPTION collée.
 //
 // L'app ne va rien chercher chez Instagram (pas de scraping) : Marc fournit ce à quoi il a
@@ -17,19 +19,22 @@
 import { useEffect, useRef, useState } from "react";
 import { parseRecipeFromVideo, type RecipePreview } from "@/lib/actions";
 import { RecipeDraftEditor } from "@/components/RecipeDraftEditor";
-import { captureFrames, reduireImage } from "@/lib/video/capture";
+import { captureFrames, reduireImage, type EtapeCapture } from "@/lib/video/capture";
 import { MAX_TOTAL_BASE64_BYTES, base64Bytes, repartirBudget } from "@/lib/video/frames";
 
 type Phase =
   | { kind: "idle" }
   | { kind: "captures" }
-  | { kind: "lecture"; done: number; total: number }
+  | { kind: "video"; etape: EtapeCapture; done: number; total: number }
   | { kind: "analyse" };
 
 interface Lu {
   frames: number;
   captures: number;
   ecartees: number;
+  /** Instants sondés dans la vidéo, et écrans distincts qu'ils ont révélés. */
+  sondes: number;
+  distincts: number;
 }
 
 export interface ImportVideoFormProps {
@@ -88,6 +93,8 @@ export function ImportVideoForm({
     let frames: string[] = [];
     let capturesB64: string[] = [];
     let ecartees = 0;
+    let sondes = 0;
+    let distincts = 0;
 
     try {
       // 1. Les captures d'abord : elles portent le texte, donc les quantités.
@@ -102,14 +109,16 @@ export function ImportVideoForm({
       // 2. La vidéo se sert sur le reliquat.
       if (fichier) {
         const utilise = capturesB64.reduce((somme, c) => somme + base64Bytes(c), 0);
-        setPhase({ kind: "lecture", done: 0, total: 0 });
+        setPhase({ kind: "video", etape: "reperage", done: 0, total: 0 });
         const capture = await captureFrames(
           fichier,
-          (done, total) => setPhase({ kind: "lecture", done, total }),
+          (etape, done, total) => setPhase({ kind: "video", etape, done, total }),
           MAX_TOTAL_BASE64_BYTES - utilise,
         );
         frames = capture.frames;
         ecartees += capture.dropped;
+        sondes = capture.sondes;
+        distincts = capture.distincts;
       }
 
       setPhase({ kind: "analyse" });
@@ -123,7 +132,7 @@ export function ImportVideoForm({
         setError(res.ok ? "Rien à valider." : res.error);
         return;
       }
-      setLu({ frames: frames.length, captures: capturesB64.length, ecartees });
+      setLu({ frames: frames.length, captures: capturesB64.length, ecartees, sondes, distincts });
       setPreview(res.recipe);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -170,9 +179,10 @@ export function ImportVideoForm({
       <div>
         <h2 className="font-semibold">Depuis une vidéo</h2>
         <p className="mt-1 text-xs text-stone-500">
-          Des captures d’écran suffisent — Instagram ne laisse pas enregistrer la vidéo de la
-          plupart des reels. Ajoute la vidéo si tu l’as, colle le texte si tu peux le copier.
-          Tout est lu dans ton navigateur : rien n’est envoyé tel quel.
+          La voie normale : un <strong>enregistrement d’écran</strong> du reel, légende dépliée —
+          il porte à la fois les gestes, les quantités affichées et le texte. Instagram ne laisse
+          pas enregistrer la vidéo elle-même, mais ton téléphone sait filmer son propre écran.
+          Tout est lu dans ton navigateur : le fichier n’est jamais envoyé.
         </p>
       </div>
 
@@ -189,7 +199,9 @@ export function ImportVideoForm({
       </label>
 
       <div className="text-sm">
-        <span className="mb-1 block text-stone-500">Vidéo</span>
+        <span className="mb-1 block text-stone-500">
+          Vidéo — l’enregistrement d’écran du reel, légende dépliée
+        </span>
         <input
           type="file"
           accept="video/*"
@@ -206,7 +218,7 @@ export function ImportVideoForm({
 
       <div className="text-sm">
         <span className="mb-1 block text-stone-500">
-          Captures d’écran — la légende, et les moments où les quantités s’affichent
+          Captures d’écran (facultatif, si tu n’as pas d’enregistrement)
         </span>
         <input
           type="file"
@@ -272,9 +284,11 @@ export function ImportVideoForm({
       {phase.kind === "captures" && (
         <p className="text-xs text-stone-500">Préparation des captures d’écran…</p>
       )}
-      {phase.kind === "lecture" && (
+      {phase.kind === "video" && (
         <p className="text-xs text-stone-500">
-          Lecture de la vidéo{phase.total > 0 ? ` — image ${phase.done}/${phase.total}` : "…"}
+          {phase.etape === "reperage"
+            ? `Repérage des écrans de la vidéo${phase.total > 0 ? ` — ${phase.done}/${phase.total}` : "…"}`
+            : `Extraction des images retenues — ${phase.done}/${phase.total}`}
         </p>
       )}
       {phase.kind === "analyse" && (
@@ -295,7 +309,15 @@ export function ImportVideoForm({
 function resumeSources(lu: Lu, description: string): string {
   const parts: string[] = [];
   if (lu.captures > 0) parts.push(`${lu.captures} capture(s) d’écran lue(s)`);
-  if (lu.frames > 0) parts.push(`${lu.frames} image(s) de la vidéo`);
+  if (lu.frames > 0) {
+    // Les trois nombres disent des choses différentes : ce qui a été REGARDÉ, ce qui était
+    // NOUVEAU, ce qui est PARTI. « 12 images » seul laisserait croire qu'on a survolé.
+    parts.push(
+      lu.sondes > 0
+        ? `${lu.frames} image(s) de la vidéo (${lu.distincts} écran(s) distinct(s) sur ${lu.sondes} instants sondés)`
+        : `${lu.frames} image(s) de la vidéo`,
+    );
+  }
   if (description.trim()) parts.push("description collée");
   const base = parts.length > 0 ? `Sources : ${parts.join(" + ")}` : "Aucune source d’image";
   return lu.ecartees > 0 ? `${base} (${lu.ecartees} écartée(s), trop lourdes)` : base;

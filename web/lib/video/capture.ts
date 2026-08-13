@@ -10,21 +10,33 @@
 // testée. Ici il ne reste que la mécanique DOM, qu'aucun test unitaire ne couvre.
 
 import {
+  EMPREINTE_COTE,
   JPEG_QUALITY,
+  MAX_FRAMES,
   MAX_TOTAL_BASE64_BYTES,
   base64Bytes,
+  echantillonnerInstants,
+  ecarterQuasiIdentiques,
+  empreinte,
   fitBudget,
-  frameCountFor,
-  frameTimestamps,
+  pickEvenly,
   scaledSize,
 } from "./frames";
+
+/** Côté du canevas de repérage : assez grand pour que l'empreinte 8×8 soit stable. */
+const COTE_REPERAGE = 32;
+
+/** Étape en cours, pour un affichage honnête (les deux ne coûtent pas le même temps). */
+export type EtapeCapture = "reperage" | "extraction";
 
 export interface CaptureResult {
   /** Images JPEG en base64 (sans préfixe data:), dans l'ordre chronologique. */
   frames: string[];
   durationSec: number;
-  /** Nombre d'images extraites avant application du budget. */
-  captured: number;
+  /** Instants sondés dans la vidéo (une sonde ≈ une seconde de vidéo). */
+  sondes: number;
+  /** Écrans DISTINCTS repérés parmi ces sondes. */
+  distincts: number;
   /** Images écartées faute de place — l'appelant DOIT le montrer, jamais l'avaler. */
   dropped: number;
 }
@@ -77,13 +89,22 @@ function chargerImage(src: string): Promise<HTMLImageElement> {
 }
 
 /**
- * Extrait des images réparties sur toute la durée de la vidéo.
+ * Extrait les images des ÉCRANS DISTINCTS d'une vidéo, en deux passes.
+ *
+ * 1. REPÉRAGE : une sonde par seconde, réduite à 32×32, dont on ne garde qu'une empreinte
+ *    de 64 octets. Aucun encodage JPEG ici — c'est ce qui rend la densité abordable.
+ * 2. EXTRACTION : on ne revient chercher en pleine résolution que les écrans retenus.
+ *
+ * Deux passes coûtent quelques `seek` de plus qu'une seule, mais la mémoire reste bornée
+ * (des empreintes minuscules, pas cent images en base64) et surtout le LLM reçoit un
+ * exemplaire de chaque écran plutôt que douze photos du même plan de travail.
+ *
  * Lève une erreur EXPLICITE si le navigateur ne sait pas lire le fichier ou si la vidéo
  * est inexploitable — jamais un tableau vide silencieux qui passerait pour « rien à voir ».
  */
 export async function captureFrames(
   file: File,
-  onProgress?: (done: number, total: number) => void,
+  onProgress?: (etape: EtapeCapture, done: number, total: number) => void,
   /** Budget d'octets laissé à la vidéo — les captures d'écran se servent en premier. */
   budgetMax: number = MAX_TOTAL_BASE64_BYTES,
 ): Promise<CaptureResult> {
@@ -107,11 +128,31 @@ export async function captureFrames(
       throw new Error("Vidéo sans piste image (audio seul ?).");
     }
 
-    const times = frameTimestamps(durationSec, frameCountFor(durationSec));
-    if (times.length === 0) {
+    const instants = echantillonnerInstants(durationSec);
+    if (instants.length === 0) {
       throw new Error("Vidéo trop courte pour en tirer des images.");
     }
 
+    // Passe 1 — repérage. Le canevas est minuscule : c'est ce qui permet une sonde/seconde.
+    const petit = document.createElement("canvas");
+    petit.width = COTE_REPERAGE;
+    petit.height = COTE_REPERAGE;
+    const ctxPetit = petit.getContext("2d", { willReadFrequently: true });
+    if (!ctxPetit) throw new Error("Canvas indisponible : impossible d'analyser la vidéo.");
+
+    const empreintes: number[][] = [];
+    for (const [i, t] of instants.entries()) {
+      await positionner(video, t, durationSec);
+      ctxPetit.drawImage(video, 0, 0, petit.width, petit.height);
+      const pixels = ctxPetit.getImageData(0, 0, petit.width, petit.height).data;
+      empreintes.push(empreinte(pixels, petit.width, petit.height, EMPREINTE_COTE));
+      onProgress?.("reperage", i + 1, instants.length);
+    }
+
+    const distincts = ecarterQuasiIdentiques(empreintes);
+    const choisis = pickEvenly(distincts.length, MAX_FRAMES).map((i) => distincts[i] as number);
+
+    // Passe 2 — extraction en pleine résolution des seuls écrans retenus.
     const size = scaledSize(width, height);
     const canvas = document.createElement("canvas");
     canvas.width = size.width;
@@ -120,14 +161,13 @@ export async function captureFrames(
     if (!ctx) throw new Error("Canvas indisponible : impossible d'extraire les images.");
 
     const shots: string[] = [];
-    for (const [i, t] of times.entries()) {
-      video.currentTime = Math.min(t, Math.max(0, durationSec - 0.05));
-      await waitForEvent(video, "seeked", "Lecture de la vidéo interrompue.");
+    for (const [i, idx] of choisis.entries()) {
+      await positionner(video, instants[idx] as number, durationSec);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
       const b64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
       if (b64) shots.push(b64);
-      onProgress?.(i + 1, times.length);
+      onProgress?.("extraction", i + 1, choisis.length);
     }
 
     if (shots.length === 0) {
@@ -144,7 +184,8 @@ export async function captureFrames(
     return {
       frames: budget.keptIndexes.map((i) => shots[i] as string),
       durationSec,
-      captured: shots.length,
+      sondes: instants.length,
+      distincts: distincts.length,
       dropped: budget.dropped,
     };
   } finally {
@@ -152,6 +193,21 @@ export async function captureFrames(
     video.load();
     URL.revokeObjectURL(objectUrl);
   }
+}
+
+/**
+ * Place la tête de lecture et attend que le décodage suive.
+ *
+ * ⚠️ Le garde du début n'est pas une optimisation : écrire dans `currentTime` la valeur qu'il
+ * porte DÉJÀ ne déclenche aucun `seeked`, et l'attente irait jusqu'au délai maximum avant de
+ * lever une erreur de lecture — sur une vidéo parfaitement lisible. Le cas se produit dès
+ * que les deux passes se croisent sur le même instant (vidéo d'une seule sonde).
+ */
+async function positionner(video: HTMLVideoElement, t: number, durationSec: number): Promise<void> {
+  const cible = Math.min(t, Math.max(0, durationSec - 0.05));
+  if (Math.abs(video.currentTime - cible) < 0.001) return;
+  video.currentTime = cible;
+  await waitForEvent(video, "seeked", "Lecture de la vidéo interrompue.");
 }
 
 /** Attend un événement vidéo, borné dans le temps et sensible aux erreurs de décodage. */

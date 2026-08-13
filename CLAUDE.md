@@ -19,9 +19,20 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   Instagram/TikTok : c'est Marc qui dépose le fichier, la capture d'écran ou la description
   (contenu auquel il a accès), le lien ne sert que de `sourceUrl`. Un jour où l'on voudra
   « juste récupérer la légende depuis l'URL », c'est ce garde-fou qu'on serait en train de
-  lever. Corollaire assumé : Instagram ne partageant qu'une URL, l'app FOURNIT trois chemins
-  d'entrée (capture d'écran lue par le modèle vision, texte collé, vidéo depuis la galerie)
-  au lieu d'aller chercher ce qu'elle n'a pas le droit de prendre.
+  lever. Trois murs, pas un : ce garde-fou, les conditions d'Instagram (et le risque de faire
+  bloquer le compte de Marc en utilisant ses cookies depuis un serveur), et le fait qu'aucune
+  API Meta ne rend le média d'un créateur tiers — l'oEmbed officiel rend un code
+  d'intégration, jamais un fichier. Corollaire assumé : Instagram ne partageant qu'une URL,
+  la voie normale est l'**enregistrement d'écran** que Marc produit lui-même (un seul fichier
+  porte les gestes, les quantités affichées ET la légende dépliée), avec en repli les
+  captures d'écran et le texte collé.
+- **Une vidéo se sonde DENSÉMENT et se trie par ÉCRAN, jamais à intervalle fixe.** Mesuré :
+  ~12 images réparties sur 30-45 s laissaient une carte de quantité affichée 2 s passer une
+  fois sur deux. `lib/video/frames.ts` sonde à la seconde, ne garde qu'une empreinte 8×8 par
+  sonde, puis n'extrait en pleine résolution que les écrans distincts. La comparaison se fait
+  avec la dernière image GARDÉE, pas la précédente — sinon un défilement lent (la légende) ne
+  laisse qu'une seule image. Verrouillé par `tests/video.test.ts`, discrimination prouvée par
+  mutation.
 - **Une capture d'écran prime sur une image de vidéo.** Le budget d'images
   (`repartirBudget`) sert les captures en premier : elles portent les quantités écrites,
   une image de vidéo ne montre souvent qu'un geste.
@@ -52,7 +63,7 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
 | `lib/actions.ts` | Server Actions (import, batch, liste, statut, catalogue) |
 | `lib/aggregate.ts` | agrégation liste d'épicerie, mise à l'échelle, filet de prix (purs) |
 | `lib/llm/` | parse de recette (page web **et** vidéo) + estimation de coûts (Zod, honnête) |
-| `lib/video/` | `frames.ts` = échantillonnage/budget (PUR, testé) · `capture.ts` = extraction `<video>`+`<canvas>` **dans le navigateur** (la vidéo ne monte jamais au serveur) |
+| `lib/video/` | `frames.ts` = sondage/empreintes/budget (PUR, testé) · `capture.ts` = extraction `<video>`+`<canvas>` en 2 passes (repérage 32×32 puis extraction 768 px) **dans le navigateur** (la vidéo ne monte jamais au serveur) |
 | `lib/partage.ts` + `public/sw.js` | cible de partage Android (PWA). Le service worker intercepte le POST **côté navigateur** : la vidéo partagée ne transite pas par le serveur |
 | `lib/db/` | schéma Drizzle + connexion Neon paresseuse |
 | `lib/hubSummary.ts` | résumé conforme `@mokarade/hub-contract` (widget hub perso) |
