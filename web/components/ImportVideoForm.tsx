@@ -222,6 +222,21 @@ export function ImportVideoForm({
         )}
       </div>
 
+      {/* Arrivé par un partage qui n'apportait que le lien : le geste utile est de coller
+          la légende copiée juste avant. Le bouton discret du bas se remarque trop peu dans
+          ce cas précis — c'est pourtant le seul chemin qui reste. */}
+      {!pretAAnalyser && (
+        <button
+          type="button"
+          onClick={() => void collerDescription()}
+          disabled={busy}
+          className="w-full rounded-xl border border-dashed px-4 py-3 text-sm font-medium disabled:opacity-50"
+          style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+        >
+          Coller la description copiée
+        </button>
+      )}
+
       <div className="text-sm">
         <div className="mb-1 flex items-center justify-between gap-2">
           <span className="text-stone-500">Description publiée</span>
