@@ -11,6 +11,7 @@ import { db, schema } from "@/lib/db";
 import { aggregateShoppingList, fillMissingCosts, shoppingTitles } from "@/lib/aggregate";
 import { upsertTaskList } from "@/lib/googleTasks";
 import { splitNewCatalogRecipes } from "@/lib/catalogSelect";
+import { MAX_TRANSCRIPT_CHARS } from "@/lib/transcription";
 import { estOrigine, type OrigineRecette } from "@/lib/origine";
 import {
   clampServings,
@@ -132,6 +133,8 @@ export async function parseRecipeFromVideo(input: {
   frames: string[];
   captures?: string[];
   caption: string;
+  /** Transcription de la bande sonore — source d'APPOINT, jamais prioritaire. */
+  transcript?: string;
   sourceUrl: string | null;
 }): Promise<ActionResult & { recipe?: RecipePreview }> {
   try {
@@ -141,6 +144,8 @@ export async function parseRecipeFromVideo(input: {
     const captures = Array.isArray(input.captures) ? input.captures : [];
     const caption = (input.caption ?? "").trim().slice(0, MAX_CAPTION_CHARS);
 
+    // La transcription seule ne suffit PAS à lancer une extraction : sans écrit ni image,
+    // toute quantité viendrait d'une reconnaissance vocale non vérifiable.
     if (frames.length === 0 && captures.length === 0 && caption.length === 0) {
       return {
         ok: false,
@@ -172,7 +177,8 @@ export async function parseRecipeFromVideo(input: {
       sourceUrl = parsed.toString();
     }
 
-    const draft = await parseRecipeFromMedia({ frames, captures, caption });
+    const transcript = (input.transcript ?? "").trim().slice(0, MAX_TRANSCRIPT_CHARS);
+    const draft = await parseRecipeFromMedia({ frames, captures, caption, transcript });
     // 2ᵉ passe seulement s'il y a une description à confronter : sans texte, il n'y a rien
     // à vérifier, et une passe supplémentaire ne ferait qu'inventer de l'assurance.
     const recipe = caption ? await verifyRecipeAgainstCaption(caption, draft) : draft;

@@ -24,7 +24,7 @@ export default async function RecipesPage() {
     <div className="space-y-5">
       <h1 className="text-xl font-bold">Mes recettes</h1>
       <ImportRecipeForm />
-      <ImportVideoForm />
+      <ImportVideoForm transcriptionActive={Boolean(process.env.GROQ_API_KEY)} />
       {recipes.length === 0 ? (
         <p className="rounded-xl border border-dashed border-stone-300 p-6 text-center text-sm text-stone-500 dark:border-stone-700">
           Aucune recette. Colle l’URL d’une recette, dépose un reel de cuisine, ou pige dans le

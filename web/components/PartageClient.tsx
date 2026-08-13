@@ -29,7 +29,13 @@ type Etat =
   | { kind: "pret"; recu: Recu }
   | { kind: "vide"; motif: string };
 
-export function PartageClient({ erreurWorker }: { erreurWorker: boolean }) {
+export function PartageClient({
+  erreurWorker,
+  transcriptionActive = false,
+}: {
+  erreurWorker: boolean;
+  transcriptionActive?: boolean;
+}) {
   const [etat, setEtat] = useState<Etat>({ kind: "chargement" });
 
   useEffect(() => {
@@ -122,7 +128,7 @@ export function PartageClient({ erreurWorker }: { erreurWorker: boolean }) {
         <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
           {etat.motif} Tu peux quand même déposer la vidéo ou coller la description ci-dessous.
         </p>
-        <ImportVideoForm />
+        <ImportVideoForm transcriptionActive={transcriptionActive} />
       </div>
     );
   }
@@ -157,6 +163,7 @@ export function PartageClient({ erreurWorker }: { erreurWorker: boolean }) {
         </div>
       )}
       <ImportVideoForm
+        transcriptionActive={transcriptionActive}
         lienInitial={recu.lien ?? ""}
         descriptionInitiale={recu.description}
         fichierInitial={recu.fichier}

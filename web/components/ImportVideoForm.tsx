@@ -20,12 +20,14 @@ import { useEffect, useRef, useState } from "react";
 import { parseRecipeFromVideo, type RecipePreview } from "@/lib/actions";
 import { RecipeDraftEditor } from "@/components/RecipeDraftEditor";
 import { captureFrames, reduireImage, type EtapeCapture } from "@/lib/video/capture";
+import { extraireAudio } from "@/lib/audio/extraction";
 import { MAX_TOTAL_BASE64_BYTES, base64Bytes, repartirBudget } from "@/lib/video/frames";
 
 type Phase =
   | { kind: "idle" }
   | { kind: "captures" }
   | { kind: "video"; etape: EtapeCapture; done: number; total: number }
+  | { kind: "transcription" }
   | { kind: "analyse" };
 
 interface Lu {
@@ -35,6 +37,8 @@ interface Lu {
   /** Instants sondés dans la vidéo, et écrans distincts qu'ils ont révélés. */
   sondes: number;
   distincts: number;
+  /** Ce que la bande sonore a donné — dit tel quel, y compris quand elle n'a rien donné. */
+  audio: string | null;
 }
 
 export interface ImportVideoFormProps {
@@ -45,6 +49,13 @@ export interface ImportVideoFormProps {
   capturesInitiales?: File[];
   /** Lance l'analyse dès l'affichage — utilisé quand le partage a apporté des images. */
   demarrerAuto?: boolean;
+  /**
+   * `true` quand une clé de transcription est configurée côté serveur.
+   *
+   * ⚠️ Sans cette information, le navigateur extrairait puis TÉLÉVERSERAIT jusqu'à 4 Mo
+   * d'audio pour s'entendre répondre « désactivée ». Sur un forfait mobile, ça se paie.
+   */
+  transcriptionActive?: boolean;
 }
 
 export function ImportVideoForm({
@@ -53,6 +64,7 @@ export function ImportVideoForm({
   fichierInitial = null,
   capturesInitiales = [],
   demarrerAuto = false,
+  transcriptionActive = false,
 }: ImportVideoFormProps = {}) {
   const [lien, setLien] = useState(lienInitial);
   const [description, setDescription] = useState(descriptionInitiale);
@@ -95,6 +107,8 @@ export function ImportVideoForm({
     let ecartees = 0;
     let sondes = 0;
     let distincts = 0;
+    let transcript = "";
+    let audio: string | null = null;
 
     try {
       // 1. Les captures d'abord : elles portent le texte, donc les quantités.
@@ -121,18 +135,68 @@ export function ImportVideoForm({
         distincts = capture.distincts;
       }
 
+      // 3. La bande sonore, quand il y a une vidéo. Un échec ici ne doit JAMAIS faire
+      //    tomber l'import : la transcription est un appoint, le texte à l'écran reste la
+      //    source principale. Mais il se DIT, sinon Marc croirait qu'elle a servi.
+      if (fichier && transcriptionActive) {
+        setPhase({ kind: "transcription" });
+        try {
+          const extrait = await extraireAudio(fichier);
+          if (!extrait) {
+            audio = "aucune bande sonore exploitable";
+          } else {
+            const corps = new FormData();
+            corps.append("audio", extrait.blob, "audio.wav");
+            const reponse = await fetch("/api/transcription", { method: "POST", body: corps });
+            const donnees = (await reponse.json()) as
+              | { etat: "ok"; texte: string }
+              | { etat: "desactivee" }
+              | { etat: "echec"; motif: string }
+              | { ok: false; erreur: string };
+
+            if ("etat" in donnees && donnees.etat === "ok") {
+              transcript = donnees.texte;
+              const couverture = extrait.tronque
+                ? ` (${Math.round(extrait.dureeTranscriteSec)} s sur ${Math.round(extrait.dureeSec)} s)`
+                : "";
+              audio = transcript
+                ? `bande sonore transcrite${couverture}`
+                : "bande sonore muette";
+            } else if ("etat" in donnees && donnees.etat === "desactivee") {
+              audio = "transcription non configurée";
+            } else {
+              const motif =
+                "etat" in donnees && donnees.etat === "echec" ? donnees.motif : donnees.erreur;
+              audio = `transcription en échec : ${motif}`;
+            }
+          }
+        } catch (err) {
+          audio = `transcription en échec : ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }
+
+      if (fichier && !transcriptionActive) audio = "transcription non configurée";
+
       setPhase({ kind: "analyse" });
       const res = await parseRecipeFromVideo({
         frames,
         captures: capturesB64,
         caption: description,
+        transcript,
         sourceUrl: lien.trim() || null,
       });
       if (!res.ok || !res.recipe) {
         setError(res.ok ? "Rien à valider." : res.error);
         return;
       }
-      setLu({ frames: frames.length, captures: capturesB64.length, ecartees, sondes, distincts });
+      setLu({
+        frames: frames.length,
+        captures: capturesB64.length,
+        ecartees,
+        sondes,
+        distincts,
+        audio,
+      });
       setPreview(res.recipe);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -291,6 +355,9 @@ export function ImportVideoForm({
             : `Extraction des images retenues — ${phase.done}/${phase.total}`}
         </p>
       )}
+      {phase.kind === "transcription" && (
+        <p className="text-xs text-stone-500">Transcription de la bande sonore…</p>
+      )}
       {phase.kind === "analyse" && (
         <p className="text-xs text-stone-500">
           Extraction de la recette (ingrédients + préparation), 20-40 s…
@@ -319,6 +386,7 @@ function resumeSources(lu: Lu, description: string): string {
     );
   }
   if (description.trim()) parts.push("description collée");
+  if (lu.audio) parts.push(lu.audio);
   const base = parts.length > 0 ? `Sources : ${parts.join(" + ")}` : "Aucune source d’image";
   return lu.ecartees > 0 ? `${base} (${lu.ecartees} écartée(s), trop lourdes)` : base;
 }

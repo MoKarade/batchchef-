@@ -28,7 +28,10 @@ export default async function PartagePage({
           bibliothèque.
         </p>
       </div>
-      <PartageClient erreurWorker={erreur === "1"} />
+      <PartageClient
+        erreurWorker={erreur === "1"}
+        transcriptionActive={Boolean(process.env.GROQ_API_KEY)}
+      />
     </div>
   );
 }
