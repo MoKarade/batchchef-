@@ -137,20 +137,23 @@ export function PartageClient({ erreurWorker }: { erreurWorker: boolean }) {
         <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
           <p className="font-medium">Instagram n’a partagé que le lien.</p>
           <p className="mt-1">
-            Ni la vidéo, ni la légende : c’est sa limite, et elle vaut pour toute app. Deux
-            façons de donner le contenu à BatchChef :
+            Ni la vidéo, ni la légende : c’est sa limite, et elle vaut pour toute app. Un
+            enregistrement d’écran, lui, porte tout d’un coup :
           </p>
           <ol className="mt-2 list-decimal space-y-1 pl-5">
             <li>
-              <strong>Captures d’écran</strong> — capture la légende, et les moments de la vidéo
-              où les quantités s’affichent. Partage-les depuis la Galerie (ou la notification de
-              capture) : le texte y sera lu.
+              <strong>Lance l’enregistreur d’écran</strong> d’Android, reviens sur le reel,
+              déplie la légende et laisse-la lisible quelques secondes, puis laisse la vidéo
+              tourner une fois en entier. Arrête l’enregistrement.
             </li>
             <li>
-              <strong>Copier la légende</strong> — appui long sur le texte du reel → Copier, puis
-              le bouton « Coller » ci-dessous.
+              <strong>Partage l’enregistrement</strong> vers BatchChef depuis la Galerie.
+              L’analyse démarre toute seule.
             </li>
           </ol>
+          <p className="mt-2">
+            La légende est lue dans l’enregistrement comme le reste : rien d’autre à copier.
+          </p>
         </div>
       )}
       <ImportVideoForm

@@ -3,49 +3,138 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  INTERVALLE_ECHANTILLON_SEC,
   MAX_CAPTURES,
-  MAX_FRAMES,
+  MAX_ECHANTILLONS,
+  SEUIL_QUASI_IDENTIQUE,
   base64Bytes,
+  distanceEmpreintes,
+  ecarterQuasiIdentiques,
+  echantillonnerInstants,
+  empreinte,
   fitBudget,
-  frameCountFor,
-  frameTimestamps,
   isLikelyBase64,
   pickEvenly,
   repartirBudget,
   scaledSize,
 } from "../lib/video/frames";
 
-describe("frameCountFor", () => {
-  it("adapte le nombre d'images à la durée, entre 4 et le plafond", () => {
-    expect(frameCountFor(8)).toBe(4); // une vidéo courte n'a pas besoin de 12 images
-    expect(frameCountFor(32)).toBe(8);
-    expect(frameCountFor(600)).toBe(MAX_FRAMES); // plafonné
+/** Empreinte factice UNIE — un « écran » d'une seule teinte, pratique pour raisonner. */
+function ecranUni(valeur: number, taille = 64): number[] {
+  return new Array(taille).fill(valeur);
+}
+
+/** Pixels RGBA d'une image unie, pour tester `empreinte` sans navigateur. */
+function pixelsUnis(width: number, height: number, gris: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < width * height; i++) out.push(gris, gris, gris, 255);
+  return out;
+}
+
+describe("echantillonnerInstants", () => {
+  it("sonde la vidéo à la SECONDE, pas une douzaine de fois en tout", () => {
+    // Le cœur du correctif : sur 40 s l'ancien échantillonnage prenait ~10 images espacées
+    // de 4 s, et une carte de quantité affichée 2 s passait entre les mailles une fois sur deux.
+    expect(echantillonnerInstants(40)).toHaveLength(40);
   });
 
-  it("une vidéo sans durée exploitable ne donne aucune image (jamais une valeur par défaut)", () => {
-    expect(frameCountFor(0)).toBe(0);
-    expect(frameCountFor(Number.NaN)).toBe(0);
-    expect(frameCountFor(Number.POSITIVE_INFINITY)).toBe(0);
+  it("garantit un écart RÉEL inférieur à l'intervalle, même sur une durée non entière", () => {
+    const t = echantillonnerInstants(40.5);
+    const ecarts = t.slice(1).map((x, i) => x - (t[i] as number));
+    expect(Math.max(...ecarts)).toBeLessThanOrEqual(INTERVALLE_ECHANTILLON_SEC);
+  });
+
+  it("plafonne le nombre de sondes et élargit l'intervalle plutôt que d'exploser", () => {
+    // Un enregistrement d'écran de 5 min ne doit pas coûter 300 `seek` sur un téléphone.
+    const t = echantillonnerInstants(300);
+    expect(t).toHaveLength(MAX_ECHANTILLONS);
+    expect(t[t.length - 1]).toBeLessThan(300);
+  });
+
+  it("ne prend ni le tout début ni la toute fin, et couvre la seconde moitié", () => {
+    const t = echantillonnerInstants(60);
+    expect(t[0]).toBeGreaterThan(0);
+    expect(t[t.length - 1]).toBeLessThan(60);
+    expect(t.filter((x) => x > 30).length).toBe(t.length / 2);
+  });
+
+  it("entrées invalides → aucune sonde (jamais une valeur par défaut)", () => {
+    expect(echantillonnerInstants(0)).toEqual([]);
+    expect(echantillonnerInstants(Number.NaN)).toEqual([]);
+    expect(echantillonnerInstants(Number.POSITIVE_INFINITY)).toEqual([]);
+    expect(echantillonnerInstants(60, 0)).toEqual([]);
   });
 });
 
-describe("frameTimestamps", () => {
-  it("répartit les instants sur toute la durée sans prendre ni le tout début ni la toute fin", () => {
-    const t = frameTimestamps(40, 4);
-    expect(t).toEqual([5, 15, 25, 35]);
-    expect(t[0]).toBeGreaterThan(0);
-    expect(t[t.length - 1]).toBeLessThan(40);
+describe("empreinte", () => {
+  it("une image unie donne une empreinte uniforme, à la luminance de la teinte", () => {
+    const e = empreinte(pixelsUnis(32, 32, 120), 32, 32, 8);
+    expect(e).toHaveLength(64);
+    expect(Math.max(...e) - Math.min(...e)).toBeLessThan(0.001);
+    expect(e[0]).toBeCloseTo(120, 5);
   });
 
-  it("couvre bien la seconde moitié (une recette se finit à la fin de la vidéo)", () => {
-    const t = frameTimestamps(60, 6);
-    expect(t.filter((x) => x > 30).length).toBe(3);
+  it("distingue les zones : une moitié noire et une moitié blanche ne se confondent pas", () => {
+    const width = 32;
+    const height = 32;
+    const pixels: number[] = [];
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const g = x < width / 2 ? 0 : 255;
+        pixels.push(g, g, g, 255);
+      }
+    }
+    const e = empreinte(pixels, width, height, 8);
+    expect(e[0]).toBeCloseTo(0, 5); // colonne de gauche
+    expect(e[7]).toBeCloseTo(255, 5); // colonne de droite
   });
 
-  it("entrées invalides → aucun instant", () => {
-    expect(frameTimestamps(30, 0)).toEqual([]);
-    expect(frameTimestamps(0, 4)).toEqual([]);
-    expect(frameTimestamps(Number.NaN, 4)).toEqual([]);
+  it("entrée incohérente → empreinte VIDE, jamais une empreinte partielle", () => {
+    // Une empreinte tronquée se comparerait silencieusement de travers ; vide, elle rend
+    // une distance de 1 et l'image est gardée.
+    expect(empreinte(pixelsUnis(4, 4, 10), 32, 32, 8)).toEqual([]);
+    expect(empreinte(pixelsUnis(8, 8, 10), 0, 8, 8)).toEqual([]);
+  });
+});
+
+describe("distanceEmpreintes", () => {
+  it("0 pour deux écrans identiques, 1 pour noir contre blanc", () => {
+    expect(distanceEmpreintes(ecranUni(50), ecranUni(50))).toBe(0);
+    expect(distanceEmpreintes(ecranUni(0), ecranUni(255))).toBe(1);
+  });
+
+  it("deux empreintes incomparables rendent 1 — donc l'image est GARDÉE, pas jetée", () => {
+    expect(distanceEmpreintes([], [])).toBe(1);
+    expect(distanceEmpreintes(ecranUni(10), ecranUni(10, 32))).toBe(1);
+  });
+});
+
+describe("ecarterQuasiIdentiques", () => {
+  it("un écran figé ne part qu'une fois", () => {
+    const gardes = ecarterQuasiIdentiques([ecranUni(80), ecranUni(80), ecranUni(80), ecranUni(80)]);
+    expect(gardes).toEqual([0]);
+  });
+
+  it("un changement franc est toujours gardé", () => {
+    const gardes = ecarterQuasiIdentiques([ecranUni(0), ecranUni(0), ecranUni(255), ecranUni(255)]);
+    expect(gardes).toEqual([0, 2]);
+  });
+
+  it("un DÉFILEMENT LENT reste capté : on compare à la dernière image GARDÉE", () => {
+    // La légende qu'on fait glisser : chaque image ressemble à sa voisine immédiate
+    // (écart 3/255 ≈ 0,012, sous le seuil), alors que l'écran a totalement changé au bout
+    // de quelques secondes. Comparer de proche en proche ne garderait que la PREMIÈRE et
+    // perdrait toute la légende — c'est précisément ce que ce test interdit.
+    const rampe = Array.from({ length: 21 }, (_, i) => ecranUni(i * 3));
+    expect(distanceEmpreintes(rampe[0] as number[], rampe[1] as number[])).toBeLessThan(
+      SEUIL_QUASI_IDENTIQUE,
+    );
+    const gardes = ecarterQuasiIdentiques(rampe);
+    expect(gardes).toEqual([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20]);
+  });
+
+  it("aucune empreinte en entrée → aucune gardée", () => {
+    expect(ecarterQuasiIdentiques([])).toEqual([]);
   });
 });
 

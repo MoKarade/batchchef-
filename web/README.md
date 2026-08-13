@@ -10,10 +10,11 @@ scan de reçus ni de prix « réels » relevés.
 - **Bibliothèque de recettes** : colle l'URL d'une recette (n'importe quel site) → un
   LLM extrait titre, portions, ingrédients aux unités normalisées (g/ml/unité),
   instructions. Validation Zod stricte : un parse douteux est rejeté, jamais inséré sale.
-- **Import depuis une vidéo** (reel Instagram, TikTok, Short) : dépose la vidéo et/ou colle
-  la description publiée → images extraites **dans le navigateur** (`<video>` + `<canvas>`,
-  zéro dépendance) puis lues par un modèle vision, qui rend ingrédients et préparation
-  détaillée. Même écran de validation que l'import par URL. Détails plus bas.
+- **Import depuis une vidéo** (reel Instagram, TikTok, Short) : dépose la vidéo — en pratique
+  un **enregistrement d'écran** du reel, légende dépliée → images extraites **dans le
+  navigateur** (`<video>` + `<canvas>`, zéro dépendance) puis lues par un modèle vision, qui
+  rend ingrédients et préparation détaillée. Même écran de validation que l'import par URL.
+  Détails plus bas.
 - **Batchs** : choisis tes recettes + portions → liste d'épicerie agrégée
   (mise à l'échelle, regroupement par ingrédient, jamais deux unités mélangées).
 - **Liste d'épicerie mobile** : plein écran téléphone, grosses cases, cochage optimiste
@@ -64,21 +65,20 @@ shortcut » / « Ajouter à l'écran d'accueil », qui ne crée qu'un raccourci 
 recevoir un partage). Ouvre l'app une fois ensuite, pour que le service worker s'active.
 
 ⚠️ **Instagram ne partage jamais le fichier vidéo à une autre app** — « Partager → autre
-application » n'envoie qu'une **URL**. D'où les trois façons de lui donner le contenu, toutes
-combinables :
+application » n'envoie qu'une **URL**, sans la légende. Et l'app **ne va rien chercher** chez
+Instagram (garde-fou du projet, et de toute façon le téléchargement d'un reel tiers n'est
+autorisé ni par leurs conditions ni par aucune API Meta).
 
-| Ce que tu partages / donnes | Ce que BatchChef en fait |
-|---|---|
-| **Captures d'écran** (Partager → BatchChef, depuis la Galerie ou la notification) | le modèle vision **lit le texte** des images. C'est le chemin PRINCIPAL : capture la légende et les moments où les quantités s'affichent. Jusqu'à 8 d'un coup. |
-| **Description copiée** (appui long sur la légende → Copier) | bouton **« Coller »** dans le formulaire, un tap |
-| **Vidéo** — seulement si tu peux l'enregistrer | découpée en images pour lire ce qui n'est montré qu'à l'écran |
+**La voie normale est donc l'enregistrement d'écran**, parce qu'un seul fichier porte tout :
 
-⚠️ **Instagram ne laisse pas enregistrer la vidéo de la plupart des reels** (seulement les
-tiens, ou ceux dont l'auteur autorise le téléchargement). Les captures d'écran ne sont donc
-pas un dépannage : c'est la voie normale.
+1. Lance l'enregistreur d'écran d'Android, reviens sur le reel, **déplie la légende** et
+   laisse-la lisible quelques secondes, puis laisse la vidéo tourner une fois en entier.
+2. Arrête l'enregistrement, puis **Partager → BatchChef** depuis la Galerie.
 
-Le partage lance l'analyse tout seul dès qu'il apporte une image (capture ou vidéo) ; tu
-relis l'extraction et tu enregistres.
+L'analyse démarre toute seule, la légende est lue **dans** l'enregistrement comme le reste, et
+tu n'as rien à copier. Les deux autres entrées restent disponibles en repli : des **captures
+d'écran** (jusqu'à 8, lues par le modèle vision) et la **description collée** (bouton
+« Coller » du formulaire).
 
 **Priorité du budget** : les captures d'écran passent avant les images de la vidéo. Elles
 portent les quantités écrites, alors qu'une image de vidéo ne montre souvent qu'un geste —
@@ -106,22 +106,42 @@ Sur `/recettes`, le bloc « Depuis une vidéo » prend trois entrées, toutes in
 | Entrée | Rôle |
 |---|---|
 | Lien du reel | facultatif — devient la `sourceUrl` de la recette. **Rien n'est téléchargé depuis ce lien.** |
-| Vidéo (fichier) | facultative — lue localement, jamais téléversée |
-| Description publiée | facultative mais **recommandée** : c'est là que sont les quantités |
+| Vidéo (fichier) | en pratique l'**enregistrement d'écran** — lue localement, jamais téléversée |
+| Captures d'écran | repli quand il n'y a pas d'enregistrement — images de texte, lues mot à mot |
+| Description publiée | facultative : utile quand la légende est copiable |
 
-Il faut au moins la vidéo **ou** la description (garde rejouée côté serveur).
+Il faut au moins une image (vidéo ou capture) **ou** la description (garde rejouée côté serveur).
 
 **Pourquoi Marc fournit le contenu au lieu que l'app aille le chercher.** Instagram interdit
 l'aspiration de ses pages et la bloque activement ; le principe « pas de scraping » du projet
 s'applique tel quel. L'app ne fait donc aucune requête vers Instagram : Marc, lui, a
 légitimement accès au contenu via son compte.
 
-**Comment la vidéo est lue.** L'API Anthropic ne prend pas de vidéo. Le navigateur extrait
-4 à 12 images réparties sur toute la durée (`lib/video/`), réduites à 768 px et encodées en
-JPEG ; seules ces images partent au serveur, sous un plafond de 3 Mo revérifié côté serveur
+**Comment la vidéo est lue.** L'API Anthropic ne prend pas de vidéo : le navigateur en tire
+des images (`lib/video/`), en **deux passes**.
+
+1. **Repérage** — une sonde par seconde (plafond 90, l'intervalle s'élargit au-delà), réduite
+   à 32×32, dont on ne garde qu'une **empreinte** de 64 valeurs de gris. Aucun encodage JPEG
+   ici : c'est ce qui rend cette densité abordable sur un téléphone.
+2. **Extraction** — on ne revient chercher en pleine résolution (768 px, JPEG) que les
+   **écrans distincts**, au plus 12.
+
+Pourquoi cette densité. L'échantillonnage régulier d'avant prenait ~12 images réparties sur la
+durée, soit une toutes les 3 à 4 s sur un reel de 30 à 45 s : une carte « 250 g de beurre »
+affichée 2 s n'avait qu'**une chance sur deux** d'être vue. Le fichier contenait la quantité,
+l'échantillonnage la manquait. À une sonde par seconde, une carte de 2 s est vue deux fois.
+
+Le tri par empreinte est ce qui permet de sonder densément sans envoyer douze photos du même
+plan de travail : un écran figé ne part qu'une fois, et le budget va aux écrans qui apportent
+quelque chose. La comparaison se fait avec la dernière image **gardée**, pas avec la
+précédente — sur une légende qu'on fait défiler lentement, comparer de proche en proche ne
+garderait qu'une seule image de tout le texte (verrouillé par `tests/video.test.ts`, preuve
+par mutation).
+
+Seules les images retenues partent au serveur, sous un plafond de 3 Mo revérifié côté serveur
 (la limite serverless Vercel est à 4,5 Mo). Si des images doivent être écartées faute de
-place, elles sont **comptées et affichées** — jamais coupées en silence, et la sélection reste
-répartie sur la durée plutôt que tronquée au début.
+place, elles sont **comptées et affichées** — jamais coupées en silence. L'écran de validation
+dit les trois nombres : instants sondés, écrans distincts, images envoyées.
 
 ⚠️ **L'audio n'est pas transcrit.** Une recette dite uniquement à l'oral, sans texte à
 l'écran ni description, ne sera pas récupérée intégralement. C'est la limite assumée : il

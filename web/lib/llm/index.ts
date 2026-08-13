@@ -240,16 +240,25 @@ const MEDIA_SYSTEM = `Tu extrais une recette de cuisine depuis une publication d
 On te donne, dans l'ordre, tout ou partie de ceci :
 - des CAPTURES D'ÉCRAN de la publication : ce sont des images de TEXTE (la légende, la liste
   d'ingrédients). Lis-les mot à mot, c'est la source la plus fiable des quantités ;
-- des IMAGES prises à intervalles réguliers dans la vidéo, en ordre chronologique ;
+- des IMAGES DE LA VIDÉO, en ordre chronologique, prises aux moments où l'écran CHANGE
+  (elles sont donc espacées IRRÉGULIÈREMENT : deux images consécutives peuvent être séparées
+  d'une seconde comme de vingt) ;
 - la DESCRIPTION publiée par l'auteur (texte brut).
 
+⚠️ La vidéo est souvent un ENREGISTREMENT D'ÉCRAN du téléphone : certaines de ses images ne
+montrent alors aucune cuisine, mais l'interface de l'application avec la LÉGENDE dépliée,
+c'est-à-dire un plein écran de texte. Traite ces images-là comme des captures d'écran — lis-les
+mot à mot, ce sont elles qui portent les quantités. Ignore ce qui appartient à l'interface
+(nombre de mentions J'aime, commentaires, boutons, nom du compte) sauf s'il fait partie de la
+recette.
+
 Comment les combiner :
-- Le TEXTE prime sur ce que tu crois voir : la description publiée et les captures d'écran
-  font foi, dans cet ordre, quand quelque chose se contredit.
-- Les IMAGES DE LA VIDÉO servent à lire le texte affiché à l'écran, à reconnaître les
-  ingrédients et à retrouver l'ORDRE des gestes.
-- Une capture d'écran coupée en plein milieu d'une phrase se poursuit sur la suivante :
-  recolle-les plutôt que de traiter chacune isolément.
+- Le TEXTE prime sur ce que tu crois voir : la description publiée et le texte LU dans les
+  images font foi, dans cet ordre, quand quelque chose se contredit.
+- Les images de cuisine servent à reconnaître les ingrédients et à retrouver l'ORDRE des gestes.
+- Un texte coupé en plein milieu d'une phrase se poursuit sur l'image suivante : recolle-les
+  plutôt que de traiter chacune isolément.
+- Un même écran peut apparaître deux fois : ne compte pas deux fois un ingrédient pour autant.
 
 Règles :
 - "servings" : le nombre de portions SEULEMENT s'il est annoncé (à l'écran ou dans la
