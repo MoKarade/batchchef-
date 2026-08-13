@@ -69,9 +69,13 @@ combinables :
 
 | Ce que tu partages / donnes | Ce que BatchChef en fait |
 |---|---|
-| **Capture d'écran** de la légende (Partager → BatchChef) | le modèle vision **lit le texte** de l'image — le moyen de récupérer une légende qui ne se copie pas |
+| **Captures d'écran** (Partager → BatchChef, depuis la Galerie ou la notification) | le modèle vision **lit le texte** des images. C'est le chemin PRINCIPAL : capture la légende et les moments où les quantités s'affichent. Jusqu'à 8 d'un coup. |
 | **Description copiée** (appui long sur la légende → Copier) | bouton **« Coller »** dans le formulaire, un tap |
-| **Vidéo** enregistrée puis partagée depuis la Galerie | découpée en images pour lire ce qui n'est montré qu'à l'écran |
+| **Vidéo** — seulement si tu peux l'enregistrer | découpée en images pour lire ce qui n'est montré qu'à l'écran |
+
+⚠️ **Instagram ne laisse pas enregistrer la vidéo de la plupart des reels** (seulement les
+tiens, ou ceux dont l'auteur autorise le téléchargement). Les captures d'écran ne sont donc
+pas un dépannage : c'est la voie normale.
 
 Le partage lance l'analyse tout seul dès qu'il apporte une image (capture ou vidéo) ; tu
 relis l'extraction et tu enregistres.
