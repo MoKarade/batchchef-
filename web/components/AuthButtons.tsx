@@ -33,7 +33,7 @@ export function SignOutButton() {
     >
       <button
         type="submit"
-        className="rounded-lg px-3 py-2 text-sm font-medium doux hover:bg-stone-200 dark:hover:bg-[var(--surface-douce)]"
+        className="rounded-lg px-3 py-2 text-sm font-medium doux hover:bg-[var(--surface-douce)]"
       >
         Déconnexion
       </button>

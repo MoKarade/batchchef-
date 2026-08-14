@@ -25,11 +25,11 @@ export function DeleteRecipeButton({ recipeId }: { recipeId: number }) {
             router.push("/recettes");
           });
         }}
-        className="rounded-lg border border-[var(--bordure)] px-3 py-2 text-xs doux  "
+        className="rounded-lg border border-[var(--bordure)] px-3 py-2 text-xs doux"
       >
         {pending ? "…" : "Supprimer"}
       </button>
-      {error && <p className="mt-1 max-w-40 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-1 max-w-40 text-xs texte-erreur">{error}</p>}
     </div>
   );
 }

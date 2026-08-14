@@ -37,7 +37,7 @@ export default async function CatalogueDetailPage({
 
       <section>
         <h2 className="mb-2 font-semibold">Ingrédients (pour {recipe.servings} portion{recipe.servings > 1 ? "s" : ""})</h2>
-        <ul className="divide-y divide-[var(--bordure)] rounded-2xl border border-[var(--bordure)] bg-white   ">
+        <ul className="divide-y divide-[var(--bordure)] rounded-2xl border border-[var(--bordure)] bg-[var(--surface)]">
           {ingredients.map((ing) => (
             <li key={ing.id} className="flex items-center justify-between px-4 py-3 text-sm">
               <span>{ing.name}{ing.note && <span className="doux"> — {ing.note}</span>}</span>
@@ -50,7 +50,7 @@ export default async function CatalogueDetailPage({
       {recipe.instructions && (
         <section>
           <h2 className="mb-2 font-semibold">Préparation</h2>
-          <p className="whitespace-pre-line rounded-2xl border border-[var(--bordure)] bg-white p-4 text-sm leading-relaxed  ">
+          <p className="whitespace-pre-line rounded-2xl border border-[var(--bordure)] bg-[var(--surface)] p-4 text-sm leading-relaxed">
             {recipe.instructions}
           </p>
         </section>

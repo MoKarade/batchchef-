@@ -100,9 +100,23 @@ la liste d'épicerie et une recette — se lisent DEBOUT, une main occupée, par
 néons d'un supermarché.
 
 - **Les couleurs vivent dans `app/globals.css`, en variables, et NULLE PART ailleurs.** Le
-  vocabulaire est `.carte` / `.bouton` / `.champ` / `.doux` / `.alerte` / `.erreur`. Avant,
-  288 chaînes de classes recopiées réinventaient bordures et gris d'un écran à l'autre :
-  c'est ce qui faisait dériver l'ensemble à chaque page ajoutée.
+  vocabulaire est `.carte` / `.bouton` / `.champ` / `.doux` / `.succes` / `.alerte` /
+  `.erreur` (+ `.sur-accent`, `.texte-succes`, `.texte-erreur` pour du texte sans fond).
+  Avant, 288 chaînes de classes recopiées réinventaient bordures et gris d'un écran à
+  l'autre : c'est ce qui faisait dériver l'ensemble à chaque page ajoutée.
+  ⚠️ **Une couleur figée est INVISIBLE à la relecture** : elle est parfaitement lisible dans
+  le thème pour lequel on l'a écrite. Vécu le 14/08/2026 — ma passe de refonte a remplacé
+  les variantes `dark:bg-stone-900` par des jetons en LAISSANT le `bg-white` en dur qu'elles
+  corrigeaient : 21 endroits, fond blanc figé sous un texte clair hérité en thème sombre,
+  zéro test rouge, zéro erreur. C'est Marc qui l'a vu sur son téléphone. Un remplacement
+  ordonné qui supprime le correctif AVANT l'original laisse toujours ce trou-là.
+  *Verrou* : `web/tests/theme.test.ts` — il refuse toute classe de palette Tailwind dans
+  `app/`/`components/`/`lib/`, toute variante appliquée au vocabulaire maison
+  (`dark:texte-erreur` ne génère rien) ou vide (`dark:` seul), tout `var(--jeton)` inexistant,
+  et toute couleur définie en clair mais oubliée en sombre. Portée = `git ls-files` **+** le
+  neuf non ignoré (sinon le garde arrive un commit trop tard) ; l'unique exception est
+  NOMMÉE classe par classe (la case posée sur une photo, dont le contraste se joue contre
+  l'image). Discrimination prouvée par quatre mutations, une par test.
 - **L'accent (`--accent`) ne sert QU'À l'action principale.** Ailleurs, il ment sur ce qui
   est cliquable.
 - **Navigation en bas sur téléphone** (`components/Navigation.tsx`), en haut à partir de

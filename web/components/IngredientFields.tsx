@@ -36,7 +36,7 @@ export function IngredientFields({
     <div className="space-y-2">
       <ul className="space-y-2">
         {rows.map((r, idx) => (
-          <li key={idx} className="space-y-2 rounded-xl border border-[var(--bordure)] p-3 ">
+          <li key={idx} className="space-y-2 rounded-xl border border-[var(--bordure)] p-3">
             <input
               type="text"
               value={r.name}
@@ -53,7 +53,7 @@ export function IngredientFields({
                 onChange={(e) => setRow(idx, { qty: e.target.value })}
                 placeholder="Qté"
                 disabled={disabled}
-                className="w-20 rounded-lg border border-[var(--bordure)] bg-white px-2 py-2 text-center text-sm tabular-nums  "
+                className="w-20 rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-center text-sm tabular-nums"
               />
               <select
                 value={r.unit ?? "augout"}
@@ -81,7 +81,7 @@ export function IngredientFields({
                 onClick={() => removeRow(idx)}
                 disabled={disabled}
                 aria-label="Supprimer l’ingrédient"
-                className="rounded-lg border border-[var(--bordure)] px-3 py-2 text-sm doux "
+                className="rounded-lg border border-[var(--bordure)] px-3 py-2 text-sm doux"
               >
                 Retirer
               </button>
@@ -93,7 +93,7 @@ export function IngredientFields({
         type="button"
         onClick={addRow}
         disabled={disabled}
-        className="w-full rounded-xl border border-dashed border-[var(--bordure)] px-3 py-2 text-sm doux  "
+        className="w-full rounded-xl border border-dashed border-[var(--bordure)] px-3 py-2 text-sm doux"
       >
         + Ajouter un ingrédient
       </button>

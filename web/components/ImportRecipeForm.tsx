@@ -50,13 +50,13 @@ export function ImportRecipeForm() {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="Colle l’URL d’une recette (n’importe quel site)"
-          className="min-w-0 flex-1 rounded-xl border border-[var(--bordure)] bg-white px-3 py-3 text-sm  "
+          className="min-w-0 flex-1 rounded-xl border border-[var(--bordure)] bg-[var(--surface)] px-3 py-3 text-sm"
           disabled={pending}
         />
         <button
           type="submit"
           disabled={pending || !url.trim()}
-          className="rounded-xl px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-xl px-4 py-3 text-sm font-medium sur-accent disabled:opacity-50"
           style={{ backgroundColor: "var(--accent)" }}
         >
           {pending ? "Analyse…" : "Analyser"}

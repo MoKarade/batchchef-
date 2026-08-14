@@ -8,7 +8,7 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   return (
-    <div className="mx-auto mt-16 max-w-sm rounded-2xl border border-[var(--bordure)] bg-white p-8 text-center shadow-sm  ">
+    <div className="mx-auto mt-16 max-w-sm rounded-2xl border border-[var(--bordure)] bg-[var(--surface)] p-8 text-center shadow-sm">
       <h1 className="text-xl font-bold">BatchChef</h1>
       <p className="mt-2 text-sm doux">
         App privée — connexion Google requise.
@@ -26,7 +26,7 @@ export default async function LoginPage({
       >
         <button
           type="submit"
-          className="mt-5 w-full rounded-xl px-4 py-3 font-medium text-white"
+          className="mt-5 w-full rounded-xl px-4 py-3 font-medium sur-accent"
           style={{ backgroundColor: "var(--accent)" }}
         >
           Se connecter avec Google

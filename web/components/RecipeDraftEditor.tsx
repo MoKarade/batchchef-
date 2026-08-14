@@ -193,7 +193,7 @@ export function RecipeDraftEditor({
             type="button"
             onClick={() => void collerLien()}
             disabled={pending}
-            className="rounded-lg border border-[var(--bordure)] px-3 py-1 text-xs font-medium disabled:opacity-50 "
+            className="rounded-lg border border-[var(--bordure)] px-3 py-1 text-xs font-medium disabled:opacity-50"
           >
             Coller
           </button>
@@ -222,7 +222,7 @@ export function RecipeDraftEditor({
           value={draft.servings}
           onChange={(e) => setDraft({ ...draft, servings: e.target.value, servingsGuessed: false })}
           disabled={pending}
-          className="w-20 rounded-lg border border-[var(--bordure)] bg-white px-2 py-2 text-center tabular-nums  "
+          className="w-20 rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-center tabular-nums"
         />
       </label>
       {draft.servingsGuessed && (

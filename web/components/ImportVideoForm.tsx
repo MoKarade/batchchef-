@@ -289,7 +289,7 @@ export function ImportVideoForm({
           accept="video/*"
           onChange={(e) => setFichier(e.target.files?.[0] ?? null)}
           disabled={busy}
-          className="w-full rounded-lg border border-[var(--bordure)] bg-white px-2 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-douce)] file:px-3 file:py-1 file:text-sm   dark:file:bg-[var(--surface-douce)]"
+          className="w-full rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-douce)] file:px-3 file:py-1 file:text-sm"
         />
         {fichier && (
           <p className="mt-1 text-xs doux">
@@ -308,7 +308,7 @@ export function ImportVideoForm({
           multiple
           onChange={(e) => setCaptures(Array.from(e.target.files ?? []))}
           disabled={busy}
-          className="w-full rounded-lg border border-[var(--bordure)] bg-white px-2 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-douce)] file:px-3 file:py-1 file:text-sm   dark:file:bg-[var(--surface-douce)]"
+          className="w-full rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-douce)] file:px-3 file:py-1 file:text-sm"
         />
         {captures.length > 0 && (
           <p className="mt-1 text-xs doux">
@@ -339,7 +339,7 @@ export function ImportVideoForm({
             type="button"
             onClick={() => void collerDescription()}
             disabled={busy}
-            className="rounded-lg border border-[var(--bordure)] px-3 py-1 text-xs font-medium disabled:opacity-50 "
+            className="rounded-lg border border-[var(--bordure)] px-3 py-1 text-xs font-medium disabled:opacity-50"
           >
             Coller
           </button>

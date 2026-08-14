@@ -103,7 +103,7 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
       <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium">
         Modifier la liste (ajouter / corriger)
       </summary>
-      <div className="space-y-4 border-t border-stone-100 p-4 ">
+      <div className="space-y-4 border-t border-[var(--bordure)] p-4">
         {error && (
           <p className="rounded-lg erreur p-2 text-sm">
             {error}
@@ -111,7 +111,7 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
         )}
 
         {/* Ajout d'un article manuel */}
-        <div className="space-y-2 rounded-xl border border-[var(--bordure)] p-3 ">
+        <div className="space-y-2 rounded-xl border border-[var(--bordure)] p-3">
           <p className="text-sm font-medium">Ajouter un article</p>
           <input
             type="text"
@@ -129,7 +129,7 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
               onChange={(e) => setAdd({ ...add, qty: e.target.value })}
               placeholder="Qté"
               disabled={pending}
-              className="w-16 rounded-lg border border-[var(--bordure)] bg-white px-2 py-2 text-center text-sm tabular-nums  "
+              className="w-16 rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-center text-sm tabular-nums"
             />
             <UnitSelect value={add.unit} onChange={(u) => setAdd({ ...add, unit: u })} disabled={pending} />
             <input
@@ -139,13 +139,13 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
               onChange={(e) => setAdd({ ...add, estCost: e.target.value })}
               placeholder="Prix $"
               disabled={pending}
-              className="w-20 rounded-lg border border-[var(--bordure)] bg-white px-2 py-2 text-center text-sm tabular-nums  "
+              className="w-20 rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-center text-sm tabular-nums"
             />
             <button
               type="button"
               onClick={addItem}
               disabled={pending || !add.name.trim()}
-              className="ml-auto rounded-lg px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="ml-auto rounded-lg px-3 py-2 text-sm font-medium sur-accent disabled:opacity-50"
               style={{ backgroundColor: "var(--accent)" }}
             >
               Ajouter
@@ -160,7 +160,7 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
             const setF = (patch: Partial<Fields>) =>
               setEdits((prev) => ({ ...prev, [item.id]: { ...f, ...patch } }));
             return (
-              <li key={item.id} className="space-y-2 rounded-xl border border-[var(--bordure)] p-3 ">
+              <li key={item.id} className="space-y-2 rounded-xl border border-[var(--bordure)] p-3">
                 <input
                   type="text"
                   value={f.name}
@@ -176,7 +176,7 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
                     onChange={(e) => setF({ qty: e.target.value })}
                     placeholder="Qté"
                     disabled={pending}
-                    className="w-16 rounded-lg border border-[var(--bordure)] bg-white px-2 py-2 text-center text-sm tabular-nums  "
+                    className="w-16 rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-center text-sm tabular-nums"
                   />
                   <UnitSelect value={f.unit} onChange={(u) => setF({ unit: u })} disabled={pending} />
                   <input
@@ -186,13 +186,13 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
                     onChange={(e) => setF({ estCost: e.target.value })}
                     placeholder="Prix $"
                     disabled={pending}
-                    className="w-20 rounded-lg border border-[var(--bordure)] bg-white px-2 py-2 text-center text-sm tabular-nums  "
+                    className="w-20 rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-center text-sm tabular-nums"
                   />
                   <button
                     type="button"
                     onClick={() => run(() => updateShoppingItem(item.id, toPayload(f)))}
                     disabled={pending || !f.name.trim()}
-                    className="ml-auto rounded-lg border border-[var(--bordure)] px-3 py-2 text-sm disabled:opacity-50 "
+                    className="ml-auto rounded-lg border border-[var(--bordure)] px-3 py-2 text-sm disabled:opacity-50"
                   >
                     Enregistrer
                   </button>
@@ -200,7 +200,7 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
                     type="button"
                     onClick={() => run(() => deleteShoppingItem(item.id))}
                     disabled={pending}
-                    className="rounded-lg border border-[var(--bordure)] px-3 py-2 text-sm doux "
+                    className="rounded-lg border border-[var(--bordure)] px-3 py-2 text-sm doux"
                   >
                     Suppr.
                   </button>

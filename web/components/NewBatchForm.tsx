@@ -34,16 +34,16 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
 
   if (fallbackNotice) {
     return (
-      <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-6 text-sm dark:border-amber-800 dark:bg-amber-950">
-        <p className="font-medium text-amber-800 dark:text-amber-200">Batch créé — budget approximatif.</p>
-        <p className="text-amber-700 dark:text-amber-300">
+      <div className="space-y-3 rounded-xl alerte p-6 text-sm">
+        <p className="font-medium">Batch créé — budget approximatif.</p>
+        <p>
           L&apos;estimation précise par IA a échoué ({fallbackNotice.error}) : les prix viennent d&apos;un
           tarif moyen de secours, pas de l&apos;estimation habituelle. Tu peux les corriger dans la liste
           d&apos;épicerie.
         </p>
         <Link
           href={`/batchs/${fallbackNotice.id}`}
-          className="inline-block rounded-lg px-4 py-2 font-medium text-white"
+          className="inline-block rounded-lg px-4 py-2 font-medium sur-accent"
           style={{ backgroundColor: "var(--accent)" }}
         >
           Voir le batch →
@@ -54,11 +54,11 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
 
   if (recipes.length === 0) {
     return (
-      <div className="space-y-3 rounded-xl border border-dashed border-[var(--bordure)] p-6 text-center text-sm doux ">
+      <div className="space-y-3 rounded-xl border border-dashed border-[var(--bordure)] p-6 text-center text-sm doux">
         <p>Ta bibliothèque est vide — un batch se compose de recettes que tu as déjà.</p>
         <Link
           href="/catalogue"
-          className="inline-block rounded-lg px-4 py-2 font-medium text-white"
+          className="inline-block rounded-lg px-4 py-2 font-medium sur-accent"
           style={{ backgroundColor: "var(--accent)" }}
         >
           Piger dans le catalogue
@@ -103,11 +103,11 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Nom du batch (ex. Semaine du 28 juillet)"
-        className="w-full rounded-xl border border-[var(--bordure)] bg-white px-3 py-3 text-sm  "
+        className="w-full rounded-xl border border-[var(--bordure)] bg-[var(--surface)] px-3 py-3 text-sm"
         disabled={pending}
       />
 
-      <ul className="divide-y divide-[var(--bordure)] rounded-2xl border border-[var(--bordure)] bg-white   ">
+      <ul className="divide-y divide-[var(--bordure)] rounded-2xl border border-[var(--bordure)] bg-[var(--surface)]">
         {recipes.map((r) => {
           const selected = r.id in portions;
           return (
@@ -117,7 +117,7 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
                 id={`r-${r.id}`}
                 checked={selected}
                 onChange={() => toggle(r.id, r.servings)}
-                className="h-6 w-6 accent-orange-700"
+                className="h-6 w-6 accent-[var(--accent)]"
                 disabled={pending}
               />
               <label htmlFor={`r-${r.id}`} className="min-w-0 flex-1 text-sm">
@@ -133,7 +133,7 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
                     onChange={(e) =>
                       setPortions((prev) => ({ ...prev, [r.id]: Number(e.target.value) }))
                     }
-                    className="w-16 rounded-lg border border-[var(--bordure)] bg-white px-2 py-2 text-center tabular-nums  "
+                    className="w-16 rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-center tabular-nums"
                     disabled={pending}
                   />
                   portions
@@ -152,7 +152,7 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
       <button
         type="submit"
         disabled={pending || Object.keys(portions).length === 0 || !name.trim()}
-        className="w-full rounded-xl px-4 py-3 font-medium text-white disabled:opacity-50"
+        className="w-full rounded-xl px-4 py-3 font-medium sur-accent disabled:opacity-50"
         style={{ backgroundColor: "var(--accent)" }}
       >
         {pending ? "Génération de la liste…" : "Créer le batch"}

@@ -39,7 +39,7 @@ export default async function HomePage() {
           <Link
             key={s.label}
             href={s.href}
-            className="rounded-2xl border border-[var(--bordure)] bg-white p-4 text-center shadow-sm  "
+            className="rounded-2xl border border-[var(--bordure)] bg-[var(--surface)] p-4 text-center shadow-sm"
           >
             <div className="text-2xl font-bold tabular-nums">{s.value}</div>
             <div className="mt-1 text-xs doux">{s.label}</div>
@@ -49,7 +49,7 @@ export default async function HomePage() {
       <div className="flex flex-col gap-3 sm:flex-row">
         <Link
           href="/recettes"
-          className="flex-1 rounded-xl border border-[var(--bordure)] px-4 py-3 text-center font-medium "
+          className="flex-1 rounded-xl border border-[var(--bordure)] px-4 py-3 text-center font-medium"
         >
           + Importer une recette
         </Link>

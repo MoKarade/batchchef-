@@ -68,12 +68,12 @@ export function RecipeEditor({
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="rounded-lg border border-[var(--bordure)] px-3 py-1.5 text-sm "
+            className="rounded-lg border border-[var(--bordure)] px-3 py-1.5 text-sm"
           >
             Modifier
           </button>
         </div>
-        <ul className="divide-y divide-[var(--bordure)] rounded-2xl border border-[var(--bordure)] bg-white   ">
+        <ul className="divide-y divide-[var(--bordure)] rounded-2xl border border-[var(--bordure)] bg-[var(--surface)]">
           {initial.map((ing, i) => (
             <li key={i} className="flex items-center justify-between px-4 py-3 text-sm">
               <span>
@@ -103,7 +103,7 @@ export function RecipeEditor({
           value={servings}
           onChange={(e) => setServings(e.target.value)}
           disabled={pending}
-          className="w-20 rounded-lg border border-[var(--bordure)] bg-white px-2 py-2 text-center tabular-nums  "
+          className="w-20 rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-center tabular-nums"
         />
       </label>
       <p className="text-xs doux">
@@ -124,7 +124,7 @@ export function RecipeEditor({
           type="button"
           onClick={reset}
           disabled={pending}
-          className="flex-1 rounded-xl border border-[var(--bordure)] px-4 py-3 text-sm "
+          className="flex-1 rounded-xl border border-[var(--bordure)] px-4 py-3 text-sm"
         >
           Annuler
         </button>
@@ -132,7 +132,7 @@ export function RecipeEditor({
           type="button"
           onClick={save}
           disabled={pending}
-          className="flex-1 rounded-xl px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+          className="flex-1 rounded-xl px-4 py-3 text-sm font-medium sur-accent disabled:opacity-50"
           style={{ backgroundColor: "var(--accent)" }}
         >
           {pending ? "Enregistrement…" : "Enregistrer"}

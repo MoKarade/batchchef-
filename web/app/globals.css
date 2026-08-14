@@ -38,6 +38,8 @@
   --sur-accent: #ffffff;
 
   /* Sémantique — un seul endroit pour « ça va » / « attention ». */
+  --succes-fond: #ecfdf5;
+  --succes-texte: #065f46;
   --alerte-fond: #fef3c7;
   --alerte-texte: #78350f;
   --erreur-fond: #fee2e2;
@@ -66,6 +68,8 @@
     --accent-doux: #2a1a10;
     --sur-accent: #1c1917;
 
+    --succes-fond: #0b2b21;
+    --succes-texte: #6ee7b7;
     --alerte-fond: #3a2a08;
     --alerte-texte: #fcd34d;
     --erreur-fond: #3f1618;
@@ -156,9 +160,27 @@ h3 {
     color: var(--texte-doux);
   }
 
-  /* Un avertissement et une erreur ne sont pas des nuances de gris : elles ont leur
-     propre couleur, déclarée UNE fois. Elles étaient recopiées à la main dans huit
-     fichiers, avec des teintes qui ne correspondaient déjà plus entre elles. */
+  /* Texte posé SUR l'accent. `text-white` était codé en dur : juste en thème clair,
+     faux en thème sombre où l'accent s'éclaircit — du blanc sur orange clair. */
+  .sur-accent {
+    color: var(--sur-accent);
+  }
+
+  /* Textes sémantiques sans fond (bouton de suppression, message court). */
+  .texte-erreur {
+    color: var(--erreur-texte);
+  }
+  .texte-succes {
+    color: var(--succes-texte);
+  }
+
+  /* « Ça va », un avertissement et une erreur ne sont pas des nuances de gris : elles
+     ont leur propre couleur, déclarée UNE fois. Elles étaient recopiées à la main dans
+     huit fichiers, avec des teintes qui ne correspondaient déjà plus entre elles. */
+  .succes {
+    background-color: var(--succes-fond);
+    color: var(--succes-texte);
+  }
   .alerte {
     background-color: var(--alerte-fond);
     color: var(--alerte-texte);

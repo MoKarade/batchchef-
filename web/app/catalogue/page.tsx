@@ -68,7 +68,7 @@ export default async function CataloguePage({
       <CatalogueSearch initial={q} />
 
       {recipes.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-[var(--bordure)] p-6 text-center text-sm doux ">
+        <p className="rounded-xl border border-dashed border-[var(--bordure)] p-6 text-center text-sm doux">
           {total === 0
             ? "Catalogue vide — lance l’import (npm run catalog:import) pour peupler les 10 188 recettes."
             : "Aucun résultat pour cette recherche."}
@@ -82,7 +82,7 @@ export default async function CataloguePage({
           {lastPage > 1 && (
             <div className="flex items-center justify-between text-sm">
               {page > 1 ? (
-                <Link href={qs(page - 1)} className="rounded-lg border border-[var(--bordure)] px-3 py-2 ">
+                <Link href={qs(page - 1)} className="rounded-lg border border-[var(--bordure)] px-3 py-2">
                   ← Précédent
                 </Link>
               ) : (
@@ -92,7 +92,7 @@ export default async function CataloguePage({
                 Page {page} / {lastPage.toLocaleString("fr-CA")}
               </span>
               {page < lastPage ? (
-                <Link href={qs(page + 1)} className="rounded-lg border border-[var(--bordure)] px-3 py-2 ">
+                <Link href={qs(page + 1)} className="rounded-lg border border-[var(--bordure)] px-3 py-2">
                   Suivant →
                 </Link>
               ) : (

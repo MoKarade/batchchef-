@@ -74,7 +74,7 @@ export default async function RecipeDetailPage({
       {recipe.instructions && (
         <section>
           <h2 className="mb-2 font-semibold">Préparation</h2>
-          <p className="whitespace-pre-line rounded-2xl border border-[var(--bordure)] bg-white p-4 text-sm leading-relaxed  ">
+          <p className="whitespace-pre-line rounded-2xl border border-[var(--bordure)] bg-[var(--surface)] p-4 text-sm leading-relaxed">
             {recipe.instructions}
           </p>
         </section>

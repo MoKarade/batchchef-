@@ -211,7 +211,7 @@ function DiagnosticPartage({
   ];
 
   return (
-    <details className="rounded-xl border border-[var(--bordure)] p-3 text-sm ">
+    <details className="rounded-xl border border-[var(--bordure)] p-3 text-sm">
       <summary className="cursor-pointer doux">Ce que le partage a transmis</summary>
       <dl className="mt-2 space-y-2">
         {lignes.map(([cle, valeur]) => (

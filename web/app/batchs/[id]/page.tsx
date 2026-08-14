@@ -75,8 +75,8 @@ export default async function BatchDetailPage({
                       {r.portions} portions
                     </span>
                   </summary>
-                  <div className="border-t border-stone-100 px-4 py-3 ">
-                    <ul className="divide-y divide-stone-100 ">
+                  <div className="border-t border-[var(--bordure)] px-4 py-3">
+                    <ul className="divide-y divide-[var(--bordure)]">
                       {ings.map((ing) => (
                         <li key={ing.id} className="flex items-center justify-between py-2 text-sm">
                           <span>
@@ -90,7 +90,7 @@ export default async function BatchDetailPage({
                       ))}
                     </ul>
                     {r.instructions && (
-                      <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-stone-700 dark:text-stone-300">
+                      <p className="mt-3 whitespace-pre-line text-sm leading-relaxed">
                         {r.instructions}
                       </p>
                     )}
