@@ -19,6 +19,7 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { isAuthorizedEmail } from "@/lib/authorized";
+import { aAccesHub } from "@/lib/accesHub";
 import { cookiesSessionPartagee } from "@/lib/sessionPartagee";
 import {
   PARAMS_AUTORISATION,
@@ -62,23 +63,40 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   pages: { signIn: "/login", error: "/login" },
   callbacks: {
-    signIn({ user }) {
-      return isAuthorizedEmail(user?.email, process.env.AUTHORIZED_EMAIL);
+    // DEUX ÉTAGES, PAS UN SEUL — contrairement à JobAI/CarAI (étape 1 de l'ADR 0001),
+    // BatchChef GARDE son propre bouton « Se connecter avec Google » (app/login/page.tsx) :
+    // ce callback tourne donc pour de vrai, à chaque connexion DIRECTE sur BatchChef.
+    //
+    // `isAuthorizedEmail` (Marc) reste premier et sans réseau : un hub injoignable ne doit
+    // jamais l'enfermer dehors de sa propre app. Pour toute autre adresse, `aAccesHub`
+    // interroge la table `acces` du hub (étape 2 de l'ADR 0001) : c'est là, et seulement
+    // là, que vit désormais la liste de qui d'autre a le droit d'entrer — inviter
+    // quelqu'un depuis la page d'administration du hub doit suffire à lui ouvrir
+    // BatchChef, sans toucher à AUTHORIZED_EMAIL ici.
+    async signIn({ user }) {
+      if (isAuthorizedEmail(user?.email, process.env.AUTHORIZED_EMAIL)) return true;
+      return await aAccesHub(user?.email);
     },
     async jwt({ token, account, user }) {
       // ⚠️ REVÉRIFICATION À CHAQUE LECTURE — c'est la contrepartie du cookie partagé.
       //
       // `signIn` ne tourne qu'à la CONNEXION. Le cookie devenant lisible par tous les
-      // sous-domaines, BatchChef accepterait sans broncher une session fabriquée par
-      // une autre app du hub. Aujourd'hui c'est cohérent — les apps partagent la même
-      // AUTHORIZED_EMAIL — mais ça ne l'est que par coïncidence de configuration.
+      // sous-domaines, BatchChef accepterait sans broncher une session fabriquée par une
+      // autre app du hub — et depuis l'étape 2, ce n'est plus qu'une coïncidence de
+      // configuration que les autres apps partagent AUTHORIZED_EMAIL : un accès accordé
+      // pour une seule app ne doit pas ouvrir les autres.
       //
-      // L'enjeu est plus élevé ici qu'ailleurs : ce jeton porte l'accès Google Tasks
-      // ET le refresh_token. Renvoyer `null` INVALIDE la session (Auth.js v5), donc
-      // aucune Server Action ne peut lire le jeton. Ce contrôle vient AVANT tout le
-      // reste : ne rafraîchissons pas un jeton pour une session qu'on va refuser.
+      // L'enjeu est plus élevé ici qu'ailleurs : ce jeton porte l'accès Google Tasks ET le
+      // refresh_token. Renvoyer `null` INVALIDE la session (Auth.js v5), donc aucune
+      // Server Action ne peut lire le jeton. Ce contrôle vient AVANT tout le reste : ne
+      // rafraîchissons pas un jeton pour une session qu'on va refuser.
       if (user?.email) token.email = user.email;
-      if (!isAuthorizedEmail(token.email, process.env.AUTHORIZED_EMAIL)) return null;
+      if (
+        !isAuthorizedEmail(token.email, process.env.AUTHORIZED_EMAIL) &&
+        !(await aAccesHub(token.email))
+      ) {
+        return null;
+      }
 
       // Capture à la connexion, renouvellement ensuite. Logique partagée par les
       // quatre apps : celle par laquelle on passe rafraîchit pour toutes.
