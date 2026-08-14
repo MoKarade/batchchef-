@@ -12,6 +12,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { normalizeQty } from "../units";
 import { recordLlmUsage } from "../llmUsage";
+import { MAX_TRANSCRIPT_CHARS } from "../transcription";
 
 const MODEL = process.env.BATCHCHEF_LLM_MODEL || "claude-haiku-4-5-20251001";
 // Lire une vidéo, c'est déchiffrer du texte incrusté sur des images réduites et suivre des
@@ -45,24 +46,97 @@ function extractJson(text: string): unknown {
 // normalisation vers g/ml/unite est faite APRÈS, en code (`normalizeQty`) — on ne compte
 // pas sur le LLM pour normaliser parfaitement (il glisse toujours), ce qui rendait l'import
 // fragile (un « c. à soupe » ou une clé `note` omise faisait planter tout l'import).
+/** Clés sous lesquelles un modèle range le texte quand il rend une étape en OBJET. */
+const CLES_TEXTE = ["text", "texte", "instruction", "etape", "step", "description", "value"];
+
+/** Un élément de liste ramené à du texte, ou `null` s'il n'est pas réductible honnêtement. */
+function elementEnTexte(element: unknown): string | null {
+  if (typeof element === "string") return element;
+  if (typeof element === "number" && Number.isFinite(element)) return String(element);
+  if (element && typeof element === "object") {
+    for (const cle of CLES_TEXTE) {
+      const valeur = (element as Record<string, unknown>)[cle];
+      if (typeof valeur === "string" && valeur.trim()) return valeur;
+    }
+  }
+  return null;
+}
+
+/**
+ * Ramène à du texte une valeur que le modèle a pu rendre en LISTE.
+ *
+ * Vécu le 13/08/2026 : demandées « numérotées, une par ligne », les instructions sont
+ * revenues en tableau — Zod a refusé toute la recette après un appel vision déjà payé.
+ * C'est une variation de FORME, pas une donnée douteuse : la recette était bonne.
+ *
+ * ⚠️ Si un seul élément n'est pas réductible en texte, on rend la valeur d'ORIGINE : le
+ * schéma la refusera avec son message. Fabriquer un « [object Object] » serait pire que
+ * l'erreur — ce serait de la fausse donnée présentée comme une étape de recette.
+ */
+export function aplatirTexte(valeur: unknown, separateur = "\n"): unknown {
+  if (!Array.isArray(valeur)) return valeur;
+  const lignes = valeur.map(elementEnTexte);
+  if (lignes.some((l) => l === null)) return valeur;
+  return lignes.join(separateur);
+}
+
+/**
+ * Un nombre rendu en CHAÎNE (« 4 », « 2,5 ») redevient un nombre.
+ *
+ * Strictement numérique : « environ 4 » ou « 1/2 » ne sont PAS convertis et le schéma les
+ * refuse. Deviner y serait plus grave qu'ailleurs — `servings` met à l'échelle toutes les
+ * quantités de la liste d'épicerie, et `qty` EST la quantité.
+ */
+export function aplatirNombre(valeur: unknown): unknown {
+  if (typeof valeur !== "string") return valeur;
+  const brut = valeur.trim();
+  if (!/^\d+([.,]\d+)?$/.test(brut)) return valeur;
+  return Number(brut.replace(",", "."));
+}
+
 export const RawParsedRecipeSchema = z.object({
   title: z.string().min(1).max(200),
-  servings: z.number().int().min(1).max(50).nullish(),
+  servings: z.preprocess(aplatirNombre, z.number().int().min(1).max(50).nullish()),
   imageUrl: z.string().url().nullish(),
-  instructions: z.string().max(20000).nullish(),
+  instructions: z.preprocess((v) => aplatirTexte(v, "\n"), z.string().max(20000).nullish()),
   ingredients: z
     .array(
       z.object({
         name: z.string().min(1).max(120),
         canonical: z.string().min(1).max(80).nullish(),
-        qty: z.number().positive().nullish(),
+        qty: z.preprocess(aplatirNombre, z.number().positive().nullish()),
         unit: z.string().max(30).nullish(),
-        note: z.string().max(200).nullish(),
+        note: z.preprocess((v) => aplatirTexte(v, ", "), z.string().max(200).nullish()),
       }),
     )
     .min(1)
     .max(80),
 });
+
+/**
+ * Décrit un refus de schéma en NOMMANT le champ fautif.
+ *
+ * Le message brut de Zod (« Expected string, received array ») ne dit pas OÙ : on ne peut
+ * ni corriger, ni même savoir quel champ soupçonner. Vécu le 13/08 — un aller-retour entier
+ * perdu à deviner. Trois issues suffisent à situer le problème ; le reste est compté.
+ */
+export function decrireIssuesZod(erreur: z.ZodError, max = 3): string {
+  const vues = erreur.issues.slice(0, max).map((issue) => {
+    const chemin = issue.path.length > 0 ? issue.path.join(".") : "(racine)";
+    return `${chemin} : ${issue.message}`;
+  });
+  const reste = erreur.issues.length - vues.length;
+  return vues.join(" · ") + (reste > 0 ? ` (+${reste} autre(s))` : "");
+}
+
+/** Valide la sortie du modèle et la normalise, ou échoue en DISANT quel champ cloche. */
+export function analyserSortieRecette(brut: unknown): ParsedRecipe {
+  const resultat = RawParsedRecipeSchema.safeParse(brut);
+  if (!resultat.success) {
+    throw new Error(`Réponse du modèle hors schéma — ${decrireIssuesZod(resultat.error)}`);
+  }
+  return normalizeParsedRecipe(resultat.data);
+}
 
 /** Recette NORMALISÉE (unités en g/ml/unite) — le format consommé par le reste de l'app. */
 export interface ParsedIngredient {
@@ -125,6 +199,18 @@ Règles :
 - "imageUrl" : l'URL absolue de la photo principale si évidente dans le texte, sinon null.
 - Tu n'INVENTES rien : ce qui n'est pas dans la page reste null.
 
+⚠️ LA SOURCE PEUT ÊTRE DANS N'IMPORTE QUELLE LANGUE (beaucoup de reels sont en anglais).
+Quoi qu'il arrive, tu réponds en FRANÇAIS :
+- "canonical" est TOUJOURS en français, même si la source dit « chicken breast » ou
+  « all-purpose flour ». C'est la CLÉ de regroupement de la liste d'épicerie : un
+  « chicken breast » anglais et une « poitrine de poulet » française deviendraient deux
+  lignes distinctes qui ne fusionneraient jamais.
+- "title" et "instructions" sont traduits en français.
+- "name" peut garder la formulation de la source si elle est parlante, mais en français
+  de préférence.
+- Les unités restent celles ANNONCÉES ("cup", "oz", "lb", "tbsp"…) : la conversion est
+  faite par le code, pas par toi. Ne convertis JAMAIS toi-même.
+
 Réponds UNIQUEMENT avec l'objet JSON.`;
 
 /** Convertit une page HTML en texte brut borné (le LLM n'a pas besoin du markup). */
@@ -153,7 +239,7 @@ export async function parseRecipeFromPage(pageText: string): Promise<ParsedRecip
   void recordLlmUsage("parse", response.usage, MODEL);
   const block = response.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") throw new Error("Réponse LLM vide.");
-  return normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text)));
+  return analyserSortieRecette(extractJson(block.text));
 }
 
 const VERIFY_SYSTEM = `Tu es un vérificateur de recettes minutieux. On te donne le TEXTE d'une page de
@@ -207,7 +293,7 @@ export async function verifyParsedRecipe(pageText: string, draft: ParsedRecipe):
     void recordLlmUsage("verify", response.usage, MODEL);
     const block = response.content.find((b) => b.type === "text");
     if (!block || block.type !== "text") return draft;
-    return preserveGuessFlag(draft, normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text))));
+    return preserveGuessFlag(draft, analyserSortieRecette(extractJson(block.text)));
   } catch {
     return draft; // la vérification ne doit jamais bloquer l'import
   }
@@ -243,7 +329,8 @@ On te donne, dans l'ordre, tout ou partie de ceci :
 - des IMAGES DE LA VIDÉO, en ordre chronologique, prises aux moments où l'écran CHANGE
   (elles sont donc espacées IRRÉGULIÈREMENT : deux images consécutives peuvent être séparées
   d'une seconde comme de vingt) ;
-- la DESCRIPTION publiée par l'auteur (texte brut).
+- la DESCRIPTION publiée par l'auteur (texte brut) ;
+- une TRANSCRIPTION AUTOMATIQUE de ce qui est DIT à l'oral dans la vidéo.
 
 ⚠️ La vidéo est souvent un ENREGISTREMENT D'ÉCRAN du téléphone : certaines de ses images ne
 montrent alors aucune cuisine, mais l'interface de l'application avec la LÉGENDE dépliée,
@@ -251,6 +338,17 @@ c'est-à-dire un plein écran de texte. Traite ces images-là comme des captures
 mot à mot, ce sont elles qui portent les quantités. Ignore ce qui appartient à l'interface
 (nombre de mentions J'aime, commentaires, boutons, nom du compte) sauf s'il fait partie de la
 recette.
+
+⚠️ LA TRANSCRIPTION EST LA SOURCE LA MOINS FIABLE, et de loin. Elle est produite par
+reconnaissance vocale : elle se trompe surtout sur les NOMBRES et les UNITÉS, précisément ce
+qui compte le plus ici. Règles STRICTES :
+- Elle ne contredit JAMAIS un texte lu à l'écran ni la description. En cas de désaccord,
+  l'écrit gagne, toujours.
+- Elle sert à COMPLÉTER : un ingrédient ou une étape qu'on n'entend que dans la voix, et
+  qu'aucun écrit ne mentionne, peut être ajouté.
+- Une quantité qui n'apparaît QUE dans la transcription et dont tu n'es pas certain →
+  qty: null. Un « au goût » honnête vaut mieux qu'un nombre mal entendu : toutes les
+  quantités de la liste d'épicerie en dépendent.
 
 Comment les combiner :
 - Le TEXTE prime sur ce que tu crois voir : la description publiée et le texte LU dans les
@@ -276,6 +374,18 @@ Règles :
 - "imageUrl" : toujours null.
 - Tu n'INVENTES rien. Ce que la vidéo et la description ne disent pas reste null.
 
+⚠️ LA SOURCE PEUT ÊTRE DANS N'IMPORTE QUELLE LANGUE (beaucoup de reels sont en anglais).
+Quoi qu'il arrive, tu réponds en FRANÇAIS :
+- "canonical" est TOUJOURS en français, même si la source dit « chicken breast » ou
+  « all-purpose flour ». C'est la CLÉ de regroupement de la liste d'épicerie : un
+  « chicken breast » anglais et une « poitrine de poulet » française deviendraient deux
+  lignes distinctes qui ne fusionneraient jamais.
+- "title" et "instructions" sont traduits en français.
+- "name" peut garder la formulation de la source si elle est parlante, mais en français
+  de préférence.
+- Les unités restent celles ANNONCÉES ("cup", "oz", "lb", "tbsp"…) : la conversion est
+  faite par le code, pas par toi. Ne convertis JAMAIS toi-même.
+
 Réponds UNIQUEMENT avec l'objet JSON.`;
 
 export interface MediaInput {
@@ -285,6 +395,8 @@ export interface MediaInput {
   captures?: string[];
   /** Description publiée avec la vidéo. Peut être vide. */
   caption: string;
+  /** Transcription de l'audio. Peut être vide (muette, désactivée ou en échec). */
+  transcript?: string;
 }
 
 function blocImage(data: string): Anthropic.ContentBlockParam {
@@ -315,6 +427,17 @@ export async function parseRecipeFromMedia(input: MediaInput): Promise<ParsedRec
     content.push(...input.frames.map(blocImage));
   }
 
+  const transcript = (input.transcript ?? "").trim().slice(0, MAX_TRANSCRIPT_CHARS);
+  if (transcript) {
+    content.push({
+      type: "text",
+      text:
+        "TRANSCRIPTION AUTOMATIQUE de la bande sonore (reconnaissance vocale, ERREURS " +
+        "FRÉQUENTES sur les chiffres et les unités — ne l'utilise jamais pour contredire " +
+        `un écrit) :\n${transcript}`,
+    });
+  }
+
   const rien = captures.length === 0 && input.frames.length === 0;
   content.push({
     type: "text",
@@ -334,7 +457,7 @@ export async function parseRecipeFromMedia(input: MediaInput): Promise<ParsedRec
   void recordLlmUsage("video", response.usage, VISION_MODEL);
   const block = response.content.find((b) => b.type === "text");
   if (!block || block.type !== "text") throw new Error("Réponse LLM vide.");
-  return normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text)));
+  return analyserSortieRecette(extractJson(block.text));
 }
 
 const CAPTION_VERIFY_SYSTEM = `Tu vérifies une recette extraite d'une VIDÉO contre la DESCRIPTION publiée avec elle.
@@ -379,7 +502,7 @@ export async function verifyRecipeAgainstCaption(
     void recordLlmUsage("verify", response.usage, VISION_MODEL);
     const block = response.content.find((b) => b.type === "text");
     if (!block || block.type !== "text") return draft;
-    return preserveGuessFlag(draft, normalizeParsedRecipe(RawParsedRecipeSchema.parse(extractJson(block.text))));
+    return preserveGuessFlag(draft, analyserSortieRecette(extractJson(block.text)));
   } catch {
     return draft;
   }

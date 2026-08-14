@@ -68,19 +68,19 @@ export function RecipeEditor({
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm dark:border-stone-700"
+            className="rounded-lg border border-[var(--bordure)] px-3 py-1.5 text-sm"
           >
             Modifier
           </button>
         </div>
-        <ul className="divide-y divide-stone-200 rounded-2xl border border-stone-200 bg-white dark:divide-stone-800 dark:border-stone-800 dark:bg-stone-900">
+        <ul className="divide-y divide-[var(--bordure)] rounded-2xl border border-[var(--bordure)] bg-[var(--surface)]">
           {initial.map((ing, i) => (
             <li key={i} className="flex items-center justify-between px-4 py-3 text-sm">
               <span>
                 {ing.name}
-                {ing.note && <span className="text-stone-500"> — {ing.note}</span>}
+                {ing.note && <span className="doux"> — {ing.note}</span>}
               </span>
-              <span className="tabular-nums text-stone-600 dark:text-stone-400">
+              <span className="tabular-nums doux">
                 {formatQty(ing.qty, ing.unit)}
               </span>
             </li>
@@ -103,10 +103,10 @@ export function RecipeEditor({
           value={servings}
           onChange={(e) => setServings(e.target.value)}
           disabled={pending}
-          className="w-20 rounded-lg border border-stone-300 bg-white px-2 py-2 text-center tabular-nums dark:border-stone-700 dark:bg-stone-900"
+          className="w-20 rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-center tabular-nums"
         />
       </label>
-      <p className="text-xs text-stone-500">
+      <p className="text-xs doux">
         Les quantités ci-dessous valent pour ce nombre de portions. À la création d’un batch,
         elles sont mises à l’échelle des portions voulues.
       </p>
@@ -114,7 +114,7 @@ export function RecipeEditor({
       <IngredientFields rows={rows} onChange={setRows} disabled={pending} />
 
       {error && (
-        <p className="rounded-lg bg-red-50 p-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+        <p className="rounded-lg erreur p-2 text-sm">
           {error}
         </p>
       )}
@@ -124,7 +124,7 @@ export function RecipeEditor({
           type="button"
           onClick={reset}
           disabled={pending}
-          className="flex-1 rounded-xl border border-stone-300 px-4 py-3 text-sm dark:border-stone-700"
+          className="flex-1 rounded-xl border border-[var(--bordure)] px-4 py-3 text-sm"
         >
           Annuler
         </button>
@@ -132,7 +132,7 @@ export function RecipeEditor({
           type="button"
           onClick={save}
           disabled={pending}
-          className="flex-1 rounded-xl px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+          className="flex-1 rounded-xl px-4 py-3 text-sm font-medium sur-accent disabled:opacity-50"
           style={{ backgroundColor: "var(--accent)" }}
         >
           {pending ? "Enregistrement…" : "Enregistrer"}

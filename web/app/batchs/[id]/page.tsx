@@ -52,12 +52,12 @@ export default async function BatchDetailPage({
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold">{batch.name}</h1>
-        <p className="mt-1 text-sm text-stone-500">{totalPortions} portions au total</p>
+        <p className="mt-1 text-sm doux">{totalPortions} portions au total</p>
       </div>
 
       <section>
         <h2 className="mb-2 font-semibold">Recettes à cuisiner</h2>
-        <p className="mb-2 text-xs text-stone-500">
+        <p className="mb-2 text-xs doux">
           Quantités ajustées aux portions choisies pour ce batch. Touche une recette pour la déplier.
         </p>
         <ul className="space-y-2">
@@ -66,31 +66,31 @@ export default async function BatchDetailPage({
             return (
               <li
                 key={r.recipeId}
-                className="overflow-hidden rounded-2xl border border-stone-200 bg-white dark:border-stone-800 dark:bg-stone-900"
+                className="overflow-hidden carte"
               >
                 <details>
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
                     <span className="min-w-0 flex-1 font-medium">{r.title}</span>
-                    <span className="shrink-0 tabular-nums text-sm text-stone-500">
+                    <span className="shrink-0 tabular-nums text-sm doux">
                       {r.portions} portions
                     </span>
                   </summary>
-                  <div className="border-t border-stone-100 px-4 py-3 dark:border-stone-800">
-                    <ul className="divide-y divide-stone-100 dark:divide-stone-800">
+                  <div className="border-t border-[var(--bordure)] px-4 py-3">
+                    <ul className="divide-y divide-[var(--bordure)]">
                       {ings.map((ing) => (
                         <li key={ing.id} className="flex items-center justify-between py-2 text-sm">
                           <span>
                             {ing.name}
-                            {ing.note && <span className="text-stone-500"> — {ing.note}</span>}
+                            {ing.note && <span className="doux"> — {ing.note}</span>}
                           </span>
-                          <span className="tabular-nums text-stone-600 dark:text-stone-400">
+                          <span className="tabular-nums doux">
                             {formatQty(scaleQty(ing.qty, ing.unit, r.portions, r.servings), ing.unit)}
                           </span>
                         </li>
                       ))}
                     </ul>
                     {r.instructions && (
-                      <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-stone-700 dark:text-stone-300">
+                      <p className="mt-3 whitespace-pre-line text-sm leading-relaxed">
                         {r.instructions}
                       </p>
                     )}
@@ -108,12 +108,12 @@ export default async function BatchDetailPage({
         </ul>
       </section>
 
-      <section className="rounded-2xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
+      <section className="carte p-4">
         <h2 className="font-semibold">Budget d’épicerie</h2>
         <p className="mt-1 text-2xl font-bold tabular-nums">
           {totalCost.toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}
         </p>
-        <p className="mt-1 text-xs text-stone-500">
+        <p className="mt-1 text-xs doux">
           {items.length} article(s) · taxes exclues.
         </p>
       </section>
@@ -121,8 +121,7 @@ export default async function BatchDetailPage({
       <div className="flex flex-col gap-3 sm:flex-row">
         <Link
           href={`/courses/${batch.id}`}
-          className="flex-1 rounded-xl px-4 py-3 text-center font-medium text-white"
-          style={{ backgroundColor: "var(--accent)" }}
+          className="bouton bouton-principal flex-1"
         >
           Ouvrir la liste d’épicerie ({items.length})
         </Link>

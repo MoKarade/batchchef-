@@ -13,6 +13,18 @@ export const MAX_FRAMES = 12;
 export const MAX_EDGE_PX = 768;
 /** Qualité JPEG de l'encodage des images. */
 export const JPEG_QUALITY = 0.72;
+
+/**
+ * VIGNETTE : la photo gardée AVEC la recette, pas celle envoyée au modèle.
+ *
+ * Pourquoi elle existe : le prompt vidéo force `imageUrl` à null, donc toute recette
+ * importée d'un reel arrivait sans image et la bibliothèque était une grille de rectangles
+ * gris. On a déjà l'image sous la main au moment de l'extraction — la réduire coûte un
+ * `drawImage` de plus, et elle finit en base : ~20 Ko, pour cent recettes ~2 Mo sur les
+ * 500 Mo gratuits de Neon. Ce n'est pas une image inventée, c'est un vrai plan de la recette.
+ */
+export const VIGNETTE_EDGE_PX = 360;
+export const VIGNETTE_QUALITY = 0.6;
 /**
  * Budget TOTAL des images encodées en base64 (octets de la chaîne, c'est ce qui voyage).
  * 3 Mo : marge franche sous la limite de 4,5 Mo d'une fonction serverless Vercel — au-delà
@@ -203,6 +215,18 @@ export function ecarterQuasiIdentiques(
     reference = courante;
   }
   return gardes;
+}
+
+/**
+ * Vignette proposée par défaut : celle du MILIEU.
+ *
+ * Le premier écran est souvent un titre ou un plan noir, le dernier un logo ou — sur un
+ * enregistrement d'écran — la légende défilante. Le milieu tombe sur la cuisine.
+ * Marc peut en choisir une autre : ce n'est qu'un défaut, et il est modifiable à l'écran.
+ */
+export function choisirVignette(nombre: number): number {
+  if (nombre <= 0) return -1;
+  return Math.floor((nombre - 1) / 2);
 }
 
 export interface BudgetResult {

@@ -62,9 +62,13 @@ export function CatalogueGrid({ recipes }: { recipes: CatalogItem[] }) {
                 aria-pressed={isSel}
                 aria-label={isSel ? "Désélectionner" : "Sélectionner pour ajout"}
                 onClick={() => toggle(r.id)}
+                // La case NON cochée est posée sur la PHOTO de la recette, pas sur une
+                // surface du thème : son contraste se joue contre l'image, jamais contre
+                // `--fond`. Blanc/noir en dur est donc le bon choix ici — c'est la seule
+                // exception, et elle est nommée dans `tests/theme.test.ts`.
                 className={`absolute left-2 top-2 flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-bold shadow-sm transition ${
                   isSel
-                    ? "border-transparent text-white"
+                    ? "border-transparent sur-accent"
                     : "border-white/80 bg-black/30 text-transparent hover:bg-black/50"
                 }`}
                 style={isSel ? { backgroundColor: "var(--accent)" } : undefined}
@@ -81,11 +85,7 @@ export function CatalogueGrid({ recipes }: { recipes: CatalogItem[] }) {
 
       {(msg || error) && (
         <p
-          className={`rounded-lg p-2 text-sm ${
-            error
-              ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
-              : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-          }`}
+          className={`rounded-lg p-2 text-sm ${error ? "erreur" : "succes"}`}
         >
           {error ?? msg}
         </p>
@@ -93,7 +93,7 @@ export function CatalogueGrid({ recipes }: { recipes: CatalogItem[] }) {
 
       {/* Barre d'action collante : n'apparaît qu'avec une sélection. */}
       {selected.size > 0 && (
-        <div className="sticky bottom-3 z-10 flex items-center gap-3 rounded-2xl border border-stone-200 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-stone-700 dark:bg-stone-900/95">
+        <div className="sticky bottom-3 z-10 flex items-center gap-3 rounded-2xl border border-[var(--bordure)] bg-[var(--surface)]/95 p-3 shadow-lg backdrop-blur">
           <span className="text-sm font-medium">
             {selected.size} sélectionnée{selected.size > 1 ? "s" : ""}
           </span>
@@ -101,7 +101,7 @@ export function CatalogueGrid({ recipes }: { recipes: CatalogItem[] }) {
             type="button"
             onClick={clear}
             disabled={pending}
-            className="ml-auto rounded-lg border border-stone-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-stone-700"
+            className="ml-auto rounded-lg border border-[var(--bordure)] px-3 py-2 text-sm disabled:opacity-50"
           >
             Vider
           </button>
@@ -109,7 +109,7 @@ export function CatalogueGrid({ recipes }: { recipes: CatalogItem[] }) {
             type="button"
             onClick={addSelected}
             disabled={pending}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded-lg px-4 py-2 text-sm font-medium sur-accent disabled:opacity-50"
             style={{ backgroundColor: "var(--accent)" }}
           >
             {pending ? "Ajout…" : "Ajouter à ma bibliothèque"}

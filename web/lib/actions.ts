@@ -11,7 +11,15 @@ import { db, schema } from "@/lib/db";
 import { aggregateShoppingList, fillMissingCosts, shoppingTitles } from "@/lib/aggregate";
 import { upsertTaskList } from "@/lib/googleTasks";
 import { splitNewCatalogRecipes } from "@/lib/catalogSelect";
-import { clampServings, prepareIngredientRows, type EditableIngredient } from "@/lib/recipeEdit";
+import { MAX_TRANSCRIPT_CHARS } from "@/lib/transcription";
+import { estOrigine, type OrigineRecette } from "@/lib/origine";
+import {
+  clampServings,
+  normaliserImage,
+  normaliserLienSource,
+  prepareIngredientRows,
+  type EditableIngredient,
+} from "@/lib/recipeEdit";
 import {
   MAX_CAPTION_CHARS,
   estimateShoppingCosts,
@@ -50,6 +58,8 @@ export interface RecipePreview {
   title: string;
   /** URL d'origine ; null pour une vidéo déposée sans lien. */
   sourceUrl: string | null;
+  /** D'où vient la recette — porté jusqu'à l'enregistrement (cf. lib/origine.ts). */
+  origine: OrigineRecette;
   imageUrl: string | null;
   servings: number;
   /** `true` = la source n'annonçait aucune portion, 4 est un défaut à corriger (pas une donnée). */
@@ -82,17 +92,22 @@ export async function parseRecipePreview(
     const draft = await parseRecipeFromPage(text);
     const recipe = await verifyParsedRecipe(text, draft); // analyse plus poussée avant validation
 
-    return { ok: true, recipe: toPreview(recipe, url) };
+    return { ok: true, recipe: toPreview(recipe, url, "page") };
   } catch (err) {
     return fail(err);
   }
 }
 
 /** Projette une recette parsée vers l'écran de validation (une seule conversion, partagée). */
-function toPreview(recipe: ParsedRecipe, sourceUrl: string | null): RecipePreview {
+function toPreview(
+  recipe: ParsedRecipe,
+  sourceUrl: string | null,
+  origine: OrigineRecette,
+): RecipePreview {
   return {
     title: recipe.title,
     sourceUrl,
+    origine,
     imageUrl: recipe.imageUrl,
     servings: recipe.servings,
     servingsGuessed: recipe.servingsGuessed,
@@ -119,6 +134,8 @@ export async function parseRecipeFromVideo(input: {
   frames: string[];
   captures?: string[];
   caption: string;
+  /** Transcription de la bande sonore — source d'APPOINT, jamais prioritaire. */
+  transcript?: string;
   sourceUrl: string | null;
 }): Promise<ActionResult & { recipe?: RecipePreview }> {
   try {
@@ -128,6 +145,8 @@ export async function parseRecipeFromVideo(input: {
     const captures = Array.isArray(input.captures) ? input.captures : [];
     const caption = (input.caption ?? "").trim().slice(0, MAX_CAPTION_CHARS);
 
+    // La transcription seule ne suffit PAS à lancer une extraction : sans écrit ni image,
+    // toute quantité viendrait d'une reconnaissance vocale non vérifiable.
     if (frames.length === 0 && captures.length === 0 && caption.length === 0) {
       return {
         ok: false,
@@ -159,12 +178,13 @@ export async function parseRecipeFromVideo(input: {
       sourceUrl = parsed.toString();
     }
 
-    const draft = await parseRecipeFromMedia({ frames, captures, caption });
+    const transcript = (input.transcript ?? "").trim().slice(0, MAX_TRANSCRIPT_CHARS);
+    const draft = await parseRecipeFromMedia({ frames, captures, caption, transcript });
     // 2ᵉ passe seulement s'il y a une description à confronter : sans texte, il n'y a rien
     // à vérifier, et une passe supplémentaire ne ferait qu'inventer de l'assurance.
     const recipe = caption ? await verifyRecipeAgainstCaption(caption, draft) : draft;
 
-    return { ok: true, recipe: toPreview(recipe, sourceUrl) };
+    return { ok: true, recipe: toPreview(recipe, sourceUrl, "video") };
   } catch (err) {
     return fail(err);
   }
@@ -174,6 +194,8 @@ export async function parseRecipeFromVideo(input: {
 export async function saveImportedRecipe(input: {
   title: string;
   sourceUrl: string | null;
+  /** Origine déclarée par le client — revérifiée ici, jamais prise pour argent comptant. */
+  origine?: string | null;
   imageUrl: string | null;
   servings: number;
   instructions: string | null;
@@ -187,12 +209,24 @@ export async function saveImportedRecipe(input: {
     const rows = prepareIngredientRows(input.ingredients);
     if (rows.length === 0) return { ok: false, error: "Garde au moins un ingrédient (avec un nom)." };
 
+    // Le lien est ÉDITABLE à l'écran de validation : il n'a donc plus été filtré par le
+    // chemin d'import qui le validait en amont. Sans cette garde, un « javascript:… »
+    // deviendrait un <a href> exécutable sur la page de recette.
+    const source = normaliserLienSource(input.sourceUrl);
+    if (!source.valide) return { ok: false, error: "Lien de la source : http(s) uniquement." };
+
     const [row] = await db
       .insert(schema.recipes)
       .values({
         title,
-        sourceUrl: input.sourceUrl,
-        imageUrl: input.imageUrl,
+        sourceUrl: source.lien,
+        // Une valeur inconnue devient NULL (« origine non enregistrée ») plutôt que d'être
+        // écrite telle quelle : l'affichage ne doit jamais attribuer à Marc une recette
+        // dont on ne sait rien.
+        origine: estOrigine(input.origine) ? input.origine : null,
+        // Photo : http(s) d'un site, ou vignette embarquée tirée de la vidéo. Bornée et
+        // filtrée ici — elle devient un <img src> sur la page de recette.
+        imageUrl: normaliserImage(input.imageUrl),
         servings,
         instructions: input.instructions,
       })
@@ -258,6 +292,7 @@ export async function addCatalogRecipesToLibrary(
         .values({
           title: cat.title,
           sourceUrl: cat.sourceUrl,
+          origine: "catalogue",
           imageUrl: cat.imageUrl,
           servings: cat.servings,
           instructions: cat.instructions,
@@ -627,6 +662,7 @@ export async function addCatalogRecipeToLibrary(
       .values({
         title: cat.title,
         sourceUrl: cat.sourceUrl,
+        origine: "catalogue",
         imageUrl: cat.imageUrl,
         servings: cat.servings,
         instructions: cat.instructions,

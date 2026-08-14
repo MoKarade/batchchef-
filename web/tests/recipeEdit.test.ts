@@ -2,7 +2,79 @@
 // bornage des portions) — la garantie « 100 % précis » repose sur cette correction.
 
 import { describe, expect, it } from "vitest";
-import { clampServings, prepareIngredientRows } from "../lib/recipeEdit";
+import {
+  MAX_IMAGE_OCTETS,
+  clampServings,
+  normaliserImage,
+  normaliserLienSource,
+  prepareIngredientRows,
+} from "../lib/recipeEdit";
+
+describe("normaliserLienSource", () => {
+  it("garde un lien http(s) et le normalise", () => {
+    expect(normaliserLienSource("https://www.instagram.com/reel/abc")).toEqual({
+      lien: "https://www.instagram.com/reel/abc",
+      valide: true,
+    });
+    expect(normaliserLienSource("  http://exemple.test/r  ").lien).toBe("http://exemple.test/r");
+  });
+
+  it("champ vide = pas de lien, et c'est un état NORMAL, pas une erreur", () => {
+    expect(normaliserLienSource("")).toEqual({ lien: null, valide: true });
+    expect(normaliserLienSource(null)).toEqual({ lien: null, valide: true });
+    expect(normaliserLienSource("   ")).toEqual({ lien: null, valide: true });
+  });
+
+  it("refuse tout schéma exécutable — ce lien devient un <a href> sur la page", () => {
+    // Depuis que le lien est ÉDITABLE à l'écran de validation, il n'est plus filtré par le
+    // chemin d'import. Sans cette garde, un « javascript:… » collé par mégarde deviendrait
+    // un lien exécutable sur la page de recette.
+    for (const mauvais of [
+      "javascript:alert(1)",
+      "JavaScript:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+      "file:///etc/passwd",
+      "pas une url",
+    ]) {
+      expect(normaliserLienSource(mauvais)).toEqual({ lien: null, valide: false });
+    }
+  });
+});
+
+describe("normaliserImage", () => {
+  const vignette = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ==";
+
+  it("accepte une vignette EMBARQUÉE (elle n'existe nulle part ailleurs)", () => {
+    // Une image tirée d'une vidéo n'a pas d'URL : elle est stockée telle quelle.
+    expect(normaliserImage(vignette)).toBe(vignette);
+  });
+
+  it("accepte une URL http(s) de site de recette", () => {
+    expect(normaliserImage("https://exemple.test/plat.jpg")).toBe("https://exemple.test/plat.jpg");
+  });
+
+  it("refuse tout ce qui n'est ni http(s) ni une image embarquée", () => {
+    // La valeur vient d'un modèle ou du client et devient un <img src>.
+    for (const mauvais of [
+      "javascript:alert(1)",
+      "data:text/html;base64,PHNjcmlwdD4=",
+      "data:image/svg+xml;base64,PHN2Zz4=", // SVG : peut porter du script
+      "pas une url",
+    ]) {
+      expect(normaliserImage(mauvais)).toBe(null);
+    }
+  });
+
+  it("REFUSE une image embarquée trop lourde plutôt que de gonfler la base en silence", () => {
+    const enorme = `data:image/jpeg;base64,${"A".repeat(MAX_IMAGE_OCTETS)}`;
+    expect(normaliserImage(enorme)).toBe(null);
+  });
+
+  it("vide = pas de photo, et c'est un état normal", () => {
+    expect(normaliserImage("")).toBe(null);
+    expect(normaliserImage(null)).toBe(null);
+  });
+});
 
 describe("clampServings", () => {
   it("borne à un entier 1…50", () => {

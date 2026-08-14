@@ -91,7 +91,14 @@ ce bloc rend la question mesurable au lieu de supposée.
 **Comment ça marche techniquement.** Le manifeste déclare une `share_target` en POST
 multipart vers `/partage`. Un **service worker** (`public/sw.js`) intercepte ce POST *dans
 le navigateur*, range la vidéo dans le Cache Storage et redirige vers `/partage` en GET ;
-la page relit le cache côté client. Conséquence : **la vidéo ne transite jamais par le
+la page relit le cache côté client.
+
+⚠️ Le worker n'intercepte que les **navigations** (`request.mode === "navigate"`), et c'est
+vital : une Server Action de Next poste vers l'URL de la page courante, donc vers `/partage`
+quand l'analyse tourne sur cet écran. Sans cette condition, le worker avale la requête
+d'analyse et répond une redirection — le navigateur affiche « An unexpected response was
+received from the server » et rien n'apparaît dans les journaux du serveur, puisque la
+réponse n'a jamais quitté le téléphone. Conséquence : **la vidéo ne transite jamais par le
 serveur**, exactement comme pour un dépôt manuel. Le worker ne met rien d'autre en cache —
 pas de mode hors-ligne, parce que les écrans de BatchChef affichent des données
 personnelles derrière une session.
@@ -143,13 +150,42 @@ Seules les images retenues partent au serveur, sous un plafond de 3 Mo revérifi
 place, elles sont **comptées et affichées** — jamais coupées en silence. L'écran de validation
 dit les trois nombres : instants sondés, écrans distincts, images envoyées.
 
-⚠️ **L'audio n'est pas transcrit.** Une recette dite uniquement à l'oral, sans texte à
-l'écran ni description, ne sera pas récupérée intégralement. C'est la limite assumée : il
-n'existe pas de transcription gratuite côté serveur dans cette stack.
+**L'audio est transcrit** (depuis le 13/08/2026). La piste sonore est extraite **dans le
+navigateur** (`lib/audio/`), ramenée à 16 kHz mono — le format que Whisper consomme — et
+envoyée en WAV à `POST /api/transcription`, qui appelle Groq. La vidéo, elle, ne monte
+toujours pas : ce qui part est ~32 Ko par seconde d'audio, borné à **2 minutes** (au-delà,
+la requête dépasserait la limite de 4,5 Mo d'une fonction Vercel — la troncature est alors
+**affichée**, jamais silencieuse).
+
+⚠️ **La transcription est la source la MOINS fiable, et le prompt le dit explicitement.**
+La reconnaissance vocale se trompe surtout sur les nombres et les unités, c'est-à-dire
+exactement ce qui compte. Elle ne peut donc jamais contredire un texte lu à l'écran ou la
+description : elle sert à **compléter** ce qu'aucun écrit ne dit. Une quantité entendue mais
+incertaine devient `qty: null` — « au goût » honnête plutôt qu'un nombre mal compris qui
+entrerait dans la liste d'épicerie sans que rien ne le signale.
+
+Sans `GROQ_API_KEY`, tout fonctionne comme avant et l'écran de validation affiche
+« transcription non configurée » : une intégration éteinte n'est pas une panne, et les deux
+se distinguent à l'écran. Un échec réel affiche le motif rendu par le fournisseur.
 
 **Portions.** Un reel annonce rarement « pour 4 personnes ». Quand la source ne dit rien, la
 valeur reste 4 mais l'écran de validation l'affiche comme un **défaut à corriger**, pas comme
 une donnée — toutes les quantités de la liste d'épicerie en dépendent.
+
+**Le lien de la source se saisit à l'écran de validation.** Un partage depuis la Galerie
+(l'enregistrement d'écran) n'apporte aucune URL, et le démarrage automatique saute le
+formulaire : le champ vit donc sur l'écran de validation, avec un bouton **« Coller »** pour
+l'adresse du reel copiée depuis Instagram. Il est enregistré avec la recette pour pouvoir
+revoir la vidéo plus tard — **rien n'est téléchargé depuis ce lien**. Comme il est
+désormais éditable, il est revalidé côté serveur (`normaliserLienSource`) : http/https
+uniquement, parce qu'il devient un `<a href>` sur la page de recette.
+
+**Provenance.** La bibliothèque mélange deux choses : les recettes que tu as apportées
+(vidéo, page web) et celles piochées dans le catalogue. La colonne `origine` les distingue,
+et la page de recette l'affiche avec la date d'ajout — « Ajoutée par toi, depuis une vidéo ·
+13 août 2026 ». Les recettes créées avant cette colonne affichent « Origine non
+enregistrée » : on ne devine pas une provenance qu'on n'a pas enregistrée. La date est
+rendue dans le fuseau du Québec, pas celui du serveur.
 
 **Modèle et coût.** La lecture d'images tourne sur un modèle vision
 (`BATCHCHEF_LLM_MODEL_VISION`, défaut `claude-sonnet-5`) alors que le parse texte reste sur

@@ -12,6 +12,8 @@
 import {
   EMPREINTE_COTE,
   JPEG_QUALITY,
+  VIGNETTE_EDGE_PX,
+  VIGNETTE_QUALITY,
   MAX_FRAMES,
   MAX_TOTAL_BASE64_BYTES,
   base64Bytes,
@@ -32,6 +34,8 @@ export type EtapeCapture = "reperage" | "extraction";
 export interface CaptureResult {
   /** Images JPEG en base64 (sans préfixe data:), dans l'ordre chronologique. */
   frames: string[];
+  /** Mêmes écrans, en petit — candidates à la PHOTO de la recette (data: URL complètes). */
+  vignettes: string[];
   durationSec: number;
   /** Instants sondés dans la vidéo (une sonde ≈ une seconde de vidéo). */
   sondes: number;
@@ -160,13 +164,28 @@ export async function captureFrames(
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas indisponible : impossible d'extraire les images.");
 
+    // Canevas de vignette : même image, en petit. Aucun décodage supplémentaire — on
+    // redessine simplement la frame déjà positionnée.
+    const tailleVignette = scaledSize(width, height, VIGNETTE_EDGE_PX);
+    const canvasVignette = document.createElement("canvas");
+    canvasVignette.width = tailleVignette.width;
+    canvasVignette.height = tailleVignette.height;
+    const ctxVignette = canvasVignette.getContext("2d");
+
     const shots: string[] = [];
+    const vignettes: string[] = [];
     for (const [i, idx] of choisis.entries()) {
       await positionner(video, instants[idx] as number, durationSec);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
       const b64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-      if (b64) shots.push(b64);
+      if (b64) {
+        shots.push(b64);
+        if (ctxVignette) {
+          ctxVignette.drawImage(video, 0, 0, canvasVignette.width, canvasVignette.height);
+          vignettes.push(canvasVignette.toDataURL("image/jpeg", VIGNETTE_QUALITY));
+        }
+      }
       onProgress?.("extraction", i + 1, choisis.length);
     }
 
@@ -183,6 +202,9 @@ export async function captureFrames(
 
     return {
       frames: budget.keptIndexes.map((i) => shots[i] as string),
+      // Les vignettes suivent EXACTEMENT le même filtre de budget : sans ça, Marc
+      // choisirait une photo correspondant à un écran qui n'a pas été envoyé au modèle.
+      vignettes: budget.keptIndexes.map((i) => vignettes[i]).filter((v): v is string => Boolean(v)),
       durationSec,
       sondes: instants.length,
       distincts: distincts.length,

@@ -6,9 +6,94 @@ import {
   CostEstimateSchema,
   RawParsedRecipeSchema,
   alignCosts,
+  analyserSortieRecette,
+  aplatirNombre,
+  aplatirTexte,
   htmlToText,
   normalizeParsedRecipe,
 } from "../lib/llm";
+
+/** Recette minimale valide — base des cas ci-dessous. */
+const RECETTE_OK = {
+  title: "Poulet au beurre",
+  servings: 4,
+  imageUrl: null,
+  instructions: "Cuire.",
+  ingredients: [{ name: "Poulet", canonical: "poulet", qty: 500, unit: "g", note: null }],
+};
+
+describe("tolérance aux variations de FORME du modèle", () => {
+  it("des instructions rendues en LISTE deviennent un texte", () => {
+    // Vécu le 13/08/2026 : demandées « une par ligne », elles sont revenues en tableau et
+    // Zod a rejeté toute la recette APRÈS un appel vision déjà payé.
+    const r = analyserSortieRecette({
+      ...RECETTE_OK,
+      instructions: ["1. Faire revenir.", "2. Mijoter 20 min."],
+    });
+    expect(r.instructions).toBe("1. Faire revenir.\n2. Mijoter 20 min.");
+  });
+
+  it("des étapes rendues en OBJETS sont lues sous leurs clés usuelles", () => {
+    expect(aplatirTexte([{ text: "Couper" }, { etape: "Cuire" }])).toBe("Couper\nCuire");
+  });
+
+  it("un élément NON réductible laisse la valeur d'origine — le schéma refuse alors", () => {
+    // Fabriquer « [object Object] » serait pire que l'erreur : ce serait une fausse étape
+    // de recette, affichée comme si le modèle l'avait dite.
+    const bancal = [{ inconnu: 12 }];
+    expect(aplatirTexte(bancal)).toBe(bancal);
+    expect(() => analyserSortieRecette({ ...RECETTE_OK, instructions: bancal })).toThrow();
+  });
+
+  it("laisse intact ce qui n'est pas une liste", () => {
+    expect(aplatirTexte("Cuire.")).toBe("Cuire.");
+    expect(aplatirTexte(null)).toBe(null);
+    expect(aplatirTexte(undefined)).toBe(undefined);
+  });
+
+  it("un nombre rendu en chaîne redevient un nombre, virgule comprise", () => {
+    expect(aplatirNombre("4")).toBe(4);
+    expect(aplatirNombre("2,5")).toBe(2.5);
+    expect(aplatirNombre("2.5")).toBe(2.5);
+    expect(analyserSortieRecette({ ...RECETTE_OK, servings: "6" }).servings).toBe(6);
+  });
+
+  it("ne DEVINE pas un nombre approximatif — il doit être refusé", () => {
+    // `servings` met à l'échelle toutes les quantités de la liste d'épicerie : convertir
+    // « environ 4 » en 4 fabriquerait une donnée que la source n'a jamais annoncée.
+    expect(aplatirNombre("environ 4")).toBe("environ 4");
+    expect(aplatirNombre("1/2")).toBe("1/2");
+    expect(() => analyserSortieRecette({ ...RECETTE_OK, servings: "environ 4" })).toThrow();
+  });
+});
+
+describe("analyserSortieRecette : un refus NOMME le champ fautif", () => {
+  it("dit quel champ cloche, pas seulement ce qui était attendu", () => {
+    // « Expected string, received array » sans le chemin ne permet ni de corriger ni même
+    // de savoir quoi soupçonner — un aller-retour entier perdu le 13/08.
+    let message = "";
+    try {
+      analyserSortieRecette({ ...RECETTE_OK, title: ["Poulet"] });
+    } catch (err) {
+      message = err instanceof Error ? err.message : String(err);
+    }
+    expect(message).toContain("title");
+    expect(message).toContain("hors schéma");
+  });
+
+  it("situe aussi un champ IMBRIQUÉ, avec son index", () => {
+    let message = "";
+    try {
+      analyserSortieRecette({
+        ...RECETTE_OK,
+        ingredients: [{ name: "Poulet", qty: 500 }, { name: 42 }],
+      });
+    } catch (err) {
+      message = err instanceof Error ? err.message : String(err);
+    }
+    expect(message).toContain("ingredients.1.name");
+  });
+});
 
 describe("RawParsedRecipeSchema (tolérant) + normalizeParsedRecipe", () => {
   const valid = {

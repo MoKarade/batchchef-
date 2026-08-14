@@ -20,12 +20,19 @@ import { useEffect, useRef, useState } from "react";
 import { parseRecipeFromVideo, type RecipePreview } from "@/lib/actions";
 import { RecipeDraftEditor } from "@/components/RecipeDraftEditor";
 import { captureFrames, reduireImage, type EtapeCapture } from "@/lib/video/capture";
-import { MAX_TOTAL_BASE64_BYTES, base64Bytes, repartirBudget } from "@/lib/video/frames";
+import { extraireAudio } from "@/lib/audio/extraction";
+import {
+  MAX_TOTAL_BASE64_BYTES,
+  base64Bytes,
+  choisirVignette,
+  repartirBudget,
+} from "@/lib/video/frames";
 
 type Phase =
   | { kind: "idle" }
   | { kind: "captures" }
   | { kind: "video"; etape: EtapeCapture; done: number; total: number }
+  | { kind: "transcription" }
   | { kind: "analyse" };
 
 interface Lu {
@@ -35,6 +42,8 @@ interface Lu {
   /** Instants sondés dans la vidéo, et écrans distincts qu'ils ont révélés. */
   sondes: number;
   distincts: number;
+  /** Ce que la bande sonore a donné — dit tel quel, y compris quand elle n'a rien donné. */
+  audio: string | null;
 }
 
 export interface ImportVideoFormProps {
@@ -45,6 +54,13 @@ export interface ImportVideoFormProps {
   capturesInitiales?: File[];
   /** Lance l'analyse dès l'affichage — utilisé quand le partage a apporté des images. */
   demarrerAuto?: boolean;
+  /**
+   * `true` quand une clé de transcription est configurée côté serveur.
+   *
+   * ⚠️ Sans cette information, le navigateur extrairait puis TÉLÉVERSERAIT jusqu'à 4 Mo
+   * d'audio pour s'entendre répondre « désactivée ». Sur un forfait mobile, ça se paie.
+   */
+  transcriptionActive?: boolean;
 }
 
 export function ImportVideoForm({
@@ -53,6 +69,7 @@ export function ImportVideoForm({
   fichierInitial = null,
   capturesInitiales = [],
   demarrerAuto = false,
+  transcriptionActive = false,
 }: ImportVideoFormProps = {}) {
   const [lien, setLien] = useState(lienInitial);
   const [description, setDescription] = useState(descriptionInitiale);
@@ -60,6 +77,7 @@ export function ImportVideoForm({
   const [captures, setCaptures] = useState<File[]>(capturesInitiales);
   const [preview, setPreview] = useState<RecipePreview | null>(null);
   const [lu, setLu] = useState<Lu | null>(null);
+  const [vignettes, setVignettes] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const dejaLance = useRef(false);
@@ -70,6 +88,7 @@ export function ImportVideoForm({
   const reset = () => {
     setPreview(null);
     setLu(null);
+    setVignettes([]);
   };
 
   /** Colle la description depuis le presse-papiers (le geste après un « Copier » dans Instagram). */
@@ -95,6 +114,9 @@ export function ImportVideoForm({
     let ecartees = 0;
     let sondes = 0;
     let distincts = 0;
+    let transcript = "";
+    let audio: string | null = null;
+    let vignettesVideo: string[] = [];
 
     try {
       // 1. Les captures d'abord : elles portent le texte, donc les quantités.
@@ -116,24 +138,83 @@ export function ImportVideoForm({
           MAX_TOTAL_BASE64_BYTES - utilise,
         );
         frames = capture.frames;
+        vignettesVideo = capture.vignettes;
         ecartees += capture.dropped;
         sondes = capture.sondes;
         distincts = capture.distincts;
       }
+
+      // 3. La bande sonore, quand il y a une vidéo. Un échec ici ne doit JAMAIS faire
+      //    tomber l'import : la transcription est un appoint, le texte à l'écran reste la
+      //    source principale. Mais il se DIT, sinon Marc croirait qu'elle a servi.
+      if (fichier && transcriptionActive) {
+        setPhase({ kind: "transcription" });
+        try {
+          const extrait = await extraireAudio(fichier);
+          if (!extrait) {
+            audio = "aucune bande sonore exploitable";
+          } else {
+            const corps = new FormData();
+            corps.append("audio", extrait.blob, "audio.wav");
+            const reponse = await fetch("/api/transcription", { method: "POST", body: corps });
+            const donnees = (await reponse.json()) as
+              | { etat: "ok"; texte: string }
+              | { etat: "desactivee" }
+              | { etat: "echec"; motif: string }
+              | { ok: false; erreur: string };
+
+            if ("etat" in donnees && donnees.etat === "ok") {
+              transcript = donnees.texte;
+              const couverture = extrait.tronque
+                ? ` (${Math.round(extrait.dureeTranscriteSec)} s sur ${Math.round(extrait.dureeSec)} s)`
+                : "";
+              audio = transcript
+                ? `bande sonore transcrite${couverture}`
+                : "bande sonore muette";
+            } else if ("etat" in donnees && donnees.etat === "desactivee") {
+              audio = "transcription non configurée";
+            } else {
+              const motif =
+                "etat" in donnees && donnees.etat === "echec" ? donnees.motif : donnees.erreur;
+              audio = `transcription en échec : ${motif}`;
+            }
+          }
+        } catch (err) {
+          audio = `transcription en échec : ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }
+
+      if (fichier && !transcriptionActive) audio = "transcription non configurée";
 
       setPhase({ kind: "analyse" });
       const res = await parseRecipeFromVideo({
         frames,
         captures: capturesB64,
         caption: description,
+        transcript,
         sourceUrl: lien.trim() || null,
       });
       if (!res.ok || !res.recipe) {
         setError(res.ok ? "Rien à valider." : res.error);
         return;
       }
-      setLu({ frames: frames.length, captures: capturesB64.length, ecartees, sondes, distincts });
-      setPreview(res.recipe);
+      setLu({
+        frames: frames.length,
+        captures: capturesB64.length,
+        ecartees,
+        sondes,
+        distincts,
+        audio,
+      });
+      setVignettes(vignettesVideo);
+      // Une recette tirée d'un reel n'a pas d'URL d'image : le prompt force imageUrl à null.
+      // On lui donne un VRAI plan de la vidéo, choisi au milieu par défaut et modifiable.
+      const parDefaut = choisirVignette(vignettesVideo.length);
+      setPreview(
+        parDefaut >= 0
+          ? { ...res.recipe, imageUrl: vignettesVideo[parDefaut] ?? null }
+          : res.recipe,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -156,9 +237,10 @@ export function ImportVideoForm({
     return (
       <RecipeDraftEditor
         preview={preview}
+        vignettes={vignettes}
         onCancel={reset}
         hint={
-          <p className="text-xs text-stone-500">
+          <p className="text-xs doux">
             {lu ? `${resumeSources(lu, description)}. ` : ""}
             Une publication annonce rarement les quantités exactes : relis chaque ligne, c’est
             ce que tu valides qui est enregistré.
@@ -170,7 +252,7 @@ export function ImportVideoForm({
 
   return (
     <form
-      className="space-y-3 rounded-2xl border border-stone-200 p-4 dark:border-stone-800"
+      className="space-y-3 carte p-4"
       onSubmit={(e) => {
         e.preventDefault();
         void analyser();
@@ -178,7 +260,7 @@ export function ImportVideoForm({
     >
       <div>
         <h2 className="font-semibold">Depuis une vidéo</h2>
-        <p className="mt-1 text-xs text-stone-500">
+        <p className="mt-1 text-xs doux">
           La voie normale : un <strong>enregistrement d’écran</strong> du reel, légende dépliée —
           il porte à la fois les gestes, les quantités affichées et le texte. Instagram ne laisse
           pas enregistrer la vidéo elle-même, mais ton téléphone sait filmer son propre écran.
@@ -187,19 +269,19 @@ export function ImportVideoForm({
       </div>
 
       <label className="block text-sm">
-        <span className="mb-1 block text-stone-500">Lien de la publication (facultatif)</span>
+        <span className="mb-1 block doux">Lien de la publication (facultatif)</span>
         <input
           type="url"
           value={lien}
           onChange={(e) => setLien(e.target.value)}
           placeholder="https://www.instagram.com/reel/…"
           disabled={busy}
-          className="w-full rounded-lg border border-stone-300 bg-white px-2 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+          className="champ text-sm"
         />
       </label>
 
       <div className="text-sm">
-        <span className="mb-1 block text-stone-500">
+        <span className="mb-1 block doux">
           Vidéo — l’enregistrement d’écran du reel, légende dépliée
         </span>
         <input
@@ -207,17 +289,17 @@ export function ImportVideoForm({
           accept="video/*"
           onChange={(e) => setFichier(e.target.files?.[0] ?? null)}
           disabled={busy}
-          className="w-full rounded-lg border border-stone-300 bg-white px-2 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-stone-100 file:px-3 file:py-1 file:text-sm dark:border-stone-700 dark:bg-stone-900 dark:file:bg-stone-800"
+          className="w-full rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-douce)] file:px-3 file:py-1 file:text-sm"
         />
         {fichier && (
-          <p className="mt-1 text-xs text-stone-500">
+          <p className="mt-1 text-xs doux">
             {fichier.name} · {(fichier.size / 1_000_000).toFixed(1)} Mo
           </p>
         )}
       </div>
 
       <div className="text-sm">
-        <span className="mb-1 block text-stone-500">
+        <span className="mb-1 block doux">
           Captures d’écran (facultatif, si tu n’as pas d’enregistrement)
         </span>
         <input
@@ -226,10 +308,10 @@ export function ImportVideoForm({
           multiple
           onChange={(e) => setCaptures(Array.from(e.target.files ?? []))}
           disabled={busy}
-          className="w-full rounded-lg border border-stone-300 bg-white px-2 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-stone-100 file:px-3 file:py-1 file:text-sm dark:border-stone-700 dark:bg-stone-900 dark:file:bg-stone-800"
+          className="w-full rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-douce)] file:px-3 file:py-1 file:text-sm"
         />
         {captures.length > 0 && (
-          <p className="mt-1 text-xs text-stone-500">
+          <p className="mt-1 text-xs doux">
             {captures.length} capture(s) — le texte y sera lu.
           </p>
         )}
@@ -252,12 +334,12 @@ export function ImportVideoForm({
 
       <div className="text-sm">
         <div className="mb-1 flex items-center justify-between gap-2">
-          <span className="text-stone-500">Description publiée</span>
+          <span className="doux">Description publiée</span>
           <button
             type="button"
             onClick={() => void collerDescription()}
             disabled={busy}
-            className="rounded-lg border border-stone-300 px-3 py-1 text-xs font-medium disabled:opacity-50 dark:border-stone-700"
+            className="rounded-lg border border-[var(--bordure)] px-3 py-1 text-xs font-medium disabled:opacity-50"
           >
             Coller
           </button>
@@ -268,36 +350,38 @@ export function ImportVideoForm({
           rows={5}
           placeholder="Appui long sur la légende du reel → Copier, puis « Coller » ici."
           disabled={busy}
-          className="w-full rounded-lg border border-stone-300 bg-white px-2 py-2 text-sm dark:border-stone-700 dark:bg-stone-900"
+          className="champ text-sm"
         />
       </div>
 
       <button
         type="submit"
         disabled={busy || !pretAAnalyser}
-        className="w-full rounded-xl px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
-        style={{ backgroundColor: "var(--accent)" }}
+        className="bouton bouton-principal w-full"
       >
         {busy ? "Analyse…" : "Analyser"}
       </button>
 
       {phase.kind === "captures" && (
-        <p className="text-xs text-stone-500">Préparation des captures d’écran…</p>
+        <p className="text-xs doux">Préparation des captures d’écran…</p>
       )}
       {phase.kind === "video" && (
-        <p className="text-xs text-stone-500">
+        <p className="text-xs doux">
           {phase.etape === "reperage"
             ? `Repérage des écrans de la vidéo${phase.total > 0 ? ` — ${phase.done}/${phase.total}` : "…"}`
             : `Extraction des images retenues — ${phase.done}/${phase.total}`}
         </p>
       )}
+      {phase.kind === "transcription" && (
+        <p className="text-xs doux">Transcription de la bande sonore…</p>
+      )}
       {phase.kind === "analyse" && (
-        <p className="text-xs text-stone-500">
+        <p className="text-xs doux">
           Extraction de la recette (ingrédients + préparation), 20-40 s…
         </p>
       )}
       {error && (
-        <p className="rounded-lg bg-red-50 p-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+        <p className="rounded-lg erreur p-2 text-sm">
           {error}
         </p>
       )}
@@ -319,6 +403,7 @@ function resumeSources(lu: Lu, description: string): string {
     );
   }
   if (description.trim()) parts.push("description collée");
+  if (lu.audio) parts.push(lu.audio);
   const base = parts.length > 0 ? `Sources : ${parts.join(" + ")}` : "Aucune source d’image";
   return lu.ecartees > 0 ? `${base} (${lu.ecartees} écartée(s), trop lourdes)` : base;
 }

@@ -49,7 +49,7 @@ export function BatchStatusControls({
     <div className="space-y-3">
       <div>
         <h2 className="mb-2 font-semibold">Avancement</h2>
-        <div className="grid grid-cols-4 gap-1 rounded-xl border border-stone-200 p-1 dark:border-stone-800">
+        <div className="grid grid-cols-4 gap-1 rounded-xl border border-[var(--bordure)] p-1">
           {STATUSES.map((s, i) => {
             const done = i < currentIndex;
             const active = i === currentIndex;
@@ -62,10 +62,10 @@ export function BatchStatusControls({
                 aria-current={active ? "step" : undefined}
                 className={`rounded-lg px-2 py-2 text-xs font-medium transition disabled:opacity-60 ${
                   active
-                    ? "text-white"
+                    ? "sur-accent"
                     : done
-                      ? "text-stone-700 dark:text-stone-300"
-                      : "text-stone-400 dark:text-stone-500"
+                      ? ""
+                      : "doux "
                 }`}
                 style={active ? { backgroundColor: "var(--accent)" } : undefined}
               >
@@ -89,12 +89,12 @@ export function BatchStatusControls({
         </button>
       )}
       {current === "termine" && (
-        <p className="rounded-xl bg-emerald-50 px-4 py-3 text-center text-sm font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+        <p className="rounded-xl succes px-4 py-3 text-center text-sm font-medium">
           Batch terminé.
         </p>
       )}
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs texte-erreur">{error}</p>}
 
       <button
         type="button"
@@ -110,7 +110,7 @@ export function BatchStatusControls({
             router.push("/batchs");
           });
         }}
-        className="w-full rounded-xl border border-stone-300 px-4 py-2 text-sm text-stone-600 disabled:opacity-60 dark:border-stone-700 dark:text-stone-400"
+        className="w-full rounded-xl border border-[var(--bordure)] px-4 py-2 text-sm doux disabled:opacity-60"
       >
         Supprimer le batch
       </button>

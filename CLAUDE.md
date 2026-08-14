@@ -26,6 +26,25 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   la voie normale est l'**enregistrement d'écran** que Marc produit lui-même (un seul fichier
   porte les gestes, les quantités affichées ET la légende dépliée), avec en repli les
   captures d'écran et le texte collé.
+- **Le schéma tolère la FORME, jamais le FOND — et un refus NOMME le champ.** Un modèle
+  varie dans la façon de rendre (instructions en tableau plutôt qu'en texte, nombre en
+  chaîne) : ces variations sont normalisées (`aplatirTexte`, `aplatirNombre`), sinon une
+  recette juste est jetée après un appel vision déjà payé. Mais on ne devine JAMAIS le fond :
+  « environ 4 » ne devient pas `4` (toutes les quantités de l'épicerie s'échelonnent sur
+  `servings`), et une étape non réductible en texte fait échouer plutôt que de produire un
+  « [object Object] » présenté comme une consigne. Tout refus passe par
+  `analyserSortieRecette`, qui dit QUEL champ cloche — le message brut de Zod (« Expected
+  string, received array ») ne le dit pas, et coûte un aller-retour entier à deviner.
+- **Un service worker n'intercepte QUE des navigations.** Une Server Action de Next POSTe
+  vers l'URL de la page COURANTE : depuis `/partage`, l'analyse poste donc elle aussi vers
+  `/partage`. Un worker qui teste « POST + bon chemin » l'avale et répond une redirection
+  303 au lieu du résultat — le navigateur affiche « An unexpected response was received from
+  the server » et **les journaux serveur sont vides**, puisque la réponse a été fabriquée
+  dans le téléphone. Diagnostic : « erreur opaque + aucune trace côté serveur » ⇒ regarder le
+  worker AVANT l'authentification. Le discriminant est `request.mode === "navigate"`
+  (standard Web Share Target), jamais un en-tête interne de Next. Verrouillé des deux côtés
+  par `tests/partage.test.ts` (`doitIntercepterPartage` + tripwire sur `sw.js`),
+  discrimination prouvée par mutation.
 - **Une vidéo se sonde DENSÉMENT et se trie par ÉCRAN, jamais à intervalle fixe.** Mesuré :
   ~12 images réparties sur 30-45 s laissaient une carte de quantité affichée 2 s passer une
   fois sur deux. `lib/video/frames.ts` sonde à la seconde, ne garde qu'une empreinte 8×8 par
@@ -39,13 +58,32 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
 - **Un chiffre par défaut se DIT.** Une vidéo n'annonce presque jamais ses portions ; le
   défaut 4 est affiché comme un défaut à corriger (`servingsGuessed`), parce que toutes les
   quantités de la liste d'épicerie sont mises à l'échelle à partir de lui. Même règle pour
-  tout futur champ qu'on remplirait faute de source.
+  tout futur champ qu'on remplirait faute de source. Idem pour la **provenance**
+  (`lib/origine.ts`) : la bibliothèque mélange ce que Marc a apporté et ce qu'il a pioché
+  dans le catalogue de 10 188 recettes, et une origine absente rend « Origine non
+  enregistrée » — jamais « ajoutée par toi », qui lui attribuerait des recettes qu'il n'a
+  jamais choisies.
+- **La transcription audio est une source d'APPOINT, jamais un arbitre.** La reconnaissance
+  vocale se trompe surtout sur les nombres et les unités — ce qui compte le plus ici. Le
+  prompt lui interdit de contredire un écrit (texte à l'écran, description) ; elle ne sert
+  qu'à compléter, et une quantité entendue mais incertaine devient `qty: null`. L'audio
+  seul ne suffit d'ailleurs pas à lancer une extraction. `GROQ_API_KEY` absente ⇒
+  « transcription non configurée » (intégration éteinte), à distinguer d'un échec, qui
+  affiche le motif du fournisseur : les confondre les rendrait tous deux invisibles.
 - **Le coût publié au hub suit le modèle RÉELLEMENT appelé.** Deux modèles cohabitent
   (texte Haiku, vision Sonnet) : `lib/llmUsage.ts` tarife par modèle. Ajouter une ligne à sa
   table dès qu'un nouveau modèle est utilisé, sinon son coût est compté au tarif d'Haiku.
 - **Server-side only.** Fetch, jetons et écritures restent côté serveur ; chaque Server
   Action revérifie la session (`requireSession`).
 - **Unités normalisées** au parse (`lib/units.ts` → g/ml/unite ou null « au goût »).
+- **La source peut être dans une autre langue ; la sortie est toujours française.** Une
+  partie des reels sont en anglais. Deux conséquences non négociables : `lib/units.ts`
+  connaît les unités impériales (cup, oz, lb, tbsp…) — sans elles, TOUTES les quantités
+  d'un reel anglais tombaient en `null` et la liste d'épicerie sortait sans un chiffre,
+  sans une seule erreur affichée ; et le `canonical` est TOUJOURS en français parce que
+  c'est la **clé de regroupement** de la liste (« chicken breast » et « poitrine de
+  poulet » feraient deux lignes qui ne fusionnent jamais). Un contenant sans taille fixe
+  (`can`, `package`, `bunch`) reste `null` : on n'invente pas un poids.
 - **Fonctions pures testées** pour la logique (agrégation, mise à l'échelle, prix, jetons).
 - **Planchers de version, jamais redescendus.** `drizzle-orm ≥ 0.45.2` (injection SQL par
   identifiants mal échappés, GHSA-gpj5-g38j-94v9, HIGH), et les `overrides` de `postcss` et
@@ -54,6 +92,46 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   seulement la racine (Next embarquait sa propre `postcss` 8.4.31 dans son `node_modules`,
   vulnérable et invisible depuis le premier niveau). Discrimination prouvée. Retirer un
   `override` seulement après avoir mesuré `npm audit --omit=dev` → 0.
+
+## Direction visuelle (décision de Marc, 13/08/2026)
+
+**Identité d'app de cuisine, pas de tableau de bord.** Les deux écrans les plus utilisés —
+la liste d'épicerie et une recette — se lisent DEBOUT, une main occupée, parfois sous les
+néons d'un supermarché.
+
+- **Les couleurs vivent dans `app/globals.css`, en variables, et NULLE PART ailleurs.** Le
+  vocabulaire est `.carte` / `.bouton` / `.champ` / `.doux` / `.succes` / `.alerte` /
+  `.erreur` (+ `.sur-accent`, `.texte-succes`, `.texte-erreur` pour du texte sans fond).
+  Avant, 288 chaînes de classes recopiées réinventaient bordures et gris d'un écran à
+  l'autre : c'est ce qui faisait dériver l'ensemble à chaque page ajoutée.
+  ⚠️ **Une couleur figée est INVISIBLE à la relecture** : elle est parfaitement lisible dans
+  le thème pour lequel on l'a écrite. Vécu le 14/08/2026 — ma passe de refonte a remplacé
+  les variantes `dark:bg-stone-900` par des jetons en LAISSANT le `bg-white` en dur qu'elles
+  corrigeaient : 21 endroits, fond blanc figé sous un texte clair hérité en thème sombre,
+  zéro test rouge, zéro erreur. C'est Marc qui l'a vu sur son téléphone. Un remplacement
+  ordonné qui supprime le correctif AVANT l'original laisse toujours ce trou-là.
+  *Verrou* : `web/tests/theme.test.ts` — il refuse toute classe de palette Tailwind dans
+  `app/`/`components/`/`lib/`, toute variante appliquée au vocabulaire maison
+  (`dark:texte-erreur` ne génère rien) ou vide (`dark:` seul), tout `var(--jeton)` inexistant,
+  et toute couleur définie en clair mais oubliée en sombre. Portée = `git ls-files` **+** le
+  neuf non ignoré (sinon le garde arrive un commit trop tard) ; l'unique exception est
+  NOMMÉE classe par classe (la case posée sur une photo, dont le contraste se joue contre
+  l'image). Discrimination prouvée par quatre mutations, une par test.
+  ⚠️ **Le CSS servi n'est PAS le bon endroit où vérifier.** Tailwind v4 balaie tout le dépôt,
+  commentaires et Markdown compris : la prose qui raconte ce bug génère des règles
+  `.bg-white` / `.dark\:bg-stone-900` que plus aucun balisage n'utilise. Inerte, mais ça
+  ressemble à une rechute. Ce qui tranche est le **HTML servi** (la classe rendue), pas la
+  présence d'une règle dans la feuille.
+- **L'accent (`--accent`) ne sert QU'À l'action principale.** Ailleurs, il ment sur ce qui
+  est cliquable.
+- **Navigation en bas sur téléphone** (`components/Navigation.tsx`), en haut à partir de
+  `sm`. `estOngletActif` est pure et testée — un onglet allume sa SECTION, `/` est traité à
+  part. ⚠️ `env(safe-area-inset-bottom)` + `viewportFit: "cover"` : sans eux la barre passe
+  sous la barre de gestes d'Android.
+- **Cibles tactiles ≥ 44 px, champs à 16 px** (en dessous, iOS zoome tout seul).
+- ⚠️ **Pas de police téléchargée.** `next/font/google` va chercher les fichiers AU BUILD :
+  dépendance réseau au déploiement, et tout build hors ligne casse. Les piles système
+  donnent déjà le contraste serif (titres) / sans (texte).
 
 ## Structure `web/`
 

@@ -36,15 +36,14 @@ export function ExportTasksButton({ batchId }: { batchId: number }) {
         type="button"
         onClick={run}
         disabled={pending}
-        className="w-full rounded-xl px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
-        style={{ backgroundColor: "var(--accent)" }}
+        className="bouton bouton-principal w-full"
       >
         {pending ? "Envoi vers Google Tasks…" : "Envoyer vers Google Tasks (liste cochable)"}
       </button>
       {msg && (
         <p
           className={`text-center text-xs ${
-            msg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+            msg.ok ? "texte-succes" : "texte-erreur"
           }`}
         >
           {msg.text}
