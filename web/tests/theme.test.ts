@@ -10,6 +10,14 @@
 //
 // Le défaut n'est pas rattrapable par la relecture : une couleur figée est parfaitement
 // lisible dans le thème pour lequel elle a été écrite. Il faut une machine qui les compte.
+//
+// ⚠️ Ne pas s'alarmer en lisant le CSS servi : il contient des règles `.bg-white` et
+// `.dark\:bg-stone-900` que PLUS AUCUN balisage n'utilise. Tailwind v4 balaie tout le dépôt,
+// commentaires et Markdown compris — les deux noms ci-dessus sont générés par la PROSE qui
+// raconte le bug (ce fichier, et la leçon de CLAUDE.md). Cousin du garde de JobAI qui
+// bloquait sur la chaîne prouvant qu'il détectait quelque chose : il détectait le détecteur.
+// Inerte (quelques dizaines d'octets), et la vérification qui tranche reste le balisage —
+// le HTML servi, jamais la présence d'une règle dans la feuille.
 
 import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";

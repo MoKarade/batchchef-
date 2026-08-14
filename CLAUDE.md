@@ -117,6 +117,11 @@ néons d'un supermarché.
   neuf non ignoré (sinon le garde arrive un commit trop tard) ; l'unique exception est
   NOMMÉE classe par classe (la case posée sur une photo, dont le contraste se joue contre
   l'image). Discrimination prouvée par quatre mutations, une par test.
+  ⚠️ **Le CSS servi n'est PAS le bon endroit où vérifier.** Tailwind v4 balaie tout le dépôt,
+  commentaires et Markdown compris : la prose qui raconte ce bug génère des règles
+  `.bg-white` / `.dark\:bg-stone-900` que plus aucun balisage n'utilise. Inerte, mais ça
+  ressemble à une rechute. Ce qui tranche est le **HTML servi** (la classe rendue), pas la
+  présence d'une règle dans la feuille.
 - **L'accent (`--accent`) ne sert QU'À l'action principale.** Ailleurs, il ment sur ce qui
   est cliquable.
 - **Navigation en bas sur téléphone** (`components/Navigation.tsx`), en haut à partir de
