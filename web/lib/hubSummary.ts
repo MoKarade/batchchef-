@@ -13,8 +13,17 @@ import { totalLlmCostUsd } from "@/lib/llmUsage";
 const APP_COLOR = "#c2410c"; // orange cuisine
 const ACTIVE = ["planifie", "courses", "cuisine"] as const;
 
+/**
+ * L'URL publique de BatchChef, qui part dans le summary et devient les liens du hub.
+ *
+ * Le défaut est passé de `batchchef-glu8-chi.vercel.app` à `batchchef.hubperso.com` le
+ * 14/08 : c'est ce déménagement qui permet à BatchChef de recevoir le cookie de session
+ * partagé (un cookie ne franchit pas la frontière entre deux domaines). L'ancienne adresse
+ * répond toujours, mais un lien qui y renvoie ferait sortir du domaine du hub — et la
+ * personne s'y retrouverait déconnectée sans comprendre pourquoi.
+ */
 export function publicUrl(): string {
-  const raw = (process.env.BATCHCHEF_PUBLIC_URL || "https://batchchef-glu8-chi.vercel.app").trim();
+  const raw = (process.env.BATCHCHEF_PUBLIC_URL || "https://batchchef.hubperso.com").trim();
   return raw.replace(/\/+$/, "");
 }
 
