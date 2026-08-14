@@ -6,11 +6,15 @@
 // (chiffré, httpOnly) et rafraîchi automatiquement ; il est lu UNIQUEMENT côté serveur
 // (Server Actions) — jamais rendu au client (pas de SessionProvider portant le jeton).
 //
-// Depuis la connexion unique, les portées et la mécanique des jetons vivent dans
-// `lib/jetonsGoogle.ts`, IDENTIQUE dans les quatre apps Auth.js. Raison : le cookie de
-// session est partagé, donc n'importe laquelle peut minter le jeton que BatchChef
-// utilisera. Si elle seule demandait Tasks, se connecter par le hub laisserait BatchChef
-// connecté mais sans droit d'écriture.
+// Les portées et la mécanique des jetons vivent dans `lib/jetonsGoogle.ts`, partagé avec
+// HUBPERSO — et avec lui seul depuis le 14/08 : JobAI et CarAI ont cessé de parler à
+// Google (étape 1 de l'ADR 0001) et n'en ont plus besoin. Le fichier doit rester
+// rigoureusement identique dans les deux dépôts qui le gardent.
+//
+// Raison d'être : le cookie de session est partagé, donc c'est la DERNIÈRE app où l'on
+// s'est connecté qui décide du contenu du jeton. Si BatchChef était seule à demander
+// Tasks, se connecter par le hub la laisserait connectée mais sans droit d'écriture. Le
+// hub demande donc la même portée et rafraîchit le jeton pour elle.
 
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
@@ -43,10 +47,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   // secret, l'app reçoit le cookie mais n'en tire rien), se connecter à une app vaut
   // pour toutes. Corollaire assumé : une DÉCONNEXION vaut aussi pour toutes.
   //
-  // ⚠️ BatchChef est la seule app à ne PAS être encore sous `hubperso.com` : tant
-  // qu'elle sert `batchchef-glu8-chi.vercel.app`, un cookie de domaine parent y serait
-  // rejeté et la variable doit rester vide. C'est sans danger — variable non définie ⇒
-  // comportement natif, cookie limité à l'hôte. Voir `lib/sessionPartagee.ts`.
+  // Depuis le 14/08, BatchChef sert `batchchef.hubperso.com` : elle peut donc enfin
+  // recevoir le cookie partagé, ce que son ancienne adresse `.vercel.app` interdisait
+  // (un cookie ne franchit pas la frontière entre deux domaines). Voir
+  // `lib/sessionPartagee.ts`.
   //
   // ⚠️ Le JWT de BatchChef porte, LUI, les jetons Google (accès + rafraîchissement,
   // scope Tasks). Les partager entre sous-domaines est le but recherché — c'est ce qui
