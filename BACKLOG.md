@@ -8,20 +8,7 @@
 
 ## En cours / décidé, pas encore livré
 
-Issus de la revue du 17/08/2026 (« comment améliorer l'app »), arbitrés par Marc.
-
-- [ ] **`GM-01` — Garde-manger.** Aucune notion de ce que Marc a déjà : tout ce que les
-  recettes demandent atterrit sur la liste d'épicerie, sel et huile compris. Deux effets —
-  du bruit en magasin, et un budget gonflé par ce qu'il ne rachète pas.
-  **Décision Marc : la liste part VIDE**, il y ajoute au fil des courses (pas de liste
-  standard supposée).
-  ⚠️ Contrainte non négociable : **ne jamais retirer silencieusement une ligne d'une liste de
-  courses**. Les articles du garde-manger passent dans une section « à vérifier au placard »,
-  ils ne sont pas supprimés.
-- [ ] **`ACC-01` — Le compteur d'accueil se dégrade avec le temps.** « Articles à acheter »
-  compte tous les `shopping_items` non cochés, **sans jointure sur `batches`** ni filtre de
-  statut (`app/page.tsx`). Un batch terminé avec des lignes jamais cochées gonfle ce chiffre
-  pour toujours.
+Rien. Les trois chantiers arbitrés par Marc le 17/08 sont livrés (voir « Fait »).
 
 ## Écarté volontairement
 
@@ -42,6 +29,11 @@ Rien n'est engagé ici — à proposer à Marc avant de coder.
 
 ## Fait
 
+- [x] **`GM-01` — Garde-manger.** Bouton « Placard » sur chaque article restant d'une liste,
+  section « à vérifier au placard » (repliée, cochable, JAMAIS supprimée), écran
+  `/garde-manger` pour défaire. Table vide au départ, comme décidé. 17/08/2026.
+- [x] **`ACC-01` — Compteur d'accueil.** Jointure sur `batches` + exclusion des batchs
+  terminés : le chiffre ne se dégrade plus avec le temps. 17/08/2026.
 - [x] **Stock de portions** — le cycle se referme après « terminé ». 17/08/2026,
   `docs/adr/0001-portions-en-stock.md`.
 - [x] **Documents vivants** (`HANDOVER.md`, ce fichier, `docs/LESSONS.md`, `docs/adr/`) —

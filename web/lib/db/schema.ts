@@ -114,6 +114,24 @@ export const portions = pgTable("portions", {
   rangeLe: timestamp("range_le", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Garde-manger : ce que Marc a TOUJOURS et ne rachète pas.
+ *
+ * Décision de Marc (17/08/2026) : la table part VIDE, il la remplit au fil des courses.
+ * Aucune liste standard supposée — l'app ne devine pas ce qu'il y a dans son placard.
+ *
+ * ⚠️ Ces articles ne sont jamais RETIRÉS d'une liste de courses, seulement déplacés dans une
+ * section « à vérifier au placard » : le jour où le pot est vide, la ligne doit être là.
+ */
+export const pantry = pgTable("pantry", {
+  id: serial("id").primaryKey(),
+  /** Clé de regroupement normalisée, la même famille que `shopping_items.canonical`. */
+  canonical: text("canonical").notNull().unique(),
+  /** Nom tel que Marc l'a vu quand il l'a déclaré (c'est lui qu'on lui réaffiche). */
+  nom: text("nom").notNull(),
+  ajouteLe: timestamp("ajoute_le", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ── Catalogue de découverte (les 10 188 recettes Marmiton de la V3) ──────────────
 // Corpus SÉPARÉ de la bibliothèque perso : lecture seule, cherchable, source d'idées.
 // « Ajouter à ma bibliothèque » copie une entrée du catalogue vers recipes/recipeIngredients.
@@ -163,3 +181,4 @@ export type Batch = typeof batches.$inferSelect;
 export type BatchRecipe = typeof batchRecipes.$inferSelect;
 export type ShoppingItem = typeof shoppingItems.$inferSelect;
 export type PortionStock = typeof portions.$inferSelect;
+export type PantryItem = typeof pantry.$inferSelect;

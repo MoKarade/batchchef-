@@ -1,6 +1,6 @@
 // / — accueil : l'état en un coup d'œil, les deux gestes principaux, et tes recettes récentes.
 import Link from "next/link";
-import { count, desc, eq, inArray, sum } from "drizzle-orm";
+import { and, count, desc, eq, inArray, ne, sum } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { RecipeCard } from "@/components/RecipeCard";
 
@@ -12,10 +12,15 @@ export default async function HomePage() {
     .select({ n: count() })
     .from(schema.batches)
     .where(inArray(schema.batches.status, ["planifie", "courses", "cuisine"]));
+  // ⚠️ La jointure sur `batches` n'est pas décorative : sans elle, le compteur additionnait
+  // les articles non cochés de TOUS les batchs, terminés compris. Un batch fini dont il
+  // restait des lignes jamais cochées gonflait ce chiffre pour toujours — un compteur qui se
+  // dégrade avec le temps, donc qu'on finit par ne plus lire.
   const [toBuy] = await db
     .select({ n: count() })
     .from(schema.shoppingItems)
-    .where(eq(schema.shoppingItems.checked, false));
+    .innerJoin(schema.batches, eq(schema.batches.id, schema.shoppingItems.batchId))
+    .where(and(eq(schema.shoppingItems.checked, false), ne(schema.batches.status, "termine")));
   const [enStock] = await db
     .select({ n: sum(schema.portions.restantes) })
     .from(schema.portions);
