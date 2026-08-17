@@ -1,6 +1,6 @@
 // / — accueil : l'état en un coup d'œil, les deux gestes principaux, et tes recettes récentes.
 import Link from "next/link";
-import { count, desc, eq, inArray } from "drizzle-orm";
+import { count, desc, eq, inArray, sum } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { RecipeCard } from "@/components/RecipeCard";
 
@@ -16,6 +16,9 @@ export default async function HomePage() {
     .select({ n: count() })
     .from(schema.shoppingItems)
     .where(eq(schema.shoppingItems.checked, false));
+  const [enStock] = await db
+    .select({ n: sum(schema.portions.restantes) })
+    .from(schema.portions);
   const recent = await db
     .select({
       id: schema.recipes.id,
@@ -27,6 +30,9 @@ export default async function HomePage() {
     .limit(6);
 
   const stats = [
+    // `sum` de Postgres rend une CHAÎNE (ou null sur table vide) : la convertir ici, sinon
+    // l'accueil afficherait la concaténation au lieu du total.
+    { label: "Portions au frais", value: Number(enStock?.n ?? 0), href: "/portions" },
     { label: "Recettes", value: recipeCount?.n ?? 0, href: "/recettes" },
     { label: "Batchs actifs", value: activeBatches?.n ?? 0, href: "/batchs" },
     { label: "Articles à acheter", value: toBuy?.n ?? 0, href: "/batchs" },
@@ -34,7 +40,7 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {stats.map((s) => (
           <Link
             key={s.label}
