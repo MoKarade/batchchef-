@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { SignOutButton } from "@/components/AuthButtons";
 import { EnregistrerServiceWorker } from "@/components/EnregistrerServiceWorker";
 import { NavigationBasse, NavigationHaute } from "@/components/Navigation";
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         <NavigationBasse />
         <EnregistrerServiceWorker />
+        <Analytics />
       </body>
     </html>
   );
