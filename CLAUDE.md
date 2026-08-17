@@ -100,6 +100,15 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   découvre qu'en ouvrant un congélateur vide. Le garde est donc « ce batch a-t-il déjà des
   portions ? ». Corollaire pour tout futur garde : se demander quel aller-retour légitime
   RÉOUVRE le chemin, et porter le garde sur ce que l'action PRODUIT.
+- **Le garde-manger DÉPLACE, il ne supprime JAMAIS.** Un article déclaré « j'ai toujours ça »
+  quitte le budget et la liste principale pour une section « à vérifier au placard », repliée
+  mais toujours visible et toujours cochable — le jour où le pot d'huile est vide, la ligne
+  doit être là. Le montant écarté est DIT sous l'en-tête de la section : taire un total qu'on
+  vient de retirer serait la version polie du mensonge. Et l'appariement se fait sur la clé
+  EXACTE (`lib/gardeManger.ts`), jamais par sous-chaîne : « huile » emporterait « huile de
+  truffe ». Une heuristique floue peut grouper ce qu'on REGARDE, jamais décider ce qui SORT
+  d'une liste de courses — ici l'erreur ne se voit pas, elle se découvre au retour du magasin.
+  La table part VIDE (décision de Marc) : l'app ne devine pas ce qu'il y a dans le placard.
 - **Les repères de conservation ne sont pas un verdict.** 4 jours au frigo, 90 au congélo
   (`REPERE_JOURS`) servent à faire REMONTER ce qui attend, jamais à juger : l'app ne sait rien
   de ce qu'il y a dans la boîte. Le vocabulaire à l'écran dit « au-delà du repère de N jours »,

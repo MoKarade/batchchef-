@@ -14,6 +14,7 @@ import { splitNewCatalogRecipes } from "@/lib/catalogSelect";
 import { MAX_TRANSCRIPT_CHARS } from "@/lib/transcription";
 import { estOrigine, type OrigineRecette } from "@/lib/origine";
 import { validerRangements, type RangementBrut } from "@/lib/portions";
+import { validerAjoutGardeManger } from "@/lib/gardeManger";
 import {
   clampServings,
   normaliserImage,
@@ -686,6 +687,47 @@ export async function terminerBatch(
     revalidatePath(`/batchs/${batchId}`);
     revalidatePath("/portions");
     revalidatePath("/");
+    return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Déclare un article comme « j'ai toujours ça » (garde-manger).
+ *
+ * L'article n'est PAS retiré de la liste courante : il passe dans « à vérifier au placard »,
+ * toujours visible et toujours cochable. Le supprimer ferait rentrer Marc sans son huile le
+ * jour où le pot est vide, et l'app ne le saurait jamais.
+ */
+export async function ajouterAuGardeManger(nom: string, canonical: string): Promise<ActionResult> {
+  try {
+    await requireSession();
+    const valide = validerAjoutGardeManger(nom, canonical);
+    if (!valide.ok) return { ok: false, error: valide.erreur };
+
+    // Déclarer deux fois le même article n'est pas une erreur — c'est un geste répété en
+    // magasin. `onConflictDoNothing` le rend inoffensif plutôt que de le faire échouer.
+    await db
+      .insert(schema.pantry)
+      .values({ canonical: valide.cle, nom: valide.nom })
+      .onConflictDoNothing({ target: schema.pantry.canonical });
+
+    revalidatePath("/courses", "layout");
+    revalidatePath("/garde-manger");
+    return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Retire un article du garde-manger : il redevient un achat normal. */
+export async function retirerDuGardeManger(id: number): Promise<ActionResult> {
+  try {
+    await requireSession();
+    await db.delete(schema.pantry).where(eq(schema.pantry.id, id));
+    revalidatePath("/courses", "layout");
+    revalidatePath("/garde-manger");
     return { ok: true };
   } catch (err) {
     return fail(err);

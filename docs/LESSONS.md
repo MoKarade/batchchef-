@@ -8,6 +8,21 @@
 
 ---
 
+## 2026-08-17 — Un compteur qui ne filtre rien se dégrade, donc on cesse de le lire
+
+L'accueil affichait « Articles à acheter » en comptant tous les `shopping_items` non cochés,
+**sans jointure sur `batches`**. Un batch terminé dont il restait des lignes jamais cochées
+gonflait ce chiffre pour toujours.
+
+Ce n'est pas un bug qui casse : c'est un chiffre qui devient faux **lentement**. Personne ne
+le signale, on s'habitue à ce qu'il soit gros, et le jour où il compte vraiment il ne veut
+plus rien dire. Même famille que « une CI rouge en permanence cesse d'être lue ».
+
+**Règle** : un compteur agrégé doit nommer son PÉRIMÈTRE dans la requête. « Tout ce qui n'est
+pas coché » n'est pas un périmètre, c'est l'absence de filtre.
+
+---
+
 ## 2026-08-17 — Un test peut passer pour la mauvaise raison, et seule la mutation le dit
 
 En écrivant `tests/portions.test.ts`, j'ai posé un test « date dans le fuseau de Marc, jamais
