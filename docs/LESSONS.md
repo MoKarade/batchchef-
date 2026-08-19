@@ -8,6 +8,38 @@
 
 ---
 
+## 2026-08-19 — L'exemption de build ne survit pas au redémarrage d'une branche
+
+J'ai annoncé à Marc qu'un commit de documentation seule ne coûterait aucun déploiement —
+l'`ignoreCommand` (`scripts/build-necessaire.sh`) exempte `*.md`. Le preview a construit.
+
+Le commit d'AVANT, lui aussi documentation seule, avait bien été `Ignored`. Seule différence :
+il vivait dans une branche continue, alors que celui-ci est le PREMIER commit après un
+`checkout -B <branche> origin/master` consécutif au squash-merge.
+
+Le script diffe contre `VERCEL_GIT_PREVIOUS_SHA`, c'est-à-dire le commit du dernier
+déploiement de cette branche — ici `49f8e30`, que le squash a rendu **orphelin**
+(`git merge-base --is-ancestor 49f8e30 25cc145` → non). Aucune profondeur de clone ne peut
+le contenir, puisqu'il n'est plus sur la branche du tout. `git diff` échoue, et le script
+tombe sur son garde documenté : *toute incertitude se résout en CONSTRUISANT*.
+
+Vérifié plutôt que supposé : rejoué localement avec la même base, le diff ne contient que
+quatre `.md` — donc s'il avait été calculable, le script aurait bien ignoré le build. Le
+script a fait exactement ce pour quoi il a été écrit ; c'est ma prédiction qui était fausse.
+
+Confirmé par prédiction dans la foulée : le commit SUIVANT sur la même branche, lui aussi
+documentation seule, a bien été `Ignored` — sa base (`25cc145`) était redevenue atteignable.
+Seul le premier commit après le redémarrage payait. Un mécanisme n'est compris que quand il
+prédit le cas d'après, pas seulement quand il explique celui d'avant.
+
+**Règle** : l'exemption « doc/tests ne coûtent pas de déploiement » ne vaut qu'à l'INTÉRIEUR
+d'une histoire de branche continue. Le premier commit après un squash-merge repart d'une base
+que le distant ne connaît plus, et construit quoi qu'il contienne. Corollaire pratique : un
+lot de documentation posté juste après un merge se groupe avec le suivant, ou s'accepte comme
+un déploiement. Et corollaire général — c'est la deuxième fois de la session : **une garde
+qui se calibre sur un état antérieur (SHA précédent, délai de retente, cache) change de
+comportement quand cet état est réécrit**, sans que rien ne le signale.
+
 ## 2026-08-19 — La protection d'hébergement peut rendre un endpoint machine injoignable, et ça ne ressemble pas à une erreur
 
 Le serveur MCP validé, j'ai voulu le sonder sur la préversion Vercel. Réponse : **302 vers
