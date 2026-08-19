@@ -8,9 +8,21 @@
 
 ## En cours / décidé, pas encore livré
 
-- [ ] **`MCP-02` — poser `MCP_TOKEN` dans Vercel.** Geste de Marc : sans cette variable, le
-  serveur MCP répond **503 « MCP_TOKEN non configuré »** (échec fermé assumé, pas une panne).
-  Rien à coder de ce côté.
+- [x] ~~**`MCP-02` — poser `MCP_TOKEN` dans Vercel.**~~ **Fait le 19/08.** Marc a branché le
+  connecteur claude.ai ; les outils rendent ses vraies données depuis la base de production.
+
+- [ ] **`ING-03` — les noms d'ingrédients du catalogue portent des morceaux de quantité.**
+  Vu au PREMIER usage réel du MCP, dans la sortie que Marc lit lui-même :
+  « À Soupe De Persil », « À Café D'Huile De Sésame », « S De Sel », « Huile végétale pure à »,
+  et surtout « **Ousses D'Ail** » — un « Gousses » amputé de sa première lettre. Le motif est
+  clair : à l'import du catalogue (10 188 recettes), l'unité et la quantité ont été découpées
+  DANS le nom au lieu d'en être extraites, et la coupe a parfois mordu un caractère de trop.
+  Conséquence concrète : la liste d'épicerie affiche « À Soupe De Persil » au lieu de
+  « persil », donc deux recettes qui demandent du persil ne fusionnent pas — c'est le
+  `canonical` qui sert de clé de regroupement. À cadrer avant de coder : mesurer l'ampleur sur
+  les 10 188 recettes (combien de noms touchés, quels motifs) plutôt que d'extrapoler depuis
+  la dizaine vue ici, et se rappeler que le catalogue est REBÂTISSABLE depuis
+  `data/batchchef.seed.db` — donc le correctif peut être rétroactif, contrairement aux unités.
 - [x] ~~**`MCP-03` — le connecteur claude.ai attend peut-être OAuth 2.1.**~~ **Confirmé et
   livré le 19/08** (ADR-0002). Ce n'était pas un « peut-être » : l'interface ne prend qu'une
   URL, sans champ pour un en-tête. Constaté en lisant la configuration MCP réelle de la
