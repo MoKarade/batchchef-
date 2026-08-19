@@ -8,6 +8,26 @@
 
 ---
 
+## 2026-08-19 — Normaliser à l'écriture DÉTRUIT la source, donc rend le correctif suivant impossible
+
+Le pipeline convertissait les unités au moment de l'import et ne gardait que le résultat
+(`g`/`ml`/`unite`). Quand la conversion échouait, la quantité tombait en « au goût » — et le
+mot d'origine (« gousses », « cans ») était perdu définitivement.
+
+La conséquence n'apparaît qu'au correctif SUIVANT : le 19/08, élargir la table d'unités a
+réparé tout ce qui arriverait désormais, et **rien** de ce qui était déjà en base. Pas parce
+que le rattrapage était coûteux — parce que la donnée nécessaire n'existait plus nulle part.
+J'allais l'annoncer comme « les quantités sont réparées » ; c'était vrai pour le futur et
+faux pour ce que Marc allait ouvrir en premier, c'est-à-dire ses recettes existantes.
+
+**Règle** : quand un traitement NORMALISE une entrée à l'écriture, garder la forme brute dès
+qu'on n'a pas su la traiter. Ça coûte une colonne ou un champ de note ; ne pas le faire rend
+tout élargissement futur inapplicable à l'existant, et on ne s'en aperçoit que le jour où on
+l'élargit. Cousin de la leçon JobAI « le chemin de rattrapage se livre DANS le même lot que
+la colonne » — ici, ce n'est même pas un chemin qui manquait, c'est la matière.
+
+---
+
 ## 2026-08-17 — Livré le matin, retiré le soir : la leçon n'est pas « j'ai eu tort de coder »
 
 Le stock de portions et le garde-manger ont été conçus, testés, mergés et déployés dans la

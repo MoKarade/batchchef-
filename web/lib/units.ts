@@ -248,3 +248,31 @@ export function normalizeQty(
 function round(n: number): number {
   return Math.round(n * 100) / 100;
 }
+
+/**
+ * Ce que la source annonçait, quand on n'a PAS su le convertir.
+ *
+ * Sans ça, « 2 cans de tomates » devient « au goût » et l'information brute est perdue POUR
+ * TOUJOURS : aucune table ne stocke l'unité d'origine, donc élargir `FACTORS` plus tard ne
+ * rattrape rien de ce qui est déjà en base (constaté le 19/08 — les recettes importées avant
+ * le correctif FR/EN restent muettes, et rien ne peut les réparer).
+ *
+ * Deux bénéfices pour une ligne : Marc lit « 2 cans » au lieu d'un « au goût » qui ne dit
+ * rien, et la prochaine amélioration de la table devient RATTRAPABLE.
+ *
+ * L'import du catalogue faisait déjà ça ; le chemin LLM, non. Les deux sont maintenant
+ * d'accord.
+ */
+export function noteQuantiteNonConvertie(
+  note: string | null | undefined,
+  qty: number | null | undefined,
+  unit: string | null | undefined,
+): string | null {
+  const existante = (note ?? "").trim();
+  const u = (unit ?? "").trim();
+  const source = Number.isFinite(qty) && (qty as number) > 0 && u ? `${qty} ${u}` : u;
+  if (!source) return existante || null;
+  // Ne pas répéter ce que la note dit déjà — « 2 cups · 2 cups » n'aide personne.
+  if (existante.toLowerCase().includes(source.toLowerCase())) return existante;
+  return existante ? `${existante} · ${source}` : source;
+}

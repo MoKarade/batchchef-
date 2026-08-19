@@ -10,7 +10,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { normalizeQty } from "../units";
+import { noteQuantiteNonConvertie, normalizeQty } from "../units";
 import { recordLlmUsage } from "../llmUsage";
 import { MAX_TRANSCRIPT_CHARS } from "../transcription";
 
@@ -179,7 +179,12 @@ export function normalizeParsedRecipe(raw: z.infer<typeof RawParsedRecipeSchema>
         canonical: canonical || i.name.toLowerCase().trim(),
         qty: norm.qty,
         unit: norm.unit,
-        note: i.note ?? null,
+        // Conversion ratée ⇒ on GARDE ce que la source disait, sinon l'information brute
+        // est perdue pour toujours (aucune table ne stocke l'unité d'origine).
+        note:
+          norm.qty === null
+            ? noteQuantiteNonConvertie(i.note, i.qty, i.unit)
+            : (i.note ?? null),
       };
     }),
   };
