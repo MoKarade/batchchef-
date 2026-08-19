@@ -75,6 +75,48 @@ système, qui aurait servi de base à la décision suivante.
 
 ---
 
+## 2026-08-19 — Un audit sérieux commence par auditer l'instrument
+
+Marc a demandé une vérification en profondeur des 87 443 lignes d'ingrédients : « assure-toi
+qu'au moins 98 % est bon ». Premier verdict : **99,63 %**. Verdict final, après avoir corrigé
+l'audit LUI-MÊME trois fois : **99,85 %**, mais en ayant découvert entre-temps 800 lignes de
+défauts que la première mesure ne voyait pas et 250 qu'elle inventait.
+
+Les trois fautes de l'instrument, toutes de la même famille :
+
+1. `\b` en JavaScript ne considère pas `è` comme une lettre. Donc `/\bde\b$/` matche la fin
+   de « Eau Tiède » : 60 noms parfaitement corrects signalés comme tronqués. Et
+   symétriquement `/\bà\b$/` ne matchait JAMAIS « pure à », donc le vrai défaut passait.
+   Un même bug faisait les deux erreurs à la fois, dans les deux sens.
+2. Le critère « nom dégénéré » comptait les premiers mots courts. « Os À Moelle » et
+   « St Morêt » sont corrects ; « Es » ne l'est pas. La brièveté n'était pas le signal — le
+   fait d'être le RESTE d'un mot présent dans la source l'était.
+3. Le critère « volume rendu en masse » cherchait « cuillère » n'importe où dans le texte, et
+   attrapait « 100 g de farine + 1 cuillerée pour le moule », qui est en grammes à juste titre.
+
+Chaque correction faisait bouger le chiffre dans les deux sens — parfois vers le bas, parce
+qu'on voyait enfin ce qu'on ratait. **Un taux qui ne bouge jamais quand on affine la mesure
+est un taux qu'on n'a pas mesuré.**
+
+Et l'audit, une fois juste, a trouvé trois vrais défauts que ni les tests ni les logs
+n'auraient montrés — dont deux dans mes propres correctifs de la veille : une restauration
+qui trouvait l'unité avant l'ingrédient (198 lignes perdues à cause d'UNE ligne mal lue,
+parce que le désaccord annulait les deux), et un nettoyage qui passait par une carte de
+correspondance dont il n'avait aucun besoin, donc bloqué par des conflits sans rapport.
+
+**Règle** : avant de rapporter un taux, chercher les faux positifs ET les faux négatifs de
+son propre critère, sur des exemples qu'on LIT. Un audit se calibre comme un instrument :
+ici, en rejouant l'état de production depuis la source PUIS en le confrontant à la vraie base
+par un autre chemin (le MCP, 11 ingrédients sur 11). Sans cette calibration, j'aurais audité
+un modèle de la production, pas la production.
+
+**Corollaire** : chaque correctif doit être re-mesuré sur le corpus ENTIER, pas sur son cas
+motivant. L'une de mes corrections a fait tomber le taux de 99,62 % à 98,91 % — elle réparait
+198 lignes et en cassait 595, ce que le cas motivant ne pouvait pas montrer. Sans re-mesure
+complète, je l'aurais livrée en croyant l'avoir améliorée.
+
+---
+
 ## 2026-08-19 — Une abstention EN BLOC écarte les champs sur lesquels tout le monde était d'accord
 
 J'avais promis à Marc une « preuve par l'usage » : relire la liste d'épicerie après le

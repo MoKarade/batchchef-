@@ -103,25 +103,108 @@ export function uniteCorrigee(
 }
 
 /**
- * Restaure les lettres mangées en tête de nom, en cherchant dans le texte source le mot dont
- * le nom ne garde qu'un SUFFIXE (« Ousses » ← « gousses », « Ous » ← « clous »).
+ * Mots d'unité à ignorer QUAND ON CHERCHE LE NOM de l'ingrédient.
  *
- * Conservateur par construction : on ne restitue que ce que la source contient réellement, et
- * seulement si le mot retrouvé se termine EXACTEMENT par le mot abîmé. Rend le nom inchangé
- * dès que le moindre doute existe — un nom laid vaut mieux qu'un nom inventé.
+ * ⚠️ Liste distincte de `COMPTABLES` à dessein : celle-ci ne sert qu'à savoir où commence
+ * l'ingrédient dans le texte, jamais à décider d'une unité. Les confondre ferait qu'ajouter
+ * un mot pour mieux lire un nom changerait au passage des quantités — deux décisions
+ * différentes ne partagent pas une liste.
+ */
+const MOTS_UNITE_POUR_LE_NOM = [
+  ...REELLES, ...COMPTABLES,
+  "tasse", "tasses", "verre", "verres", "bol", "bols", "sachet", "sachets",
+  "boîte", "boîtes", "boite", "boites", "cuillère", "cuillères", "cuillere", "cuilleres",
+  "cuillerée", "cuillerées", "paquet", "paquets", "pot", "pots", "cube", "cubes",
+  "gros", "grosse", "grosses", "grand", "grande", "grandes", "petit", "petite", "petites",
+  "beau", "beaux", "belle", "belles", "haché", "hachés", "hachée", "hachées",
+].sort((a, b) => b.length - a.length);
+
+/** Le texte débarrassé de sa quantité et de son unité de tête : l'INGRÉDIENT seul. */
+function sansQuantiteNiUnite(raw: string): string {
+  let s = raw.trim().replace(QUANTITE, "");
+  // Plusieurs mots d'unité s'enchaînent parfois : « 1 grandes cuillères de sirop ».
+  // Trois tours suffisent largement et bornent la boucle.
+  for (let tour = 0; tour < 3; tour++) {
+    const avant = s;
+    for (const u of MOTS_UNITE_POUR_LE_NOM) {
+      if (new RegExp(`^${echapper(u)}\\b`, "i").test(s)) {
+        s = s.slice(u.length).replace(/^\s*(?:de\s+|d'|d’|du\s+|des\s+|à\s+)/i, "").trim();
+        break;
+      }
+    }
+    if (s === avant) break;
+  }
+  return s.replace(/^\s*(?:de\s+|d'|d’|du\s+|des\s+)/i, "").trim();
+}
+
+/**
+ * Restaure les lettres mangées en tête de nom, en cherchant dans le texte source le mot dont
+ * le nom ne garde qu'un SUFFIXE (« Ousses » ← « gousses », « Es » ← « fraises »).
+ *
+ * ⚠️ ON CHERCHE DEUX FOIS, ET L'ORDRE EST TOUT.
+ *
+ * D'abord dans la partie INGRÉDIENT (quantité et unité retirées) : sans ça,
+ * « 1/2 tasses de fraises » restaure « Es » en « Tasses » — le premier mot en `-es` du
+ * texte est l'unité, pas l'ingrédient. Cette fausse restauration entrait en conflit avec la
+ * bonne venue d'une autre source, et le conflit annulait les DEUX : 198 lignes abîmées à
+ * cause d'une seule mal lue.
+ *
+ * Puis, si rien n'est trouvé, dans le texte ENTIER : parce que le mot amputé EST parfois
+ * l'unité elle-même (« Rosses » ← « grosses », « Amelles » ← « lamelles »). Mesuré : ne
+ * chercher que dans la partie ingrédient perdait 595 restaurations qui marchaient.
+ *
+ * Conservateur par construction : on ne restitue que ce que la source contient réellement,
+ * et seulement si le mot retrouvé se termine EXACTEMENT par le fragment. Rend le nom
+ * inchangé au moindre doute — un nom laid vaut mieux qu'un nom inventé.
  */
 export function nomRestaure(nom: string, textesSource: string[]): string {
   const premier = nom.trim().split(/\s+/)[0];
   if (!premier || premier.length < 2) return nom;
   const bas = premier.toLowerCase();
-  for (const raw of textesSource) {
-    const m = new RegExp(`\\b(\\w*${echapper(bas)})\\b`, "i").exec(raw);
-    const trouve = m?.[1];
-    if (!trouve || trouve.length <= premier.length) continue;
-    // Au plus trois lettres perdues : au-delà, ce n'est plus une troncature mais un autre mot.
-    if (trouve.length - premier.length > 3) continue;
-    const restaure = trouve[0]!.toUpperCase() + trouve.slice(1);
-    return nom.replace(premier, restaure);
+  // ⚠️ Frontière EXPLICITE, pas `\b` : en JS, `è`/`é` ne sont pas des lettres, donc `\b`
+  // se déclenche au milieu des mots accentués et fabrique de faux appariements.
+  const motif = new RegExp(`(?:^|[\\s'’(])(\\w*${echapper(bas)})\\b`, "i");
+  // Combien de lettres a-t-on le droit de rendre ? Trois en général — au-delà, ce n'est plus
+  // une troncature mais un autre mot.
+  //
+  // ⚠️ Exception étroite : un fragment de DEUX lettres n'est jamais un mot en soi, donc le
+  // mot d'origine est forcément bien plus long (« Es » ← « fraises », cinq lettres rendues).
+  // Le seuil s'arrête à deux et pas à trois, et c'est mesuré : à trois, « Ail » deviendrait
+  // « Portail » — un vrai mot français transformé en un autre. Un test le verrouille.
+  const budget = premier.length <= 2 ? 5 : 3;
+
+  for (const ou of ["ingredient", "entier"] as const) {
+    for (const raw of textesSource) {
+      const texte = ou === "ingredient" ? sansQuantiteNiUnite(raw) : raw;
+      const trouve = motif.exec(` ${texte}`)?.[1];
+      if (!trouve || trouve.length <= premier.length) continue;
+      if (trouve.length - premier.length > budget) continue;
+      const restaure = trouve[0]!.toUpperCase() + trouve.slice(1);
+      return nom.replace(premier, restaure);
+    }
   }
   return nom;
+}
+
+/**
+ * Retire une préposition restée SEULE en fin de nom (« Huile végétale pure à »).
+ *
+ * Ces noms viennent d'un référentiel produit et ont été coupés en pleine phrase. La
+ * préposition finale ne désigne rien : « Huile végétale pure à » ne dit pas à quoi. La
+ * retirer rend un nom court et vrai plutôt qu'une phrase inachevée.
+ *
+ * ⚠️ Frontière explicite plutôt que `\b` : en JS, `è` n'est pas une lettre, donc /\bde$/
+ * matche la fin de « Tiède » et amputerait un nom parfaitement correct. Ce faux positif a
+ * été mesuré sur le corpus avant d'être écarté.
+ *
+ * ⚠️ Ne rend jamais une chaîne vide, et ne touche pas un nom d'un seul mot : « De » seul
+ * n'est pas un nom qu'on améliore en le vidant.
+ */
+const PREPOSITION_FINALE = /(?:^|[\s'’])(?:à|de|d'|d’|en|au|aux|pour|sur|avec|dans)\s*$/i;
+
+export function nomSansPrepositionFinale(nom: string): string {
+  const t = nom.trim();
+  if (t.split(/\s+/).length < 2) return nom;
+  const coupe = t.replace(PREPOSITION_FINALE, "").trim();
+  return coupe.length > 0 ? coupe : nom;
 }

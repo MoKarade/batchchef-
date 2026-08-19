@@ -31,7 +31,7 @@ import { sql } from "drizzle-orm";
 import initSqlJs from "sql.js";
 import { db, schema } from "../lib/db";
 import { reparerCanonique, reparerNom } from "../lib/ingredientsNoms";
-import { nomRestaure, uniteCorrigee } from "../lib/ingredientsSource";
+import { nomRestaure, nomSansPrepositionFinale, uniteCorrigee } from "../lib/ingredientsSource";
 
 const require = createRequire(import.meta.url);
 const SEED = path.resolve(process.cwd(), "data", "batchchef.seed.db");
@@ -75,7 +75,7 @@ async function corrections(): Promise<Map<string, Correction>> {
     // a déjà réparé une partie des clés en base. On rejoue la même transformation.
     const cleProd = reparerCanonique(c);
     // Le nom tel que la production le porte : ING-03 d'abord, puis restauration des lettres.
-    const nom = nomRestaure(reparerNom(n), src);
+    const nom = nomSansPrepositionFinale(nomRestaure(reparerNom(n), src));
     const unite = uniteCorrigee("g", src) ?? uniteCorrigee("ml", src);
 
     // ⚠️ Le conflit se juge CHAMP PAR CHAMP, jamais en bloc.
@@ -122,11 +122,15 @@ async function appliquer(libelle: string, table: Table, map: Map<string, Correct
   let valeurs = 0;
   for (const c of couples) {
     const corr = map.get(c.canonical);
-    if (!corr) continue;
-    const nom = corr.nom ?? c.name;
+    // ⚠️ Le nettoyage de la préposition finale ne consulte AUCUNE source : il s'applique
+    // donc au nom présent, indépendamment de la carte. Le faire passer par elle le rendait
+    // inopérant sur les clés en conflit — et « huile » en est une, soit 163 des 222 lignes
+    // concernées. Une correction qui n'a pas besoin d'une source ne doit pas dépendre
+    // d'un accord entre sources.
+    const nom = nomSansPrepositionFinale(corr?.nom ?? c.name);
     // ⚠️ On ne corrige l'unité QUE si elle est aujourd'hui une mesure de masse/volume.
     // `unite` et `null` sont laissés tels quels : on répare une erreur, on n'impose rien.
-    const unite = corr.unite && (c.unit === "g" || c.unit === "ml") ? corr.unite : c.unit;
+    const unite = corr?.unite && (c.unit === "g" || c.unit === "ml") ? corr.unite : c.unit;
     if (nom === c.name && unite === c.unit) continue;
     const res = await db
       .update(table)

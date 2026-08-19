@@ -5,7 +5,7 @@
 // sur le corpus réel, pas inventés.
 
 import { describe, expect, it } from "vitest";
-import { analyserTexteSource, estUniteDeMesure, nomRestaure, uniteCorrigee } from "../lib/ingredientsSource";
+import { analyserTexteSource, estUniteDeMesure, nomRestaure, nomSansPrepositionFinale, uniteCorrigee } from "../lib/ingredientsSource";
 
 describe("lecture du texte source", () => {
   it("reconnaît une VRAIE unité de masse ou de volume", () => {
@@ -140,5 +140,65 @@ describe("quantités que le corpus contient vraiment", () => {
   it("une fraction et un intervalle restent lus", () => {
     expect(analyserTexteSource("1/2 gousses d'ail").classe).toBe("comptable");
     expect(analyserTexteSource("2 à 3 gousses d'ail").classe).toBe("comptable");
+  });
+});
+
+describe("restauration : où chercher le mot d'origine", () => {
+  it("cherche D'ABORD dans l'ingrédient, pas dans l'unité", () => {
+    // « 1/2 tasses de fraises » : le premier mot en `-es` du texte est « tasses », l'UNITÉ.
+    // Restaurer « Es » en « Tasses » créait un désaccord avec la bonne restauration venue
+    // d'une autre source, et le désaccord annulait les deux : 198 lignes abîmées à cause
+    // d'une seule mal lue.
+    expect(nomRestaure("Es", ["1/2 tasses de fraises"])).toBe("Fraises");
+    expect(nomRestaure("Es", ["510 g de fraises"])).toBe("Fraises");
+  });
+
+  it("retombe sur le texte ENTIER quand le mot amputé EST l'unité", () => {
+    // Ne chercher que dans la partie ingrédient perdait 595 restaurations qui marchaient.
+    expect(nomRestaure("Rosses Pincées De Bicarbonate", ["1 grosses pincées de bicarbonate"]))
+      .toBe("Grosses Pincées De Bicarbonate");
+    expect(nomRestaure("Amelles De Poivron", ["8 lamelles de poivron"])).toBe("Lamelles De Poivron");
+    expect(nomRestaure("Raines De Sésame", ["graines de sésame"])).toBe("Graines De Sésame");
+  });
+
+  it("saute PLUSIEURS mots d'unité enchaînés", () => {
+    expect(nomRestaure("Es", ["1 grandes cuillères de fraises"])).toBe("Fraises");
+  });
+
+  it("⚠️ un fragment de TROIS lettres garde le budget serré", () => {
+    // « Ail » est un vrai mot français : le transformer en « Portail » serait pire que de
+    // ne rien faire. Seuls les fragments de deux lettres, qui ne sont jamais des mots,
+    // ouvrent le budget large.
+    expect(nomRestaure("Ail", ["1 portail"])).toBe("Ail");
+    expect(nomRestaure("Riz", ["3 tasses de riz"])).toBe("Riz");
+    expect(nomRestaure("Sel", ["1 pincées de sel"])).toBe("Sel");
+  });
+});
+
+describe("préposition orpheline en fin de nom", () => {
+  it("retire une préposition qui ne désigne rien", () => {
+    expect(nomSansPrepositionFinale("Huile végétale pure à")).toBe("Huile végétale pure");
+    expect(nomSansPrepositionFinale("Golden curry mélange pour")).toBe("Golden curry mélange");
+    expect(nomSansPrepositionFinale("Tortillas nature, paquet de")).toBe("Tortillas nature, paquet");
+  });
+
+  it("⚠️ ne mord PAS dans un mot qui finit par les mêmes lettres", () => {
+    // `\b` de JS ne traite pas « è » comme une lettre : /\bde$/ matche la fin de « Tiède »
+    // et amputerait un nom parfaitement correct. Faux positif mesuré sur le corpus.
+    expect(nomSansPrepositionFinale("Eau Tiède")).toBe("Eau Tiède");
+    expect(nomSansPrepositionFinale("Bols D'Eau Tiède")).toBe("Bols D'Eau Tiède");
+    expect(nomSansPrepositionFinale("Salade")).toBe("Salade");
+    expect(nomSansPrepositionFinale("Crème Brûlée")).toBe("Crème Brûlée");
+  });
+
+  it("ne vide jamais un nom, et laisse un mot seul tranquille", () => {
+    expect(nomSansPrepositionFinale("De")).toBe("De");
+    expect(nomSansPrepositionFinale("à")).toBe("à");
+    expect(nomSansPrepositionFinale("Persil")).toBe("Persil");
+  });
+
+  it("est idempotente", () => {
+    const une = nomSansPrepositionFinale("Huile végétale pure à");
+    expect(nomSansPrepositionFinale(une)).toBe(une);
   });
 });

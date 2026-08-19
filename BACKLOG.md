@@ -42,6 +42,27 @@
   préfixe. Elle refuse de restaurer au-delà de trois lettres perdues — au-delà, ce n'est plus
   une troncature, c'est un autre mot.
 
+- [x] ~~**`ING-06` — audit exhaustif des 87 443 lignes d'ingrédients.**~~ **Fait le 19/08**,
+  à la demande de Marc (« assure-toi qu'au moins 98 % est bon »). Méthode : rejeu complet de
+  l'état de production depuis le seed, **calibré** contre la vraie base par le MCP (11
+  ingrédients sur 11 identiques sur deux recettes), puis jugé contre le TEXTE SOURCE — jamais
+  contre les règles de réparation, qui ne peuvent pas mesurer leur propre couverture.
+  Résultat : **99,85 % correct** (134 lignes en défaut), après trois correctifs trouvés par
+  l'audit lui-même.
+
+- [ ] **`ING-07` — le reliquat de 134 lignes (0,15 %), toutes liées aux QUANTITÉS.**
+  Ce qui reste ne se corrige plus depuis le nom seul : il faut rapparier chaque ligne de
+  production à sa ligne source (`catalog_recipes.sourceUrl` → seed), avec l'ambiguïté d'une
+  recette qui répète un ingrédient. Chantier à part, à cadrer avant de coder.
+
+  | classe | lignes | ce que Marc verrait | cause |
+  |---|---|---|---|
+  | quantité nulle | 90 | « Oignons Jaunes — 0 » | le seed porte `0.0001`, une sentinelle de la V3, alors que le texte dit « 1 oignons » |
+  | compte aberrant | 11 | « Lamelles — 2 000 » | **de moi** : j'ai rebaptisé l'unité sans défaire la conversion ×10 (`cl`) ou ×1000 (`l`) |
+  | volume en masse | 6 | « … — 15 g » | « grandes cuillères » lu comme des grammes |
+  | nom d'une lettre | 25 | « S (125 Ml) De Crème » | fragment trop court pour être restauré sans deviner |
+  | absurdités de source | 2 | « 400 kg de chair à saucisse » | la source elle-même est fausse |
+
 ## Écarté volontairement
 
 - [x] ~~Recherche dans la bibliothèque perso~~ — **écarté par Marc le 17/08**. Le catalogue
