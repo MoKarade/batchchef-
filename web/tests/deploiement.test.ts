@@ -91,3 +91,49 @@ describe("CSP — les cibles de formulaire couvrent les flux qui redirigent", ()
     }
   });
 });
+
+describe("réparation des noms d'ingrédients — la passe reste branchée au build", () => {
+  // « Promesse de verrou = verrou codé dans le même commit ». La réparation (ING-03) ne vaut
+  // que si elle TOURNE : elle est dans `vercel-build`, donc invisible au gate local, donc
+  // exactement le genre d'étape qu'un remaniement retire sans que rien ne rougisse.
+  const pkg = JSON.parse(readFileSync(resolve(process.cwd(), "package.json"), "utf8")) as {
+    scripts: Record<string, string>;
+  };
+
+  it("`vercel-build` lance la réparation, et AVANT le build", () => {
+    const chaine = pkg.scripts["vercel-build"] ?? "";
+    expect(chaine).toContain("db:reparer-noms");
+    // L'ordre compte : réparer après le build laisserait le déploiement servir l'ancien état.
+    expect(chaine.indexOf("db:reparer-noms")).toBeLessThan(chaine.indexOf("next build"));
+    // Et les migrations d'abord : la réparation écrit dans des tables qu'elles créent.
+    expect(chaine.indexOf("db:migrate")).toBeLessThan(chaine.indexOf("db:reparer-noms"));
+  });
+
+  it("le script visé existe vraiment", () => {
+    expect(pkg.scripts["db:reparer-noms"]).toBeTruthy();
+    expect(existsSync(resolve(process.cwd(), "scripts/reparer-noms-ingredients.ts"))).toBe(true);
+  });
+
+  it("la passe couvre les TROIS tables où le nom a atterri", () => {
+    // Le catalogue est la source, mais les noms se sont propagés : bibliothèque (copie
+    // depuis le catalogue) puis liste d'épicerie (copie à la création du batch). N'en
+    // réparer qu'une laisserait abîmé précisément ce que Marc regarde.
+    const src = readFileSync(resolve(process.cwd(), "scripts/reparer-noms-ingredients.ts"), "utf8");
+    for (const table of ["catalogIngredients", "recipeIngredients", "shoppingItems"]) {
+      expect(src, table).toContain(table);
+    }
+  });
+
+  it("l'import du catalogue répare aussi, sinon il ré-introduirait le défaut", () => {
+    // ⚠️ On cherche l'APPEL, pas le nom : une première version de ce test se contentait de
+    // `toContain("reparerNom")` et passait au vert alors que l'appel avait été retiré — la
+    // ligne d'`import` suffisait à le satisfaire. C'est la mutation qui l'a démasqué.
+    // On écarte donc les lignes d'import avant de chercher.
+    const src = readFileSync(resolve(process.cwd(), "scripts/import-catalog.ts"), "utf8")
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("import "))
+      .join("\n");
+    expect(src, "le nom d'affichage doit passer par reparerNom(...)").toMatch(/reparerNom\s*\(/);
+    expect(src, "la clé doit passer par reparerCanonique(...)").toMatch(/reparerCanonique\s*\(/);
+  });
+});

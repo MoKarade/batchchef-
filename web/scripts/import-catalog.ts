@@ -14,6 +14,7 @@ import path from "node:path";
 import initSqlJs from "sql.js";
 import { db, schema } from "../lib/db";
 import { normalizeQty } from "../lib/units";
+import { reparerCanonique, reparerNom } from "../lib/ingredientsNoms";
 
 const require = createRequire(import.meta.url);
 const SEED = path.resolve(process.cwd(), "data", "batchchef.seed.db");
@@ -100,8 +101,11 @@ async function main() {
       const total = norm.qty === null ? null : Math.round(norm.qty * servings * 100) / 100;
       ingValues.push({
         catalogRecipeId: newId,
-        name: String(ing.name ?? "ingrédient").slice(0, 200),
-        canonical: String(ing.canonical ?? "").toLowerCase().trim().slice(0, 120) || "ingredient",
+        // ⚠️ Le catalogue V3 livre des noms abîmés (« À Soupe De Persil », « Ousses D'Ail ») :
+        // son extraction d'unité mordait dans le mot. On répare À L'IMPORT, sinon une
+        // ré-importation ré-introduirait ce que la passe de réparation vient de corriger.
+        name: reparerNom(String(ing.name ?? "ingrédient")).slice(0, 200),
+        canonical: reparerCanonique(String(ing.canonical ?? "").toLowerCase().trim()).slice(0, 120) || "ingredient",
         qty: total,
         unit: norm.unit,
         note: norm.qty === null && ing.raw_text ? String(ing.raw_text).slice(0, 200) : null,

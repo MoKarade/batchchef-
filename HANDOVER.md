@@ -21,12 +21,12 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Export Google Tasks | En service |
 | **Assistant** | **Neuf (19/08)** — `/assistant`, Claude fouille la base par outils ; les recettes citées deviennent des cartes cliquables qui s'ouvrent PAR-DESSUS le chat. ⚠️ Éteint si `ANTHROPIC_API_KEY` absente (dit à l'écran, pas une panne) |
 | Widget hub | `GET /api/hub/summary`, contrat `@mokarade/hub-contract` |
-| **Serveur MCP** | **Neuf (19/08)** — `POST /api/mcp`, 7 outils (4 lecture, 3 écriture). Branchable depuis **claude.ai** (OAuth 2.1, ADR-0002) **et** Claude Code (jeton direct). ⚠️ **503 tant que `MCP_TOKEN` n'est pas posé dans Vercel** — geste de Marc |
+| **Serveur MCP** | **Neuf (19/08)** — `POST /api/mcp`, 7 outils (4 lecture, 3 écriture). **BRANCHÉ ET VÉRIFIÉ EN USAGE RÉEL** le 19/08 : Marc a connecté le connecteur claude.ai (OAuth 2.1, ADR-0002), et les outils rendent ses vraies données. Claude Code reste possible par jeton direct. |
 | Accès | Google mono-adresse + interrogation du hub (`lib/accesHub.ts`) |
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **328 tests**, 25 fichiers (19/08/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **345 tests**, 26 fichiers (19/08/2026).
 
 ## Ce qui vient d'être livré (17/08/2026)
 
@@ -67,7 +67,7 @@ l'interface de connecteurs ne prend **qu'une URL**, sans champ pour un en-tête.
 jeton statique y échoue sans rien expliquer. FinanceAI avait buté sur le même mur le 13/07 et
 l'avait résolu par un OAuth 2.1 mono-utilisateur — c'est ce qui est repris ici (ADR-0002).
 
-- Un seul secret reste à poser : `MCP_TOKEN`. La clé de signature en est dérivée
+- `MCP_TOKEN` est POSÉ (19/08). La clé de signature en est dérivée
   (`MCP_OAUTH_SIGNING_KEY` la surcharge — c'est le kill-switch).
 - Deux tables neuves (`mcp_oauth_consumed`, `mcp_oauth_attempts`), migrations 0009/0010,
   appliquées au build. **En base et non en mémoire** : en serverless, un compteur de process
@@ -79,10 +79,28 @@ l'avait résolu par un OAuth 2.1 mono-utilisateur — c'est ce qui est repris ic
   `claude.ai`. Sans effet aujourd'hui (Report-Only), mais le passage en enforcé aurait coupé
   le branchement à la dernière étape, silencieusement. Corrigé et verrouillé.
 
+### Troisième lot du 19/08 — les noms d'ingrédients (ING-03)
+
+Trouvé au premier usage réel du MCP, pas par un test. Le catalogue affichait « À Soupe De
+Persil », « Ousses D'Ail », « S De Sel » : l'app V3 retirait l'unité du texte source sans
+frontière de mot. Ce n'était pas cosmétique — `canonical` est la clé de regroupement de la
+liste d'épicerie, donc « à_soupe_de_persil » et « persil » faisaient deux lignes.
+
+- **Mesuré avant de coder** : 2 371 abîmées sur 15 389, et la fonction réelle rejouée sur le
+  corpus entier (0 vide, 0 restante, 0 clé oubliée). **965 fusions** gagnées.
+- Réparation par retrait de PRÉFIXE plutôt que reconstruction depuis le texte source : les
+  deux marchent, mais celle-ci ne dépend d'aucun fichier, donc elle tourne **au déploiement**
+  (`vercel-build`) — aucune commande pour Marc. Idempotente, sort en une requête quand il n'y
+  a plus rien.
+- **Trois tables**, pas une : catalogue (la source), bibliothèque (copiée depuis le
+  catalogue), listes d'épicerie (copiées à la création du batch).
+- ⚠️ Ce qui n'est PAS fait : fusionner deux lignes d'une liste DÉJÀ créée. Les noms y
+  deviennent lisibles et la fusion jouera aux prochains batchs ; réécrire des quantités sur
+  une liste contre laquelle Marc a peut-être déjà fait ses courses serait une autre décision.
+
 ## Prochaine chose prévue
 
-Rien d'engagé. Un seul item ouvert, hors code : poser `MCP_TOKEN` (`MCP-02`). `MCP-03` est
-tranché — le connecteur exige bien OAuth, et l'OAuth est livré.
+Rien d'engagé. Le MCP est branché et en service, et `ING-03` est livré.
 
 ⚠️ **L'assistant n'a jamais été essayé contre la vraie API** : cette session n'a pas de
 réseau vers Anthropic. Le protocole, les bornes et le classement sont testés ; la boucle
@@ -95,9 +113,12 @@ https://batchchef.hubperso.com/api/mcp` rend `405` avec le corps JSON de la rout
 `x-matched-path: /api/mcp` — donc la route est servie, et l'exemption du middleware tient
 (une redirection vers `/login` aurait signé le piège n°1). Déploiement `85984b6`, `READY`.
 
-Ce qui reste non vérifié : un POST authentifié en production (impossible tant que
-`MCP_TOKEN` n'est pas posé) et le branchement depuis claude.ai, qui peut exiger OAuth là où
-un jeton porteur suffit à Claude Code.
+**Plus rien ne reste non vérifié** (19/08, fin de journée). Marc a branché le connecteur, et
+les outils ont été appelés DEPUIS claude.ai sur la base de production : `lister_batchs` rend
+ses cinq batchs réels, `chercher_recettes` croise ses ingrédients et nomme ce qui manque.
+Cela clôt d'un coup les deux points qui étaient hors de portée d'ici : l'échange code ↔
+jetons (il a forcément eu lieu, puisque l'appel est authentifié) et un POST authentifié en
+production.
 
 ## ⚠️ Ce que le correctif des unités NE rattrape PAS
 
@@ -132,5 +153,5 @@ surprennent le plus :
 - Le client MCP doit viser **`https://batchchef.hubperso.com/api/mcp`** — jamais une URL
   `*.vercel.app` : la protection Vercel du projet est en `all_except_custom_domains`, donc
   celles-là répondent 302 vers la page de connexion Vercel avant que l'app ne tourne.
-- Poser **`MCP_TOKEN`** dans les variables d'environnement Vercel (une chaîne aléatoire, jamais commitée). Sans elle, `/api/mcp` répond **503 « MCP_TOKEN non configuré »** : l'intégration est éteinte, pas cassée. C'est ce même jeton qu'on donne au client MCP.
+- ~~Poser `MCP_TOKEN`~~ — **fait le 19/08**, connecteur branché et vérifié en usage réel.
 - `GROQ_API_KEY` est posée (transcription audio active).

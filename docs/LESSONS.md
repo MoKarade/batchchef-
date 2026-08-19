@@ -40,6 +40,109 @@ l'autorisait. Même famille que « Tailwind génère du CSS depuis la prose qui 
 un scan ancré sur un MOT attrape ce qui parle de la chose autant que la chose. Ancrer sur la
 FORME de la valeur (ici guillemet + directive + espace), jamais sur le terme.
 
+## 2026-08-19 — La préversion d'une PR écrit dans la base de production
+
+J'ai livré la réparation des noms d'ingrédients et j'allais annoncer à Marc qu'elle
+s'appliquerait « au prochain déploiement de production ». Par acquit de conscience, j'ai lu
+les logs de build de la PRÉVERSION de la PR. Elle disait :
+
+    [noms] catalogue : 2371 nom(s) distinct(s) réparé(s), 16822 ligne(s) mise(s) à jour.
+    [noms] Terminé : 16870 ligne(s) réparée(s).
+
+C'était déjà fait. Sur la vraie base, depuis une branche non mergée.
+
+L'explication est simple et elle était sous mes yeux : il n'y a qu'UNE base Neon, et
+`vercel-build` enchaîne `db:migrate` puis mon script avant `next build`. Vercel construit
+aussi les préversions. Donc chaque push sur une branche applique ses migrations à la
+production. Ce n'est pas moi qui l'ai introduit — `db:migrate` y était depuis toujours — mais
+personne ne l'avait jamais constaté, parce qu'une migration de schéma additive ne se voit pas.
+Il a fallu un script qui COMPTE ce qu'il touche pour que le mécanisme devienne lisible.
+
+Sans conséquence cette fois : la passe est idempotente, non destructive, et c'était le
+correctif voulu. Mais le mécanisme ne fait pas la différence entre « le correctif voulu » et
+« une migration qu'on voulait d'abord essayer ».
+
+**Règle** : sur un projet à base unique, « on essaiera d'abord sur une branche » est FAUX. Une
+migration destructive touche la production au premier push, avant merge et avant revue. Ce
+qui se fait valider se fait valider avant le PUSH. Et tout script de données placé dans le
+chemin de build doit être idempotent, non destructif, et **tracer ce qu'il a modifié** — sinon
+on ne peut même pas savoir après coup ce qu'une préversion a fait.
+
+**Corollaire de méthode** : c'est le fait d'avoir mis un compteur dans les logs qui a rendu ce
+mécanisme visible. Un script silencieux aurait « marché » et je serais parti avec une
+description fausse de ce qui s'était passé — pas un bug, juste une compréhension erronée du
+système, qui aurait servi de base à la décision suivante.
+
+---
+
+## 2026-08-19 — Un test de présence par sous-chaîne est satisfait par la ligne d'import
+
+En livrant la réparation des noms d'ingrédients, j'ai posé un verrou : l'import du catalogue
+doit lui aussi réparer, sinon une ré-importation ré-introduirait le défaut qu'on vient de
+corriger. Le test :
+
+```ts
+expect(src).toContain("reparerNom");
+```
+
+Puis j'ai fait la passe de mutation : j'ai retiré l'APPEL dans le script d'import. **Le test
+est resté vert.** La ligne `import { reparerNom } from …` contenait le mot, et ça suffisait.
+
+Le verrou ne vérifiait donc pas ce qu'il prétendait : il attestait qu'on avait *importé* la
+fonction, pas qu'on l'*appelait*. Il serait resté vert le jour où quelqu'un aurait simplifié
+l'appel en laissant l'import — c'est-à-dire exactement le scénario contre lequel il existait.
+
+**Règle** : un test qui cherche un identifiant par sous-chaîne dans un source doit chercher
+la FORME D'APPEL (`/nom\s*\(/`), et écarter les lignes d'`import` avant de chercher. Plus
+largement : quand un test porte sur du texte plutôt que sur un comportement, se demander
+« quelle autre ligne du fichier pourrait le satisfaire ? ».
+
+Ce n'est pas une leçon nouvelle — c'est « prouver qu'un test DISCRIMINE » appliquée à un cas
+où l'intuition dit que c'est évident. Les trois autres mutations du même lot ont été
+attrapées ; c'est celle dont j'étais le plus sûr qui ne l'a pas été. La passe de mutation ne
+sert à rien si on la réserve aux tests dont on doute.
+
+---
+
+## 2026-08-19 — Le premier usage réel montre ce qu'aucune suite de tests ne regardait
+
+Marc a branché le connecteur. J'ai appelé mes propres outils depuis claude.ai, sur sa base de
+production — et la réponse, correcte sur toute la ligne côté mécanique, contenait ceci :
+
+    manque 11 : Champignon De Paris Brun, Cubes De Bouillon De Volaille, Ousses D'Ail,
+    S De Sel, Branches De Thym…
+
+« **Ousses D'Ail** » : un « Gousses » amputé de sa première lettre. « S De Sel », « À Soupe De
+Persil », « Huile végétale pure à ». À l'import du catalogue, la quantité et l'unité ont été
+découpées DANS le nom de l'ingrédient au lieu d'en être extraites, et la coupe a parfois mordu
+un caractère de trop.
+
+Rien n'était rouge. 328 tests verts, le schéma respecté, l'agrégation juste, les prix estimés,
+le MCP conforme. Le défaut n'est ni dans le code que j'ai écrit ni dans celui que j'ai testé :
+il est dans la DONNÉE, entrée il y a des semaines, et il ne se voit que quand un humain lit la
+sortie. Et il a une conséquence réelle que la mécanique ne peut pas signaler : le `canonical`
+sert de clé de regroupement, donc « À Soupe De Persil » et « persil » font deux lignes qui ne
+fusionneront jamais sur une liste d'épicerie.
+
+Ce n'est pas la première fois dans ce dépôt qu'une couche saine sert de la donnée fausse — la
+perte de 58 % des quantités avait la même forme. Le point commun : **un pipeline dont chaque
+étage est correct peut transporter une entrée abîmée jusqu'à l'écran sans qu'aucun étage n'ait
+de raison de s'en plaindre.**
+
+**Règle** : livrer une surface de LECTURE (assistant, MCP, export, rapport) n'est fini que
+lorsqu'on a lu une vraie sortie sur de vraies données, avec l'œil et pas avec un `expect`. Ce
+qu'on cherche là n'est pas un plantage — il se signalerait tout seul — mais du contenu qui a
+l'air d'un contenu. Cousin de la leçon JobAI sur le flux RSS d'Espresso-Jobs : « 200, XML bien
+formé, 20 entrées », et la première entrée s'intitulait « TI : peut-on encore se priver des
+femmes ? ».
+
+**Corollaire** : ce défaut-là est rattrapable, contrairement à celui des unités — le catalogue
+se rebâtit depuis `data/batchchef.seed.db`, qui porte les noms d'origine. C'est la leçon
+« normaliser à l'écriture détruit la source » prise par le bon bout, pour une fois : la source
+existe encore.
+
+---
+
 ## 2026-08-19 — « Ça marche ailleurs » est une information, pas un compliment
 
 Marc a écrit six mots : « me manque l'adresse, regarde ce que DriveAI a fait ça marche ».

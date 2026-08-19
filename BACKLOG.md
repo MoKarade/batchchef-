@@ -8,15 +8,17 @@
 
 ## En cours / décidé, pas encore livré
 
-- [ ] **`MCP-02` — poser `MCP_TOKEN` dans Vercel.** Geste de Marc : sans cette variable, le
-  serveur MCP répond **503 « MCP_TOKEN non configuré »** (échec fermé assumé, pas une panne).
-  Rien à coder de ce côté.
-- [x] ~~**`MCP-03` — le connecteur claude.ai attend peut-être OAuth 2.1.**~~ **Confirmé et
-  livré le 19/08** (ADR-0002). Ce n'était pas un « peut-être » : l'interface ne prend qu'une
-  URL, sans champ pour un en-tête. Constaté en lisant la configuration MCP réelle de la
-  session (FinanceAI branché sur une URL nue) puis son code, dont l'en-tête le disait déjà
-  depuis le 13/07. OAuth 2.1 mono-utilisateur implémenté ; le jeton direct reste accepté
-  pour Claude Code.
+- [x] ~~**`MCP-02` — poser `MCP_TOKEN` dans Vercel.**~~ **Fait le 19/08.** Marc a branché le
+  connecteur claude.ai ; les outils rendent ses vraies données depuis la base de production.
+
+- [x] ~~**`ING-03` — les noms d'ingrédients du catalogue portent des morceaux de quantité.**~~
+  **Livré le 19/08.** Mesuré sur le corpus entier avant de coder : **2 371 entrées abîmées
+  sur 15 389**, trois formes (« À Soupe De … », « Ousses … », « S De … »), toutes issues de
+  la même faute de l'app V3 — une extraction d'unité sans frontière de mot (`g` reconnu DANS
+  « gousses », `cuillères` retiré alors que l'unité est `cuillères à soupe`, `pincée` retiré
+  au singulier). Réparation par retrait de préfixe, appliquée au catalogue, à la bibliothèque
+  ET aux listes d'épicerie existantes, en automatique au déploiement. **965 réparations
+  rejoignent un ingrédient déjà présent** : autant de lignes qui cessent de se dédoubler.
 
 ## Livré (19/08)
 
