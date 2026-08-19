@@ -8,6 +8,41 @@
 
 ---
 
+## 2026-08-19 — Un endpoint qui COMPILE n'est pas un endpoint qui RÉPOND
+
+Le serveur MCP a passé le gate complet — `typecheck`, `lint`, 291 tests, `build` — et la
+sortie du build affichait fièrement `ƒ /api/mcp`. J'allais m'arrêter là et l'annoncer livré.
+
+J'ai démarré le build localement et je l'ai appelé pour de vrai. Onze sondes : négociation de
+version, `tools/list`, notification sans réponse, 401 sur jeton faux **et** absent, 405 sur
+GET, lot de trois entrées rendant deux réponses, méthode inconnue, panne d'outil, outil
+inconnu, 503 sans `MCP_TOKEN`. Tout est passé — mais **aucun de ces onze points n'était
+prouvé par le gate**. Les tests couvrent des fonctions pures ; le build couvre la
+compilation. Personne ne vérifiait que le `switch` du handler câble bien ces fonctions à ces
+codes HTTP. Un `case` mal orthographié, un `return` oublié, une réponse renvoyée à un
+notification : vert partout, serveur muet en production.
+
+C'est la version « endpoint » d'une règle que ce dépôt connaît déjà sous d'autres formes —
+« CI verte ≠ en ligne », « un `clasp push` vert ne prouve pas que le code a pris effet »,
+« un HTTP 200 ne prouve rien tant qu'on n'a pas mesuré ce que l'API répond à une question
+absurde ». Le point commun : **le statut d'une opération ne dit pas ce qui tourne**.
+
+La sonde a aussi rendu quelque chose qu'aucun test n'aurait donné : la certitude que la
+négociation renvoie bien `2025-06-18` quand on le demande, et pas notre version à nous. Un
+test l'affirme sur la fonction pure ; seule la sonde le prouve sur le chemin complet.
+
+**Règle** : pour une surface appelée par une MACHINE (endpoint, webhook, cron), le gate ne
+suffit pas — il faut au moins une passe d'appels réels contre le build, couvrant le chemin
+NOMINAL *et* chaque mode d'échec qu'on prétend distinguer (401 vs 503 vs 405). Ça coûte cinq
+minutes et un `next start` ; ne pas le faire, c'est découvrir le câblage au premier usage de
+Marc.
+
+**Corollaire outillage, appris en le vivant deux fois dans la même session** : `pkill -f
+"next start -p 3111"` tue le shell qui l'exécute — le motif matche sa propre ligne de
+commande, et le tour se termine sur un exit 144 sans qu'on comprenne pourquoi. Tuer par PID.
+Même famille que « un `| grep` masque le code de sortie » : l'outil de vérification fait
+partie de ce qu'il faut vérifier.
+
 ## 2026-08-19 — Un « borner » qui rabat sur une valeur par défaut fabrique une réponse fausse
 
 En relisant la boucle de l'assistant — jamais exécutée, la session qui l'a écrite n'ayant pas

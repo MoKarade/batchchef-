@@ -8,7 +8,21 @@
 
 ## En cours / décidé, pas encore livré
 
-Rien. Les trois demandes du 17/08 sont livrées.
+- [ ] **`MCP-02` — poser `MCP_TOKEN` dans Vercel.** Geste de Marc : sans cette variable, le
+  serveur MCP répond **503 « MCP_TOKEN non configuré »** (échec fermé assumé, pas une panne).
+  Rien à coder de ce côté.
+- [ ] **`MCP-03` — le connecteur claude.ai attend peut-être OAuth 2.1.** Le serveur
+  s'authentifie par jeton porteur, ce qui suffit à un client qui laisse poser un en-tête
+  (Claude Code, `claude mcp add --transport http … --header`). L'interface de connecteurs de
+  claude.ai, elle, peut exiger un flux OAuth complet — **non vérifié d'ici** (pas de réseau
+  vers claude.ai). À constater au premier branchement réel, pas à supposer maintenant.
+
+## Livré (19/08)
+
+- [x] **`MCP-01` — serveur MCP distant** (`POST /api/mcp`), lecture ET écriture (décisions de
+  Marc du 19/08). Sept outils, JSON-RPC 2.0 écrit à la main, SDK officiel en devDependency
+  comme tripwire de versions. Vérifié par onze sondes contre un serveur réellement démarré,
+  pas seulement compilé.
 
 ## Écarté volontairement
 

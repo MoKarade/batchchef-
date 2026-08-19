@@ -11,6 +11,13 @@ export function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith("/api/auth/")) return true;
   // Endpoint hub : gardé par jeton x-hub-token dans la route, pas par session Google.
   if (pathname === "/api/hub/summary") return true;
+  // Endpoint MCP : gardé par jeton `MCP_TOKEN` dans la route. Comme le hub, c'est une
+  // MACHINE qui appelle — elle n'a pas de cookie de session à présenter. Laissé sous la
+  // garde de session, il recevrait une redirection HTML vers /login au lieu du JSON-RPC,
+  // et Claude verrait un serveur muet sans qu'aucune erreur ne le dise.
+  // ⚠️ ÉGALITÉ STRICTE, jamais un préfixe : une future route sous /api/mcp/ ne doit pas
+  // hériter de l'exemption sans qu'on l'ait décidé.
+  if (pathname === "/api/mcp") return true;
   if (
     pathname.startsWith("/_next/static/") ||
     pathname.startsWith("/_next/image") ||

@@ -260,11 +260,11 @@ export async function saveImportedRecipe(input: {
  * source : une recette déjà présente (même sourceUrl) est ignorée, jamais dupliquée.
  * Retourne le nombre réellement ajouté et le nombre ignoré (déjà présent) — compte honnête.
  */
-export async function addCatalogRecipesToLibrary(
+/** Le TRAVAIL de copie depuis le catalogue, sans contrôle d'accès (cf. `creerBatchInterne`). */
+export async function ajouterDuCatalogueInterne(
   catalogRecipeIds: number[],
 ): Promise<ActionResult & { added?: number; skipped?: number }> {
   try {
-    await requireSession();
     const ids = [...new Set(catalogRecipeIds)].filter((id) => Number.isInteger(id));
     if (ids.length === 0) return { ok: false, error: "Aucune recette sélectionnée." };
 
@@ -386,12 +386,20 @@ export async function deleteRecipe(recipeId: number): Promise<ActionResult> {
  * échoue (clé absente, réseau), le batch existe quand même — items sans coût, marqués
  * inconnus, jamais un chiffre inventé.
  */
-export async function createBatch(input: {
+/**
+ * Le TRAVAIL de création d'un batch, sans contrôle d'accès.
+ *
+ * ⚠️ Ne JAMAIS appeler depuis un point d'entrée qui n'a pas fait son propre contrôle.
+ * Deux appelants autorisés, chacun avec SA preuve : la Server Action (session utilisateur)
+ * et la route MCP (jeton `MCP_TOKEN`). Séparer la logique de l'autorisation évite de
+ * réécrire les garde-fous — ingrédients de fond écartés, estimation de prix, agrégation —
+ * une deuxième fois pour Claude, avec la dérive que ça garantirait.
+ */
+export async function creerBatchInterne(input: {
   name: string;
   selections: Array<{ recipeId: number; portions: number }>;
 }): Promise<(ActionResult & { id?: number; estimationError?: string })> {
   try {
-    await requireSession();
     const name = input.name.trim();
     const selections = input.selections.filter((s) => s.portions >= 1);
     if (!name) return { ok: false, error: "Donne un nom au batch." };
@@ -519,14 +527,52 @@ export async function exportBatchToTasks(
   }
 }
 
-export async function toggleShoppingItem(itemId: number, checked: boolean): Promise<ActionResult> {
+/** Point d'entrée UTILISATEUR : session d'abord, puis le travail. */
+export async function createBatch(input: {
+  name: string;
+  selections: Array<{ recipeId: number; portions: number }>;
+}): Promise<(ActionResult & { id?: number; estimationError?: string })> {
   try {
     await requireSession();
+    return await creerBatchInterne(input);
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Le TRAVAIL de cochage, sans contrôle d'accès (cf. `creerBatchInterne`). */
+export async function cocherArticleInterne(
+  itemId: number,
+  checked: boolean,
+): Promise<ActionResult> {
+  try {
     await db
       .update(schema.shoppingItems)
       .set({ checked, checkedAt: checked ? new Date() : null })
       .where(eq(schema.shoppingItems.id, itemId));
     return { ok: true };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Point d'entrée UTILISATEUR : session d'abord, puis le travail. */
+export async function toggleShoppingItem(itemId: number, checked: boolean): Promise<ActionResult> {
+  try {
+    await requireSession();
+    return await cocherArticleInterne(itemId, checked);
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Point d'entrée UTILISATEUR : session d'abord, puis le travail. */
+export async function addCatalogRecipesToLibrary(
+  catalogRecipeIds: number[],
+): Promise<ActionResult & { added?: number; skipped?: number }> {
+  try {
+    await requireSession();
+    return await ajouterDuCatalogueInterne(catalogRecipeIds);
   } catch (err) {
     return fail(err);
   }
