@@ -8,6 +8,38 @@
 
 ---
 
+## 2026-08-19 — `form-action` couvre la REDIRECTION, pas seulement la première cible
+
+En vérifiant le connecteur en production, j'ai lu les en-têtes de la réponse plutôt que de
+me contenter du code de statut. La CSP disait :
+
+```
+form-action 'self' https://accounts.google.com
+```
+
+Or la page de consentement OAuth poste vers elle-même (`'self'`, autorisé) **puis redirige**
+vers `https://claude.ai/...` avec le code d'autorisation. Et `form-action` s'applique à la
+CHAÎNE DE REDIRECTION qui suit une soumission, pas seulement à sa première cible.
+
+Rien ne cassait : la CSP est en `Report-Only`. Mais le jour où on la passe en enforcé — ce
+qui est une intention écrite dans cet écosystème — le branchement du connecteur serait coupé
+**à la dernière étape**, par le navigateur, sans erreur serveur et sans rien dans les
+journaux. Ça ressemblerait à « le connecteur ne marche pas », et on chercherait dans l'OAuth.
+
+**Règle** : une directive CSP se relit à chaque fois qu'on ajoute un flux qui SORT du site —
+formulaire, redirection, `fetch`. Et un `Report-Only` n'est pas une excuse pour remettre à
+plus tard : c'est exactement la fenêtre où le trou se ferme gratuitement, parce qu'après le
+passage en enforcé il se paie en diagnostic. Verrouillé par `tests/deploiement.test.ts`, qui
+vérifie en plus que les origines de la CSP et celles de l'allowlist du code OAuth **ne
+divergent pas** — deux listes qui disent la même chose finissent toujours par se contredire.
+
+**Corollaire, trouvé en écrivant ce test** : mon premier jet cherchait la ligne contenant
+`form-action`, et attrapait le COMMENTAIRE que je venais d'écrire pour expliquer la
+directive. Le test annonçait que `form-action` n'autorisait pas Google, alors qu'il
+l'autorisait. Même famille que « Tailwind génère du CSS depuis la prose qui parle du CSS » :
+un scan ancré sur un MOT attrape ce qui parle de la chose autant que la chose. Ancrer sur la
+FORME de la valeur (ici guillemet + directive + espace), jamais sur le terme.
+
 ## 2026-08-19 — « Ça marche ailleurs » est une information, pas un compliment
 
 Marc a écrit six mots : « me manque l'adresse, regarde ce que DriveAI a fait ça marche ».
