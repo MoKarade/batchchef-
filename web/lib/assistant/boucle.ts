@@ -6,7 +6,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { recordLlmUsage } from "@/lib/llmUsage";
-import { MAX_TOURS_OUTILS, tronquerHistorique, type Message } from "./protocole";
+import { BUDGET_MS, MAX_TOURS_OUTILS, tronquerHistorique, type Message } from "./protocole";
 import { OUTILS, executerOutil } from "./outils";
 
 const MODELE = process.env.BATCHCHEF_MODELE_ASSISTANT ?? "claude-sonnet-5";
@@ -63,7 +63,9 @@ export async function repondre(historique: readonly Message[]): Promise<ReponseA
     content: m.contenu,
   }));
 
+  const debut = Date.now();
   let tours = 0;
+  let budgetEpuise = false;
   while (tours <= MAX_TOURS_OUTILS) {
     const reponse = await client.messages.create({
       model: MODELE,
@@ -100,6 +102,12 @@ export async function repondre(historique: readonly Message[]): Promise<ReponseA
     }
 
     if (tours === MAX_TOURS_OUTILS) break;
+    // Le mur de la plateforme arrive avant la borne de tours quand les appels traînent :
+    // s'arrêter ici laisse une réponse honnête, aller plus loin donne une erreur illisible.
+    if (Date.now() - debut > BUDGET_MS) {
+      budgetEpuise = true;
+      break;
+    }
 
     messages.push({ role: "assistant", content: reponse.content });
     const resultats: BlocContenu[] = [];
@@ -115,13 +123,17 @@ export async function repondre(historique: readonly Message[]): Promise<ReponseA
   }
 
   // Borne atteinte : ce n'est pas une erreur, c'est une réponse qu'on n'a pas pu finir.
-  // Le dire vaut mieux qu'un texte tronqué qui aurait l'air complet.
+  // Le dire vaut mieux qu'un texte tronqué qui aurait l'air complet. Et on distingue les
+  // deux causes : « je n'ai pas trouvé » et « je n'ai pas eu le temps » n'appellent pas la
+  // même chose de la part de Marc.
   return {
     ok: true,
-    texte:
-      `J'ai cherché ${MAX_TOURS_OUTILS} fois dans la base sans arriver à conclure. ` +
-      "Reformule en précisant (un ingrédient principal, un type de plat) — je repartirai de là.",
-    toursOutils: MAX_TOURS_OUTILS,
+    texte: budgetEpuise
+      ? "J'ai manqué de temps avant d'aboutir (la recherche a été longue). Repose ta " +
+        "question — souvent le deuxième essai passe, la base répondant plus vite."
+      : `J'ai cherché ${MAX_TOURS_OUTILS} fois dans la base sans arriver à conclure. ` +
+        "Reformule en précisant (un ingrédient principal, un type de plat) — je repartirai de là.",
+    toursOutils: tours,
     borneAtteinte: true,
     coupeeEnCours: false,
   };

@@ -36,6 +36,19 @@ export const MAX_TOURS_OUTILS = 8;
 export const MAX_RESULTATS_RECHERCHE = 25;
 
 /**
+ * Budget de temps de la boucle, en millisecondes.
+ *
+ * ⚠️ La vraie borne n'est pas le nombre de tours, c'est le MUR DE LA PLATEFORME : la route
+ * déclare `maxDuration = 60`, et huit allers-retours à quelques secondes chacun peuvent le
+ * dépasser. Au-delà du mur, Vercel tue la fonction — Marc reçoit une erreur de plateforme
+ * illisible, après avoir payé tous les appels déjà faits.
+ *
+ * On s'arrête donc AVANT, avec assez de marge pour rédiger une réponse honnête. Compter les
+ * tours ne suffit pas : un tour peut prendre deux secondes comme quinze.
+ */
+export const BUDGET_MS = 45_000;
+
+/**
  * Tronque l'historique en préservant l'invariant du protocole Messages : la séquence
  * envoyée commence par un tour `user` et alterne.
  *
