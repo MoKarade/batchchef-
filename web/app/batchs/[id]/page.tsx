@@ -45,13 +45,6 @@ export default async function BatchDetailPage({
     .from(schema.shoppingItems)
     .where(eq(schema.shoppingItems.batchId, id));
 
-  // Distinguer « terminé sans stock enregistré » (batchs d'avant cette fonctionnalité) de
-  // « terminé et rangé » : afficher « 0 portion » dans le premier cas serait un mensonge.
-  const portionsRangees = await db
-    .select({ id: schema.portions.id })
-    .from(schema.portions)
-    .where(eq(schema.portions.batchId, id));
-
   const totalCost = items.reduce((sum, i) => sum + (i.estCost ?? 0), 0);
   const totalPortions = recipeRows.reduce((sum, r) => sum + r.portions, 0);
 
@@ -134,16 +127,7 @@ export default async function BatchDetailPage({
         </Link>
       </div>
 
-      <BatchStatusControls
-        batchId={batch.id}
-        status={batch.status}
-        recettes={recipeRows.map((r) => ({
-          recipeId: r.recipeId,
-          titre: r.title,
-          portions: r.portions,
-        }))}
-        dejaRange={portionsRangees.length > 0}
-      />
+      <BatchStatusControls batchId={batch.id} status={batch.status} />
     </div>
   );
 }

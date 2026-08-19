@@ -1,6 +1,6 @@
 // / — accueil : l'état en un coup d'œil, les deux gestes principaux, et tes recettes récentes.
 import Link from "next/link";
-import { and, count, desc, eq, inArray, ne, sum } from "drizzle-orm";
+import { and, count, desc, eq, inArray, ne } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { RecipeCard } from "@/components/RecipeCard";
 
@@ -21,9 +21,6 @@ export default async function HomePage() {
     .from(schema.shoppingItems)
     .innerJoin(schema.batches, eq(schema.batches.id, schema.shoppingItems.batchId))
     .where(and(eq(schema.shoppingItems.checked, false), ne(schema.batches.status, "termine")));
-  const [enStock] = await db
-    .select({ n: sum(schema.portions.restantes) })
-    .from(schema.portions);
   const recent = await db
     .select({
       id: schema.recipes.id,
@@ -35,9 +32,6 @@ export default async function HomePage() {
     .limit(6);
 
   const stats = [
-    // `sum` de Postgres rend une CHAÎNE (ou null sur table vide) : la convertir ici, sinon
-    // l'accueil afficherait la concaténation au lieu du total.
-    { label: "Portions au frais", value: Number(enStock?.n ?? 0), href: "/portions" },
     { label: "Recettes", value: recipeCount?.n ?? 0, href: "/recettes" },
     { label: "Batchs actifs", value: activeBatches?.n ?? 0, href: "/batchs" },
     { label: "Articles à acheter", value: toBuy?.n ?? 0, href: "/batchs" },
@@ -45,7 +39,7 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-3 gap-3">
         {stats.map((s) => (
           <Link
             key={s.label}

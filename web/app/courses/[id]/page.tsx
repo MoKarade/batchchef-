@@ -6,14 +6,11 @@
 // atteindre la seule chose dont on ait besoin debout. L'export et le partage sont des
 // gestes d'AVANT-départ ; ils n'ont rien à faire sur le chemin du geste quotidien.
 
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { shoppingChecklistKey } from "@/lib/aggregate";
-import { separerGardeManger } from "@/lib/gardeManger";
 import { ShoppingChecklist } from "@/components/ShoppingChecklist";
-import { ArticlesAuPlacard } from "@/components/ArticlesAuPlacard";
 import { ShoppingListEditor } from "@/components/ShoppingListEditor";
 import { ShareListButton } from "@/components/ShareListButton";
 import { ExportTasksButton } from "@/components/ExportTasksButton";
@@ -37,14 +34,6 @@ export default async function ShoppingPage({
     .where(eq(schema.shoppingItems.batchId, id))
     .orderBy(asc(schema.shoppingItems.name));
 
-  // Le garde-manger DÉPLACE, il ne supprime pas : les articles que Marc a déclarés avoir
-  // toujours passent dans une section « à vérifier au placard », visible et cochable. Le
-  // jour où le pot d'huile est vide, la ligne doit être là.
-  const placard = await db.select({ canonical: schema.pantry.canonical }).from(schema.pantry);
-  const { aAcheter, auPlacard } = separerGardeManger(
-    items,
-    placard.map((p) => p.canonical),
-  );
 
   return (
     <div className="space-y-5">
@@ -54,11 +43,10 @@ export default async function ShoppingPage({
       </div>
 
       <ShoppingChecklist
-        key={shoppingChecklistKey(aAcheter)}
-        items={aAcheter.map((i) => ({
+        key={shoppingChecklistKey(items)}
+        items={items.map((i) => ({
           id: i.id,
           name: i.name,
-          canonical: i.canonical,
           qty: i.qty,
           unit: i.unit,
           estCost: i.estCost,
@@ -66,27 +54,12 @@ export default async function ShoppingPage({
         }))}
       />
 
-      {auPlacard.length > 0 && (
-        <ArticlesAuPlacard
-          articles={auPlacard.map((i) => ({
-            id: i.id,
-            name: i.name,
-            qty: i.qty,
-            unit: i.unit,
-            estCost: i.estCost,
-            checked: i.checked,
-          }))}
-        />
-      )}
 
       {/* Tout ce qui se fait AVANT de partir, replié sous un seul dépliant. */}
       <details className="carte overflow-hidden">
         <summary className="cursor-pointer px-4 py-3 font-medium">Outils de la liste</summary>
         <div className="space-y-4 border-t px-4 py-4" style={{ borderColor: "var(--bordure)" }}>
           <div className="space-y-2">
-            <Link href="/garde-manger" className="bouton bouton-second w-full">
-              Garde-manger ({placard.length})
-            </Link>
             <ExportTasksButton batchId={id} />
             <ShareListButton
               batchName={batch.name}

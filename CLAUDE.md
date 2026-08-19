@@ -92,30 +92,7 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   c'est la **clé de regroupement** de la liste (« chicken breast » et « poitrine de
   poulet » feraient deux lignes qui ne fusionnent jamais). Un contenant sans taille fixe
   (`can`, `package`, `bunch`) reste `null` : on n'invente pas un poids.
-- **Le cycle ne s'arrête pas à « terminé » — et son garde d'idempotence est le STOCK, pas le
-  statut.** Terminer un batch fabrique les portions (`terminerBatch`, ADR-0001) ; `setBatchStatus`
-  refuse `termine` pour qu'il n'y ait qu'un seul chemin. Refuser sur `status === "termine"` ne
-  suffirait pas : `terminé → cuisine → terminé` remet le statut à zéro et créerait un DEUXIÈME
-  jeu de portions — l'app annoncerait deux fois plus de repas qu'il n'y en a, ce qui ne se
-  découvre qu'en ouvrant un congélateur vide. Le garde est donc « ce batch a-t-il déjà des
-  portions ? ». Corollaire pour tout futur garde : se demander quel aller-retour légitime
-  RÉOUVRE le chemin, et porter le garde sur ce que l'action PRODUIT.
-- **Le garde-manger DÉPLACE, il ne supprime JAMAIS.** Un article déclaré « j'ai toujours ça »
-  quitte le budget et la liste principale pour une section « à vérifier au placard », repliée
-  mais toujours visible et toujours cochable — le jour où le pot d'huile est vide, la ligne
-  doit être là. Le montant écarté est DIT sous l'en-tête de la section : taire un total qu'on
-  vient de retirer serait la version polie du mensonge. Et l'appariement se fait sur la clé
-  EXACTE (`lib/gardeManger.ts`), jamais par sous-chaîne : « huile » emporterait « huile de
-  truffe ». Une heuristique floue peut grouper ce qu'on REGARDE, jamais décider ce qui SORT
-  d'une liste de courses — ici l'erreur ne se voit pas, elle se découvre au retour du magasin.
-  La table part VIDE (décision de Marc) : l'app ne devine pas ce qu'il y a dans le placard.
-- **Les repères de conservation ne sont pas un verdict.** 4 jours au frigo, 90 au congélo
-  (`REPERE_JOURS`) servent à faire REMONTER ce qui attend, jamais à juger : l'app ne sait rien
-  de ce qu'il y a dans la boîte. Le vocabulaire à l'écran dit « au-delà du repère de N jours »,
-  jamais « c'est encore bon » ni « périmé ». Et aucune date de péremption n'est calculée — ce
-  serait de la donnée fabriquée ; l'âge affiché, lui, est un fait.
-- **Fonctions pures testées** pour la logique (agrégation, mise à l'échelle, prix, jetons,
-  portions).
+- **Fonctions pures testées** pour la logique (agrégation, mise à l'échelle, prix, jetons).
 - **Planchers de version, jamais redescendus.** `drizzle-orm ≥ 0.45.2` (injection SQL par
   identifiants mal échappés, GHSA-gpj5-g38j-94v9, HIGH), et les `overrides` de `postcss` et
   `sharp` qui ferment des failles que Next épingle lui-même. *Verrou* :
@@ -174,7 +151,6 @@ néons d'un supermarché.
 | `lib/llm/` | parse de recette (page web **et** vidéo) + estimation de coûts (Zod, honnête) |
 | `lib/video/` | `frames.ts` = sondage/empreintes/budget (PUR, testé) · `capture.ts` = extraction `<video>`+`<canvas>` en 2 passes (repérage 32×32 puis extraction 768 px) **dans le navigateur** (la vidéo ne monte jamais au serveur) |
 | `lib/partage.ts` + `public/sw.js` | cible de partage Android (PWA). Le service worker intercepte le POST **côté navigateur** : la vidéo partagée ne transite pas par le serveur |
-| `lib/portions.ts` | stock de portions : âge civil (fuseau de Marc), ordre, comptage, validation du rangement (PUR, testé) |
 | `lib/db/` | schéma Drizzle + connexion Neon paresseuse |
 | `lib/hubSummary.ts` | résumé conforme `@mokarade/hub-contract` (widget hub perso) |
 | `data/batchchef.seed.db` | base seed du catalogue (10 188 recettes) |

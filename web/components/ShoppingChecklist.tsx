@@ -11,16 +11,14 @@
 // calcul. Les rangées passent à 56 px de haut : la cible n'est plus la case mais la ligne
 // entière, ce qui compte quand l'autre main pousse un chariot.
 
-import { useMemo, useState, useTransition } from "react";
-import { ajouterAuGardeManger, toggleShoppingItem } from "@/lib/actions";
+import { useMemo, useState } from "react";
+import { toggleShoppingItem } from "@/lib/actions";
 import { formatQty } from "@/lib/aggregate";
 import { formatMontant, progressionCourses } from "@/lib/courses";
 
 interface Item {
   id: number;
   name: string;
-  /** Clé de regroupement — sert au garde-manger, jamais affichée. */
-  canonical: string;
   qty: number | null;
   unit: "g" | "ml" | "unite" | null;
   estCost: number | null;
@@ -30,23 +28,6 @@ interface Item {
 export function ShoppingChecklist({ items: initial }: { items: Item[] }) {
   const [items, setItems] = useState(initial);
   const [syncError, setSyncError] = useState(false);
-  const [placardErreur, setPlacardErreur] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
-
-  /**
-   * « J'ai toujours ça » — l'article rejoint le garde-manger.
-   *
-   * Le geste se fait ICI parce que la pensée arrive ICI, devant la liste, en magasin. Il ne
-   * RETIRE rien : au prochain batch la ligne ira dans « à vérifier au placard », toujours
-   * visible. La liste courante ne bouge pas non plus — la déplacer sous les doigts de Marc
-   * pendant qu'il coche serait pire que le bruit qu'on cherche à enlever.
-   */
-  const versLePlacard = (item: Item) =>
-    startTransition(async () => {
-      setPlacardErreur(null);
-      const res = await ajouterAuGardeManger(item.name, item.canonical);
-      if (!res.ok) setPlacardErreur(res.error);
-    });
 
   const remaining = useMemo(() => items.filter((i) => !i.checked), [items]);
   const done = useMemo(() => items.filter((i) => i.checked), [items]);
@@ -65,22 +46,13 @@ export function ShoppingChecklist({ items: initial }: { items: Item[] }) {
     });
   };
 
-  /**
-   * Une rangée : le gros bouton de cochage, plus — sur les articles restants — un bouton
-   * « Placard » DISCRET.
-   *
-   * Les deux sont FRÈRES, jamais imbriqués : un `<button>` dans un `<button>` n'est pas du
-   * HTML valide et le clic partirait au mauvais destinataire. Et le bouton discret ne prend
-   * aucune hauteur — la refonte du 13/08 chassait des BLOCS au-dessus de la liste, pas une
-   * action à même la ligne.
-   */
-  const Row = ({ item, avecPlacard = false }: { item: Item; avecPlacard?: boolean }) => (
-    <li className="flex items-center">
+  const Row = ({ item }: { item: Item }) => (
+    <li>
       <button
         type="button"
         onClick={() => toggle(item)}
         aria-pressed={item.checked}
-        className="flex min-h-14 min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left"
+        className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left"
       >
         <span
           aria-hidden
@@ -110,16 +82,6 @@ export function ShoppingChecklist({ items: initial }: { items: Item[] }) {
           <span className="shrink-0 text-sm tabular-nums doux">{formatMontant(item.estCost)}</span>
         )}
       </button>
-      {avecPlacard && (
-        <button
-          type="button"
-          onClick={() => versLePlacard(item)}
-          aria-label={`J’ai toujours ${item.name} — ne plus l’acheter par défaut`}
-          className="mr-3 shrink-0 rounded-lg border border-[var(--bordure)] px-2 py-2 text-xs doux"
-        >
-          Placard
-        </button>
-      )}
     </li>
   );
 
@@ -144,7 +106,6 @@ export function ShoppingChecklist({ items: initial }: { items: Item[] }) {
           Échec de sauvegarde (réseau ?) — la case a été remise. Réessaie.
         </p>
       )}
-      {placardErreur && <p className="rounded-xl erreur p-3 text-sm">{placardErreur}</p>}
 
       {/* Reste collé sous l'en-tête : au milieu d'une liste de trente articles, l'avancement
           doit rester visible sans remonter. */}
@@ -187,7 +148,7 @@ export function ShoppingChecklist({ items: initial }: { items: Item[] }) {
 
       <ul className="carte divide-y overflow-hidden" style={{ borderColor: "var(--bordure)" }}>
         {remaining.map((item) => (
-          <Row key={item.id} item={item} avecPlacard />
+          <Row key={item.id} item={item} />
         ))}
       </ul>
 

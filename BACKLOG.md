@@ -8,7 +8,27 @@
 
 ## En cours / décidé, pas encore livré
 
-Rien. Les trois chantiers arbitrés par Marc le 17/08 sont livrés (voir « Fait »).
+Demandes de Marc du 17/08 (soir), dans l'ordre où il les a posées.
+
+- [ ] **`ING-01` — Ne plus faire acheter sel, poivre & compagnie.**
+  ⚠️ **PAS une liste que Marc tient à jour** : il vient de refuser le garde-manger
+  déclaratif. Ça doit être AUTOMATIQUE — une catégorie d'ingrédients de fond (sel, poivre,
+  eau, épices de base) reconnue au moment de l'agrégation, jamais un écran de gestion.
+  Reste à trancher : la liste vit-elle en dur dans `lib/` (prévisible, testable) ou est-elle
+  décidée par le LLM au parse (souple, mais variable d'une recette à l'autre) ?
+- [ ] **`ING-02` — Quantités plus précises, moins d'erreurs.**
+  ⚠️ Diagnostiquer AVANT de coder : mesurer sur de vraies recettes OÙ l'erreur naît
+  (extraction LLM ? conversion d'unités ? mise à l'échelle ? agrégation ?). Une plainte sur
+  ce qu'on VOIT ne désigne presque jamais la couche à changer — leçon déjà payée deux fois
+  chez JobAI.
+- [ ] **`BOT-01` — Chatbot Claude sur la base.** Trois usages demandés : quelles recettes
+  avec les ingrédients que j'ai (même incomplets), trouver des équivalents d'ingrédients,
+  créer une recette en s'appuyant sur toute la base.
+  **Décision Marc : Claude interroge la base LUI-MÊME par outils** (plusieurs allers-retours),
+  pas un pré-filtre SQL suivi d'un seul appel. Il peut donc creuser au lieu d'être limité par
+  un filtre écrit d'avance.
+  ⚠️ 10 188 recettes : aucun modèle ne les reçoit d'un coup. Et le coût par question est
+  supérieur à un appel unique — à mesurer et à publier dans `llm_usage` comme le reste.
 
 ## Écarté volontairement
 
@@ -27,9 +47,18 @@ Rien n'est engagé ici — à proposer à Marc avant de coder.
 - [ ] Le budget d'épicerie n'est jamais confronté au réel (pas de reçus — décision
   assumée dans `CLAUDE.md`). Aucun moyen de savoir si l'estimation est bonne à ±10 % ou à ×2.
 
+## Retiré à la demande de Marc (17/08, soir)
+
+- [x] ~~**Stock de portions** (frigo/congélo, onglet Portions, rangement en fin de batch)~~ —
+  livré le matin, retiré le soir : Marc n'en veut pas. Tables `portions` et `pantry`
+  supprimées (migration `0008`), ADR-0001 retiré.
+- [x] ~~**`GM-01` — Garde-manger déclaratif**~~ — même décision. Le BESOIN reste (« je veux
+  plus que ça me demande d'acheter du sel ou du poivre ») mais il doit être **automatique**,
+  pas une liste à tenir : c'est `ING-01`.
+
 ## Fait
 
-- [x] **`GM-01` — Garde-manger.** Bouton « Placard » sur chaque article restant d'une liste,
+- [x] ~~**`GM-01` — Garde-manger.**~~ Bouton « Placard » sur chaque article restant d'une liste,
   section « à vérifier au placard » (repliée, cochable, JAMAIS supprimée), écran
   `/garde-manger` pour défaire. Table vide au départ, comme décidé. 17/08/2026.
 - [x] **`ACC-01` — Compteur d'accueil.** Jointure sur `batches` + exclusion des batchs
