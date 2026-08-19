@@ -8,6 +8,54 @@
 
 ---
 
+## 2026-08-19 — Un audit ne mesure que l'axe qu'il regarde, et le sien paraît complet
+
+`ING-06` avait conclu « 99,85 % correct » sur 87 443 lignes d'ingrédients. Le chiffre était
+juste — pour ce qu'il mesurait. Il jugeait le **nom** et l'**unité** de chaque ligne, et ne
+touchait à la **quantité** que par l'absurde : un zéro, un compte à quatre chiffres. Autrement
+dit, il repérait une quantité qui n'a plus l'air d'une quantité, jamais une quantité qui a
+l'air juste et ne l'est pas.
+
+Marc a demandé de creuser encore. En cherchant un axe que l'audit n'avait pas, un invariant
+est apparu : dans une recette, le rapport « nombre du texte source / quantité par portion »
+doit valoir le MÊME rendement sur toutes les lignes — c'est le diviseur que la V3 a appliqué
+partout. **2 671 lignes s'en écartaient**, vingt fois le reliquat annoncé la veille.
+
+Ce qu'elles cachaient était sérieux : « 1/2 kg de viande hachée » était enregistré 1 kg. Une
+fraction en tête était lue « 1 » — 2 508 lignes, vérifié dénominateur par dénominateur (2 141
+demis, 186 quarts, 16 trois-quarts). Sur une liste d'épicerie, ça veut dire acheter le double,
+et payer le double, sans qu'aucun écran ne montre quoi que ce soit d'anormal.
+
+**La leçon n'est pas « j'ai raté quelque chose », c'est que le TAUX n'a de sens qu'avec l'axe.**
+« 99,85 % correct » se lit comme un jugement sur la donnée ; ce n'était qu'un jugement sur deux
+de ses trois colonnes. Un audit devrait donc annoncer ce qu'il ne regarde pas aussi
+explicitement que son résultat — sinon le chiffre couvre le silence.
+
+Corollaire de méthode, déjà rencontré avec `ING-03` (« mesurer la complétude avec l'instrument
+qui définit le périmètre ne mesure rien ») : la parade n'est pas de mieux chercher avec le même
+outil, c'est de **trouver un invariant que les règles de correction n'utilisent pas**. Ici le
+rapport au rendement ne sert à aucune des trois règles de réparation ; c'est ce qui lui permet
+de les juger. Il est maintenant dans la suite de tests, sur le corpus entier.
+
+Et trois pièges rencontrés en le construisant, tous des faux positifs de mon propre instrument :
+
+- **Un tiret en tête est une puce de liste, pas un signe.** « -1 gousses d'ail »,
+  « -4600 g de pomme de terre » : le lire comme un moins produisait une quantité négative,
+  donc 43 lignes jugées fautives alors que la V3 avait raison.
+- **Une fourchette n'est pas un nombre.** « 2 à 3 cuillères » : en choisir une borne invente
+  une certitude que la source ne donne pas, et l'écart qui en résulte ne prouve rien.
+- **Deviner une PIÈCE n'est pas deviner une MESURE.** « branche de persil » se lit « une
+  branche » ; mais « clou de girofle », dont la colonne `unit` du seed porte `cl` (le « cl »
+  de « clou » — encore la frontière de mot), aurait donné **10 ml**, et « lamelle de truffe »
+  **un litre**. Le garde ne peut pas être une liste de mots : il doit regarder l'unité
+  d'arrivée. 49 lignes.
+
+Enfin, un cas où l'honnêteté coûte un chiffre : 136 recettes ont été divisées par un nombre
+qui n'est pas un rendement (500, 1 250, 10 000). Leurs rapports internes sont justes, l'échelle
+est perdue, et rien ne dit par quoi multiplier — « 200 g de thon » s'affichait « 0,02 g ». Ces
+820 lignes passent « au goût », avec le texte source en note. On perd un nombre ; on cesse
+d'affirmer un nombre faux à chaque affichage.
+
 ## 2026-08-19 — `form-action` couvre la REDIRECTION, pas seulement la première cible
 
 En vérifiant le connecteur en production, j'ai lu les en-têtes de la réponse plutôt que de

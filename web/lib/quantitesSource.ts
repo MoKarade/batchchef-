@@ -25,6 +25,8 @@
 // lecteur de nombres que de la V3, et rien ne permet de trancher. Une correction « au
 // jugé » sur une donnée qui décide de ce que Marc achète serait pire que le défaut.
 
+import { normalizeQty } from "./units";
+
 /** Rendements admissibles pour une recette. Au-delà, le chiffre n'est plus un rendement. */
 const RENDEMENT_MAX = 40;
 
@@ -77,6 +79,8 @@ export interface LigneSource {
   raw: string;
   /** `quantity_per_portion` du seed. */
   qpp: number | null;
+  /** `unit` du seed, telle quelle (« cuillères », « cl », « unite »…). */
+  unite?: string | null;
 }
 
 /**
@@ -117,12 +121,25 @@ export function rendementRecette(lignes: LigneSource[]): number | null {
  * Mots DÉNOMBRABLES qui valent « une pièce » quand le texte n'annonce aucun nombre :
  * « branche de persil » se lit « UNE branche de persil ». Liste FERMÉE, dérivée du corpus.
  *
- * ⚠️ Sans elle, ces 572 lignes tomberaient en « au goût » alors que le compte est évident
- * pour n'importe quel lecteur — et « au goût » sur une branche de persil est une perte
+ * ⚠️ Sans elle, ces lignes tomberaient en « au goût » alors que le compte est évident pour
+ * n'importe quel lecteur — et « au goût » sur une branche de persil est une perte
  * d'information, pas une honnêteté.
+ *
+ * ⚠️ ELLE NE CONTIENT AUCUN MOT DE MESURE, et ce n'est pas suffisant : le garde qui compte
+ * est `donneUnePiece` ci-dessous. Mesuré sur 3 000 batchs simulés — « cuillères à soupe
+ * d'huile d'olive », sans nombre, produisait 15 ml BIEN QU'aucun mot de mesure ne soit dans
+ * cette liste : c'est la colonne `unit` du seed qui portait « cuillères ». Deviner une
+ * PIÈCE, c'est lire un pluriel élidé ; deviner une MESURE, c'est fabriquer un chiffre.
  */
 const PIECE_IMPLICITE =
-  /^(?:une?\s+)?(?:demi|demie|branche|brin|feuille|gousse|tranche|filet|morceau|pincee|pincée|zeste|grappe|lamelle|clou|goutte|poignee|poignée|botte|bouquet|tige|rondelle|noix|boule|sachet|verre|tasse|cuillere|cuillère)s?\b/i;
+  /^(?:une?\s+)?(?:demi|demie|branche|brin|feuille|gousse|tranche|filet|morceau|zeste|grappe|lamelle|clou|goutte|poignee|poignée|botte|bouquet|tige|rondelle|sachet)s?\b/i;
+
+/** Le « 1 » sous-entendu n'est admis que si l'ingrédient se COMPTE une fois converti. */
+function donneUnePiece(ligne: LigneSource): boolean {
+  if (!PIECE_IMPLICITE.test((ligne.raw ?? "").trim())) return false;
+  if (ligne.unite === undefined) return true;
+  return normalizeQty(1, ligne.unite, ligne.raw, "").unit === "unite";
+}
 
 /** Ce que la quantité par portion DEVRAIT valoir, ou `null` quand il n'y a rien à corriger. */
 export type Motif = "fraction" | "sansNombre" | "sentinelle" | "rendementInconnu";
@@ -142,13 +159,12 @@ export function quantiteCorrigee(ligne: LigneSource, rendement: number | null): 
   const qpp = ligne.qpp;
   if (qpp === null || !Number.isFinite(qpp)) return { corriger: false };
 
-  const brut = (ligne.raw ?? "").trim();
-  const chiffre = /^\s*-?\s*(?:~|environ\s+)?\d/.test(brut);
+  const chiffre = /^\s*-?\s*(?:~|environ\s+)?\d/.test((ligne.raw ?? "").trim());
 
   // ── Aucun nombre, et pas même une pièce sous-entendue ──────────────────────────────────
   // Ne dépend d'AUCUN rendement : « au goût » est la même réponse quel que soit le nombre de
   // portions. C'est ce qui permet de traiter aussi les recettes dont le rendement est perdu.
-  if (!chiffre && !PIECE_IMPLICITE.test(brut)) {
+  if (!chiffre && !donneUnePiece(ligne)) {
     return { corriger: true, qpp: null, motif: "sansNombre" };
   }
 
@@ -183,6 +199,20 @@ export function quantiteCorrigee(ligne: LigneSource, rendement: number | null): 
   }
 
   return { corriger: false };
+}
+
+/**
+ * La note à garder quand la quantité disparaît : le texte source, mais SEULEMENT s'il
+ * annonçait un nombre. « Thon — au goût (200 g de thon) » informe ; « Huile — au goût
+ * (huile) » répète le nom, et « Poivre 5 Baies — au goût (poivre 5 baies) » aussi (le 5 est
+ * dans le nom du poivre, pas une quantité).
+ *
+ * Une seule implémentation pour l'import ET la passe de réparation : deux copies d'une même
+ * règle, c'est une règle et demie.
+ */
+export function noteSourcePerdue(raw: string, qtyFinale: number | null): string | null {
+  if (qtyFinale !== null) return null;
+  return nombreEnTete(raw).valeur === null ? null : raw.slice(0, 200);
 }
 
 function proche(a: number | null, b: number): boolean {

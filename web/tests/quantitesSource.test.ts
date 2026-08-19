@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import initSqlJs from "sql.js";
-import { nombreEnTete, quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
+import { nombreEnTete, noteSourcePerdue, quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
 import { normalizeQty } from "../lib/units";
 
 describe("nombreEnTete — ce que le texte annonce vraiment", () => {
@@ -105,10 +105,27 @@ describe("quantiteCorrigee — on ne corrige que ce qu'on sait expliquer", () =>
   it("une PIÈCE sous-entendue vaut une pièce, pas « au goût »", () => {
     // « branche de persil » se lit « UNE branche ». Mutation : vider PIECE_IMPLICITE fait
     // tomber 572 lignes en « au goût » et perd un compte que n'importe qui lit d'un coup d'œil.
-    expect(quantiteCorrigee({ raw: "branche de persil", qpp: 0.25 }, 4)).toEqual({ corriger: false });
-    expect(quantiteCorrigee({ raw: "feuille de menthe", qpp: 1 }, 4)).toEqual({
+    expect(quantiteCorrigee({ raw: "branche de persil", qpp: 0.25, unite: "unite" }, 4)).toEqual({ corriger: false });
+    expect(quantiteCorrigee({ raw: "feuille de menthe", qpp: 1, unite: "unite" }, 4)).toEqual({
       corriger: true, qpp: 0.25, motif: "sansNombre",
     });
+  });
+
+  it("on ne devine JAMAIS une mesure — seulement une pièce", () => {
+    // Cas RÉELS du corpus (49 lignes), et c'est encore la frontière de mot : la V3 a lu le
+    // « cl » de « clou » et le « l » de « lamelle ». Deviner 1 sur ces unités-là ne produit
+    // pas un clou de girofle mais DIX MILLILITRES, et pas une lamelle de truffe mais UN
+    // LITRE. Un pluriel élidé se lit ; un volume se fabrique.
+    // Mutation : faire renvoyer `true` à `donneUnePiece` sans regarder l'unité fait
+    // réapparaître les deux mesures inventées.
+    expect(quantiteCorrigee({ raw: "clou de girofle", qpp: 0.2, unite: "cl" }, 4)).toEqual({
+      corriger: true, qpp: null, motif: "sansNombre",
+    });
+    expect(quantiteCorrigee({ raw: "lamelle de truffe noire fraîche", qpp: 0.25, unite: "l" }, 4)).toEqual({
+      corriger: true, qpp: null, motif: "sansNombre",
+    });
+    // Et la même pièce, avec une unité qui se COMPTE, garde son compte.
+    expect(quantiteCorrigee({ raw: "clou de girofle", qpp: 0.25, unite: "unite" }, 4)).toEqual({ corriger: false });
   });
 
   it("la sentinelle 0,0001 est remplacée par ce que dit la source", () => {
@@ -130,6 +147,21 @@ describe("quantiteCorrigee — on ne corrige que ce qu'on sait expliquer", () =>
     // chiffres est faux et rien ne dit lequel. On s'abstient — une correction au jugé sur ce
     // qui décide de ce que Marc achète serait pire que le défaut.
     expect(quantiteCorrigee({ raw: "2.5 kg de moules", qpp: 0.625 }, 8)).toEqual({ corriger: false });
+  });
+});
+
+describe("noteSourcePerdue — ce qu'on garde quand la quantité disparaît", () => {
+  it("garde le texte source seulement s'il annonçait un nombre", () => {
+    expect(noteSourcePerdue("200 g de thon", null)).toBe("200 g de thon");
+    expect(noteSourcePerdue("1 oignons jaunes", null)).toBe("1 oignons jaunes");
+    // Le « 5 » est dans le NOM du poivre, pas une quantité : répéter le nom est du bruit.
+    // Mutation : remplacer `nombreEnTete` par un simple /\d/ fait repasser ce cas.
+    expect(noteSourcePerdue("poivre 5 baies", null)).toBeNull();
+    expect(noteSourcePerdue("huile", null)).toBeNull();
+  });
+
+  it("ne pose aucune note quand la quantité est conservée", () => {
+    expect(noteSourcePerdue("200 g de thon", 200)).toBeNull();
   });
 });
 
@@ -160,7 +192,7 @@ describe("le CORPUS ENTIER — invariant indépendant des règles", () => {
       const rendement = rendementRecette(liste.map((x) => ({ raw: x.raw, qpp: x.qpp })));
       for (const x of liste) {
         lignes += 1;
-        const v = quantiteCorrigee({ raw: x.raw, qpp: x.qpp }, rendement);
+        const v = quantiteCorrigee({ raw: x.raw, qpp: x.qpp, unite: x.u }, rendement);
         const qpp = v.corriger ? v.qpp : x.qpp;
         const finale = normalizeQty(qpp, x.u, x.raw, x.nom).qty;
         const { valeur } = nombreEnTete(x.raw);

@@ -15,7 +15,7 @@ import initSqlJs from "sql.js";
 import { db, schema } from "../lib/db";
 import { normalizeQty } from "../lib/units";
 import { reparerCanonique, reparerNom } from "../lib/ingredientsNoms";
-import { quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
+import { noteSourcePerdue, quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
 
 const require = createRequire(import.meta.url);
 const SEED = path.resolve(process.cwd(), "data", "batchchef.seed.db");
@@ -106,7 +106,7 @@ async function main() {
     );
     for (const ing of lignes) {
       const verdict = quantiteCorrigee(
-        { raw: String(ing.raw_text ?? ""), qpp: numOrNull(ing.qty) },
+        { raw: String(ing.raw_text ?? ""), qpp: numOrNull(ing.qty), unite: ing.unit as string | null },
         rendement,
       );
       const qtySource = verdict.corriger ? verdict.qpp : numOrNull(ing.qty);
@@ -121,7 +121,7 @@ async function main() {
         canonical: reparerCanonique(String(ing.canonical ?? "").toLowerCase().trim()).slice(0, 120) || "ingredient",
         qty: total,
         unit: norm.unit,
-        note: norm.qty === null && ing.raw_text ? String(ing.raw_text).slice(0, 200) : null,
+        note: noteSourcePerdue(String(ing.raw_text ?? ""), total),
       });
     }
   }

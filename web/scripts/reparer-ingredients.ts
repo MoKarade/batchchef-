@@ -34,7 +34,7 @@ import { aggregateShoppingList } from "../lib/aggregate";
 import { ecarterIngredientsDeFond } from "../lib/ingredientsDeFond";
 import { reparerCanonique, reparerNom } from "../lib/ingredientsNoms";
 import { nomRestaure, nomSansPrepositionFinale, uniteCorrigee } from "../lib/ingredientsSource";
-import { quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
+import { noteSourcePerdue, quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
 import { normalizeQty } from "../lib/units";
 
 const require = createRequire(import.meta.url);
@@ -206,13 +206,11 @@ function quantitesAttendues(sqlite: Sqlite): Map<string, QuantiteAttendue | null
     const rendement = rendementRecette(lignes.map((l) => ({ raw: l.raw, qpp: l.qpp })));
     if (rendement === null) recettesSansRendement += 1;
     for (const l of lignes) {
-      const verdict = quantiteCorrigee({ raw: l.raw, qpp: l.qpp }, rendement);
+      const verdict = quantiteCorrigee({ raw: l.raw, qpp: l.qpp, unite: l.unit }, rendement);
       const qtySource = verdict.corriger ? verdict.qpp : l.qpp;
       const norm = normalizeQty(qtySource, l.unit, l.raw, l.nom);
       const qty = norm.qty === null ? null : Math.round(norm.qty * recette.servings * 100) / 100;
-      // La note ne recopie le texte source que s'il portait un CHIFFRE qu'on vient de retirer :
-      // « Thon — au goût — 200 g de thon » informe, « Huile — au goût — huile » est du bruit.
-      const note = qty === null && /\d/.test(l.raw) ? l.raw.slice(0, 200) : null;
+      const note = noteSourcePerdue(l.raw, qty);
       const cle = `${recette.url}\u0000${reparerCanonique(l.canon.toLowerCase().trim())}`;
       const deja = map.get(cle);
       if (deja === undefined) { map.set(cle, { qty, note }); continue; }

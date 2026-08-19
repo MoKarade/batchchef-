@@ -47,21 +47,43 @@
   l'état de production depuis le seed, **calibré** contre la vraie base par le MCP (11
   ingrédients sur 11 identiques sur deux recettes), puis jugé contre le TEXTE SOURCE — jamais
   contre les règles de réparation, qui ne peuvent pas mesurer leur propre couverture.
-  Résultat : **99,85 % correct** (134 lignes en défaut), après trois correctifs trouvés par
-  l'audit lui-même.
+  Résultat annoncé : **99,85 % correct** (134 lignes en défaut), après trois correctifs
+  trouvés par l'audit lui-même. ⚠️ **Ce taux ne portait que sur deux colonnes sur trois** —
+  le nom et l'unité. `ING-08` a mesuré la troisième et y a trouvé 2 671 lignes fausses. Un
+  taux d'audit ne vaut que par l'axe qu'il nomme (cf. `docs/LESSONS.md`).
 
-- [ ] **`ING-07` — le reliquat de 134 lignes (0,15 %), toutes liées aux QUANTITÉS.**
-  Ce qui reste ne se corrige plus depuis le nom seul : il faut rapparier chaque ligne de
-  production à sa ligne source (`catalog_recipes.sourceUrl` → seed), avec l'ambiguïté d'une
-  recette qui répète un ingrédient. Chantier à part, à cadrer avant de coder.
+- [x] ~~**`ING-07` — le reliquat de quantités.**~~ **Traité par `ING-08`, et il était bien
+  plus gros qu'annoncé** (voir ci-dessous : 134 lignes estimées, 13 448 corrigées).
 
-  | classe | lignes | ce que Marc verrait | cause |
+- [x] ~~**`ING-08` — les QUANTITÉS reconstruites depuis le texte source.**~~ **Livré le
+  19/08**, à la demande de Marc (« corrige pour avoir 100 % sur ce batch, puis teste avec
+  beaucoup plus de données »).
+
+  L'audit d'`ING-06` jugeait le nom et l'unité ; il ne voyait la quantité que par l'absurde.
+  Un invariant plus fort existait : dans une recette, le rapport « nombre du texte source /
+  quantité par portion » doit valoir le même rendement partout. **2 671 lignes s'en
+  écartaient** — vingt fois le reliquat annoncé.
+
+  | dégât | lignes corrigées | ce que Marc voyait |
+  |---|---|---|
+  | fraction en tête lue « 1 » | 2 403 | « 1/2 kg de viande hachée » facturé **1 kg** |
+  | aucun nombre en source | 10 225 | « Huile — 1 », « Riz Pour L'Accompagnement — 1 » |
+  | rendement irrécupérable (136 recettes) | 820 | « Thon — 0,02 g » pour « 200 g de thon » |
+
+  Vérification : test de corpus sur les **87 444 lignes** (invariant indépendant des règles
+  de correction), **3 000 batchs simulés** (48 931 lignes d'épicerie confrontées au texte
+  source : 85 écarts d'arrondi à 0,018 % médian, 5 tracés aux lignes irréductibles nommées),
+  et la preuve par l'usage sur le batch #13 — **20 articles sur 20** conformes à leur source.
+  Huit mutations prouvées.
+
+- [ ] **`ING-09` — les 26 lignes irréductibles (0,03 %).** Chacune mesurée et nommée ; aucune
+  ne se corrige sans deviner. À rouvrir seulement si l'une gêne Marc en vrai.
+
+  | classe | lignes | exemple | pourquoi c'est laissé |
   |---|---|---|---|
-  | quantité nulle | 90 | « Oignons Jaunes — 0 » | le seed porte `0.0001`, une sentinelle de la V3, alors que le texte dit « 1 oignons » |
-  | compte aberrant | 11 | « Lamelles — 2 000 » | **de moi** : j'ai rebaptisé l'unité sans défaire la conversion ×10 (`cl`) ou ×1000 (`l`) |
-  | volume en masse | 6 | « … — 15 g » | « grandes cuillères » lu comme des grammes |
-  | nom d'une lettre | 25 | « S (125 Ml) De Crème » | fragment trop court pour être restauré sans deviner |
-  | absurdités de source | 2 | « 400 kg de chair à saucisse » | la source elle-même est fausse |
+  | premier mot tronqué | 16 | « S (250Ml) De Farine T45 » ← « 2.5 tasses (250ml) de farine T45 » | restaurer 5 lettres n'est plus une troncature ; le budget est à 2 depuis qu'il a transformé « Ail » en « Portail ». La colonne `unit` du seed porte « tasse » (singulier) et le texte « tasses » : la piste existe, elle demande de rouvrir `nomRestaure`, qui a déjà cassé 595 restaurations aujourd'hui |
+  | « grandes cuillères » en grammes | 6 | « 1 grandes cuillères d'arôme vanille » → 0,5 g | encore la frontière de mot (le `g` de « grandes ») ; la corriger demande de lire l'unité dans le TEXTE, pas dans la colonne |
+  | écart de rapport inexpliqué | 4 | « 2.5 kg de moules », « 12 cl d'huile », « -134 oeufs », « -4600 g de pomme de terre » | l'un des deux chiffres est faux et rien ne dit lequel. Énumérées une par une dans `tests/quantitesSource.test.ts` |
 
 ## Écarté volontairement
 
