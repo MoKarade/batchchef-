@@ -14,7 +14,15 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
 
 - **Next.js 15** (App Router, Server Components + Server Actions), **Vercel**.
 - **Drizzle ORM** + **Neon** (Postgres serverless).
-- **Auth.js v5** (Google, mono-adresse `AUTHORIZED_EMAIL`, middleware fail-closed).
+- **Auth.js v5** (Google — BatchChef GARDE son fournisseur, contrairement à JobAI/CarAI),
+  middleware fail-closed. **Qui entre : deux étages**, pas une mono-adresse.
+  `AUTHORIZED_EMAIL` est le **propriétaire** (vérifié d'abord et **sans réseau**, pour
+  qu'une panne du hub n'enferme pas Marc dehors) ; toute autre adresse passe par
+  `aAccesHub` (`web/lib/accesHub.ts` → `POST /api/acces` du hub). La liste vit dans la
+  table `acces` du hub et se gère depuis `hubperso.com/administration` — **inviter
+  quelqu'un ne demande PAS de toucher à `AUTHORIZED_EMAIL` ni de redéployer**.
+  Le contrôle est **rejoué à chaque lecture** (`jwt`), pas seulement à la connexion : le
+  cookie étant partagé entre les apps du hub, il pourrait venir d'ailleurs.
 - **LLM** (`@anthropic-ai/sdk`) pour le parse de recettes et l'estimation des prix.
 - **Tailwind v4**, **Zod**, **vitest**.
 
