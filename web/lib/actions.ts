@@ -10,6 +10,8 @@ import { auth } from "@/auth";
 import { db, schema } from "@/lib/db";
 import { aggregateShoppingList, fillMissingCosts, shoppingTitles } from "@/lib/aggregate";
 import { ecarterIngredientsDeFond } from "@/lib/ingredientsDeFond";
+import { repondre } from "@/lib/assistant/boucle";
+import { validerMessage, type Message } from "@/lib/assistant/protocole";
 import { upsertTaskList } from "@/lib/googleTasks";
 import { splitNewCatalogRecipes } from "@/lib/catalogSelect";
 import { MAX_TRANSCRIPT_CHARS } from "@/lib/transcription";
@@ -695,6 +697,40 @@ export async function addCatalogRecipeToLibrary(
 
     revalidatePath("/recettes");
     return { ok: true, id: row.id };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Une question à l'assistant.
+ *
+ * L'historique arrive du NAVIGATEUR : il est donc revalidé ici, et tronqué avant l'appel
+ * (`tronquerHistorique` dans la boucle). Ne jamais faire confiance à sa longueur — c'est
+ * une entrée qui croît à chaque tour.
+ */
+export async function demanderAAssistant(
+  historique: Message[],
+): Promise<ActionResult & { texte?: string; borneAtteinte?: boolean }> {
+  try {
+    await requireSession();
+    if (!Array.isArray(historique) || historique.length === 0) {
+      return { ok: false, error: "Rien à envoyer." };
+    }
+    const dernier = historique[historique.length - 1];
+    if (!dernier || dernier.role !== "user") {
+      return { ok: false, error: "Le dernier message doit être une question." };
+    }
+    const valide = validerMessage(dernier.contenu);
+    if (!valide.ok) return { ok: false, error: valide.erreur };
+
+    const propre: Message[] = historique
+      .filter((m) => m && (m.role === "user" || m.role === "assistant"))
+      .map((m) => ({ role: m.role, contenu: String(m.contenu ?? "").slice(0, 8000) }));
+
+    const reponse = await repondre(propre);
+    if (!reponse.ok) return { ok: false, error: reponse.texte };
+    return { ok: true, texte: reponse.texte, borneAtteinte: reponse.borneAtteinte };
   } catch (err) {
     return fail(err);
   }
