@@ -19,13 +19,13 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Catalogue | 10 188 recettes, cherchable, paginé |
 | Batchs + liste d'épicerie | En service, prix estimés (couverture 100 %) |
 | Export Google Tasks | En service |
-| **Assistant** | **Neuf (19/08)** — `/assistant`, Claude fouille la base par outils. ⚠️ Éteint si `ANTHROPIC_API_KEY` absente (dit à l'écran, pas une panne) |
+| **Assistant** | **Neuf (19/08)** — `/assistant`, Claude fouille la base par outils ; les recettes citées deviennent des cartes cliquables qui s'ouvrent PAR-DESSUS le chat. ⚠️ Éteint si `ANTHROPIC_API_KEY` absente (dit à l'écran, pas une panne) |
 | Widget hub | `GET /api/hub/summary`, contrat `@mokarade/hub-contract` |
 | Accès | Google mono-adresse + interrogation du hub (`lib/accesHub.ts`) |
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **258 tests**, 23 fichiers (19/08/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **265 tests**, 23 fichiers (19/08/2026).
 
 ## Ce qui vient d'être livré (17/08/2026)
 

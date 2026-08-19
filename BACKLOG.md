@@ -45,6 +45,9 @@ Rien n'est engagé ici — à proposer à Marc avant de coder.
 
 ## Fait
 
+- [x] **`BOT-02` — Cartes de recettes cliquables dans le chat.** Une recette citée par
+  l'assistant devient une pastille ; elle ouvre la fiche (ingrédients + préparation)
+  PAR-DESSUS la conversation, qui n'est jamais détruite. Demande de Marc, 19/08/2026.
 - [x] **`BOT-01` — Assistant Claude sur la base.** Onglet `/assistant`. Claude fouille via
   trois outils (recherche par ingrédients avec couverts/manquants calculés en SQL, lecture
   d'une recette, fréquence des ingrédients). Bornes : 8 allers-retours max — la borne

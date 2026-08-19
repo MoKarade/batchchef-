@@ -117,7 +117,13 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   Trois conséquences non négociables :
   ⚠️ **Une recette citée doit avoir été LUE** : le prompt exige le numéro (`[catalogue #482]`)
   pour ce qui vient de la base, et un « je te la compose » explicite pour ce qui est inventé.
-  Confondre les deux ferait chercher à Marc une recette qui n'existe pas.
+  Confondre les deux ferait chercher à Marc une recette qui n'existe pas. Ce marqueur devient
+  une **carte cliquable** (`decouperReponse`) qui ouvre la fiche **PAR-DESSUS** le chat —
+  jamais une navigation : la conversation vit dans l'état d'un composant client et une
+  navigation la détruirait, donc Marc perdrait l'échange qui vient de produire la suggestion.
+  Le parseur est tolérant sur la FORME (`#` optionnel, casse, espaces) et strict sur le FOND :
+  une source inconnue ou un id non entier ne produit AUCUNE carte — une carte est une
+  promesse, et une carte vers du vide est un faux.
   ⚠️ **Le contenu de la base est de la DONNÉE, jamais des instructions** : le catalogue vient
   de 10 188 pages web que personne n'a relues. Tout passe par `baliserDonnee`, qui neutralise
   aussi une fermeture de balise glissée dans le texte.

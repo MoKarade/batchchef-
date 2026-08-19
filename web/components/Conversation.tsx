@@ -9,8 +9,13 @@
 //    d'écrire parce que le réseau a coupé est la faute la plus agaçante d'un chat.
 
 import { useRef, useState, useTransition } from "react";
-import { demanderAAssistant } from "@/lib/actions";
-import { MAX_CARACTERES_MESSAGE, type Message } from "@/lib/assistant/protocole";
+import { demanderAAssistant, lireFicheRecette, type FicheRecette } from "@/lib/actions";
+import { FicheRecetteModale } from "@/components/FicheRecetteModale";
+import {
+  MAX_CARACTERES_MESSAGE,
+  decouperReponse,
+  type Message,
+} from "@/lib/assistant/protocole";
 
 const EXEMPLES = [
   "Qu'est-ce que je peux faire avec du poulet, du riz et des brocolis ?",
@@ -24,6 +29,54 @@ export function Conversation({ configure }: { configure: boolean }) {
   const [erreur, setErreur] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const champ = useRef<HTMLTextAreaElement>(null);
+
+  // La fiche ouverte par-dessus le chat. `null` partout = rien d'ouvert.
+  const [fiche, setFiche] = useState<FicheRecette | null>(null);
+  const [ficheChargement, setFicheChargement] = useState(false);
+  const [ficheErreur, setFicheErreur] = useState<string | null>(null);
+
+  const ouvrirFiche = (source: "catalogue" | "mes-recettes", id: number) => {
+    setFiche(null);
+    setFicheErreur(null);
+    setFicheChargement(true);
+    void lireFicheRecette(id, source).then((res) => {
+      setFicheChargement(false);
+      if (!res.ok) {
+        setFicheErreur(res.error);
+        return;
+      }
+      setFiche(res.fiche ?? null);
+    });
+  };
+
+  const fermerFiche = () => {
+    setFiche(null);
+    setFicheErreur(null);
+    setFicheChargement(false);
+  };
+
+  /**
+   * Rend une réponse en remplaçant « [catalogue #482] » par une pastille cliquable.
+   *
+   * Le texte AUTOUR est conservé mot pour mot : on ne réécrit pas ce que l'assistant a dit,
+   * on rend seulement ses références actionnables.
+   */
+  const rendreReponse = (texte: string) =>
+    decouperReponse(texte).map((seg, i) =>
+      seg.type === "texte" ? (
+        <span key={i}>{seg.valeur}</span>
+      ) : (
+        <button
+          key={i}
+          type="button"
+          onClick={() => ouvrirFiche(seg.source, seg.id)}
+          className="mx-0.5 inline-flex items-center gap-1 rounded-lg border border-[var(--bordure)] px-2 py-0.5 align-baseline text-xs font-medium"
+          style={{ backgroundColor: "var(--accent-doux)", color: "var(--accent-fonce)" }}
+        >
+          Voir la recette
+        </button>
+      ),
+    );
 
   const envoyer = (texte: string) => {
     const question = texte.trim();
@@ -91,7 +144,7 @@ export function Conversation({ configure }: { configure: boolean }) {
               }
               style={m.role === "user" ? { backgroundColor: "var(--accent)" } : undefined}
             >
-              {m.contenu}
+              {m.role === "assistant" ? rendreReponse(m.contenu) : m.contenu}
             </div>
           </li>
         ))}
@@ -103,6 +156,13 @@ export function Conversation({ configure }: { configure: boolean }) {
       </ul>
 
       {erreur && <p className="rounded-lg erreur p-3 text-sm">{erreur}</p>}
+
+      <FicheRecetteModale
+        fiche={fiche}
+        chargement={ficheChargement}
+        erreur={ficheErreur}
+        onFermer={fermerFiche}
+      />
 
       <div className="sticky bottom-20 space-y-2 sm:bottom-4">
         <textarea
