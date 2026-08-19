@@ -145,6 +145,11 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   ⚠️ **Trois réponses distinctes** : `MCP_TOKEN` absent → **503** (intégration éteinte),
   jeton faux/absent → **401**, méthode ≠ POST → **405**. Les confondre rendrait
   indiscernables « pas configuré » et « quelqu'un frappe à la porte ».
+  ⚠️ **Le client MCP vise `batchchef.hubperso.com`, JAMAIS une URL `*.vercel.app`.** La
+  protection Vercel du projet est en `all_except_custom_domains` (vérifié le 19/08) : toute
+  URL `*.vercel.app` — préversions ET alias de production — répond **302 vers
+  `vercel.com/sso-api`** AVANT que l'app ne tourne. Le client ne voit jamais le JSON-RPC et
+  rien ne lui dit pourquoi. Vaut pour toute future surface appelée par une machine.
   ⚠️ **Le SDK officiel reste en devDependency** (8,7 Mo, 17 deps runtime dont express/hono,
   pour un transport à SESSIONS dont une fonction serverless n'a que faire). Il sert de
   TRIPWIRE de versions dans `tests/mcp.test.ts` : nos constantes recopiées dériveraient

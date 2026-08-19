@@ -244,6 +244,13 @@ claude mcp add --transport http batchchef https://batchchef.hubperso.com/api/mcp
   --header "Authorization: Bearer <le jeton>"
 ```
 
+⚠️ **Le domaine compte : `batchchef.hubperso.com`, JAMAIS une URL `*.vercel.app`.** Le projet
+a la protection Vercel (SSO) activée en mode `all_except_custom_domains` — vérifié le 19/08.
+Les URLs `*.vercel.app` (préversions **et** alias de production) répondent donc **302 vers
+`vercel.com/sso-api`** *avant* que l'app ne tourne : le client MCP ne verrait jamais le
+JSON-RPC, et rien dans la réponse ne lui dirait pourquoi. Seuls les domaines personnalisés
+sont exemptés.
+
 ### 3. Vérifier que ça répond
 
 ```bash

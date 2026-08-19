@@ -8,6 +8,30 @@
 
 ---
 
+## 2026-08-19 — La protection d'hébergement peut rendre un endpoint machine injoignable, et ça ne ressemble pas à une erreur
+
+Le serveur MCP validé, j'ai voulu le sonder sur la préversion Vercel. Réponse : **302 vers
+`vercel.com/sso-api`**. Ce n'était pas mon middleware — c'était la protection Vercel du
+projet, qui s'applique AVANT que l'app ne tourne.
+
+En le vérifiant plutôt qu'en le supposant : `ssoProtection.deploymentType =
+"all_except_custom_domains"`. Autrement dit **toute** URL `*.vercel.app` est protégée, y
+compris l'alias de production `batchchef-glu8-chi.vercel.app` — et seuls les domaines
+personnalisés (`batchchef.hubperso.com`) sont exemptés.
+
+Ce qui rend ça dangereux, c'est la FORME de l'échec. Un client MCP pointé sur la mauvaise
+URL ne reçoit pas « accès refusé » : il reçoit une redirection vers une page de connexion
+HTML. Selon le client, ça donne « réponse invalide », un JSON illisible, ou un silence. Rien
+n'y dit « ton URL est protégée » — et l'app, elle, marche parfaitement dans le navigateur de
+Marc, qui a une session Vercel. Cousin exact du piège n°1 du squelette (l'endpoint hub sous
+le middleware de session : redirection HTML au lieu du JSON), sauf que cette fois la garde
+n'est pas dans le code du tout, donc aucune relecture du dépôt ne peut la trouver.
+
+**Règle** : pour toute surface appelée par une MACHINE, l'URL fait partie du contrat, et la
+protection de l'hébergeur fait partie de la surface. Vérifier le réglage réel (pas la page
+qui s'ouvre dans son navigateur), et écrire l'URL exacte dans la doc avec la raison — sinon
+le premier essai de Marc échoue sur un symptôme qui n'accuse rien.
+
 ## 2026-08-19 — Un endpoint qui COMPILE n'est pas un endpoint qui RÉPOND
 
 Le serveur MCP a passé le gate complet — `typecheck`, `lint`, 291 tests, `build` — et la

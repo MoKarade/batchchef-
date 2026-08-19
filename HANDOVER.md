@@ -104,5 +104,8 @@ surprennent le plus :
 ## Ce qui demande un geste de Marc
 
 - Activer **Web Analytics** dans le tableau de bord Vercel (sinon la dépendance ne mesure rien).
+- Le client MCP doit viser **`https://batchchef.hubperso.com/api/mcp`** — jamais une URL
+  `*.vercel.app` : la protection Vercel du projet est en `all_except_custom_domains`, donc
+  celles-là répondent 302 vers la page de connexion Vercel avant que l'app ne tourne.
 - Poser **`MCP_TOKEN`** dans les variables d'environnement Vercel (une chaîne aléatoire, jamais commitée). Sans elle, `/api/mcp` répond **503 « MCP_TOKEN non configuré »** : l'intégration est éteinte, pas cassée. C'est ce même jeton qu'on donne au client MCP.
 - `GROQ_API_KEY` est posée (transcription audio active).
