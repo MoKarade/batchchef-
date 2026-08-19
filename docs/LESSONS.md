@@ -40,6 +40,45 @@ l'autorisait. Même famille que « Tailwind génère du CSS depuis la prose qui 
 un scan ancré sur un MOT attrape ce qui parle de la chose autant que la chose. Ancrer sur la
 FORME de la valeur (ici guillemet + directive + espace), jamais sur le terme.
 
+## 2026-08-19 — Le premier usage réel montre ce qu'aucune suite de tests ne regardait
+
+Marc a branché le connecteur. J'ai appelé mes propres outils depuis claude.ai, sur sa base de
+production — et la réponse, correcte sur toute la ligne côté mécanique, contenait ceci :
+
+    manque 11 : Champignon De Paris Brun, Cubes De Bouillon De Volaille, Ousses D'Ail,
+    S De Sel, Branches De Thym…
+
+« **Ousses D'Ail** » : un « Gousses » amputé de sa première lettre. « S De Sel », « À Soupe De
+Persil », « Huile végétale pure à ». À l'import du catalogue, la quantité et l'unité ont été
+découpées DANS le nom de l'ingrédient au lieu d'en être extraites, et la coupe a parfois mordu
+un caractère de trop.
+
+Rien n'était rouge. 328 tests verts, le schéma respecté, l'agrégation juste, les prix estimés,
+le MCP conforme. Le défaut n'est ni dans le code que j'ai écrit ni dans celui que j'ai testé :
+il est dans la DONNÉE, entrée il y a des semaines, et il ne se voit que quand un humain lit la
+sortie. Et il a une conséquence réelle que la mécanique ne peut pas signaler : le `canonical`
+sert de clé de regroupement, donc « À Soupe De Persil » et « persil » font deux lignes qui ne
+fusionneront jamais sur une liste d'épicerie.
+
+Ce n'est pas la première fois dans ce dépôt qu'une couche saine sert de la donnée fausse — la
+perte de 58 % des quantités avait la même forme. Le point commun : **un pipeline dont chaque
+étage est correct peut transporter une entrée abîmée jusqu'à l'écran sans qu'aucun étage n'ait
+de raison de s'en plaindre.**
+
+**Règle** : livrer une surface de LECTURE (assistant, MCP, export, rapport) n'est fini que
+lorsqu'on a lu une vraie sortie sur de vraies données, avec l'œil et pas avec un `expect`. Ce
+qu'on cherche là n'est pas un plantage — il se signalerait tout seul — mais du contenu qui a
+l'air d'un contenu. Cousin de la leçon JobAI sur le flux RSS d'Espresso-Jobs : « 200, XML bien
+formé, 20 entrées », et la première entrée s'intitulait « TI : peut-on encore se priver des
+femmes ? ».
+
+**Corollaire** : ce défaut-là est rattrapable, contrairement à celui des unités — le catalogue
+se rebâtit depuis `data/batchchef.seed.db`, qui porte les noms d'origine. C'est la leçon
+« normaliser à l'écriture détruit la source » prise par le bon bout, pour une fois : la source
+existe encore.
+
+---
+
 ## 2026-08-19 — « Ça marche ailleurs » est une information, pas un compliment
 
 Marc a écrit six mots : « me manque l'adresse, regarde ce que DriveAI a fait ça marche ».
