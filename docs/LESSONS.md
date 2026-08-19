@@ -8,6 +8,54 @@
 
 ---
 
+## 2026-08-19 — Un audit ne mesure que l'axe qu'il regarde, et le sien paraît complet
+
+`ING-06` avait conclu « 99,85 % correct » sur 87 443 lignes d'ingrédients. Le chiffre était
+juste — pour ce qu'il mesurait. Il jugeait le **nom** et l'**unité** de chaque ligne, et ne
+touchait à la **quantité** que par l'absurde : un zéro, un compte à quatre chiffres. Autrement
+dit, il repérait une quantité qui n'a plus l'air d'une quantité, jamais une quantité qui a
+l'air juste et ne l'est pas.
+
+Marc a demandé de creuser encore. En cherchant un axe que l'audit n'avait pas, un invariant
+est apparu : dans une recette, le rapport « nombre du texte source / quantité par portion »
+doit valoir le MÊME rendement sur toutes les lignes — c'est le diviseur que la V3 a appliqué
+partout. **2 671 lignes s'en écartaient**, vingt fois le reliquat annoncé la veille.
+
+Ce qu'elles cachaient était sérieux : « 1/2 kg de viande hachée » était enregistré 1 kg. Une
+fraction en tête était lue « 1 » — 2 508 lignes, vérifié dénominateur par dénominateur (2 141
+demis, 186 quarts, 16 trois-quarts). Sur une liste d'épicerie, ça veut dire acheter le double,
+et payer le double, sans qu'aucun écran ne montre quoi que ce soit d'anormal.
+
+**La leçon n'est pas « j'ai raté quelque chose », c'est que le TAUX n'a de sens qu'avec l'axe.**
+« 99,85 % correct » se lit comme un jugement sur la donnée ; ce n'était qu'un jugement sur deux
+de ses trois colonnes. Un audit devrait donc annoncer ce qu'il ne regarde pas aussi
+explicitement que son résultat — sinon le chiffre couvre le silence.
+
+Corollaire de méthode, déjà rencontré avec `ING-03` (« mesurer la complétude avec l'instrument
+qui définit le périmètre ne mesure rien ») : la parade n'est pas de mieux chercher avec le même
+outil, c'est de **trouver un invariant que les règles de correction n'utilisent pas**. Ici le
+rapport au rendement ne sert à aucune des trois règles de réparation ; c'est ce qui lui permet
+de les juger. Il est maintenant dans la suite de tests, sur le corpus entier.
+
+Et trois pièges rencontrés en le construisant, tous des faux positifs de mon propre instrument :
+
+- **Un tiret en tête est une puce de liste, pas un signe.** « -1 gousses d'ail »,
+  « -4600 g de pomme de terre » : le lire comme un moins produisait une quantité négative,
+  donc 43 lignes jugées fautives alors que la V3 avait raison.
+- **Une fourchette n'est pas un nombre.** « 2 à 3 cuillères » : en choisir une borne invente
+  une certitude que la source ne donne pas, et l'écart qui en résulte ne prouve rien.
+- **Deviner une PIÈCE n'est pas deviner une MESURE.** « branche de persil » se lit « une
+  branche » ; mais « clou de girofle », dont la colonne `unit` du seed porte `cl` (le « cl »
+  de « clou » — encore la frontière de mot), aurait donné **10 ml**, et « lamelle de truffe »
+  **un litre**. Le garde ne peut pas être une liste de mots : il doit regarder l'unité
+  d'arrivée. 49 lignes.
+
+Enfin, un cas où l'honnêteté coûte un chiffre : 136 recettes ont été divisées par un nombre
+qui n'est pas un rendement (500, 1 250, 10 000). Leurs rapports internes sont justes, l'échelle
+est perdue, et rien ne dit par quoi multiplier — « 200 g de thon » s'affichait « 0,02 g ». Ces
+820 lignes passent « au goût », avec le texte source en note. On perd un nombre ; on cesse
+d'affirmer un nombre faux à chaque affichage.
+
 ## 2026-08-19 — `form-action` couvre la REDIRECTION, pas seulement la première cible
 
 En vérifiant le connecteur en production, j'ai lu les en-têtes de la réponse plutôt que de
@@ -72,6 +120,48 @@ on ne peut même pas savoir après coup ce qu'une préversion a fait.
 mécanisme visible. Un script silencieux aurait « marché » et je serais parti avec une
 description fausse de ce qui s'était passé — pas un bug, juste une compréhension erronée du
 système, qui aurait servi de base à la décision suivante.
+
+---
+
+## 2026-08-19 — Un audit sérieux commence par auditer l'instrument
+
+Marc a demandé une vérification en profondeur des 87 443 lignes d'ingrédients : « assure-toi
+qu'au moins 98 % est bon ». Premier verdict : **99,63 %**. Verdict final, après avoir corrigé
+l'audit LUI-MÊME trois fois : **99,85 %**, mais en ayant découvert entre-temps 800 lignes de
+défauts que la première mesure ne voyait pas et 250 qu'elle inventait.
+
+Les trois fautes de l'instrument, toutes de la même famille :
+
+1. `\b` en JavaScript ne considère pas `è` comme une lettre. Donc `/\bde\b$/` matche la fin
+   de « Eau Tiède » : 60 noms parfaitement corrects signalés comme tronqués. Et
+   symétriquement `/\bà\b$/` ne matchait JAMAIS « pure à », donc le vrai défaut passait.
+   Un même bug faisait les deux erreurs à la fois, dans les deux sens.
+2. Le critère « nom dégénéré » comptait les premiers mots courts. « Os À Moelle » et
+   « St Morêt » sont corrects ; « Es » ne l'est pas. La brièveté n'était pas le signal — le
+   fait d'être le RESTE d'un mot présent dans la source l'était.
+3. Le critère « volume rendu en masse » cherchait « cuillère » n'importe où dans le texte, et
+   attrapait « 100 g de farine + 1 cuillerée pour le moule », qui est en grammes à juste titre.
+
+Chaque correction faisait bouger le chiffre dans les deux sens — parfois vers le bas, parce
+qu'on voyait enfin ce qu'on ratait. **Un taux qui ne bouge jamais quand on affine la mesure
+est un taux qu'on n'a pas mesuré.**
+
+Et l'audit, une fois juste, a trouvé trois vrais défauts que ni les tests ni les logs
+n'auraient montrés — dont deux dans mes propres correctifs de la veille : une restauration
+qui trouvait l'unité avant l'ingrédient (198 lignes perdues à cause d'UNE ligne mal lue,
+parce que le désaccord annulait les deux), et un nettoyage qui passait par une carte de
+correspondance dont il n'avait aucun besoin, donc bloqué par des conflits sans rapport.
+
+**Règle** : avant de rapporter un taux, chercher les faux positifs ET les faux négatifs de
+son propre critère, sur des exemples qu'on LIT. Un audit se calibre comme un instrument :
+ici, en rejouant l'état de production depuis la source PUIS en le confrontant à la vraie base
+par un autre chemin (le MCP, 11 ingrédients sur 11). Sans cette calibration, j'aurais audité
+un modèle de la production, pas la production.
+
+**Corollaire** : chaque correctif doit être re-mesuré sur le corpus ENTIER, pas sur son cas
+motivant. L'une de mes corrections a fait tomber le taux de 99,62 % à 98,91 % — elle réparait
+198 lignes et en cassait 595, ce que le cas motivant ne pouvait pas montrer. Sans re-mesure
+complète, je l'aurais livrée en croyant l'avoir améliorée.
 
 ---
 

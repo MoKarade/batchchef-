@@ -26,9 +26,20 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **362 tests**, 27 fichiers (19/08/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **393 tests**, 28 fichiers (19/08/2026).
 
-## Ce qui vient d'être livré (17/08/2026)
+## Ce qui vient d'être livré (19/08/2026, soir)
+
+- **`ING-08` — les quantités reconstruites depuis le texte source.** 13 448 lignes
+  corrigées. Le défaut le plus coûteux : une fraction en tête était lue « 1 », donc
+  « 1/2 kg de viande hachée » faisait acheter **1 kg**. Vérifié par un test de corpus sur
+  les 87 444 lignes, 3 000 batchs simulés, et la preuve par l'usage sur le batch #13
+  (20 articles sur 20 conformes à leur source). Reste 26 lignes irréductibles, nommées une
+  par une dans `BACKLOG.md` (`ING-09`).
+- ⚠️ **Le taux de 99,85 % annoncé par `ING-06` ne portait que sur le nom et l'unité.** La
+  colonne quantité n'était jugée que par l'absurde. À relire avant de citer ce chiffre.
+
+## Ce qui a été livré avant (17/08/2026)
 
 - **`BOT-01` — l'assistant.** Onglet `/assistant` : Claude fouille les recettes et le
   catalogue par outils, en plusieurs allers-retours. Il cite le numéro de ce qu'il a lu et
@@ -114,6 +125,29 @@ fois c'est la QUANTITÉ qui est fausse, donc ce que Marc ACHÈTE. Mesuré : `gou
   ingrédient se contredisent — « 200 g de gingembre » ne doit jamais devenir 200 unités.
 - ⚠️ **ING-03 était INCOMPLÈTE**, découvert en mesurant celle-ci : ma détection ne connaissait
   que trois motifs. La restauration depuis la source en corrige **677**, sans énumérer.
+
+### Audit exhaustif des ingrédients (19/08, `ING-06`)
+
+Marc a demandé une vérification en profondeur (« au moins 98 % »). Méthode : rejeu complet
+de l'état de production depuis le seed, **calibré** contre la vraie base via le MCP (11/11
+sur deux recettes), puis jugé contre le TEXTE SOURCE.
+
+**99,85 % correct** — 134 lignes en défaut sur 87 443, après trois correctifs que l'audit a
+lui-même révélés :
+
+1. **La restauration cherchait le mot d'origine dans le texte ENTIER**, donc trouvait
+   l'unité avant l'ingrédient (« Es » ← « 1/2 tasses de fraises » → « Tasses »). Cette
+   fausse restauration entrait en conflit avec la bonne et **annulait les deux** : 198
+   lignes abîmées à cause d'une seule mal lue. Corrigé en cherchant d'abord dans la partie
+   ingrédient, avec repli sur le texte entier — car le mot amputé EST parfois l'unité.
+2. **Le nettoyage d'une préposition finale passait par la carte de correction**, donc était
+   bloqué par les conflits — et « huile » en est une, soit 163 des 222 lignes. Une
+   correction qui n'a besoin d'AUCUNE source ne doit pas dépendre d'un accord entre sources.
+3. **Mon propre audit avait trois faux positifs**, tous dus à `\b` en JavaScript, qui ne
+   traite pas `è`/`é` comme des lettres : « Eau Tiède » était signalée comme finissant par
+   « de ». Il a fallu corriger l'instrument avant de croire la mesure.
+
+Le reliquat (`ING-07`) est documenté au backlog, classe par classe.
 
 ## Prochaine chose prévue
 

@@ -108,7 +108,7 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   `cuillères à soupe`, `pincée` retiré au singulier. D'où « Ousses D'Ail », « À Soupe De
   Persil », « S De Sel » — 2 371 entrées sur 15 389, mesurées. ⚠️ Le défaut n'était PAS
   cosmétique : `canonical` est la clé de regroupement, donc deux clés = deux lignes sur la
-  liste. La passe (`npm run db:reparer-noms`, dans `vercel-build`) couvre les **trois** tables
+  liste. La passe (`npm run db:reparer-ingredients`, dans `vercel-build`) couvre les **trois** tables
   où le nom atterrit — catalogue, bibliothèque, listes existantes — et l'import du catalogue
   répare aussi, sinon une ré-importation ré-introduirait le défaut. Verrouillé par
   `tests/deploiement.test.ts`.
@@ -122,6 +122,23 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   parce qu'elle **comptait avec son propre détecteur**. Le corpus en portait 677 de plus,
   sous des formes que mes trois motifs ne connaissaient pas. Mesurer la complétude avec
   l'instrument qui définit le périmètre ne mesure rien.
+- **Les QUANTITÉS se reconstruisent depuis le texte source** (`ING-08`,
+  `lib/quantitesSource.ts`, PUR et testé). L'invariant : dans une recette, le rapport
+  « nombre du texte / quantité par portion » vaut le même **rendement** partout — c'est le
+  diviseur que la V3 a appliqué, et il se retrouve par vote majoritaire. Trois dégâts
+  corrigés, 13 448 lignes : une **fraction en tête lue « 1 »** (« 1/2 kg de viande hachée »
+  facturé 1 kg — Marc achetait le double), **aucun nombre dans la source** mais une quantité
+  quand même (« huile » → « 1 »), et un **rendement irrécupérable** (136 recettes divisées
+  par 500, 1 250, 10 000 — « 200 g de thon » affiché « 0,02 g »).
+  ⚠️ **On ne corrige QUE ce qu'on sait expliquer** : quatre lignes restent en écart sans
+  explication et ne sont pas touchées. Une correction au jugé sur ce qui décide de ce que
+  Marc achète serait pire que le défaut.
+  ⚠️ **Deviner une PIÈCE n'est pas deviner une MESURE.** « branche de persil » se lit « une
+  branche » ; mais la liste de mots ne suffit pas — « clou de girofle » porte `unit='cl'`
+  (le « cl » de « clou ») et aurait donné 10 ml, « lamelle de truffe » un litre. Le garde
+  regarde l'unité d'ARRIVÉE, pas le mot.
+  ⚠️ Le taux d'un audit ne vaut que par l'AXE qu'il nomme : `ING-06` annonçait 99,85 % en
+  ne jugeant que le nom et l'unité. La troisième colonne portait 2 671 lignes fausses.
 - **Sel, poivre et eau ne vont jamais sur une liste d'épicerie** (`lib/ingredientsDeFond.ts`).
   AUTOMATIQUE et sans rien à tenir à jour — c'est l'inverse du garde-manger déclaratif, livré
   puis retiré le 17/08 : Marc a refusé de tenir une liste, pas de ne plus acheter de sel.
@@ -282,7 +299,7 @@ branche abandonnée qui a divergé. Repartir de `master`.
 
 ## ⚠️ Une PRÉVERSION écrit dans la base de PRODUCTION
 
-Il n'y a qu'une base Neon, et `vercel-build` fait `db:migrate` (puis `db:reparer-noms`)
+Il n'y a qu'une base Neon, et `vercel-build` fait `db:migrate` (puis `db:reparer-ingredients`)
 **avant** `next build`. Or Vercel construit aussi chaque préversion. Donc **toute migration
 et tout script de données d'une branche s'appliquent à la production dès le premier build de
 la PR — avant tout merge, avant toute revue.**
