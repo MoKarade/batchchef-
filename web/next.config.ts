@@ -35,8 +35,17 @@ const CSP = [
   "manifest-src 'self'",
   "frame-ancestors 'none'",
   "base-uri 'self'",
-  // Le flux OAuth Google poste vers accounts.google.com depuis le formulaire de connexion.
-  "form-action 'self' https://accounts.google.com",
+  // Deux flux partent d'un formulaire de cette app :
+  //   - la connexion Google, qui poste vers accounts.google.com ;
+  //   - la page de consentement du connecteur MCP (`/api/mcp/oauth/authorize`), qui poste
+  //     vers elle-même PUIS REDIRIGE vers Claude avec le code d'autorisation.
+  // ⚠️ `form-action` couvre la CHAÎNE DE REDIRECTION qui suit une soumission, pas seulement
+  // la première cible : sans claude.ai/claude.com ici, le passage de la CSP en enforcé
+  // couperait le branchement du connecteur À LA DERNIÈRE ÉTAPE — le navigateur bloquerait
+  // silencieusement le retour vers Claude, et ça ressemblerait à « le connecteur ne marche
+  // pas ». Posé aujourd'hui, où la CSP n'observe encore que, pour que le jour du passage en
+  // enforcé ne révèle pas ce trou-là.
+  "form-action 'self' https://accounts.google.com https://claude.ai https://claude.com",
   "object-src 'none'",
 ].join("; ");
 
