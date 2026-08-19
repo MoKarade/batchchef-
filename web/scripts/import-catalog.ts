@@ -15,6 +15,7 @@ import initSqlJs from "sql.js";
 import { db, schema } from "../lib/db";
 import { normalizeQty } from "../lib/units";
 import { reparerCanonique, reparerNom } from "../lib/ingredientsNoms";
+import { quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
 
 const require = createRequire(import.meta.url);
 const SEED = path.resolve(process.cwd(), "data", "batchchef.seed.db");
@@ -96,8 +97,20 @@ async function main() {
     const newId = url ? urlToNewId.get(url) : undefined;
     if (!newId) continue;
     const servings = Number(r.servings) > 0 ? Number(r.servings) : 1;
-    for (const ing of ingByRecipe.get(Number(r.id)) ?? []) {
-      const norm = normalizeQty(numOrNull(ing.qty), ing.unit as string | null, String(ing.raw_text ?? ""), String(ing.name ?? ""));
+    const lignes = ingByRecipe.get(Number(r.id)) ?? [];
+    // ⚠️ Le rendement se calcule sur la RECETTE ENTIÈRE, avant toute ligne : c'est le
+    // rapport « nombre du texte / quantité par portion » que la V3 a appliqué partout.
+    // Sans lui, aucune quantité abîmée n'est réparable (cf. lib/quantitesSource.ts).
+    const rendement = rendementRecette(
+      lignes.map((l) => ({ raw: String(l.raw_text ?? ""), qpp: numOrNull(l.qty) })),
+    );
+    for (const ing of lignes) {
+      const verdict = quantiteCorrigee(
+        { raw: String(ing.raw_text ?? ""), qpp: numOrNull(ing.qty) },
+        rendement,
+      );
+      const qtySource = verdict.corriger ? verdict.qpp : numOrNull(ing.qty);
+      const norm = normalizeQty(qtySource, ing.unit as string | null, String(ing.raw_text ?? ""), String(ing.name ?? ""));
       const total = norm.qty === null ? null : Math.round(norm.qty * servings * 100) / 100;
       ingValues.push({
         catalogRecipeId: newId,
