@@ -11,24 +11,14 @@
 - [x] ~~**`MCP-02` — poser `MCP_TOKEN` dans Vercel.**~~ **Fait le 19/08.** Marc a branché le
   connecteur claude.ai ; les outils rendent ses vraies données depuis la base de production.
 
-- [ ] **`ING-03` — les noms d'ingrédients du catalogue portent des morceaux de quantité.**
-  Vu au PREMIER usage réel du MCP, dans la sortie que Marc lit lui-même :
-  « À Soupe De Persil », « À Café D'Huile De Sésame », « S De Sel », « Huile végétale pure à »,
-  et surtout « **Ousses D'Ail** » — un « Gousses » amputé de sa première lettre. Le motif est
-  clair : à l'import du catalogue (10 188 recettes), l'unité et la quantité ont été découpées
-  DANS le nom au lieu d'en être extraites, et la coupe a parfois mordu un caractère de trop.
-  Conséquence concrète : la liste d'épicerie affiche « À Soupe De Persil » au lieu de
-  « persil », donc deux recettes qui demandent du persil ne fusionnent pas — c'est le
-  `canonical` qui sert de clé de regroupement. À cadrer avant de coder : mesurer l'ampleur sur
-  les 10 188 recettes (combien de noms touchés, quels motifs) plutôt que d'extrapoler depuis
-  la dizaine vue ici, et se rappeler que le catalogue est REBÂTISSABLE depuis
-  `data/batchchef.seed.db` — donc le correctif peut être rétroactif, contrairement aux unités.
-- [x] ~~**`MCP-03` — le connecteur claude.ai attend peut-être OAuth 2.1.**~~ **Confirmé et
-  livré le 19/08** (ADR-0002). Ce n'était pas un « peut-être » : l'interface ne prend qu'une
-  URL, sans champ pour un en-tête. Constaté en lisant la configuration MCP réelle de la
-  session (FinanceAI branché sur une URL nue) puis son code, dont l'en-tête le disait déjà
-  depuis le 13/07. OAuth 2.1 mono-utilisateur implémenté ; le jeton direct reste accepté
-  pour Claude Code.
+- [x] ~~**`ING-03` — les noms d'ingrédients du catalogue portent des morceaux de quantité.**~~
+  **Livré le 19/08.** Mesuré sur le corpus entier avant de coder : **2 371 entrées abîmées
+  sur 15 389**, trois formes (« À Soupe De … », « Ousses … », « S De … »), toutes issues de
+  la même faute de l'app V3 — une extraction d'unité sans frontière de mot (`g` reconnu DANS
+  « gousses », `cuillères` retiré alors que l'unité est `cuillères à soupe`, `pincée` retiré
+  au singulier). Réparation par retrait de préfixe, appliquée au catalogue, à la bibliothèque
+  ET aux listes d'épicerie existantes, en automatique au déploiement. **965 réparations
+  rejoignent un ingrédient déjà présent** : autant de lignes qui cessent de se dédoubler.
 
 ## Livré (19/08)
 

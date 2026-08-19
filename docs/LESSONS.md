@@ -40,6 +40,35 @@ l'autorisait. Même famille que « Tailwind génère du CSS depuis la prose qui 
 un scan ancré sur un MOT attrape ce qui parle de la chose autant que la chose. Ancrer sur la
 FORME de la valeur (ici guillemet + directive + espace), jamais sur le terme.
 
+## 2026-08-19 — Un test de présence par sous-chaîne est satisfait par la ligne d'import
+
+En livrant la réparation des noms d'ingrédients, j'ai posé un verrou : l'import du catalogue
+doit lui aussi réparer, sinon une ré-importation ré-introduirait le défaut qu'on vient de
+corriger. Le test :
+
+```ts
+expect(src).toContain("reparerNom");
+```
+
+Puis j'ai fait la passe de mutation : j'ai retiré l'APPEL dans le script d'import. **Le test
+est resté vert.** La ligne `import { reparerNom } from …` contenait le mot, et ça suffisait.
+
+Le verrou ne vérifiait donc pas ce qu'il prétendait : il attestait qu'on avait *importé* la
+fonction, pas qu'on l'*appelait*. Il serait resté vert le jour où quelqu'un aurait simplifié
+l'appel en laissant l'import — c'est-à-dire exactement le scénario contre lequel il existait.
+
+**Règle** : un test qui cherche un identifiant par sous-chaîne dans un source doit chercher
+la FORME D'APPEL (`/nom\s*\(/`), et écarter les lignes d'`import` avant de chercher. Plus
+largement : quand un test porte sur du texte plutôt que sur un comportement, se demander
+« quelle autre ligne du fichier pourrait le satisfaire ? ».
+
+Ce n'est pas une leçon nouvelle — c'est « prouver qu'un test DISCRIMINE » appliquée à un cas
+où l'intuition dit que c'est évident. Les trois autres mutations du même lot ont été
+attrapées ; c'est celle dont j'étais le plus sûr qui ne l'a pas été. La passe de mutation ne
+sert à rien si on la réserve aux tests dont on doute.
+
+---
+
 ## 2026-08-19 — Le premier usage réel montre ce qu'aucune suite de tests ne regardait
 
 Marc a branché le connecteur. J'ai appelé mes propres outils depuis claude.ai, sur sa base de

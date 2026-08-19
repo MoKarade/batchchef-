@@ -26,7 +26,7 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **328 tests**, 25 fichiers (19/08/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **345 tests**, 26 fichiers (19/08/2026).
 
 ## Ce qui vient d'être livré (17/08/2026)
 
@@ -79,11 +79,28 @@ l'avait résolu par un OAuth 2.1 mono-utilisateur — c'est ce qui est repris ic
   `claude.ai`. Sans effet aujourd'hui (Report-Only), mais le passage en enforcé aurait coupé
   le branchement à la dernière étape, silencieusement. Corrigé et verrouillé.
 
+### Troisième lot du 19/08 — les noms d'ingrédients (ING-03)
+
+Trouvé au premier usage réel du MCP, pas par un test. Le catalogue affichait « À Soupe De
+Persil », « Ousses D'Ail », « S De Sel » : l'app V3 retirait l'unité du texte source sans
+frontière de mot. Ce n'était pas cosmétique — `canonical` est la clé de regroupement de la
+liste d'épicerie, donc « à_soupe_de_persil » et « persil » faisaient deux lignes.
+
+- **Mesuré avant de coder** : 2 371 abîmées sur 15 389, et la fonction réelle rejouée sur le
+  corpus entier (0 vide, 0 restante, 0 clé oubliée). **965 fusions** gagnées.
+- Réparation par retrait de PRÉFIXE plutôt que reconstruction depuis le texte source : les
+  deux marchent, mais celle-ci ne dépend d'aucun fichier, donc elle tourne **au déploiement**
+  (`vercel-build`) — aucune commande pour Marc. Idempotente, sort en une requête quand il n'y
+  a plus rien.
+- **Trois tables**, pas une : catalogue (la source), bibliothèque (copiée depuis le
+  catalogue), listes d'épicerie (copiées à la création du batch).
+- ⚠️ Ce qui n'est PAS fait : fusionner deux lignes d'une liste DÉJÀ créée. Les noms y
+  deviennent lisibles et la fusion jouera aux prochains batchs ; réécrire des quantités sur
+  une liste contre laquelle Marc a peut-être déjà fait ses courses serait une autre décision.
+
 ## Prochaine chose prévue
 
-Rien d'engagé côté MCP : il est branché et en service. Un défaut de DONNÉES est apparu au
-premier usage réel — voir `ING-03` au backlog (les noms d'ingrédients du catalogue portent des
-morceaux de quantité : « À Soupe De Persil », « Ousses D'Ail », « S De Sel »).
+Rien d'engagé. Le MCP est branché et en service, et `ING-03` est livré.
 
 ⚠️ **L'assistant n'a jamais été essayé contre la vraie API** : cette session n'a pas de
 réseau vers Anthropic. Le protocole, les bornes et le classement sont testés ; la boucle

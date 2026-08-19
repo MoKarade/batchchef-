@@ -102,6 +102,16 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   CALIBRE (`large`, `gros`) est un adjectif de taille, pas une unité — la quantité reste le
   compte. Ce qui n'a vraiment pas de taille fixe (`pincée`, `botte`, `can`) reste `null` :
   la frontière ne bouge pas, on n'invente toujours aucun poids.
+- **Le `canonical` hérité du catalogue V3 est réparé au déploiement** (`ING-03`,
+  `lib/ingredientsNoms.ts`, PUR et testé). L'app V3 retirait l'unité du texte source **sans
+  frontière de mot** : `g` reconnu DANS « gousses », `cuillères` retiré alors que l'unité est
+  `cuillères à soupe`, `pincée` retiré au singulier. D'où « Ousses D'Ail », « À Soupe De
+  Persil », « S De Sel » — 2 371 entrées sur 15 389, mesurées. ⚠️ Le défaut n'était PAS
+  cosmétique : `canonical` est la clé de regroupement, donc deux clés = deux lignes sur la
+  liste. La passe (`npm run db:reparer-noms`, dans `vercel-build`) couvre les **trois** tables
+  où le nom atterrit — catalogue, bibliothèque, listes existantes — et l'import du catalogue
+  répare aussi, sinon une ré-importation ré-introduirait le défaut. Verrouillé par
+  `tests/deploiement.test.ts`.
 - **Sel, poivre et eau ne vont jamais sur une liste d'épicerie** (`lib/ingredientsDeFond.ts`).
   AUTOMATIQUE et sans rien à tenir à jour — c'est l'inverse du garde-manger déclaratif, livré
   puis retiré le 17/08 : Marc a refusé de tenir une liste, pas de ne plus acheter de sel.
