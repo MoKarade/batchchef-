@@ -17,6 +17,7 @@ import {
   type Message,
   type RecetteTrouvee,
 } from "../lib/assistant/protocole";
+import { MAX_CARACTERES_RESULTAT, bornerResultat, idRecette } from "../lib/assistant/outils";
 
 const u = (n: number): Message => ({ role: "user", contenu: `q${n}` });
 const a = (n: number): Message => ({ role: "assistant", contenu: `r${n}` });
@@ -185,5 +186,47 @@ describe("referencesDe", () => {
       { source: "catalogue", id: 5 },
       { source: "mes-recettes", id: 1 },
     ]);
+  });
+});
+
+// ── Ce que les outils acceptent, et ce qu'ils refusent ────────────────────────────
+//
+// Ces deux fonctions portent des défauts trouvés en RELISANT la boucle (19/08), pas en
+// l'exécutant : elle n'a jamais tourné contre la vraie API. Les verrouiller vaut mieux que
+// de compter sur une relecture future.
+
+
+describe("idRecette", () => {
+  it("accepte un entier positif, quel que soit son emballage", () => {
+    expect(idRecette(482)).toBe(482);
+    expect(idRecette("482")).toBe(482);
+  });
+
+  it("REFUSE plutôt que de rabattre sur une valeur par défaut", () => {
+    // La première version bornait à [1, +∞[ : un id absent, nul, négatif ou mal typé
+    // devenait la recette n°1. L'assistant lisait et citait alors une recette sans aucun
+    // rapport, avec assurance — pire qu'une erreur, parce que ça a l'air juste.
+    for (const mauvais of [undefined, null, 0, -3, 1.5, "abc", "", {}, []]) {
+      expect(idRecette(mauvais), JSON.stringify(mauvais)).toBeNull();
+    }
+  });
+});
+
+describe("bornerResultat", () => {
+  it("laisse passer un résultat de taille normale", () => {
+    expect(bornerResultat("court")).toBe("court");
+  });
+
+  it("tronque un résultat démesuré EN LE DISANT", () => {
+    // Sans la mention, le modèle croirait avoir lu la recette en entier et pourrait citer
+    // une étape qui n'existe pas.
+    const sortie = bornerResultat("x".repeat(MAX_CARACTERES_RESULTAT + 500));
+    expect(sortie.length).toBeLessThan(MAX_CARACTERES_RESULTAT + 200);
+    expect(sortie).toContain("tronqué");
+  });
+
+  it("ne touche pas au texte exactement à la limite", () => {
+    const pile = "x".repeat(MAX_CARACTERES_RESULTAT);
+    expect(bornerResultat(pile)).toBe(pile);
   });
 });

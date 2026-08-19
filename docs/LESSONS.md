@@ -8,6 +8,35 @@
 
 ---
 
+## 2026-08-19 — Un « borner » qui rabat sur une valeur par défaut fabrique une réponse fausse
+
+En relisant la boucle de l'assistant — jamais exécutée, la session qui l'a écrite n'ayant pas
+de réseau vers l'API — j'ai trouvé ceci :
+
+```ts
+const id = borne(args.id, 0, Number.MAX_SAFE_INTEGER);   // Math.min(Math.max(v, 1), max)
+```
+
+Un id absent, nul, négatif ou envoyé en chaîne devenait **1**. L'assistant lisait donc la
+recette n°1 et la citait à Marc comme la réponse à sa question, avec numéro et ingrédients à
+l'appui. Aucune erreur nulle part.
+
+Le mot « borner » est le piège : borner une DIMENSION (une limite de résultats, une durée) est
+sain — on veut une valeur dans un intervalle. Borner un IDENTIFIANT n'a aucun sens : un id
+hors domaine n'est pas « trop petit », il est **absent**. Rabattre revient à répondre à une
+autre question que celle posée.
+
+**Règle** : un identifiant se valide et se REFUSE, il ne se borne jamais. Plus largement,
+avant d'écrire un `clamp`, se demander si la valeur vit sur un CONTINUUM (borner) ou désigne
+une ENTITÉ (refuser). Et se méfier d'un helper générique réutilisé pour les deux.
+
+Corollaire du même passage : la sortie d'un outil aussi est une entrée qui croît (la
+préparation d'une recette fait des kilo-octets, × 8 allers-retours). Elle est maintenant
+bornée, et la troncature est DITE — sinon le modèle croirait avoir tout lu et pourrait citer
+une étape qui n'existe pas.
+
+---
+
 ## 2026-08-19 — Normaliser à l'écriture DÉTRUIT la source, donc rend le correctif suivant impossible
 
 Le pipeline convertissait les unités au moment de l'import et ne gardait que le résultat
