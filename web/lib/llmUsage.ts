@@ -56,8 +56,12 @@ interface AnthropicUsage {
   output_tokens?: number;
 }
 
-/** D'où vient l'appel — « video » = lecture d'images extraites d'une vidéo. */
-export type LlmAction = "parse" | "verify" | "estimate" | "video";
+/**
+ * D'où vient l'appel — « video » = lecture d'images extraites d'une vidéo, « assistant » =
+ * un tour de la boucle du chatbot. Une question de l'assistant en produit PLUSIEURS : c'est
+ * le prix de le laisser fouiller la base lui-même, et c'est pour ça qu'on les compte.
+ */
+export type LlmAction = "parse" | "verify" | "estimate" | "video" | "assistant";
 
 /** Enregistre un appel LLM. Best-effort : avale ses propres erreurs (jamais bloquant). */
 export async function recordLlmUsage(

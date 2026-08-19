@@ -8,16 +8,7 @@
 
 ## En cours / décidé, pas encore livré
 
-Demandes de Marc du 17/08 (soir), dans l'ordre où il les a posées.
-
-- [ ] **`BOT-01` — Chatbot Claude sur la base.** Trois usages demandés : quelles recettes
-  avec les ingrédients que j'ai (même incomplets), trouver des équivalents d'ingrédients,
-  créer une recette en s'appuyant sur toute la base.
-  **Décision Marc : Claude interroge la base LUI-MÊME par outils** (plusieurs allers-retours),
-  pas un pré-filtre SQL suivi d'un seul appel. Il peut donc creuser au lieu d'être limité par
-  un filtre écrit d'avance.
-  ⚠️ 10 188 recettes : aucun modèle ne les reçoit d'un coup. Et le coût par question est
-  supérieur à un appel unique — à mesurer et à publier dans `llm_usage` comme le reste.
+Rien. Les trois demandes du 17/08 sont livrées.
 
 ## Écarté volontairement
 
@@ -54,6 +45,11 @@ Rien n'est engagé ici — à proposer à Marc avant de coder.
 
 ## Fait
 
+- [x] **`BOT-01` — Assistant Claude sur la base.** Onglet `/assistant`. Claude fouille via
+  trois outils (recherche par ingrédients avec couverts/manquants calculés en SQL, lecture
+  d'une recette, fréquence des ingrédients). Bornes : 8 allers-retours max — la borne
+  atteinte est DITE —, historique tronqué sur frontière paire, coût compté par tour.
+  19/08/2026.
 - [x] **`ING-01` — Sel, poivre et eau hors de la liste d'épicerie.** Automatique, liste
   fermée dans le code, appariement mot à mot (« poivron » survit), écart DIT à l'écran.
   19/08/2026.

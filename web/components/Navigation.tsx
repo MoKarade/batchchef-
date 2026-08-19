@@ -22,6 +22,7 @@ export const ONGLETS: readonly Onglet[] = [
   { href: "/", label: "Accueil" },
   { href: "/recettes", label: "Recettes" },
   { href: "/batchs", label: "Batchs" },
+  { href: "/assistant", label: "Assistant" },
   { href: "/catalogue", label: "Catalogue" },
 ] as const;
 
@@ -70,6 +71,13 @@ function Icone({ href, actif }: { href: string; actif: boolean }) {
         <svg {...commun}>
           <rect x="3" y="13" width="18" height="7" rx="1.5" />
           <rect x="5.5" y="6" width="13" height="6" rx="1.5" />
+        </svg>
+      );
+    case "/assistant": // bulle de conversation
+      return (
+        <svg {...commun}>
+          <path d="M20 12a7.5 7.5 0 0 1-7.5 7.5H8l-4 2.5V12a7.5 7.5 0 0 1 7.5-7.5h1A7.5 7.5 0 0 1 20 12Z" />
+          <path d="M9 11.5h6M9 14.5h3.5" />
         </svg>
       );
     default: // loupe (catalogue)

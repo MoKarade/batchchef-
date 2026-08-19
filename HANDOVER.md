@@ -19,15 +19,19 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Catalogue | 10 188 recettes, cherchable, paginé |
 | Batchs + liste d'épicerie | En service, prix estimés (couverture 100 %) |
 | Export Google Tasks | En service |
+| **Assistant** | **Neuf (19/08)** — `/assistant`, Claude fouille la base par outils. ⚠️ Éteint si `ANTHROPIC_API_KEY` absente (dit à l'écran, pas une panne) |
 | Widget hub | `GET /api/hub/summary`, contrat `@mokarade/hub-contract` |
 | Accès | Google mono-adresse + interrogation du hub (`lib/accesHub.ts`) |
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **238 tests**, 22 fichiers (19/08/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **253 tests**, 23 fichiers (19/08/2026).
 
 ## Ce qui vient d'être livré (17/08/2026)
 
+- **`BOT-01` — l'assistant.** Onglet `/assistant` : Claude fouille les recettes et le
+  catalogue par outils, en plusieurs allers-retours. Il cite le numéro de ce qu'il a lu et
+  dit explicitement quand il compose.
 - **`ING-02` — les quantités.** Perte mesurée de **58 % → 28 %** sur 50 unités réelles. La
   cause n'était pas la couche soupçonnée : la table d'unités connaissait mieux l'anglais que
   le français (`cloves` OK / `gousses` perdu). Dérive d'arrondi corrigée au passage (399,9 g
@@ -45,10 +49,11 @@ Gate : `typecheck` · `lint` · `test` · `build`. **238 tests**, 22 fichiers (1
 
 ## Prochaine chose prévue
 
-**`BOT-01` — le chatbot Claude sur la base**, seule demande de Marc encore ouverte.
-Trois usages : recettes selon les ingrédients disponibles (même incomplets), équivalents
-d'ingrédients, création de recette appuyée sur toute la base. Décision de Marc : **Claude
-interroge la base LUI-MÊME par outils**, pas un pré-filtre SQL suivi d'un seul appel.
+Rien d'engagé — les trois demandes du 17/08 sont livrées.
+
+⚠️ **L'assistant n'a jamais été essayé contre la vraie API** : cette session n'a pas de
+réseau vers Anthropic. Le protocole, les bornes et le classement sont testés ; la boucle
+elle-même ne l'est qu'à la lecture. Premier vrai usage = premier vrai test.
 
 ## Pièges à connaître avant de toucher au code
 

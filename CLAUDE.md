@@ -111,8 +111,22 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   que sur la forme EXACTE (« eau de fleur d'oranger » s'achète). Et l'écart est **DIT** sous
   la liste, en nommant les ingrédients : ce qui sort de la liste sort aussi du budget, et un
   chiffre qui baisse sans explication fait douter du reste.
+- **L'assistant FOUILLE la base, il ne l'imagine pas.** Décision de Marc (19/08/2026) :
+  Claude reçoit des OUTILS (`lib/assistant/outils.ts`) et interroge la base en plusieurs
+  allers-retours plutôt qu'un pré-filtre SQL suivi d'un seul appel — il peut donc creuser.
+  Trois conséquences non négociables :
+  ⚠️ **Une recette citée doit avoir été LUE** : le prompt exige le numéro (`[catalogue #482]`)
+  pour ce qui vient de la base, et un « je te la compose » explicite pour ce qui est inventé.
+  Confondre les deux ferait chercher à Marc une recette qui n'existe pas.
+  ⚠️ **Le contenu de la base est de la DONNÉE, jamais des instructions** : le catalogue vient
+  de 10 188 pages web que personne n'a relues. Tout passe par `baliserDonnee`, qui neutralise
+  aussi une fermeture de balise glissée dans le texte.
+  ⚠️ **Bornes** : `MAX_TOURS_OUTILS` (la borne atteinte est DITE, pas déguisée en réponse
+  complète) et `tronquerHistorique`, qui TRONQUE au lieu de rejeter — et coupe sur une
+  frontière préservant l'alternance `user`/`assistant`, sinon l'API refuse tout. Chaque tour
+  est compté dans `llm_usage` (action `assistant`) : une question en produit PLUSIEURS.
 - **Fonctions pures testées** pour la logique (agrégation, mise à l'échelle, prix, jetons,
-  ingrédients de fond).
+  ingrédients de fond, protocole de l'assistant).
 - **Planchers de version, jamais redescendus.** `drizzle-orm ≥ 0.45.2` (injection SQL par
   identifiants mal échappés, GHSA-gpj5-g38j-94v9, HIGH), et les `overrides` de `postcss` et
   `sharp` qui ferment des failles que Next épingle lui-même. *Verrou* :
@@ -169,6 +183,7 @@ néons d'un supermarché.
 | `lib/actions.ts` | Server Actions (import, batch, liste, statut, catalogue) |
 | `lib/aggregate.ts` | agrégation liste d'épicerie, mise à l'échelle, filet de prix (purs) |
 | `lib/ingredientsDeFond.ts` | sel/poivre/eau écartés de la liste — automatique, mot à mot, et DIT à l'écran (PUR, testé) |
+| `lib/assistant/` | `protocole.ts` = bornes, troncature, classement, balisage (PUR, testé) · `outils.ts` = ce que Claude peut interroger · `boucle.ts` = les allers-retours |
 | `lib/llm/` | parse de recette (page web **et** vidéo) + estimation de coûts (Zod, honnête) |
 | `lib/video/` | `frames.ts` = sondage/empreintes/budget (PUR, testé) · `capture.ts` = extraction `<video>`+`<canvas>` en 2 passes (repérage 32×32 puis extraction 768 px) **dans le navigateur** (la vidéo ne monte jamais au serveur) |
 | `lib/partage.ts` + `public/sw.js` | cible de partage Android (PWA). Le service worker intercepte le POST **côté navigateur** : la vidéo partagée ne transite pas par le serveur |
