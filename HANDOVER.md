@@ -21,11 +21,12 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Export Google Tasks | En service |
 | **Assistant** | **Neuf (19/08)** — `/assistant`, Claude fouille la base par outils ; les recettes citées deviennent des cartes cliquables qui s'ouvrent PAR-DESSUS le chat. ⚠️ Éteint si `ANTHROPIC_API_KEY` absente (dit à l'écran, pas une panne) |
 | Widget hub | `GET /api/hub/summary`, contrat `@mokarade/hub-contract` |
+| **Serveur MCP** | **Neuf (19/08)** — `POST /api/mcp`, 7 outils (4 lecture, 3 écriture). ⚠️ **503 tant que `MCP_TOKEN` n'est pas posé dans Vercel** — geste de Marc |
 | Accès | Google mono-adresse + interrogation du hub (`lib/accesHub.ts`) |
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **270 tests**, 23 fichiers (19/08/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **291 tests**, 24 fichiers (19/08/2026).
 
 ## Ce qui vient d'être livré (17/08/2026)
 
@@ -47,13 +48,31 @@ Gate : `typecheck` · `lint` · `test` · `build`. **270 tests**, 23 fichiers (1
   blanc signalée par Marc le 14/08.
 - **Web Analytics** (PR #44), remise sur `master` après dix commits de dérive.
 
+## Ce qui vient d'être livré (19/08/2026, soir)
+
+- **`MCP-01` — serveur MCP distant.** `POST /api/mcp` : Claude Code ou l'app Claude peuvent
+  fouiller les recettes, lire une liste d'épicerie, **et écrire** (créer un batch, copier une
+  recette du catalogue, cocher un article). Décisions de Marc : distant sur Vercel, lecture
+  **et** écriture dès le départ. Détail et alternatives rejetées : `docs/adr/0001`.
+- Le JSON-RPC est écrit à la main ; le SDK officiel reste en **devDependency** et sert de
+  tripwire de versions (`tests/mcp.test.ts`). `npm audit --omit=dev` reste à **0**.
+- Les écritures passent par les fonctions de travail de l'app (`creerBatchInterne`…), pas par
+  du SQL réécrit : un batch créé par Claude subit les mêmes garde-fous qu'un batch créé au
+  doigt.
+
 ## Prochaine chose prévue
 
-Rien d'engagé — les trois demandes du 17/08 sont livrées.
+Rien d'engagé. Deux items ouverts au backlog, tous deux hors code : poser `MCP_TOKEN`
+(`MCP-02`) et constater si le connecteur claude.ai exige OAuth (`MCP-03`).
 
 ⚠️ **L'assistant n'a jamais été essayé contre la vraie API** : cette session n'a pas de
 réseau vers Anthropic. Le protocole, les bornes et le classement sont testés ; la boucle
 elle-même ne l'est qu'à la lecture. Premier vrai usage = premier vrai test.
+
+Le **serveur MCP**, lui, a été sondé contre un serveur réellement démarré (onze points :
+négociation de version, notification sans réponse, 401/503/405, lot, panne d'outil rendue
+en `isError`). Ce qui reste non vérifié d'ici : le branchement depuis claude.ai, qui peut
+exiger OAuth là où un jeton porteur suffit à Claude Code.
 
 ## ⚠️ Ce que le correctif des unités NE rattrape PAS
 
@@ -85,4 +104,8 @@ surprennent le plus :
 ## Ce qui demande un geste de Marc
 
 - Activer **Web Analytics** dans le tableau de bord Vercel (sinon la dépendance ne mesure rien).
+- Le client MCP doit viser **`https://batchchef.hubperso.com/api/mcp`** — jamais une URL
+  `*.vercel.app` : la protection Vercel du projet est en `all_except_custom_domains`, donc
+  celles-là répondent 302 vers la page de connexion Vercel avant que l'app ne tourne.
+- Poser **`MCP_TOKEN`** dans les variables d'environnement Vercel (une chaîne aléatoire, jamais commitée). Sans elle, `/api/mcp` répond **503 « MCP_TOKEN non configuré »** : l'intégration est éteinte, pas cassée. C'est ce même jeton qu'on donne au client MCP.
 - `GROQ_API_KEY` est posée (transcription audio active).

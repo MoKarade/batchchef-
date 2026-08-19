@@ -131,6 +131,31 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   complète) et `tronquerHistorique`, qui TRONQUE au lieu de rejeter — et coupe sur une
   frontière préservant l'alternance `user`/`assistant`, sinon l'API refuse tout. Chaque tour
   est compté dans `llm_usage` (action `assistant`) : une question en produit PLUSIEURS.
+- **Le serveur MCP écrit par les FONCTIONS DE TRAVAIL de l'app, jamais en SQL réécrit.**
+  `POST /api/mcp` (ADR-0001) ouvre la base à un Claude extérieur, en lecture **et** en
+  écriture (décision de Marc, 19/08). Les trois outils qui écrivent appellent
+  `creerBatchInterne` / `ajouterDuCatalogueInterne` / `cocherArticleInterne` — les Server
+  Actions moins le `requireSession`. Deux implémentations d'une même règle, c'est une règle
+  et demie : un batch créé par Claude doit écarter le sel et estimer ses prix comme un batch
+  créé au doigt.
+  ⚠️ **`/api/mcp` est hors du middleware de session, par ÉGALITÉ STRICTE** (`isPublicPath`),
+  jamais un préfixe : sous la garde, un appelant machine reçoit une redirection HTML vers
+  `/login` au lieu du JSON-RPC — serveur muet, zéro erreur. Verrouillé par
+  `tests/auth.test.ts`, discrimination prouvée par mutation.
+  ⚠️ **Trois réponses distinctes** : `MCP_TOKEN` absent → **503** (intégration éteinte),
+  jeton faux/absent → **401**, méthode ≠ POST → **405**. Les confondre rendrait
+  indiscernables « pas configuré » et « quelqu'un frappe à la porte ».
+  ⚠️ **Le client MCP vise `batchchef.hubperso.com`, JAMAIS une URL `*.vercel.app`.** La
+  protection Vercel du projet est en `all_except_custom_domains` (vérifié le 19/08) : toute
+  URL `*.vercel.app` — préversions ET alias de production — répond **302 vers
+  `vercel.com/sso-api`** AVANT que l'app ne tourne. Le client ne voit jamais le JSON-RPC et
+  rien ne lui dit pourquoi. Vaut pour toute future surface appelée par une machine.
+  ⚠️ **Le SDK officiel reste en devDependency** (8,7 Mo, 17 deps runtime dont express/hono,
+  pour un transport à SESSIONS dont une fonction serverless n'a que faire). Il sert de
+  TRIPWIRE de versions dans `tests/mcp.test.ts` : nos constantes recopiées dériveraient
+  sinon en silence, et une dérive de protocole se manifeste par un client muet, pas par une
+  erreur. Ce qui N'EST PAS exposé : l'import par URL — il court-circuiterait l'écran de
+  validation (« le LLM propose, le code valide, Marc confirme »).
 - **Fonctions pures testées** pour la logique (agrégation, mise à l'échelle, prix, jetons,
   ingrédients de fond, protocole de l'assistant).
 - **Planchers de version, jamais redescendus.** `drizzle-orm ≥ 0.45.2` (injection SQL par
@@ -185,11 +210,12 @@ néons d'un supermarché.
 
 | Chemin | Rôle |
 |---|---|
-| `app/` | routes (recettes, batchs, courses, catalogue, `/api/hub/summary`) |
+| `app/` | routes (recettes, batchs, courses, catalogue, `/api/hub/summary`, `/api/mcp`) |
 | `lib/actions.ts` | Server Actions (import, batch, liste, statut, catalogue) |
 | `lib/aggregate.ts` | agrégation liste d'épicerie, mise à l'échelle, filet de prix (purs) |
 | `lib/ingredientsDeFond.ts` | sel/poivre/eau écartés de la liste — automatique, mot à mot, et DIT à l'écran (PUR, testé) |
 | `lib/assistant/` | `protocole.ts` = bornes, troncature, classement, balisage (PUR, testé) · `outils.ts` = ce que Claude peut interroger · `boucle.ts` = les allers-retours |
+| `lib/mcp/` | `protocole.ts` = JSON-RPC + négociation de version (PUR, testé) · `declarations.ts` = les 7 outils ANNONCÉS (données pures, testables sans next-auth) · `outils.ts` = ce qui les EXÉCUTE. La correspondance des deux derniers est verrouillée dans les DEUX sens |
 | `lib/llm/` | parse de recette (page web **et** vidéo) + estimation de coûts (Zod, honnête) |
 | `lib/video/` | `frames.ts` = sondage/empreintes/budget (PUR, testé) · `capture.ts` = extraction `<video>`+`<canvas>` en 2 passes (repérage 32×32 puis extraction 768 px) **dans le navigateur** (la vidéo ne monte jamais au serveur) |
 | `lib/partage.ts` + `public/sw.js` | cible de partage Android (PWA). Le service worker intercepte le POST **côté navigateur** : la vidéo partagée ne transite pas par le serveur |

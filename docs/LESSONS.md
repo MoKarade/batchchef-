@@ -8,6 +8,65 @@
 
 ---
 
+## 2026-08-19 — La protection d'hébergement peut rendre un endpoint machine injoignable, et ça ne ressemble pas à une erreur
+
+Le serveur MCP validé, j'ai voulu le sonder sur la préversion Vercel. Réponse : **302 vers
+`vercel.com/sso-api`**. Ce n'était pas mon middleware — c'était la protection Vercel du
+projet, qui s'applique AVANT que l'app ne tourne.
+
+En le vérifiant plutôt qu'en le supposant : `ssoProtection.deploymentType =
+"all_except_custom_domains"`. Autrement dit **toute** URL `*.vercel.app` est protégée, y
+compris l'alias de production `batchchef-glu8-chi.vercel.app` — et seuls les domaines
+personnalisés (`batchchef.hubperso.com`) sont exemptés.
+
+Ce qui rend ça dangereux, c'est la FORME de l'échec. Un client MCP pointé sur la mauvaise
+URL ne reçoit pas « accès refusé » : il reçoit une redirection vers une page de connexion
+HTML. Selon le client, ça donne « réponse invalide », un JSON illisible, ou un silence. Rien
+n'y dit « ton URL est protégée » — et l'app, elle, marche parfaitement dans le navigateur de
+Marc, qui a une session Vercel. Cousin exact du piège n°1 du squelette (l'endpoint hub sous
+le middleware de session : redirection HTML au lieu du JSON), sauf que cette fois la garde
+n'est pas dans le code du tout, donc aucune relecture du dépôt ne peut la trouver.
+
+**Règle** : pour toute surface appelée par une MACHINE, l'URL fait partie du contrat, et la
+protection de l'hébergeur fait partie de la surface. Vérifier le réglage réel (pas la page
+qui s'ouvre dans son navigateur), et écrire l'URL exacte dans la doc avec la raison — sinon
+le premier essai de Marc échoue sur un symptôme qui n'accuse rien.
+
+## 2026-08-19 — Un endpoint qui COMPILE n'est pas un endpoint qui RÉPOND
+
+Le serveur MCP a passé le gate complet — `typecheck`, `lint`, 291 tests, `build` — et la
+sortie du build affichait fièrement `ƒ /api/mcp`. J'allais m'arrêter là et l'annoncer livré.
+
+J'ai démarré le build localement et je l'ai appelé pour de vrai. Onze sondes : négociation de
+version, `tools/list`, notification sans réponse, 401 sur jeton faux **et** absent, 405 sur
+GET, lot de trois entrées rendant deux réponses, méthode inconnue, panne d'outil, outil
+inconnu, 503 sans `MCP_TOKEN`. Tout est passé — mais **aucun de ces onze points n'était
+prouvé par le gate**. Les tests couvrent des fonctions pures ; le build couvre la
+compilation. Personne ne vérifiait que le `switch` du handler câble bien ces fonctions à ces
+codes HTTP. Un `case` mal orthographié, un `return` oublié, une réponse renvoyée à un
+notification : vert partout, serveur muet en production.
+
+C'est la version « endpoint » d'une règle que ce dépôt connaît déjà sous d'autres formes —
+« CI verte ≠ en ligne », « un `clasp push` vert ne prouve pas que le code a pris effet »,
+« un HTTP 200 ne prouve rien tant qu'on n'a pas mesuré ce que l'API répond à une question
+absurde ». Le point commun : **le statut d'une opération ne dit pas ce qui tourne**.
+
+La sonde a aussi rendu quelque chose qu'aucun test n'aurait donné : la certitude que la
+négociation renvoie bien `2025-06-18` quand on le demande, et pas notre version à nous. Un
+test l'affirme sur la fonction pure ; seule la sonde le prouve sur le chemin complet.
+
+**Règle** : pour une surface appelée par une MACHINE (endpoint, webhook, cron), le gate ne
+suffit pas — il faut au moins une passe d'appels réels contre le build, couvrant le chemin
+NOMINAL *et* chaque mode d'échec qu'on prétend distinguer (401 vs 503 vs 405). Ça coûte cinq
+minutes et un `next start` ; ne pas le faire, c'est découvrir le câblage au premier usage de
+Marc.
+
+**Corollaire outillage, appris en le vivant deux fois dans la même session** : `pkill -f
+"next start -p 3111"` tue le shell qui l'exécute — le motif matche sa propre ligne de
+commande, et le tour se termine sur un exit 144 sans qu'on comprenne pourquoi. Tuer par PID.
+Même famille que « un `| grep` masque le code de sortie » : l'outil de vérification fait
+partie de ce qu'il faut vérifier.
+
 ## 2026-08-19 — Un « borner » qui rabat sur une valeur par défaut fabrique une réponse fausse
 
 En relisant la boucle de l'assistant — jamais exécutée, la session qui l'a écrite n'ayant pas

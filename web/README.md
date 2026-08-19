@@ -217,3 +217,67 @@ npm run typecheck && npm run test && npm run build
 Endpoint `GET /api/hub/summary` (gardé par jeton `x-hub-token`) : le hub perso
 (hubperso) affiche un widget BatchChef (recettes, batchs actifs, articles à acheter,
 budget). Voir `lib/hubSummary.ts`.
+
+## Serveur MCP — brancher Claude sur BatchChef
+
+Endpoint `POST /api/mcp` : un Claude **extérieur** (Claude Code, app Claude) peut fouiller
+les recettes et le catalogue, lire une liste d'épicerie, **et écrire** — créer un batch,
+copier une recette du catalogue vers la bibliothèque, cocher un article. C'est l'ADR-0001 ;
+l'assistant intégré (`/assistant`) reste séparé, il vit dans l'app.
+
+### 1. Poser le jeton (une fois)
+
+Générer une chaîne aléatoire et la poser dans les variables d'environnement Vercel sous
+`MCP_TOKEN` (jamais dans le dépôt) :
+
+```bash
+openssl rand -base64 32
+```
+
+Tant qu'elle est absente, la route répond **503 « MCP_TOKEN non configuré »** : l'intégration
+est éteinte, ce n'est pas une panne.
+
+### 2. Déclarer le serveur dans Claude Code
+
+```bash
+claude mcp add --transport http batchchef https://batchchef.hubperso.com/api/mcp \
+  --header "Authorization: Bearer <le jeton>"
+```
+
+⚠️ **Le domaine compte : `batchchef.hubperso.com`, JAMAIS une URL `*.vercel.app`.** Le projet
+a la protection Vercel (SSO) activée en mode `all_except_custom_domains` — vérifié le 19/08.
+Les URLs `*.vercel.app` (préversions **et** alias de production) répondent donc **302 vers
+`vercel.com/sso-api`** *avant* que l'app ne tourne : le client MCP ne verrait jamais le
+JSON-RPC, et rien dans la réponse ne lui dirait pourquoi. Seuls les domaines personnalisés
+sont exemptés.
+
+### 3. Vérifier que ça répond
+
+```bash
+curl -s -X POST https://batchchef.hubperso.com/api/mcp \
+  -H "Authorization: Bearer <le jeton>" -H 'Content-Type: application/json' \
+  --data-binary '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+Sept outils doivent revenir. Les réponses se distinguent : **503** = jeton non configuré côté
+serveur, **401** = jeton absent ou faux côté appelant, **405** = ce n'est pas un POST.
+
+### Les sept outils
+
+| Outil | Effet |
+|---|---|
+| `batchchef_chercher_recettes` | cherche par ingrédients (dit ce qui est couvert et ce qui manque) et/ou par titre |
+| `batchchef_lire_recette` | ingrédients avec quantités, et préparation |
+| `batchchef_lister_batchs` | batchs, statuts, recettes, budget estimé |
+| `batchchef_lire_liste_epicerie` | articles d'un batch, ce qui est pris, montant restant |
+| `batchchef_creer_batch` | **écrit** — crée un batch et sa liste d'épicerie |
+| `batchchef_ajouter_recette_du_catalogue` | **écrit** — copie des recettes du catalogue vers la bibliothèque |
+| `batchchef_cocher_article` | **écrit** — marque un article pris (ou non) |
+
+L'import d'une recette **depuis une URL n'est pas exposé**, volontairement : il
+court-circuiterait l'écran de validation, et la règle du projet est « le LLM propose, le code
+valide, Marc confirme ».
+
+⚠️ **Non vérifié** : le branchement depuis l'interface de connecteurs de **claude.ai**, qui
+peut exiger un flux OAuth 2.1 là où un jeton porteur suffit à Claude Code. À constater au
+premier essai, pas à supposer.

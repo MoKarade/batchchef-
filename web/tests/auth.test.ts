@@ -29,6 +29,17 @@ describe("garde des chemins", () => {
     // mais pas les autres routes /api (elles exigent une session)
     expect(isPublicPath("/api/hub/other")).toBe(false);
   });
+  it("l'endpoint MCP est public, et SEUL lui — jamais son préfixe", () => {
+    // Même raison que le hub : c'est une machine qui appelle, elle n'a pas de cookie.
+    // Laissé sous la garde de session, Claude recevrait une redirection HTML vers /login
+    // au lieu du JSON-RPC — un serveur muet, sans qu'aucune erreur ne le dise.
+    expect(isPublicPath("/api/mcp")).toBe(true);
+    // L'exemption est une ÉGALITÉ : la route qu'on écrira demain sous ce préfixe doit
+    // retomber du côté gardé tant que personne n'a décidé le contraire. Le mauvais côté
+    // de l'oubli doit être le côté sûr (règle héritée de CarAI).
+    expect(isPublicPath("/api/mcp/outils")).toBe(false);
+    expect(isPublicPath("/api/mcp-admin")).toBe(false);
+  });
   it("non authentifié : page → redirect login, API → 401", () => {
     expect(decideGuard({ isAuthenticated: false, pathname: "/batchs" })).toEqual({
       type: "redirect",
