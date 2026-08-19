@@ -27,6 +27,11 @@ Vérifié plutôt que supposé : rejoué localement avec la même base, le diff 
 quatre `.md` — donc s'il avait été calculable, le script aurait bien ignoré le build. Le
 script a fait exactement ce pour quoi il a été écrit ; c'est ma prédiction qui était fausse.
 
+Confirmé par prédiction dans la foulée : le commit SUIVANT sur la même branche, lui aussi
+documentation seule, a bien été `Ignored` — sa base (`25cc145`) était redevenue atteignable.
+Seul le premier commit après le redémarrage payait. Un mécanisme n'est compris que quand il
+prédit le cas d'après, pas seulement quand il explique celui d'avant.
+
 **Règle** : l'exemption « doc/tests ne coûtent pas de déploiement » ne vaut qu'à l'INTÉRIEUR
 d'une histoire de branche continue. Le premier commit après un squash-merge repart d'une base
 que le distant ne connaît plus, et construit quoi qu'il contienne. Corollaire pratique : un
