@@ -31,6 +31,8 @@ import {
   VERSION_PROTOCOLE,
   type ReponseJsonRpc,
 } from "@/lib/mcp/protocole";
+import { ErreurOAuth } from "@/lib/mcp/oauth";
+import { etatOAuth } from "@/lib/mcp/oauthConfig";
 import { OUTILS_MCP } from "@/lib/mcp/declarations";
 import { executerOutilMcp } from "@/lib/mcp/outils";
 
@@ -54,6 +56,32 @@ function jetonDeLaRequete(request: Request): string {
   if (auth.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
   // En-tête de repli : certains clients ne laissent pas poser `Authorization`.
   return request.headers.get("x-mcp-token")?.trim() ?? "";
+}
+
+/**
+ * Deux portes vers la même maison :
+ *
+ *  - le jeton `MCP_TOKEN` posé DIRECTEMENT en en-tête — c'est ce que fait Claude Code,
+ *    qui sait poser un `--header`, et c'est le chemin le plus simple ;
+ *  - un jeton d'accès OAuth signé — c'est le seul chemin que l'interface de connecteurs de
+ *    claude.ai sait emprunter, puisqu'elle ne prend qu'une URL.
+ *
+ * L'ordre compte peu, mais le jeton direct est testé d'abord : il ne coûte qu'un hachage,
+ * là où la voie OAuth parse une charge signée.
+ */
+function autorise(request: Request, attendu: string): boolean {
+  const fourni = jetonDeLaRequete(request);
+  if (fourni && jetonsIdentiques(fourni, attendu)) return true;
+
+  const { fournisseur } = etatOAuth();
+  if (!fournisseur) return false;
+  try {
+    fournisseur.verifierJetonAcces(request.headers.get("authorization") ?? undefined);
+    return true;
+  } catch (err) {
+    if (err instanceof ErreurOAuth) return false;
+    throw err;
+  }
 }
 
 async function traiter(requete: unknown): Promise<ReponseJsonRpc | null> {
@@ -106,8 +134,18 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 503, headers: NO_STORE },
     );
   }
-  if (!jetonsIdentiques(jetonDeLaRequete(request), attendu)) {
-    return NextResponse.json({ error: "Jeton invalide." }, { status: 401, headers: NO_STORE });
+  if (!autorise(request, attendu)) {
+    // ⚠️ Le `WWW-Authenticate` n'est pas décoratif : c'est LUI qui rend le branchement
+    // claude.ai possible. L'interface « Add custom connector » ne prend qu'une URL — sans
+    // cet en-tête, elle reçoit un 401 nu, n'a rien à découvrir, et échoue sans dire
+    // pourquoi. C'est la RFC 9728 qui définit ce pointeur.
+    const entetes: Record<string, string> = { ...NO_STORE };
+    const { fournisseur } = etatOAuth();
+    if (fournisseur) {
+      entetes["WWW-Authenticate"] =
+        `Bearer resource_metadata="${fournisseur.urlMetadonneesRessource()}"`;
+    }
+    return NextResponse.json({ error: "Jeton invalide." }, { status: 401, headers: entetes });
   }
 
   let corps: unknown;
