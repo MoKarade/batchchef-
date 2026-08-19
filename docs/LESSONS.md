@@ -8,6 +8,27 @@
 
 ---
 
+## 2026-08-17 — Livré le matin, retiré le soir : la leçon n'est pas « j'ai eu tort de coder »
+
+Le stock de portions et le garde-manger ont été conçus, testés, mergés et déployés dans la
+journée — puis retirés le soir, Marc n'en voulant pas. Ce qu'il a gardé de la conversation,
+c'est le BESOIN sous-jacent (« je veux plus que ça me demande d'acheter du sel »), pas la
+solution que j'avais proposée pour y répondre.
+
+Deux choses à en tirer, et une à ne PAS en tirer.
+
+À en tirer : (a) une solution DÉCLARATIVE (une liste que l'utilisateur tient à jour) est un
+coût permanent qu'on lui impose — Marc a refusé de tenir un placard, pas de ne plus acheter
+de sel ; (b) le fait que j'aie posé la question de cadrage avant de coder n'a rien empêché,
+parce que mes trois options portaient toutes sur le COMMENT et aucune sur le SI.
+
+À ne pas en tirer : « il aurait fallu attendre ». Le travail retiré était propre, mergeable,
+et son retrait a coûté une heure parce qu'il était bien rangé (fichiers dédiés, deux tables
+isolées, aucune dépendance croisée). C'est ça qui rend un retrait bon marché — pas le fait
+de ne pas avoir codé.
+
+---
+
 ## 2026-08-17 — Un compteur qui ne filtre rien se dégrade, donc on cesse de le lire
 
 L'accueil affichait « Articles à acheter » en comptant tous les `shopping_items` non cochés,
@@ -45,13 +66,16 @@ deux instants du même jour local mais de deux jours UTC différents (16 h et 22
 
 ## 2026-08-17 — Le vrai garde d'idempotence n'est pas toujours le statut
 
-`terminerBatch` fabrique le stock. Le réflexe est de refuser quand le batch est déjà
+*(Le code cité a été retiré le soir même — Marc n'a pas voulu du stock de portions. La règle,
+elle, reste vraie et s'appliquera au prochain garde qu'on écrira.)*
+
+`terminerBatch` fabriquait un stock. Le réflexe est de refuser quand le batch est déjà
 `termine`. Ça couvre le double envoi et le retour arrière du navigateur — mais **pas**
 `terminé → cuisine → terminé`, qui remet le statut à zéro et rouvre la porte en grand.
 
-Le garde correct est l'EFFET, pas l'état qui l'a déclenché : « ce batch a-t-il déjà des
-portions ? ». Sans lui, l'app annonce deux fois plus de repas qu'il n'y en a — un mensonge
-silencieux qu'on ne découvre qu'en ouvrant un congélateur vide.
+Le garde correct est l'EFFET, pas l'état qui l'a déclenché : « ce batch a-t-il déjà produit
+ce que l'action produit ? ». Sans ça, on annonce deux fois plus que la réalité — un mensonge
+silencieux, du genre qu'on ne découvre qu'en ouvrant le placard.
 
 **Règle** : pour un garde d'idempotence, se demander « quel changement d'état RÉOUVRE ce
 chemin ? ». Si un aller-retour légitime le réarme, le garde doit porter sur ce que l'action

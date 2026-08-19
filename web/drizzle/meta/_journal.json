@@ -57,6 +57,13 @@
       "when": 1787001348192,
       "tag": "0007_medical_black_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787143432190,
+      "tag": "0008_certain_rumiko_fujikawa",
+      "breakpoints": true
     }
   ]
 }

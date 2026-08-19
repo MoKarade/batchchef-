@@ -88,50 +88,6 @@ export const shoppingItems = pgTable("shopping_items", {
   checkedAt: timestamp("checked_at", { withTimezone: true }),
 });
 
-/**
- * Ce qui SORT d'un batch : les portions rangées, et ce qu'il en reste.
- *
- * Le cycle s'arrêtait à « terminé » — l'app servait le dimanche et plus rien du lundi au
- * samedi. Une ligne par (batch, recette, zone), avec un compteur : consommer, c'est
- * décrémenter ; à zéro, la ligne est supprimée.
- *
- * ⚠️ Les deux clés étrangères sont en `set null`, à l'inverse du reste du schéma, et c'est
- * VOULU : ce qu'il y a dans le congélateur existe pour de vrai. Supprimer un batch (un
- * artefact de PLANIFICATION) ou faire le ménage dans la bibliothèque ne doit pas effacer de
- * la nourriture. D'où aussi `titre`, une COPIE prise au rangement : l'écran de stock se lit
- * sans jointure et survit à la disparition de la recette.
- */
-export const portions = pgTable("portions", {
-  id: serial("id").primaryKey(),
-  batchId: integer("batch_id").references(() => batches.id, { onDelete: "set null" }),
-  recipeId: integer("recipe_id").references(() => recipes.id, { onDelete: "set null" }),
-  /** Titre de la recette au moment du rangement (copie assumée, pas une jointure). */
-  titre: text("titre").notNull(),
-  zone: text("zone", { enum: ["frigo", "congelo"] }).notNull(),
-  /** Portions RESTANTES. La ligne est supprimée quand ça tombe à 0. */
-  restantes: integer("restantes").notNull(),
-  /** Quand elles ont été RANGÉES (le geste de Marc), pas quand le batch a été créé. */
-  rangeLe: timestamp("range_le", { withTimezone: true }).notNull().defaultNow(),
-});
-
-/**
- * Garde-manger : ce que Marc a TOUJOURS et ne rachète pas.
- *
- * Décision de Marc (17/08/2026) : la table part VIDE, il la remplit au fil des courses.
- * Aucune liste standard supposée — l'app ne devine pas ce qu'il y a dans son placard.
- *
- * ⚠️ Ces articles ne sont jamais RETIRÉS d'une liste de courses, seulement déplacés dans une
- * section « à vérifier au placard » : le jour où le pot est vide, la ligne doit être là.
- */
-export const pantry = pgTable("pantry", {
-  id: serial("id").primaryKey(),
-  /** Clé de regroupement normalisée, la même famille que `shopping_items.canonical`. */
-  canonical: text("canonical").notNull().unique(),
-  /** Nom tel que Marc l'a vu quand il l'a déclaré (c'est lui qu'on lui réaffiche). */
-  nom: text("nom").notNull(),
-  ajouteLe: timestamp("ajoute_le", { withTimezone: true }).notNull().defaultNow(),
-});
-
 // ── Catalogue de découverte (les 10 188 recettes Marmiton de la V3) ──────────────
 // Corpus SÉPARÉ de la bibliothèque perso : lecture seule, cherchable, source d'idées.
 // « Ajouter à ma bibliothèque » copie une entrée du catalogue vers recipes/recipeIngredients.
@@ -180,5 +136,3 @@ export type RecipeIngredient = typeof recipeIngredients.$inferSelect;
 export type Batch = typeof batches.$inferSelect;
 export type BatchRecipe = typeof batchRecipes.$inferSelect;
 export type ShoppingItem = typeof shoppingItems.$inferSelect;
-export type PortionStock = typeof portions.$inferSelect;
-export type PantryItem = typeof pantry.$inferSelect;

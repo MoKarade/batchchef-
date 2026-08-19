@@ -22,8 +22,6 @@ export const ONGLETS: readonly Onglet[] = [
   { href: "/", label: "Accueil" },
   { href: "/recettes", label: "Recettes" },
   { href: "/batchs", label: "Batchs" },
-  // « Portions » est l'écran de SEMAINE : les trois autres servent le jour où l'on cuisine.
-  { href: "/portions", label: "Portions" },
   { href: "/catalogue", label: "Catalogue" },
 ] as const;
 
@@ -72,14 +70,6 @@ function Icone({ href, actif }: { href: string; actif: boolean }) {
         <svg {...commun}>
           <rect x="3" y="13" width="18" height="7" rx="1.5" />
           <rect x="5.5" y="6" width="13" height="6" rx="1.5" />
-        </svg>
-      );
-    case "/portions": // contenant avec son couvercle
-      return (
-        <svg {...commun}>
-          <path d="M5 9h14l-1 10.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19.5L5 9Z" />
-          <path d="M3.5 6.5h17" />
-          <path d="M10 3.5h4" />
         </svg>
       );
     default: // loupe (catalogue)

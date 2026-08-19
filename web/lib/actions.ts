@@ -5,7 +5,7 @@
 // portent les écritures). Chaque échec est retourné comme message honnête, jamais avalé.
 
 import { revalidatePath } from "next/cache";
-import { and, eq, gt, inArray, sql } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db, schema } from "@/lib/db";
 import { aggregateShoppingList, fillMissingCosts, shoppingTitles } from "@/lib/aggregate";
@@ -13,8 +13,6 @@ import { upsertTaskList } from "@/lib/googleTasks";
 import { splitNewCatalogRecipes } from "@/lib/catalogSelect";
 import { MAX_TRANSCRIPT_CHARS } from "@/lib/transcription";
 import { estOrigine, type OrigineRecette } from "@/lib/origine";
-import { validerRangements, type RangementBrut } from "@/lib/portions";
-import { validerAjoutGardeManger } from "@/lib/gardeManger";
 import {
   clampServings,
   normaliserImage,
@@ -619,11 +617,6 @@ export async function setBatchStatus(
 ): Promise<ActionResult> {
   try {
     await requireSession();
-    // « Terminé » n'est pas un statut comme les autres : c'est lui qui fabrique le stock,
-    // et ça exige de savoir OÙ va chaque recette. Il passe donc par `terminerBatch`.
-    if (status === "termine") {
-      return { ok: false, error: "Passe par le rangement pour terminer un batch." };
-    }
     await db.update(schema.batches).set({ status }).where(eq(schema.batches.id, batchId));
     revalidatePath("/batchs");
     revalidatePath(`/batchs/${batchId}`);
@@ -633,138 +626,9 @@ export async function setBatchStatus(
   }
 }
 
-/**
- * Termine un batch ET range ce qu'il a produit.
- *
- * C'est ici que la boucle se referme : jusqu'au 17/08/2026 le statut passait à « terminé »
- * et l'app oubliait tout, alors que le batch cooking est précisément ce qui vient après.
- *
- * ⚠️ IDEMPOTENCE — le garde n'est pas le statut, ce sont les PORTIONS DÉJÀ RANGÉES.
- * Un double envoi, un retour arrière puis un nouveau clic, ou un aller-retour
- * « terminé → cuisine → terminé » créeraient sinon un deuxième jeu de portions : on
- * annoncerait à Marc deux fois plus de repas qu'il n'en a. Refuser sur le statut seul ne
- * couvre pas le troisième cas, puisque repasser par « cuisine » le remet à zéro.
- */
-export async function terminerBatch(
-  batchId: number,
-  lignes: RangementBrut[],
-): Promise<ActionResult> {
-  try {
-    await requireSession();
 
-    const valide = validerRangements(lignes);
-    if (!valide.ok) return { ok: false, error: valide.erreur };
 
-    const [batch] = await db.select().from(schema.batches).where(eq(schema.batches.id, batchId));
-    if (!batch) return { ok: false, error: "Ce batch n'existe plus." };
 
-    const dejaRangees = await db
-      .select({ id: schema.portions.id })
-      .from(schema.portions)
-      .where(eq(schema.portions.batchId, batchId));
-    if (dejaRangees.length > 0) {
-      return {
-        ok: false,
-        error: "Ce batch a déjà été rangé — ses portions sont dans « Portions ».",
-      };
-    }
-
-    await db.insert(schema.portions).values(
-      valide.rangements.map((r) => ({
-        batchId,
-        recipeId: r.recipeId,
-        titre: r.titre,
-        zone: r.zone,
-        restantes: r.portions,
-      })),
-    );
-    await db
-      .update(schema.batches)
-      .set({ status: "termine" })
-      .where(eq(schema.batches.id, batchId));
-
-    revalidatePath("/batchs");
-    revalidatePath(`/batchs/${batchId}`);
-    revalidatePath("/portions");
-    revalidatePath("/");
-    return { ok: true };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-/**
- * Déclare un article comme « j'ai toujours ça » (garde-manger).
- *
- * L'article n'est PAS retiré de la liste courante : il passe dans « à vérifier au placard »,
- * toujours visible et toujours cochable. Le supprimer ferait rentrer Marc sans son huile le
- * jour où le pot est vide, et l'app ne le saurait jamais.
- */
-export async function ajouterAuGardeManger(nom: string, canonical: string): Promise<ActionResult> {
-  try {
-    await requireSession();
-    const valide = validerAjoutGardeManger(nom, canonical);
-    if (!valide.ok) return { ok: false, error: valide.erreur };
-
-    // Déclarer deux fois le même article n'est pas une erreur — c'est un geste répété en
-    // magasin. `onConflictDoNothing` le rend inoffensif plutôt que de le faire échouer.
-    await db
-      .insert(schema.pantry)
-      .values({ canonical: valide.cle, nom: valide.nom })
-      .onConflictDoNothing({ target: schema.pantry.canonical });
-
-    revalidatePath("/courses", "layout");
-    revalidatePath("/garde-manger");
-    return { ok: true };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-/** Retire un article du garde-manger : il redevient un achat normal. */
-export async function retirerDuGardeManger(id: number): Promise<ActionResult> {
-  try {
-    await requireSession();
-    await db.delete(schema.pantry).where(eq(schema.pantry.id, id));
-    revalidatePath("/courses", "layout");
-    revalidatePath("/garde-manger");
-    return { ok: true };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-/**
- * Consomme une portion (le geste « j'en mange une »).
- *
- * Le décrément se fait EN BASE (`restantes - 1`) et non en relisant puis réécrivant : deux
- * onglets ouverts sur le même stock retireraient sinon la même portion deux fois en n'en
- * décomptant qu'une. Le `restantes > 0` de la clause protège du passage en négatif.
- */
-export async function consommerPortion(portionId: number): Promise<ActionResult> {
-  try {
-    await requireSession();
-    const [restant] = await db
-      .update(schema.portions)
-      .set({ restantes: sql`${schema.portions.restantes} - 1` })
-      .where(and(eq(schema.portions.id, portionId), gt(schema.portions.restantes, 0)))
-      .returning({ restantes: schema.portions.restantes });
-
-    if (!restant) {
-      return { ok: false, error: "Cette portion n'est plus en stock." };
-    }
-    // Une ligne à zéro n'est pas « zéro portion de chili » : c'est l'absence de chili.
-    if (restant.restantes <= 0) {
-      await db.delete(schema.portions).where(eq(schema.portions.id, portionId));
-    }
-
-    revalidatePath("/portions");
-    revalidatePath("/");
-    return { ok: true };
-  } catch (err) {
-    return fail(err);
-  }
-}
 
 export async function deleteBatch(batchId: number): Promise<ActionResult> {
   try {
