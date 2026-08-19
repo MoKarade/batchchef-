@@ -11,11 +11,12 @@
 - [ ] **`MCP-02` — poser `MCP_TOKEN` dans Vercel.** Geste de Marc : sans cette variable, le
   serveur MCP répond **503 « MCP_TOKEN non configuré »** (échec fermé assumé, pas une panne).
   Rien à coder de ce côté.
-- [ ] **`MCP-03` — le connecteur claude.ai attend peut-être OAuth 2.1.** Le serveur
-  s'authentifie par jeton porteur, ce qui suffit à un client qui laisse poser un en-tête
-  (Claude Code, `claude mcp add --transport http … --header`). L'interface de connecteurs de
-  claude.ai, elle, peut exiger un flux OAuth complet — **non vérifié d'ici** (pas de réseau
-  vers claude.ai). À constater au premier branchement réel, pas à supposer maintenant.
+- [x] ~~**`MCP-03` — le connecteur claude.ai attend peut-être OAuth 2.1.**~~ **Confirmé et
+  livré le 19/08** (ADR-0002). Ce n'était pas un « peut-être » : l'interface ne prend qu'une
+  URL, sans champ pour un en-tête. Constaté en lisant la configuration MCP réelle de la
+  session (FinanceAI branché sur une URL nue) puis son code, dont l'en-tête le disait déjà
+  depuis le 13/07. OAuth 2.1 mono-utilisateur implémenté ; le jeton direct reste accepté
+  pour Claude Code.
 
 ## Livré (19/08)
 

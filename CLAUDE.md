@@ -145,6 +145,18 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   ⚠️ **Trois réponses distinctes** : `MCP_TOKEN` absent → **503** (intégration éteinte),
   jeton faux/absent → **401**, méthode ≠ POST → **405**. Les confondre rendrait
   indiscernables « pas configuré » et « quelqu'un frappe à la porte ».
+  ⚠️ **L'interface de connecteurs de claude.ai ne prend QU'UNE URL — pas d'en-tête.** Un
+  serveur gardé par un `Authorization` statique y répond 401 sans rien à découvrir, et le
+  connecteur échoue sans dire pourquoi (l'app, elle, marche parfaitement par ailleurs).
+  D'où l'**OAuth 2.1 mono-utilisateur** (ADR-0002, calqué sur FinanceAI qui a buté sur le
+  même mur le 13/07) : `lib/mcp/oauth.ts` est PUR et testé, le jeton direct reste accepté
+  pour Claude Code. Ce qui livre l'accès si on le bâcle, tout verrouillé par mutation :
+  allowlist de redirection par **origine exacte** (`https://claude.ai@evil.com` a pour host
+  `evil.com`), **PKCE S256** obligatoire, **type dans la charge signée** (sans lui un code
+  d'autorisation — qui transite en clair dans une URL — ouvrirait `/api/mcp`), usage unique
+  et rotation. ⚠️ L'usage unique et le plafond de tentatives vivent en **BASE**, jamais en
+  mémoire : en serverless un compteur de process est remis à zéro par l'instance suivante,
+  ce qui en fait un garde décoratif.
   ⚠️ **Le client MCP vise `batchchef.hubperso.com`, JAMAIS une URL `*.vercel.app`.** La
   protection Vercel du projet est en `all_except_custom_domains` (vérifié le 19/08) : toute
   URL `*.vercel.app` — préversions ET alias de production — répond **302 vers

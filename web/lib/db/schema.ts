@@ -129,6 +129,42 @@ export const llmUsage = pgTable("llm_usage", {
   costUsd: real("cost_usd").notNull().default(0),
 });
 
+/**
+ * Codes et jetons de rafraîchissement OAuth DÉJÀ CONSOMMÉS (usage unique, OAuth 2.1).
+ *
+ * ⚠️ C'est la SEULE partie de l'OAuth qui ne peut pas être sans état — tout le reste est
+ * signé et se vérifie sans rien stocker. FinanceAI garde cette liste en mémoire, ce qui
+ * tient sur une instance Cloud Run chaude ; ici ça ne protégerait rien : Vercel démarre des
+ * instances à froid et en parallèle, donc un code rejoué tomberait presque toujours sur une
+ * mémoire vierge. La base est la seule mémoire partagée par toutes les instances.
+ *
+ * `expiresAt` porte l'expiration du jeton : au-delà, la ligne ne sert plus à rien (la
+ * signature est déjà refusée sur la date) et se purge.
+ */
+export const mcpOauthConsumed = pgTable("mcp_oauth_consumed", {
+  jti: text("jti").primaryKey(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+/**
+ * Tentatives ratées sur la page de consentement OAuth, par fenêtre de temps.
+ *
+ * ⚠️ `/api/mcp/oauth/authorize` est la SEULE porte devinable du serveur : c'est le seul
+ * endroit qui compare une clé saisie à la main (l'échange de code, lui, exige une signature
+ * HMAC). Un plafond y est donc nécessaire — et il doit vivre en BASE, pas en mémoire :
+ * en serverless, un compteur de process est remis à zéro par la prochaine instance, ce qui
+ * en fait un garde décoratif.
+ *
+ * Le minimum de longueur imposé à `MCP_TOKEN` ne suffit pas à lui seul : il borne la
+ * longueur, pas l'ENTROPIE. Une clé de seize caractères choisie à la main se devine en
+ * quelques millions d'essais ; c'est ce plafond qui rend ces millions d'essais impossibles.
+ */
+export const mcpOauthAttempts = pgTable("mcp_oauth_attempts", {
+  /** Fenêtre courante, ex. "2026-08-19T16" — une ligne par heure, pas par tentative. */
+  fenetre: text("fenetre").primaryKey(),
+  echecs: integer("echecs").notNull().default(0),
+});
+
 export type Recipe = typeof recipes.$inferSelect;
 export type CatalogRecipe = typeof catalogRecipes.$inferSelect;
 export type CatalogIngredient = typeof catalogIngredients.$inferSelect;

@@ -21,12 +21,12 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Export Google Tasks | En service |
 | **Assistant** | **Neuf (19/08)** — `/assistant`, Claude fouille la base par outils ; les recettes citées deviennent des cartes cliquables qui s'ouvrent PAR-DESSUS le chat. ⚠️ Éteint si `ANTHROPIC_API_KEY` absente (dit à l'écran, pas une panne) |
 | Widget hub | `GET /api/hub/summary`, contrat `@mokarade/hub-contract` |
-| **Serveur MCP** | **Neuf (19/08)** — `POST /api/mcp`, 7 outils (4 lecture, 3 écriture). ⚠️ **503 tant que `MCP_TOKEN` n'est pas posé dans Vercel** — geste de Marc |
+| **Serveur MCP** | **Neuf (19/08)** — `POST /api/mcp`, 7 outils (4 lecture, 3 écriture). Branchable depuis **claude.ai** (OAuth 2.1, ADR-0002) **et** Claude Code (jeton direct). ⚠️ **503 tant que `MCP_TOKEN` n'est pas posé dans Vercel** — geste de Marc |
 | Accès | Google mono-adresse + interrogation du hub (`lib/accesHub.ts`) |
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **291 tests**, 24 fichiers (19/08/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **326 tests**, 25 fichiers (19/08/2026).
 
 ## Ce qui vient d'être livré (17/08/2026)
 
@@ -60,10 +60,25 @@ Gate : `typecheck` · `lint` · `test` · `build`. **291 tests**, 24 fichiers (1
   du SQL réécrit : un batch créé par Claude subit les mêmes garde-fous qu'un batch créé au
   doigt.
 
+### Second lot du 19/08 — OAuth pour le connecteur claude.ai
+
+Marc a essayé de brancher le connecteur : « me manque l'adresse ». L'adresse était bonne ;
+l'interface de connecteurs ne prend **qu'une URL**, sans champ pour un en-tête. Un serveur à
+jeton statique y échoue sans rien expliquer. FinanceAI avait buté sur le même mur le 13/07 et
+l'avait résolu par un OAuth 2.1 mono-utilisateur — c'est ce qui est repris ici (ADR-0002).
+
+- Un seul secret reste à poser : `MCP_TOKEN`. La clé de signature en est dérivée
+  (`MCP_OAUTH_SIGNING_KEY` la surcharge — c'est le kill-switch).
+- Deux tables neuves (`mcp_oauth_consumed`, `mcp_oauth_attempts`), migrations 0009/0010,
+  appliquées au build. **En base et non en mémoire** : en serverless, un compteur de process
+  compterait jusqu'à trois pour toujours.
+- Vérifié par 11 sondes contre un serveur réellement démarré + 326 tests, discrimination
+  prouvée par 6 mutations.
+
 ## Prochaine chose prévue
 
-Rien d'engagé. Deux items ouverts au backlog, tous deux hors code : poser `MCP_TOKEN`
-(`MCP-02`) et constater si le connecteur claude.ai exige OAuth (`MCP-03`).
+Rien d'engagé. Un seul item ouvert, hors code : poser `MCP_TOKEN` (`MCP-02`). `MCP-03` est
+tranché — le connecteur exige bien OAuth, et l'OAuth est livré.
 
 ⚠️ **L'assistant n'a jamais été essayé contre la vraie API** : cette session n'a pas de
 réseau vers Anthropic. Le protocole, les bornes et le classement sont testés ; la boucle

@@ -40,6 +40,35 @@ describe("garde des chemins", () => {
     expect(isPublicPath("/api/mcp/outils")).toBe(false);
     expect(isPublicPath("/api/mcp-admin")).toBe(false);
   });
+  it("les trois portes OAuth du MCP sont publiques, et SEULEMENT elles", () => {
+    // Elles portent leur propre garde : PKCE, clé d'accès, signature HMAC. Sous le
+    // middleware de session, Claude recevrait une page de connexion HTML au lieu du
+    // protocole, et le branchement échouerait sans rien dire.
+    expect(isPublicPath("/api/mcp/oauth/register")).toBe(true);
+    expect(isPublicPath("/api/mcp/oauth/authorize")).toBe(true);
+    expect(isPublicPath("/api/mcp/oauth/token")).toBe(true);
+    // Nommées une par une : une future route sous /api/mcp/oauth/ reste gardée.
+    expect(isPublicPath("/api/mcp/oauth/revoke")).toBe(false);
+    expect(isPublicPath("/api/mcp/oauth")).toBe(false);
+  });
+
+  it("les documents de découverte OAuth sont publics, sous-chemins compris", () => {
+    // Les clients MCP sondent la variante « path-aware » autant que la racine, et un seul
+    // attrape-tout les sert tous : ici le préfixe est correct ET nécessaire.
+    expect(isPublicPath("/.well-known/oauth-protected-resource")).toBe(true);
+    expect(isPublicPath("/.well-known/oauth-protected-resource/api/mcp")).toBe(true);
+    expect(isPublicPath("/.well-known/oauth-authorization-server")).toBe(true);
+    expect(isPublicPath("/.well-known/oauth-authorization-server/api/mcp")).toBe(true);
+  });
+
+  it("le préfixe porte sur un SEGMENT, jamais sur la chaîne", () => {
+    // `…-resource-evil` commence bien par `…-resource`. Un `startsWith` nu l'exempterait,
+    // et cette route-là ne serait plus derrière l'authentification.
+    expect(isPublicPath("/.well-known/oauth-protected-resource-evil")).toBe(false);
+    expect(isPublicPath("/.well-known/oauth-authorization-server-x")).toBe(false);
+    expect(isPublicPath("/.well-known/autre")).toBe(false);
+  });
+
   it("non authentifié : page → redirect login, API → 401", () => {
     expect(decideGuard({ isAuthenticated: false, pathname: "/batchs" })).toEqual({
       type: "redirect",

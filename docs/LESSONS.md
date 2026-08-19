@@ -8,6 +8,52 @@
 
 ---
 
+## 2026-08-19 — « Ça marche ailleurs » est une information, pas un compliment
+
+Marc a écrit six mots : « me manque l'adresse, regarde ce que DriveAI a fait ça marche ».
+J'avais livré le MCP le matin même, vérifié par onze sondes, et je venais de lui donner
+l'adresse. Le réflexe naturel était de la redonner.
+
+L'adresse était bonne. Ce qui manquait était invisible depuis le dépôt : l'interface
+« Ajouter un connecteur personnalisé » de claude.ai ne prend **qu'une URL**, sans champ pour
+un en-tête. Mon serveur, gardé par un `Authorization` statique, y reçoit une requête sans
+jeton, répond 401 — et comme ce 401 ne porte rien à découvrir, le connecteur échoue sans rien
+expliquer. Aucune relecture du code, aucun test, aucune sonde HTTP ne pouvait le montrer :
+le serveur répondait exactement ce qu'on lui avait demandé de répondre.
+
+Ce qui a tranché, c'est d'aller regarder ce qui MARCHE. La configuration MCP réelle de la
+session montrait `financeAImcp` branché sur une **URL nue** — donc l'authentification ne
+passait pas par un en-tête. Puis son code, dont l'en-tête disait déjà tout : *« pourquoi pas
+un simple Bearer statique : l'UI des connecteurs custom de claude.ai n'offre QUE OAuth
+(vérifié 2026-07-13) »*. Le même mur, dans le même écosystème, quarante jours plus tôt, avec
+son remède écrit à côté.
+
+J'avais pourtant noté ce risque la veille au backlog (`MCP-03`, « peut-être OAuth »). Le noter
+ne suffisait pas : je l'avais rangé dans « à constater au premier branchement réel », alors
+que la réponse était lisible **immédiatement** dans un dépôt voisin que j'avais déjà ouvert.
+Un inconnu qu'on peut lever en dix minutes n'est pas un inconnu, c'est une vérification
+qu'on remet.
+
+**Règle** : quand quelqu'un dit « ça marche là-bas », ce n'est pas une comparaison, c'est
+l'endroit où aller lire. Et avant de classer un point en « à vérifier plus tard », se
+demander si un projet voisin l'a déjà rencontré — dans un écosystème qui partage ses
+contraintes, le mur qu'on va prendre a souvent déjà été pris, et le compte rendu est dans le
+dépôt d'à côté.
+
+**Corollaire technique, du même incident** : un garde-fou qui protège quelque chose se
+transporte AVEC ses raisons, pas seulement avec son code. En reprenant l'OAuth de FinanceAI
+j'ai repris six contrôles (origine exacte, PKCE, type dans la charge, usage unique, rotation,
+temps constant) dont chacun venait d'un finding de revue. Les recopier sans leur « pourquoi »
+en aurait fait des lignes qu'une refactorisation future simplifierait sans le savoir. Chacun
+porte donc, dans le test qui le couvre, la phrase qui dit ce que son absence coûterait.
+
+**Corollaire d'adaptation** : un garde repris d'ailleurs se re-juge sur SA plateforme. La
+liste des codes déjà consommés vit en mémoire chez FinanceAI, ce qui tient sur une instance
+Cloud Run chaude ; recopiée telle quelle sur Vercel, elle n'aurait rien protégé — instances
+froides et parallèles, mémoire vierge à chaque rejeu. Elle est passée en base. « Ça marche
+là-bas » ne veut pas dire « ça marchera ici » : c'est la contrainte qui voyage, pas
+l'implémentation.
+
 ## 2026-08-19 — L'exemption de build ne survit pas au redémarrage d'une branche
 
 J'ai annoncé à Marc qu'un commit de documentation seule ne coûterait aucun déploiement —

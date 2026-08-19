@@ -99,6 +99,16 @@ const EXCEPTIONS: { fichier: string; classes: string[]; pourquoi: string }[] = [
   },
 ];
 
+/**
+ * Fichiers qui portent leur PROPRE palette, parce qu'ils sont servis hors du React et ne
+ * chargent donc pas `globals.css`. Ils ne sont PAS exemptés du garde : la vérification
+ * change de référentiel — chaque `var(--x)` doit être défini DANS le fichier, en clair ET
+ * en sombre. Le défaut visé reste le même (un nom mal orthographié hérite en silence, et
+ * une couleur oubliée en sombre redonne du blanc sur blanc) ; seule la source de vérité
+ * diffère. Exempter tout court aurait rendu ces pages invérifiables.
+ */
+const PALETTES_AUTONOMES = ["app/api/mcp/oauth/authorize/route.ts"];
+
 function exceptionsPour(fichier: string): string[] {
   return EXCEPTIONS.filter((e) => fichier.endsWith(e.fichier)).flatMap((e) => e.classes);
 }
@@ -173,6 +183,7 @@ describe("socle visuel — aucune couleur figée hors des jetons", () => {
     );
     const fautes: string[] = [];
     for (const fichier of fichiers) {
+      if (PALETTES_AUTONOMES.includes(fichier)) continue; // vérifié contre lui-même plus bas
       lire(fichier)
         .split("\n")
         .forEach((ligne, i) => {
@@ -183,6 +194,32 @@ describe("socle visuel — aucune couleur figée hors des jetons", () => {
         });
     }
     expect(fautes, `Jetons inexistants :\n${fautes.join("\n")}`).toEqual([]);
+  });
+
+  it("une page à palette autonome définit chaque jeton qu'elle cite, dans les DEUX thèmes", () => {
+    // Même défaut que partout ailleurs, autre référentiel. Le volet sombre compte autant
+    // que le clair : c'est la couleur oubliée en sombre qui produit « blanc sur blanc ».
+    for (const fichier of PALETTES_AUTONOMES) {
+      expect(fichiers, `${fichier} n'est plus dans le périmètre scanné`).toContain(fichier);
+      const source = lire(fichier);
+      const cites = new Set(
+        [...source.matchAll(/var\(\s*(--[a-z-]+)/g)]
+          .map((m) => m[1])
+          .filter((j): j is string => j !== undefined),
+      );
+      expect(cites.size, `${fichier} : aucun jeton cité, le test serait vide`).toBeGreaterThan(3);
+
+      const sombre = source.slice(source.indexOf("prefers-color-scheme: dark"));
+      expect(sombre.length, `${fichier} : aucun bloc sombre`).toBeGreaterThan(0);
+
+      const manquants: string[] = [];
+      for (const jeton of cites) {
+        const declare = new RegExp(`${jeton}\\s*:`, "g");
+        if (!declare.test(source)) manquants.push(`${jeton} (jamais défini)`);
+        else if (!new RegExp(`${jeton}\\s*:`).test(sombre)) manquants.push(`${jeton} (absent du thème sombre)`);
+      }
+      expect(manquants, `${fichier} :\n${manquants.join("\n")}`).toEqual([]);
+    }
   });
 });
 

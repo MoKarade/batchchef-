@@ -237,19 +237,42 @@ openssl rand -base64 32
 Tant qu'elle est absente, la route répond **503 « MCP_TOKEN non configuré »** : l'intégration
 est éteinte, ce n'est pas une panne.
 
-### 2. Déclarer le serveur dans Claude Code
-
-```bash
-claude mcp add --transport http batchchef https://batchchef.hubperso.com/api/mcp \
-  --header "Authorization: Bearer <le jeton>"
-```
-
 ⚠️ **Le domaine compte : `batchchef.hubperso.com`, JAMAIS une URL `*.vercel.app`.** Le projet
 a la protection Vercel (SSO) activée en mode `all_except_custom_domains` — vérifié le 19/08.
 Les URLs `*.vercel.app` (préversions **et** alias de production) répondent donc **302 vers
 `vercel.com/sso-api`** *avant* que l'app ne tourne : le client MCP ne verrait jamais le
 JSON-RPC, et rien dans la réponse ne lui dirait pourquoi. Seuls les domaines personnalisés
 sont exemptés.
+
+### 2a. Depuis claude.ai ou l'app mobile (connecteur)
+
+**Réglages → Connecteurs → Ajouter un connecteur personnalisé**, et colle **une seule
+chose** :
+
+```
+https://batchchef.hubperso.com/api/mcp
+```
+
+Claude découvre l'OAuth tout seul. Il ouvre alors une page « Connecter Claude à BatchChef »
+où tu colles **ta clé d'accès** — c'est la valeur de `MCP_TOKEN`, la même que ci-dessus.
+C'est tout.
+
+> Pourquoi de l'OAuth alors qu'un jeton suffirait : l'interface des connecteurs ne prend
+> **qu'une URL**, sans champ pour un en-tête. Un serveur gardé par un `Authorization`
+> statique y répond 401 sans rien à découvrir, et le connecteur échoue sans dire pourquoi.
+> Même mur que FinanceAI, même remède (cf. `docs/adr/0002`).
+
+### 2b. Depuis Claude Code
+
+Là, un en-tête est possible — c'est le chemin le plus court, sans OAuth :
+
+```bash
+claude mcp add --transport http batchchef https://batchchef.hubperso.com/api/mcp \
+  --header "Authorization: Bearer <le jeton>"
+```
+
+Les deux portes mènent à la même maison : le serveur accepte le jeton direct **et** un jeton
+d'accès OAuth.
 
 ### 3. Vérifier que ça répond
 
