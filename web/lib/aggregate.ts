@@ -27,7 +27,15 @@ export interface AggregatedItem {
   unit: "g" | "ml" | "unite" | null;
 }
 
-/** Arrondi d'affichage : 1 décimale max, entiers pour les unités. */
+/**
+ * Arrondi d'AFFICHAGE : 1 décimale max, arrondi vers le haut pour les pièces.
+ *
+ * ⚠️ Ne s'applique qu'UNE fois, à la fin. Appliqué à chaque addition, il faisait dériver le
+ * total : mesuré le 19/08/2026, trois recettes de 100 g mises à l'échelle 4/3 rendaient
+ * 399,9 g au lieu de 400. L'écart est minuscule et sans conséquence en cuisine — mais un
+ * total qui n'est pas la somme de ses parties est le genre de détail qui fait douter du
+ * reste, et le corriger ne coûte qu'un accumulateur non arrondi.
+ */
 function round(qty: number, unit: IngredientLine["unit"]): number {
   if (unit === "unite") return Math.ceil(qty * 10) / 10;
   return Math.round(qty * 10) / 10;
@@ -39,7 +47,8 @@ function round(qty: number, unit: IngredientLine["unit"]): number {
  * regroupées entre elles par canonical et gardent qty=null.
  */
 export function aggregateShoppingList(recipes: RecipeForBatch[]): AggregatedItem[] {
-  const groups = new Map<string, AggregatedItem>();
+  // Accumulateur NON arrondi : l'arrondi n'intervient qu'à la sortie (cf. `round`).
+  const groups = new Map<string, AggregatedItem & { brut: number | null }>();
 
   for (const recipe of recipes) {
     if (recipe.servings <= 0) continue; // recette mal saisie : ne corrompt pas la liste
@@ -57,19 +66,25 @@ export function aggregateShoppingList(recipes: RecipeForBatch[]): AggregatedItem
           // Le premier nom rencontré sert d'étiquette d'affichage.
           name: ing.name.trim(),
           canonical,
-          qty: ing.qty === null ? null : round(ing.qty * scale, unit),
+          qty: null, // rempli à la sortie, depuis `brut`
           unit,
+          brut: ing.qty === null ? null : ing.qty * scale,
         });
         continue;
       }
-      if (ing.qty !== null && existing.qty !== null) {
-        existing.qty = round(existing.qty + ing.qty * scale, unit);
+      if (ing.qty !== null && existing.brut !== null) {
+        existing.brut += ing.qty * scale;
       }
       // qty null + qty null → reste null (« au goût », dédupliqué).
     }
   }
 
-  return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  return [...groups.values()]
+    .map(({ brut, ...item }) => ({
+      ...item,
+      qty: brut === null ? null : round(brut, item.unit),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "fr"));
 }
 
 /**

@@ -41,7 +41,12 @@ describe("unités ANGLAISES (une partie des reels sont en anglais)", () => {
     expect(normalizeQty(8, "oz")).toEqual({ qty: 226.8, unit: "g" });
     expect(normalizeQty(1, "lb")).toEqual({ qty: 453.59, unit: "g" });
     expect(normalizeQty(2, "pounds")).toEqual({ qty: 907.18, unit: "g" });
-    expect(normalizeQty(1, "stick")).toEqual({ qty: 113, unit: "g" });
+    // ⚠️ `stick` exige désormais le nom de l'ingrédient (19/08/2026). L'invariant protégé
+    // par ce test — une plaque de BEURRE vaut 113 g — est intact ; ce qui a changé est le
+    // DÉFAUT quand on ne sait pas de quoi il s'agit. Rendre 113 g pour un « stick » inconnu
+    // revenait à inventer un poids, ce que le projet refuse partout ailleurs : un bâton de
+    // cannelle valait 113 g de cannelle. Voir « stick : beurre ou bâton ? » plus bas.
+    expect(normalizeQty(1, "stick", "stick", "beurre")).toEqual({ qty: 113, unit: "g" });
   });
 
   it("convertit les volumes anglais", () => {
@@ -75,5 +80,74 @@ describe("unités ANGLAISES (une partie des reels sont en anglais)", () => {
     // points ajouté pour « fl. oz. » ne doit pas passer devant elle.
     expect(normalizeQty(1, "c. à soupe", "c. à soupe")).toEqual({ qty: 15, unit: "ml" });
     expect(normalizeQty(1, "c. à thé", "c. à thé")).toEqual({ qty: 5, unit: "ml" });
+  });
+});
+
+// ── Symétrie FR/EN et dénombrables (ING-02, 19/08/2026) ────────────────────────────
+//
+// Mesuré avant correctif sur 50 unités réelles : 58 % des quantités tombaient en « au goût ».
+// La cause n'était pas l'anglais mais le FRANÇAIS — les entrées anglaises avaient été
+// ajoutées en bloc sans revoir leurs équivalents français.
+
+describe("symétrie FR/EN", () => {
+  const PAIRES: Array<[string, string]> = [
+    ["gousses", "cloves"],
+    ["tranches", "slices"],
+    ["morceaux", "pieces"],
+    ["livre", "lb"],
+    ["once", "oz"],
+    ["cuillère à soupe", "tbsp"],
+  ];
+
+  it("la même notion donne le même résultat dans les deux langues", () => {
+    // Le garde qui compte : toute unité ajoutée dans une langue doit l'être dans l'autre,
+    // sinon l'asymétrie se recreuse en silence — rien n'échoue, la quantité disparaît.
+    for (const [fr, en] of PAIRES) {
+      const a = normalizeQty(2, fr, fr);
+      const b = normalizeQty(2, en, en);
+      expect(a, `${fr} vs ${en}`).toEqual(b);
+    }
+  });
+});
+
+describe("dénombrables et calibres", () => {
+  it("un dénombrable garde son compte au lieu de tomber en « au goût »", () => {
+    for (const u of ["gousses", "tranches", "branches", "filets", "feuilles", "oeufs", "stalks", "sprigs", "fillets"]) {
+      expect(normalizeQty(3, u, u), u).toEqual({ qty: 3, unit: "unite" });
+    }
+  });
+
+  it("un CALIBRE est un adjectif de taille : la quantité reste le compte", () => {
+    // « 3 large eggs » = 3 œufs. Traiter `large` comme une unité inconnue jetait le compte.
+    for (const u of ["large", "medium", "small", "gros", "petite"]) {
+      expect(normalizeQty(3, u, u), u).toEqual({ qty: 3, unit: "unite" });
+    }
+  });
+
+  it("ce qui n'a VRAIMENT pas de taille fixe reste « au goût »", () => {
+    // La frontière ne bouge pas : on n'invente toujours aucun poids.
+    for (const u of ["pincée", "poignée", "botte", "sachet", "boîte", "can", "bunch", "dash", "splash"]) {
+      expect(normalizeQty(2, u, u), u).toEqual({ qty: null, unit: null });
+    }
+  });
+});
+
+describe("« stick » : beurre ou bâton ?", () => {
+  it("une plaque de BEURRE vaut 113 g", () => {
+    expect(normalizeQty(2, "sticks", "sticks", "beurre non salé")).toEqual({ qty: 226, unit: "g" });
+    expect(normalizeQty(1, "stick", "stick", "butter")).toEqual({ qty: 113, unit: "g" });
+  });
+
+  it("tout le reste compte des PIÈCES", () => {
+    // « 1 cinnamon stick » valait 113 g de cannelle : absurde en cuisine, et le prix suivait.
+    expect(normalizeQty(1, "stick", "stick", "cinnamon")).toEqual({ qty: 1, unit: "unite" });
+    expect(normalizeQty(2, "sticks", "sticks", "céleri")).toEqual({ qty: 2, unit: "unite" });
+  });
+
+  it("le nom de l'ingrédient ne perturbe PAS les cuillères", () => {
+    // `rawText` sert à distinguer « c. à thé » de « c. à soupe » : y fondre le nom ferait
+    // de « 1 c. à soupe de café moulu » une cuillère à café.
+    expect(normalizeQty(1, "c. à soupe", "c. à soupe", "café moulu")).toEqual({ qty: 15, unit: "ml" });
+    expect(normalizeQty(1, "c. à thé", "c. à thé", "sucre")).toEqual({ qty: 5, unit: "ml" });
   });
 });

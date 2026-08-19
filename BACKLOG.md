@@ -10,17 +10,6 @@
 
 Demandes de Marc du 17/08 (soir), dans l'ordre où il les a posées.
 
-- [ ] **`ING-01` — Ne plus faire acheter sel, poivre & compagnie.**
-  ⚠️ **PAS une liste que Marc tient à jour** : il vient de refuser le garde-manger
-  déclaratif. Ça doit être AUTOMATIQUE — une catégorie d'ingrédients de fond (sel, poivre,
-  eau, épices de base) reconnue au moment de l'agrégation, jamais un écran de gestion.
-  Reste à trancher : la liste vit-elle en dur dans `lib/` (prévisible, testable) ou est-elle
-  décidée par le LLM au parse (souple, mais variable d'une recette à l'autre) ?
-- [ ] **`ING-02` — Quantités plus précises, moins d'erreurs.**
-  ⚠️ Diagnostiquer AVANT de coder : mesurer sur de vraies recettes OÙ l'erreur naît
-  (extraction LLM ? conversion d'unités ? mise à l'échelle ? agrégation ?). Une plainte sur
-  ce qu'on VOIT ne désigne presque jamais la couche à changer — leçon déjà payée deux fois
-  chez JobAI.
 - [ ] **`BOT-01` — Chatbot Claude sur la base.** Trois usages demandés : quelles recettes
   avec les ingrédients que j'ai (même incomplets), trouver des équivalents d'ingrédients,
   créer une recette en s'appuyant sur toute la base.
@@ -41,6 +30,13 @@ Demandes de Marc du 17/08 (soir), dans l'ordre où il les a posées.
 
 Rien n'est engagé ici — à proposer à Marc avant de coder.
 
+- [ ] **Unité INCONNUE → compter des pièces plutôt que « au goût » ?** Envisagé pendant
+  `ING-02` puis **écarté volontairement**. Ça sauverait le compte (« 3 verres » → 3 unités
+  au lieu de rien), mais ça fabriquerait une nouvelle classe d'erreur : « 3 unités de lait »
+  a l'air juste et ne l'est pas. Un aveu d'ignorance vaut mieux qu'un nombre plausible et
+  faux — même arbitrage que « un 0 crédible est pire qu'un — honnête ». À rouvrir seulement
+  si une mesure montre que les unités inconnues sont fréquentes ET majoritairement des pièces.
+
 - [ ] Le stock ne sait pas ce qui a été mangé, seulement ce qu'il reste. Un historique
   permettrait « tu manges du chili trois fois par semaine », mais c'est de la mesure sans
   usage tant que personne ne l'a demandée.
@@ -58,6 +54,13 @@ Rien n'est engagé ici — à proposer à Marc avant de coder.
 
 ## Fait
 
+- [x] **`ING-01` — Sel, poivre et eau hors de la liste d'épicerie.** Automatique, liste
+  fermée dans le code, appariement mot à mot (« poivron » survit), écart DIT à l'écran.
+  19/08/2026.
+- [x] **`ING-02` — Quantités : 58 % → 28 % de perte.** Mesuré avant/après sur 50 unités
+  réelles. La cause était l'asymétrie FR/EN de la table d'unités, pas la couche que je
+  soupçonnais. Les 28 % restants sont des contenants sans taille fixe — pertes légitimes.
+  19/08/2026.
 - [x] ~~**`GM-01` — Garde-manger.**~~ Bouton « Placard » sur chaque article restant d'une liste,
   section « à vérifier au placard » (repliée, cochable, JAMAIS supprimée), écran
   `/garde-manger` pour défaire. Table vide au départ, comme décidé. 17/08/2026.

@@ -10,6 +10,7 @@ import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { shoppingChecklistKey } from "@/lib/aggregate";
+import { estIngredientDeFond, resumerIngredientsDeFond } from "@/lib/ingredientsDeFond";
 import { ShoppingChecklist } from "@/components/ShoppingChecklist";
 import { ShoppingListEditor } from "@/components/ShoppingListEditor";
 import { ShareListButton } from "@/components/ShareListButton";
@@ -34,6 +35,22 @@ export default async function ShoppingPage({
     .where(eq(schema.shoppingItems.batchId, id))
     .orderBy(asc(schema.shoppingItems.name));
 
+  // Ce que la liste N'AFFICHE PAS et pourquoi. Sel, poivre et eau sont écartés à la création
+  // du batch ; les recalculer ici depuis les recettes évite une colonne de plus, et surtout
+  // évite un retrait SILENCIEUX — un article qui disparaît sans explication, c'est ce qui
+  // fait douter du reste de la liste.
+  const ingredientsDesRecettes = await db
+    .select({ name: schema.recipeIngredients.name, canonical: schema.recipeIngredients.canonical })
+    .from(schema.batchRecipes)
+    .innerJoin(
+      schema.recipeIngredients,
+      eq(schema.recipeIngredients.recipeId, schema.batchRecipes.recipeId),
+    )
+    .where(eq(schema.batchRecipes.batchId, id));
+  const noteDeFond = resumerIngredientsDeFond(
+    ingredientsDesRecettes.filter((i) => estIngredientDeFond(i.canonical)).map((i) => i.name),
+  );
+
 
   return (
     <div className="space-y-5">
@@ -54,6 +71,8 @@ export default async function ShoppingPage({
         }))}
       />
 
+
+      {noteDeFond && <p className="text-xs doux">{noteDeFond}</p>}
 
       {/* Tout ce qui se fait AVANT de partir, replié sous un seul dépliant. */}
       <details className="carte overflow-hidden">

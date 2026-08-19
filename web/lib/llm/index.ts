@@ -172,7 +172,7 @@ export function normalizeParsedRecipe(raw: z.infer<typeof RawParsedRecipeSchema>
     instructions: raw.instructions ?? null,
     ingredients: raw.ingredients.map((i) => {
       // Le texte de désambiguïsation des cuillères (thé vs soupe) vit dans unit/note.
-      const norm = normalizeQty(i.qty ?? null, i.unit ?? null, `${i.unit ?? ""} ${i.note ?? ""}`);
+      const norm = normalizeQty(i.qty ?? null, i.unit ?? null, `${i.unit ?? ""} ${i.note ?? ""}`, i.name ?? "");
       const canonical = (i.canonical ?? i.name).toLowerCase().trim();
       return {
         name: i.name,

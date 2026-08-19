@@ -96,7 +96,7 @@ async function main() {
     if (!newId) continue;
     const servings = Number(r.servings) > 0 ? Number(r.servings) : 1;
     for (const ing of ingByRecipe.get(Number(r.id)) ?? []) {
-      const norm = normalizeQty(numOrNull(ing.qty), ing.unit as string | null, String(ing.raw_text ?? ""));
+      const norm = normalizeQty(numOrNull(ing.qty), ing.unit as string | null, String(ing.raw_text ?? ""), String(ing.name ?? ""));
       const total = norm.qty === null ? null : Math.round(norm.qty * servings * 100) / 100;
       ingValues.push({
         catalogRecipeId: newId,
