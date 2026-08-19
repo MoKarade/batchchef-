@@ -6,7 +6,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { recordLlmUsage } from "@/lib/llmUsage";
-import { MAX_TOURS_OUTILS, tronquerHistorique, type Message } from "./protocole";
+import { BUDGET_MS, MAX_TOURS_OUTILS, tronquerHistorique, type Message } from "./protocole";
 import { OUTILS, executerOutil } from "./outils";
 
 const MODELE = process.env.BATCHCHEF_MODELE_ASSISTANT ?? "claude-sonnet-5";
@@ -17,7 +17,9 @@ Tu as accès à SA base : sa bibliothèque de recettes ("mes-recettes") et un ca
 
 RÈGLES NON NÉGOCIABLES
 
-1. Ne JAMAIS présenter comme venant de la base une recette que tu n'y as pas lue. Quand tu cites une recette de la base, donne son titre et son numéro ("[catalogue #482]") pour que Marc puisse la retrouver. Quand tu INVENTES une recette, dis-le explicitement : "je te la compose" — et n'invente pas de numéro.
+1. Ne JAMAIS présenter comme venant de la base une recette que tu n'y as pas lue. Quand tu cites une recette de la base, écris son titre suivi de son marqueur : "Poulet au citron [catalogue #482]". Ce marqueur devient une CARTE CLIQUABLE dans l'app — Marc touche dessus et lit la recette entière sans quitter la conversation. Mets-le donc pour CHAQUE recette de la base que tu proposes, sinon il n'a aucun moyen de l'ouvrir.
+
+Le format exact est [catalogue #ID] ou [mes-recettes #ID], avec l'identifiant que l'outil t'a rendu. N'invente JAMAIS un numéro : une carte qui ne mène à rien est pire que pas de carte. Quand tu COMPOSES une recette toi-même, dis-le ("je te la compose") et ne mets aucun marqueur.
 
 2. N'invente aucune quantité que tu n'as pas lue. Si un outil ne rend pas de quantité, dis-le plutôt que de la combler avec une valeur plausible. Un "je ne sais pas" honnête vaut mieux qu'un chiffre crédible et faux — toute la liste d'épicerie de Marc s'échelonne sur ces nombres.
 
@@ -36,6 +38,8 @@ export interface ReponseAssistant {
   toursOutils: number;
   /** `true` si la borne a été atteinte : la réponse est PARTIELLE et le dit. */
   borneAtteinte: boolean;
+  /** `true` si le modèle a été coupé par le plafond de jetons — la phrase s'arrête net. */
+  coupeeEnCours: boolean;
 }
 
 type BlocContenu = Anthropic.Messages.ContentBlockParam;
@@ -49,6 +53,7 @@ export async function repondre(historique: readonly Message[]): Promise<ReponseA
       texte: "L'assistant n'est pas configuré (clé API absente).",
       toursOutils: 0,
       borneAtteinte: false,
+      coupeeEnCours: false,
     };
   }
   const client = new Anthropic({ apiKey });
@@ -58,7 +63,9 @@ export async function repondre(historique: readonly Message[]): Promise<ReponseA
     content: m.contenu,
   }));
 
+  const debut = Date.now();
   let tours = 0;
+  let budgetEpuise = false;
   while (tours <= MAX_TOURS_OUTILS) {
     const reponse = await client.messages.create({
       model: MODELE,
@@ -79,15 +86,28 @@ export async function repondre(historique: readonly Message[]): Promise<ReponseA
         .map((b) => b.text)
         .join("\n")
         .trim();
+      // ⚠️ Une réponse coupée par le plafond de jetons s'arrête EN PLEIN MILIEU d'une
+      // phrase. Rendue telle quelle, elle a l'air complète : Marc lirait une recette dont
+      // la dernière étape manque sans rien pour le lui dire. On l'annonce.
+      const coupee = reponse.stop_reason === "max_tokens";
       return {
         ok: true,
-        texte: texte || "Je n'ai pas trouvé quoi répondre.",
+        texte:
+          (texte || "Je n'ai pas trouvé quoi répondre.") +
+          (coupee ? "\n\n[Réponse coupée : elle était trop longue. Demande-moi la suite.]" : ""),
         toursOutils: tours,
         borneAtteinte: false,
+        coupeeEnCours: coupee,
       };
     }
 
     if (tours === MAX_TOURS_OUTILS) break;
+    // Le mur de la plateforme arrive avant la borne de tours quand les appels traînent :
+    // s'arrêter ici laisse une réponse honnête, aller plus loin donne une erreur illisible.
+    if (Date.now() - debut > BUDGET_MS) {
+      budgetEpuise = true;
+      break;
+    }
 
     messages.push({ role: "assistant", content: reponse.content });
     const resultats: BlocContenu[] = [];
@@ -103,13 +123,18 @@ export async function repondre(historique: readonly Message[]): Promise<ReponseA
   }
 
   // Borne atteinte : ce n'est pas une erreur, c'est une réponse qu'on n'a pas pu finir.
-  // Le dire vaut mieux qu'un texte tronqué qui aurait l'air complet.
+  // Le dire vaut mieux qu'un texte tronqué qui aurait l'air complet. Et on distingue les
+  // deux causes : « je n'ai pas trouvé » et « je n'ai pas eu le temps » n'appellent pas la
+  // même chose de la part de Marc.
   return {
     ok: true,
-    texte:
-      `J'ai cherché ${MAX_TOURS_OUTILS} fois dans la base sans arriver à conclure. ` +
-      "Reformule en précisant (un ingrédient principal, un type de plat) — je repartirai de là.",
-    toursOutils: MAX_TOURS_OUTILS,
+    texte: budgetEpuise
+      ? "J'ai manqué de temps avant d'aboutir (la recherche a été longue). Repose ta " +
+        "question — souvent le deuxième essai passe, la base répondant plus vite."
+      : `J'ai cherché ${MAX_TOURS_OUTILS} fois dans la base sans arriver à conclure. ` +
+        "Reformule en précisant (un ingrédient principal, un type de plat) — je repartirai de là.",
+    toursOutils: tours,
     borneAtteinte: true,
+    coupeeEnCours: false,
   };
 }

@@ -83,9 +83,32 @@ export const OUTILS = [
 
 export const NOMS_OUTILS = OUTILS.map((o) => o.name);
 
-function borne(n: unknown, defaut: number, max: number): number {
-  const v = typeof n === "number" && Number.isFinite(n) ? Math.floor(n) : defaut;
-  return Math.min(Math.max(v, 1), max);
+/**
+ * Un identifiant de recette, ou `null`.
+ *
+ * ⚠️ Ne JAMAIS rabattre un id douteux sur une valeur par défaut. Une première version
+ * bornait à `[1, +∞[` : un id absent, nul, négatif ou envoyé en chaîne devenait donc la
+ * recette n°1, et l'assistant lisait puis citait une recette sans aucun rapport, avec
+ * assurance. C'est pire qu'une erreur — ça a l'air juste. Ici on refuse et on le dit.
+ */
+export function idRecette(n: unknown): number | null {
+  const v = typeof n === "number" ? n : typeof n === "string" ? Number(n) : NaN;
+  return Number.isInteger(v) && v > 0 ? v : null;
+}
+
+/**
+ * Borne la taille d'un résultat d'outil.
+ *
+ * La préparation d'une recette du catalogue peut faire plusieurs kilo-octets ; multipliée
+ * par huit allers-retours, elle gonfle le contexte et la facture sans rien ajouter. La
+ * troncature est DITE dans le texte rendu au modèle : sans ça il croirait avoir lu la
+ * recette en entier et pourrait en citer une étape qui n'existe pas.
+ */
+export const MAX_CARACTERES_RESULTAT = 6000;
+
+export function bornerResultat(texte: string): string {
+  if (texte.length <= MAX_CARACTERES_RESULTAT) return texte;
+  return `${texte.slice(0, MAX_CARACTERES_RESULTAT)}\n[…] Résultat tronqué : la suite n'a pas été lue.`;
 }
 
 function listeDeChaines(v: unknown): string[] {
@@ -173,7 +196,11 @@ async function chercherRecettes(args: Record<string, unknown>): Promise<string> 
 }
 
 async function lireRecette(args: Record<string, unknown>): Promise<string> {
-  const id = borne(args.id, 0, Number.MAX_SAFE_INTEGER);
+  const id = idRecette(args.id);
+  if (id === null) return "Identifiant de recette invalide : donne le numéro rendu par la recherche.";
+  if (args.source !== "catalogue" && args.source !== "mes-recettes") {
+    return "Source invalide : « catalogue » ou « mes-recettes ».";
+  }
   const estCatalogue = args.source === "catalogue";
   const tableR = estCatalogue ? schema.catalogRecipes : schema.recipes;
   const tableI = estCatalogue ? schema.catalogIngredients : schema.recipeIngredients;
@@ -233,9 +260,11 @@ async function ingredientsLesPlusUtilises(args: Record<string, unknown>): Promis
  */
 export async function executerOutil(nom: string, args: Record<string, unknown>): Promise<string> {
   try {
-    if (nom === "chercher_recettes") return await chercherRecettes(args);
-    if (nom === "lire_recette") return await lireRecette(args);
-    if (nom === "ingredients_les_plus_utilises") return await ingredientsLesPlusUtilises(args);
+    if (nom === "chercher_recettes") return bornerResultat(await chercherRecettes(args));
+    if (nom === "lire_recette") return bornerResultat(await lireRecette(args));
+    if (nom === "ingredients_les_plus_utilises") {
+      return bornerResultat(await ingredientsLesPlusUtilises(args));
+    }
     return `Outil inconnu : ${nom}.`;
   } catch (err) {
     return `L'outil ${nom} a échoué : ${err instanceof Error ? err.message : String(err)}`;

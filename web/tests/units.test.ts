@@ -3,7 +3,7 @@
 // unités inconnues → « au goût » (jamais un poids inventé), qty ≤ 0 rejetée.
 
 import { describe, expect, it } from "vitest";
-import { normalizeQty } from "../lib/units";
+import { noteQuantiteNonConvertie, normalizeQty } from "../lib/units";
 
 describe("normalizeQty", () => {
   it("garde g/ml/unite tels quels", () => {
@@ -149,5 +149,33 @@ describe("« stick » : beurre ou bâton ?", () => {
     // de « 1 c. à soupe de café moulu » une cuillère à café.
     expect(normalizeQty(1, "c. à soupe", "c. à soupe", "café moulu")).toEqual({ qty: 15, unit: "ml" });
     expect(normalizeQty(1, "c. à thé", "c. à thé", "sucre")).toEqual({ qty: 5, unit: "ml" });
+  });
+});
+
+describe("noteQuantiteNonConvertie", () => {
+  it("garde ce que la source disait quand on n'a pas su convertir", () => {
+    // Sans ça, « 2 cans » devient « au goût » et l'unité d'origine est perdue POUR
+    // TOUJOURS : aucune table ne la stocke, donc élargir FACTORS plus tard ne rattrape
+    // rien de ce qui est déjà en base.
+    expect(noteQuantiteNonConvertie(null, 2, "cans")).toBe("2 cans");
+    expect(noteQuantiteNonConvertie(null, 1, "botte")).toBe("1 botte");
+  });
+
+  it("complète une note existante sans l'écraser", () => {
+    expect(noteQuantiteNonConvertie("bien mûre", 1, "poignée")).toBe("bien mûre · 1 poignée");
+  });
+
+  it("ne répète pas ce que la note dit déjà", () => {
+    // « 2 cups · 2 cups » n'aide personne.
+    expect(noteQuantiteNonConvertie("2 cups tassées", 2, "cups")).toBe("2 cups tassées");
+  });
+
+  it("se contente de l'unité quand la quantité manque", () => {
+    expect(noteQuantiteNonConvertie(null, null, "pincée")).toBe("pincée");
+  });
+
+  it("rend null quand il n'y a vraiment rien à dire", () => {
+    expect(noteQuantiteNonConvertie(null, null, null)).toBeNull();
+    expect(noteQuantiteNonConvertie("  ", null, "  ")).toBeNull();
   });
 });

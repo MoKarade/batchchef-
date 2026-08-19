@@ -70,13 +70,26 @@ const COULEUR_FIGEE = new RegExp(
 );
 
 /**
- * La SEULE exception, et elle est nommée ici plutôt que dans une liste de fichiers exclus.
+ * Les exceptions, nommées ici plutôt que dans une liste de fichiers exclus.
  *
  * Exempter un fichier l'exempte aussi pour la ligne qu'on y ajoutera demain. On exempte
  * donc des CLASSES précises, dans un fichier précis, avec le motif écrit : le reste du
  * fichier reste gardé.
+ *
+ * Le point commun des deux : ces couleurs ne se jouent PAS contre une surface du thème
+ * (une photo, la page assombrie). C'est le seul motif admis — « c'était plus simple » n'en
+ * est pas un. Le 19/08, ce garde a attrapé le voile de la modale que je venais d'écrire :
+ * il fonctionne sur du code neuf, pas seulement sur l'historique qui l'a fait naître.
  */
 const EXCEPTIONS: { fichier: string; classes: string[]; pourquoi: string }[] = [
+  {
+    fichier: "components/FicheRecetteModale.tsx",
+    classes: ["bg-black/50"],
+    pourquoi:
+      "Voile (`::backdrop`) d'une modale : il assombrit la PAGE, pas une surface du thème. " +
+      "Un noir translucide fait le même travail en clair et en sombre — c'est le contraste " +
+      "avec la page qu'il crée, pas avec `--fond`.",
+  },
   {
     fichier: "components/CatalogueGrid.tsx",
     classes: ["border-white/80", "bg-black/30", "bg-black/50"],

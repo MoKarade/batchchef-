@@ -36,6 +36,19 @@ export const MAX_TOURS_OUTILS = 8;
 export const MAX_RESULTATS_RECHERCHE = 25;
 
 /**
+ * Budget de temps de la boucle, en millisecondes.
+ *
+ * ⚠️ La vraie borne n'est pas le nombre de tours, c'est le MUR DE LA PLATEFORME : la route
+ * déclare `maxDuration = 60`, et huit allers-retours à quelques secondes chacun peuvent le
+ * dépasser. Au-delà du mur, Vercel tue la fonction — Marc reçoit une erreur de plateforme
+ * illisible, après avoir payé tous les appels déjà faits.
+ *
+ * On s'arrête donc AVANT, avec assez de marge pour rédiger une réponse honnête. Compter les
+ * tours ne suffit pas : un tour peut prendre deux secondes comme quinze.
+ */
+export const BUDGET_MS = 45_000;
+
+/**
  * Tronque l'historique en préservant l'invariant du protocole Messages : la séquence
  * envoyée commence par un tour `user` et alterne.
  *
@@ -128,4 +141,64 @@ export function classerParDisponibilite(recettes: readonly RecetteTrouvee[]): Re
 export function baliserDonnee(etiquette: string, contenu: string): string {
   const propre = contenu.replace(/<\/?donnee[^>]*>/gi, "");
   return `<donnee source="${etiquette}">\n${propre}\n</donnee>`;
+}
+
+// ── Références de recettes dans une réponse ────────────────────────────────────────
+//
+// Le prompt EXIGE que l'assistant cite « [catalogue #482] » pour toute recette qu'il a
+// réellement lue. Ce marqueur sert deux choses d'un coup : il permet à Marc de retrouver la
+// recette, et il devient ici une CARTE cliquable.
+//
+// ⚠️ Ne jamais fabriquer une carte pour une recette que l'assistant n'a pas citée. Une carte
+// est une promesse — « cette recette existe, clique » — et une carte vers du vide serait
+// exactement le genre de faux que le reste de l'app refuse.
+
+export interface ReferenceRecette {
+  source: "catalogue" | "mes-recettes";
+  id: number;
+}
+
+export type Segment =
+  | { type: "texte"; valeur: string }
+  | { type: "reference"; source: "catalogue" | "mes-recettes"; id: number; brut: string };
+
+/**
+ * Tolérante sur la FORME, stricte sur le FOND : le « # » est optionnel, les espaces aussi,
+ * la casse est ignorée — un modèle varie sur ces détails et jeter une référence juste
+ * priverait Marc de la carte. Mais la source doit être l'une des deux connues, et l'id un
+ * entier : on ne devine pas.
+ */
+const MOTIF_REFERENCE = /\[\s*(catalogue|mes-recettes)\s*#?\s*(\d+)\s*\]/gi;
+
+/** Découpe une réponse en texte et références, dans l'ordre, sans rien perdre. */
+export function decouperReponse(texte: string): Segment[] {
+  const segments: Segment[] = [];
+  let curseur = 0;
+  for (const trouve of texte.matchAll(MOTIF_REFERENCE)) {
+    const debut = trouve.index ?? 0;
+    if (debut > curseur) segments.push({ type: "texte", valeur: texte.slice(curseur, debut) });
+    segments.push({
+      type: "reference",
+      source: trouve[1]!.toLowerCase() === "catalogue" ? "catalogue" : "mes-recettes",
+      id: Number(trouve[2]),
+      brut: trouve[0],
+    });
+    curseur = debut + trouve[0].length;
+  }
+  if (curseur < texte.length) segments.push({ type: "texte", valeur: texte.slice(curseur) });
+  return segments;
+}
+
+/** Les références d'une réponse, dédoublonnées, dans l'ordre d'apparition. */
+export function referencesDe(texte: string): ReferenceRecette[] {
+  const vues = new Set<string>();
+  const refs: ReferenceRecette[] = [];
+  for (const seg of decouperReponse(texte)) {
+    if (seg.type !== "reference") continue;
+    const cle = `${seg.source}#${seg.id}`;
+    if (vues.has(cle)) continue;
+    vues.add(cle);
+    refs.push({ source: seg.source, id: seg.id });
+  }
+  return refs;
 }

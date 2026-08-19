@@ -8,6 +8,62 @@
 
 ---
 
+## 2026-08-19 — Un « borner » qui rabat sur une valeur par défaut fabrique une réponse fausse
+
+En relisant la boucle de l'assistant — jamais exécutée, la session qui l'a écrite n'ayant pas
+de réseau vers l'API — j'ai trouvé ceci :
+
+```ts
+const id = borne(args.id, 0, Number.MAX_SAFE_INTEGER);   // Math.min(Math.max(v, 1), max)
+```
+
+Un id absent, nul, négatif ou envoyé en chaîne devenait **1**. L'assistant lisait donc la
+recette n°1 et la citait à Marc comme la réponse à sa question, avec numéro et ingrédients à
+l'appui. Aucune erreur nulle part.
+
+Le mot « borner » est le piège : borner une DIMENSION (une limite de résultats, une durée) est
+sain — on veut une valeur dans un intervalle. Borner un IDENTIFIANT n'a aucun sens : un id
+hors domaine n'est pas « trop petit », il est **absent**. Rabattre revient à répondre à une
+autre question que celle posée.
+
+**Règle** : un identifiant se valide et se REFUSE, il ne se borne jamais. Plus largement,
+avant d'écrire un `clamp`, se demander si la valeur vit sur un CONTINUUM (borner) ou désigne
+une ENTITÉ (refuser). Et se méfier d'un helper générique réutilisé pour les deux.
+
+**Troisième défaut du même passage, même famille** : `stop_reason` n'était pas lu. Une
+réponse coupée par le plafond de jetons s'arrête EN PLEIN MILIEU d'une phrase — rendue telle
+quelle, elle a l'air complète, et Marc lirait une recette dont la dernière étape manque sans
+rien pour le lui dire. Le point commun des trois : **du code qui produit un résultat
+plausible là où il devrait admettre qu'il n'en a pas**. C'est ce que la relecture doit
+chercher en priorité dans du code non exécuté — pas les plantages, qui se signalent seuls.
+
+Corollaire du même passage : la sortie d'un outil aussi est une entrée qui croît (la
+préparation d'une recette fait des kilo-octets, × 8 allers-retours). Elle est maintenant
+bornée, et la troncature est DITE — sinon le modèle croirait avoir tout lu et pourrait citer
+une étape qui n'existe pas.
+
+---
+
+## 2026-08-19 — Normaliser à l'écriture DÉTRUIT la source, donc rend le correctif suivant impossible
+
+Le pipeline convertissait les unités au moment de l'import et ne gardait que le résultat
+(`g`/`ml`/`unite`). Quand la conversion échouait, la quantité tombait en « au goût » — et le
+mot d'origine (« gousses », « cans ») était perdu définitivement.
+
+La conséquence n'apparaît qu'au correctif SUIVANT : le 19/08, élargir la table d'unités a
+réparé tout ce qui arriverait désormais, et **rien** de ce qui était déjà en base. Pas parce
+que le rattrapage était coûteux — parce que la donnée nécessaire n'existait plus nulle part.
+J'allais l'annoncer comme « les quantités sont réparées » ; c'était vrai pour le futur et
+faux pour ce que Marc allait ouvrir en premier, c'est-à-dire ses recettes existantes.
+
+**Règle** : quand un traitement NORMALISE une entrée à l'écriture, garder la forme brute dès
+qu'on n'a pas su la traiter. Ça coûte une colonne ou un champ de note ; ne pas le faire rend
+tout élargissement futur inapplicable à l'existant, et on ne s'en aperçoit que le jour où on
+l'élargit. Cousin de la leçon JobAI « le chemin de rattrapage se livre DANS le même lot que
+la colonne » — ici, ce n'est même pas un chemin qui manquait, c'est la matière.
+
+---
+
 ## 2026-08-17 — Livré le matin, retiré le soir : la leçon n'est pas « j'ai eu tort de coder »
 
 Le stock de portions et le garde-manger ont été conçus, testés, mergés et déployés dans la
