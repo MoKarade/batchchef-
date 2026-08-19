@@ -75,6 +75,44 @@ système, qui aurait servi de base à la décision suivante.
 
 ---
 
+## 2026-08-19 — Une abstention EN BLOC écarte les champs sur lesquels tout le monde était d'accord
+
+J'avais promis à Marc une « preuve par l'usage » : relire la liste d'épicerie après le
+correctif d'unités et vérifier que l'ail n'était plus en grammes. Je l'ai fait. Il l'était
+toujours — **« Gousses D'Ail — 3 g »**, inchangé, alors que la passe annonçait 1 664 lignes
+corrigées et que les tests étaient verts.
+
+Deux fautes empilées, toutes deux de moi.
+
+La première est une regex. Le corpus contient **« -1 gousses d'ail »** — quantité négative.
+Mon extracteur de quantité ne connaissait pas le signe, donc il ne retirait rien, donc le
+texte ne commençait par aucune unité connue, donc cet ingrédient passait pour « indéterminé ».
+
+La seconde est la vraie leçon. Ma règle disait : *si deux entrées sources retombent sur la
+même clé avec des corrections différentes, on n'y touche pas*. Prudent en apparence. Mais
+les deux entrées de l'ail ne divergeaient que par la CASSE du nom (« Gousses D'Ail » contre
+« Gousses d'ail ») — et mon abstention **globale** jetait avec elles la correction d'unité,
+sur laquelle elles étaient parfaitement d'accord. Un désaccord sur le nom n'apprend
+strictement rien sur l'unité.
+
+Résultat : la clé la plus fréquente du corpus (1 482 lignes d'ail) était exactement celle qui
+échappait au correctif. La prudence mal placée n'est pas de la prudence, c'est un angle mort
+— et il visait le cas principal.
+
+**Règle** : une abstention se décide CHAMP PAR CHAMP. Quand plusieurs sources contribuent à
+une même cible, chaque champ a son propre quorum ; refuser en bloc, c'est laisser un
+désaccord cosmétique bloquer une correction critique. Mesuré ici : 136 des 161 conflits
+portaient sur un seul champ, l'autre étant unanime.
+
+**Et la règle de méthode qui l'a attrapé** : c'est la preuve PAR L'USAGE qui a révélé les
+deux fautes, pas les tests. Les 362 tests étaient verts, la passe rapportait des milliers de
+lignes corrigées, les logs de build étaient propres. Seule la relecture de la vraie liste
+d'épicerie — celle que Marc lirait — montrait que le cas qui avait motivé tout le chantier
+n'était pas réglé. Un correctif n'est pas vérifié par son compteur : il est vérifié en
+regardant la chose qu'on voulait corriger.
+
+---
+
 ## 2026-08-19 — J'ai mesuré ma propre complétude avec mon propre détecteur
 
 Le matin, j'ai réparé les noms d'ingrédients et j'ai annoncé le résultat avec assurance :

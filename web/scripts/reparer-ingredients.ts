@@ -37,7 +37,9 @@ const require = createRequire(import.meta.url);
 const SEED = path.resolve(process.cwd(), "data", "batchchef.seed.db");
 
 interface Correction {
-  nom: string;
+  /** `null` = les sources ne s'accordent pas sur le nom : on n'y touche pas. */
+  nom: string | null;
+  /** `null` = pas de correction d'unité (rien à corriger, ou sources en désaccord). */
   unite: "unite" | null;
 }
 
@@ -59,7 +61,8 @@ async function corrections(): Promise<Map<string, Correction>> {
   stmtSrc.free();
 
   const map = new Map<string, Correction>();
-  const conflits = new Set<string>();
+  const conflitsNom = new Set<string>();
+  const conflitsUnite = new Set<string>();
   const stmt = sqlite.prepare(
     "SELECT id AS i, display_name_fr AS n, canonical_name AS c FROM ingredient_master WHERE display_name_fr IS NOT NULL AND canonical_name IS NOT NULL",
   );
@@ -75,22 +78,36 @@ async function corrections(): Promise<Map<string, Correction>> {
     const nom = nomRestaure(reparerNom(n), src);
     const unite = uniteCorrigee("g", src) ?? uniteCorrigee("ml", src);
 
+    // ⚠️ Le conflit se juge CHAMP PAR CHAMP, jamais en bloc.
+    //
+    // Vécu : deux entrées du seed retombent sur `gousses_d'ail` et ne divergent que par la
+    // CASSE du nom. Une abstention globale écartait donc aussi la correction d'UNITÉ — et
+    // c'était le cas le plus fréquent du corpus (1 482 lignes) qui passait à travers. Un
+    // désaccord sur le nom n'apprend rien sur l'unité : les deux se décident séparément.
     const dejaVu = map.get(cleProd);
-    if (dejaVu && (dejaVu.nom !== nom || dejaVu.unite !== unite)) {
-      // Deux ingrédients du seed retombent sur la même clé avec des corrections qui
-      // divergent : on ne peut pas trancher, donc on ne touche à rien.
-      conflits.add(cleProd);
+    if (!dejaVu) {
+      map.set(cleProd, { nom, unite });
       continue;
     }
-    map.set(cleProd, { nom, unite });
+    if (dejaVu.nom !== nom) conflitsNom.add(cleProd);
+    if (dejaVu.unite !== unite) conflitsUnite.add(cleProd);
   }
   stmt.free();
   sqlite.close();
 
-  for (const k of conflits) map.delete(k);
-  if (conflits.size > 0) {
-    console.log(`[ingr] ${conflits.size} clé(s) écartée(s) : deux sources, deux corrections différentes.`);
+  // On neutralise SEULEMENT le champ en désaccord, en gardant l'autre.
+  for (const k of conflitsNom) {
+    const c = map.get(k);
+    if (c) map.set(k, { nom: null, unite: c.unite });
   }
+  for (const k of conflitsUnite) {
+    const c = map.get(k);
+    if (c) map.set(k, { nom: c.nom, unite: null });
+  }
+  console.log(
+    `[ingr] désaccords entre sources : ${conflitsNom.size} sur le nom, ${conflitsUnite.size} sur l'unité ` +
+      "(le champ en désaccord est laissé tel quel, l'autre est corrigé).",
+  );
   return map;
 }
 
@@ -106,7 +123,7 @@ async function appliquer(libelle: string, table: Table, map: Map<string, Correct
   for (const c of couples) {
     const corr = map.get(c.canonical);
     if (!corr) continue;
-    const nom = corr.nom;
+    const nom = corr.nom ?? c.name;
     // ⚠️ On ne corrige l'unité QUE si elle est aujourd'hui une mesure de masse/volume.
     // `unite` et `null` sont laissés tels quels : on répare une erreur, on n'impose rien.
     const unite = corr.unite && (c.unit === "g" || c.unit === "ml") ? corr.unite : c.unit;

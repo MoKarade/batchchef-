@@ -116,3 +116,29 @@ describe("restauration du nom", () => {
     expect(r.endsWith("D'Ail En Lamelles")).toBe(true);
   });
 });
+
+describe("quantités que le corpus contient vraiment", () => {
+  it("⚠️ retire une quantité NÉGATIVE — sinon l'ail échappe au correctif", () => {
+    // Vécu : « -1 gousses d'ail » existe dans le corpus. Sans le signe, la quantité n'était
+    // pas retirée, aucune unité n'était reconnue, et la clé de l'ail entrait en désaccord
+    // avec elle-même — donc se faisait écarter. 1 482 lignes passaient à travers.
+    expect(analyserTexteSource("-1 gousses d'ail").classe).toBe("comptable");
+    expect(analyserTexteSource("-1 gousses d'ail").mot).toBe("gousses");
+  });
+
+  it("tolère une approximation en tête", () => {
+    expect(analyserTexteSource("~2 gousses d'ail").classe).toBe("comptable");
+    expect(analyserTexteSource("environ 3 clous de girofle").classe).toBe("comptable");
+  });
+
+  it("les deux graphies de l'ail s'accordent désormais sur l'unité", () => {
+    // C'est CE désaccord qui a fait échouer la première livraison.
+    expect(uniteCorrigee("g", ["1 gousses d'ail"])).toBe("unite");
+    expect(uniteCorrigee("g", ["-1 gousses d'ail"])).toBe("unite");
+  });
+
+  it("une fraction et un intervalle restent lus", () => {
+    expect(analyserTexteSource("1/2 gousses d'ail").classe).toBe("comptable");
+    expect(analyserTexteSource("2 à 3 gousses d'ail").classe).toBe("comptable");
+  });
+});

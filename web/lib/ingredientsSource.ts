@@ -44,7 +44,16 @@ const COMPTABLES = new Set([
 /** Les plus LONGS d'abord : « grammes » avant « g », sinon on remord dans le mot. */
 const TOUS = [...REELLES, ...COMPTABLES].sort((a, b) => b.length - a.length);
 
-const QUANTITE = /^\s*\d+(?:[.,/]\d+)?(?:\s*(?:à|-|a)\s*\d+(?:[.,/]\d+)?)?\s*/i;
+/**
+ * La quantité en tête. Tolère un SIGNE et une approximation.
+ *
+ * ⚠️ Le `-?` n'est pas cosmétique : le corpus contient « -1 gousses d'ail ». Sans lui, la
+ * quantité n'était pas retirée, le texte ne commençait donc par aucune unité reconnue, et
+ * l'ingrédient passait pour « indéterminé ». Conséquence mesurée : la clé de l'ail entrait
+ * en désaccord avec elle-même et se faisait écarter — c'est-à-dire précisément le cas le
+ * plus fréquent du corpus (1 482 lignes) qui échappait au correctif.
+ */
+const QUANTITE = /^\s*(?:~|environ\s+)?-?\d+(?:[.,/]\d+)?(?:\s*(?:à|-|a)\s*\d+(?:[.,/]\d+)?)?\s*/i;
 
 export type ClasseUnite = "reelle" | "comptable" | "aucune";
 
