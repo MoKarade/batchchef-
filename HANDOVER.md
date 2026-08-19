@@ -71,8 +71,14 @@ elle-même ne l'est qu'à la lecture. Premier vrai usage = premier vrai test.
 
 Le **serveur MCP**, lui, a été sondé contre un serveur réellement démarré (onze points :
 négociation de version, notification sans réponse, 401/503/405, lot, panne d'outil rendue
-en `isError`). Ce qui reste non vérifié d'ici : le branchement depuis claude.ai, qui peut
-exiger OAuth là où un jeton porteur suffit à Claude Code.
+en `isError`), **puis vérifié en production après le merge** : `GET
+https://batchchef.hubperso.com/api/mcp` rend `405` avec le corps JSON de la route et
+`x-matched-path: /api/mcp` — donc la route est servie, et l'exemption du middleware tient
+(une redirection vers `/login` aurait signé le piège n°1). Déploiement `85984b6`, `READY`.
+
+Ce qui reste non vérifié : un POST authentifié en production (impossible tant que
+`MCP_TOKEN` n'est pas posé) et le branchement depuis claude.ai, qui peut exiger OAuth là où
+un jeton porteur suffit à Claude Code.
 
 ## ⚠️ Ce que le correctif des unités NE rattrape PAS
 
