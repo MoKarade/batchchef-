@@ -27,6 +27,21 @@
   comme tripwire de versions. Vérifié par onze sondes contre un serveur réellement démarré,
   pas seulement compilé.
 
+- [x] ~~**`ING-04` — le bug de frontière a corrompu les UNITÉS.**~~ **Livré le 19/08.**
+  325 ingrédients corrigés (`g`/`ml` → `unite`) d'après le texte source du seed, seule
+  donnée qui porte encore la vérité. ⚠️ La passe **s'abstient** dès que les sources se
+  contredisent (« 200 g de gingembre » contre « 1 gingembre ») : mesuré, 0 cas ambigu sur
+  325, et le garde est prouvé par mutation.
+
+- [x] ~~**`ING-05` — noms finissant par une préposition orpheline.**~~ **Traité autrement,
+  et plus largement, le 19/08.** En mesurant ING-04, `ING-03` s'est révélée **incomplète** :
+  ma détection ne cherchait que trois motifs, alors que le corpus en portait d'autres —
+  `grosses`→« Rosses », `lamelles`→« Amelles », `clous`→« Ous », `demis`→« Mis ». La
+  restauration se fait désormais depuis le texte source (`nomRestaure`), qui rend les lettres
+  mangées sans avoir à énumérer les motifs : **677 noms** restaurés, contre 2 371 par
+  préfixe. Elle refuse de restaurer au-delà de trois lettres perdues — au-delà, ce n'est plus
+  une troncature, c'est un autre mot.
+
 ## Écarté volontairement
 
 - [x] ~~Recherche dans la bibliothèque perso~~ — **écarté par Marc le 17/08**. Le catalogue

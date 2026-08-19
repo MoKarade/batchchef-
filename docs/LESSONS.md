@@ -75,6 +75,79 @@ système, qui aurait servi de base à la décision suivante.
 
 ---
 
+## 2026-08-19 — Une abstention EN BLOC écarte les champs sur lesquels tout le monde était d'accord
+
+J'avais promis à Marc une « preuve par l'usage » : relire la liste d'épicerie après le
+correctif d'unités et vérifier que l'ail n'était plus en grammes. Je l'ai fait. Il l'était
+toujours — **« Gousses D'Ail — 3 g »**, inchangé, alors que la passe annonçait 1 664 lignes
+corrigées et que les tests étaient verts.
+
+Deux fautes empilées, toutes deux de moi.
+
+La première est une regex. Le corpus contient **« -1 gousses d'ail »** — quantité négative.
+Mon extracteur de quantité ne connaissait pas le signe, donc il ne retirait rien, donc le
+texte ne commençait par aucune unité connue, donc cet ingrédient passait pour « indéterminé ».
+
+La seconde est la vraie leçon. Ma règle disait : *si deux entrées sources retombent sur la
+même clé avec des corrections différentes, on n'y touche pas*. Prudent en apparence. Mais
+les deux entrées de l'ail ne divergeaient que par la CASSE du nom (« Gousses D'Ail » contre
+« Gousses d'ail ») — et mon abstention **globale** jetait avec elles la correction d'unité,
+sur laquelle elles étaient parfaitement d'accord. Un désaccord sur le nom n'apprend
+strictement rien sur l'unité.
+
+Résultat : la clé la plus fréquente du corpus (1 482 lignes d'ail) était exactement celle qui
+échappait au correctif. La prudence mal placée n'est pas de la prudence, c'est un angle mort
+— et il visait le cas principal.
+
+**Règle** : une abstention se décide CHAMP PAR CHAMP. Quand plusieurs sources contribuent à
+une même cible, chaque champ a son propre quorum ; refuser en bloc, c'est laisser un
+désaccord cosmétique bloquer une correction critique. Mesuré ici : 136 des 161 conflits
+portaient sur un seul champ, l'autre étant unanime.
+
+**Et la règle de méthode qui l'a attrapé** : c'est la preuve PAR L'USAGE qui a révélé les
+deux fautes, pas les tests. Les 362 tests étaient verts, la passe rapportait des milliers de
+lignes corrigées, les logs de build étaient propres. Seule la relecture de la vraie liste
+d'épicerie — celle que Marc lirait — montrait que le cas qui avait motivé tout le chantier
+n'était pas réglé. Un correctif n'est pas vérifié par son compteur : il est vérifié en
+regardant la chose qu'on voulait corriger.
+
+---
+
+## 2026-08-19 — J'ai mesuré ma propre complétude avec mon propre détecteur
+
+Le matin, j'ai réparé les noms d'ingrédients et j'ai annoncé le résultat avec assurance :
+**« 2 371 détectées, 2 371 réparées, 0 vide, 0 restante »**. C'était vrai. Et ça ne voulait
+rien dire.
+
+Les 2 371 étaient le compte de ce que MON expression de détection reconnaissait — trois
+motifs relevés en regardant une dizaine de cas. Le soir, en mesurant un autre défaut, le
+corpus a rendu **677 entrées de plus** portant exactement le même dégât sous d'autres
+formes : `grosses` → « Rosses », `lamelles` → « Amelles », `clous` → « Ous », `demis` →
+« Mis ». Mon « 0 restante » signifiait « 0 restante parmi celles que je sais voir ».
+
+Le piège est propre et il se referme sans bruit : quand le même artefact SÉLECTIONNE la
+population et MESURE la couverture, le taux de réussite vaut toujours 100 %. Un rapport
+exhaustif n'exhausse rien s'il est produit par l'outil dont on teste la portée.
+
+Ce qui aurait dû m'alerter : j'avais la SOURCE. `raw_text` était intact dans le seed, et il
+suffisait de comparer chaque nom à ce que sa source contenait pour trouver les 677 — sans
+énumérer un seul motif. J'ai préféré coder une liste de cas parce que les trois que j'avais
+vus se ressemblaient, et une liste de cas ne trouve jamais le cas qu'on n'a pas vu.
+
+**Règle** : pour mesurer la couverture d'un correctif, l'instrument doit être INDÉPENDANT du
+correctif. Quand une source de vérité existe (texte d'origine, référentiel, second système),
+compter les écarts CONTRE ELLE, jamais contre son propre prédicat. Et quand on énumère des
+motifs, le dire — « 2 371 correspondant à trois motifs connus » aurait été honnête, là où
+« 2 371 sur 2 371 » laissait croire à l'exhaustivité.
+
+**Corollaire livré du même coup** : le correctif définitif n'énumère plus rien. `nomRestaure`
+cherche dans la source le mot dont le nom ne garde qu'un suffixe et rend les lettres
+manquantes — il attrape donc les formes que personne n'a répertoriées. Il refuse au-delà de
+trois lettres perdues, parce qu'au-delà ce n'est plus une troncature mais un autre mot : une
+règle dérivée de la MÉCANIQUE du dégât, pas de la liste de ses symptômes.
+
+---
+
 ## 2026-08-19 — Un test de présence par sous-chaîne est satisfait par la ligne d'import
 
 En livrant la réparation des noms d'ingrédients, j'ai posé un verrou : l'import du catalogue
