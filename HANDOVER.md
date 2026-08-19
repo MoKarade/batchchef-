@@ -24,10 +24,16 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **219 tests**, 21 fichiers (17/08/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **238 tests**, 22 fichiers (19/08/2026).
 
 ## Ce qui vient d'être livré (17/08/2026)
 
+- **`ING-02` — les quantités.** Perte mesurée de **58 % → 28 %** sur 50 unités réelles. La
+  cause n'était pas la couche soupçonnée : la table d'unités connaissait mieux l'anglais que
+  le français (`cloves` OK / `gousses` perdu). Dérive d'arrondi corrigée au passage (399,9 g
+  au lieu de 400), et `stick` désambiguïsé par le nom (un bâton de cannelle valait 113 g).
+- **`ING-01` — sel, poivre et eau** hors de la liste d'épicerie. Automatique, aucune liste à
+  tenir, et l'écart est DIT sous la liste en nommant les ingrédients.
 - **Retrait du stock de portions et du garde-manger.** Livrés le matin même, retirés le
   soir : Marc n'en veut pas. Le batch redevient `planifié → courses → cuisine → terminé`,
   sans suite. Les tables `portions` et `pantry` sont supprimées (migration `0008`).
@@ -39,9 +45,10 @@ Gate : `typecheck` · `lint` · `test` · `build`. **219 tests**, 21 fichiers (1
 
 ## Prochaine chose prévue
 
-Trois demandes de Marc (17/08), voir `BACKLOG.md` :
-`ING-01` (ne plus faire acheter sel/poivre — automatique, PAS une liste à tenir),
-`ING-02` (quantités plus précises), `BOT-01` (chatbot Claude sur la base).
+**`BOT-01` — le chatbot Claude sur la base**, seule demande de Marc encore ouverte.
+Trois usages : recettes selon les ingrédients disponibles (même incomplets), équivalents
+d'ingrédients, création de recette appuyée sur toute la base. Décision de Marc : **Claude
+interroge la base LUI-MÊME par outils**, pas un pré-filtre SQL suivi d'un seul appel.
 
 ## Pièges à connaître avant de toucher au code
 

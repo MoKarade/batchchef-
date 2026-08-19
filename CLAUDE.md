@@ -92,7 +92,27 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   c'est la **clé de regroupement** de la liste (« chicken breast » et « poitrine de
   poulet » feraient deux lignes qui ne fusionnent jamais). Un contenant sans taille fixe
   (`can`, `package`, `bunch`) reste `null` : on n'invente pas un poids.
-- **Fonctions pures testées** pour la logique (agrégation, mise à l'échelle, prix, jetons).
+- **Toute unité ajoutée dans une langue se pose DANS LES DEUX.** Mesuré le 19/08/2026 sur
+  50 unités réelles : **58 % des quantités tombaient en « au goût »**, et la cause n'était pas
+  l'anglais mais le FRANÇAIS — les entrées anglaises avaient été ajoutées en bloc sans revoir
+  leurs équivalents (`cloves` → 2 unités mais `gousses` PERDU, `lb` → 907 g mais `livre`
+  PERDU). Une asymétrie ne lève rien : la quantité disparaît, la recette a l'air extraite, et
+  la liste sort sans chiffre. Verrou : `tests/units.test.ts`, section « symétrie FR/EN ».
+  Corollaire : **un DÉNOMBRABLE n'est pas « au goût »** (« 4 œufs », « 2 branches ») et un
+  CALIBRE (`large`, `gros`) est un adjectif de taille, pas une unité — la quantité reste le
+  compte. Ce qui n'a vraiment pas de taille fixe (`pincée`, `botte`, `can`) reste `null` :
+  la frontière ne bouge pas, on n'invente toujours aucun poids.
+- **Sel, poivre et eau ne vont jamais sur une liste d'épicerie** (`lib/ingredientsDeFond.ts`).
+  AUTOMATIQUE et sans rien à tenir à jour — c'est l'inverse du garde-manger déclaratif, livré
+  puis retiré le 17/08 : Marc a refusé de tenir une liste, pas de ne plus acheter de sel.
+  ⚠️ La liste est FERMÉE et l'appariement se fait MOT À MOT, jamais par sous-chaîne :
+  « poivron » contient « poivr », et une correspondance floue le sortirait de la liste — une
+  erreur qui ne se voit pas à l'écran mais se découvre en cuisinant. « eau » n'est reconnu
+  que sur la forme EXACTE (« eau de fleur d'oranger » s'achète). Et l'écart est **DIT** sous
+  la liste, en nommant les ingrédients : ce qui sort de la liste sort aussi du budget, et un
+  chiffre qui baisse sans explication fait douter du reste.
+- **Fonctions pures testées** pour la logique (agrégation, mise à l'échelle, prix, jetons,
+  ingrédients de fond).
 - **Planchers de version, jamais redescendus.** `drizzle-orm ≥ 0.45.2` (injection SQL par
   identifiants mal échappés, GHSA-gpj5-g38j-94v9, HIGH), et les `overrides` de `postcss` et
   `sharp` qui ferment des failles que Next épingle lui-même. *Verrou* :
@@ -148,6 +168,7 @@ néons d'un supermarché.
 | `app/` | routes (recettes, batchs, courses, catalogue, `/api/hub/summary`) |
 | `lib/actions.ts` | Server Actions (import, batch, liste, statut, catalogue) |
 | `lib/aggregate.ts` | agrégation liste d'épicerie, mise à l'échelle, filet de prix (purs) |
+| `lib/ingredientsDeFond.ts` | sel/poivre/eau écartés de la liste — automatique, mot à mot, et DIT à l'écran (PUR, testé) |
 | `lib/llm/` | parse de recette (page web **et** vidéo) + estimation de coûts (Zod, honnête) |
 | `lib/video/` | `frames.ts` = sondage/empreintes/budget (PUR, testé) · `capture.ts` = extraction `<video>`+`<canvas>` en 2 passes (repérage 32×32 puis extraction 768 px) **dans le navigateur** (la vidéo ne monte jamais au serveur) |
 | `lib/partage.ts` + `public/sw.js` | cible de partage Android (PWA). Le service worker intercepte le POST **côté navigateur** : la vidéo partagée ne transite pas par le serveur |

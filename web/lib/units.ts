@@ -28,6 +28,19 @@ export interface NormalizedQty {
  * - `stick` = 113 g : convention américaine du beurre (½ cup), sans ambiguïté réelle.
  * - `can`, `package`, `bunch` restent `null` : leur contenu n'a aucune taille fixe, et
  *   inventer un poids serait exactement ce que le projet refuse.
+ *
+ * ⚠️ SYMÉTRIE FR/EN — mesurée le 19/08/2026 sur 50 unités réelles : 58 % des quantités
+ * tombaient en « au goût ». La cause n'était pas l'anglais mais le FRANÇAIS : les entrées
+ * anglaises avaient été ajoutées en bloc sans revoir leurs équivalents français, et la table
+ * connaissait donc mieux l'anglais que le français dans une app 100 % francophone —
+ * `cloves` → 2 unités mais `gousses` PERDU, `lb` → 907 g mais `livre` PERDU, `slices` OK
+ * mais `tranches` PERDU. Toute unité ajoutée dans une langue se pose DANS LES DEUX, sinon
+ * l'asymétrie se recreuse en silence : rien n'échoue, la quantité disparaît simplement.
+ *
+ * ⚠️ Un DÉNOMBRABLE n'est pas « au goût ». « 4 œufs », « 2 branches de céleri »,
+ * « 3 large eggs » portent un compte parfaitement exploitable — les traiter comme une
+ * pincée jetait une information que la source donnait noir sur blanc. Les CALIBRES
+ * (`large`, `gros`, `petit`) sont des adjectifs de taille : la quantité reste le compte.
  */
 const FACTORS: Record<string, { target: "g" | "ml" | "unite"; factor: number } | null> = {
   unite: { target: "unite", factor: 1 },
@@ -40,8 +53,66 @@ const FACTORS: Record<string, { target: "g" | "ml" | "unite"; factor: number } |
   l: { target: "ml", factor: 1000 },
   tasse: { target: "ml", factor: 250 },
   tasses: { target: "ml", factor: 250 },
+
+  // ── Français : masses impériales (miroir de lb / oz) ────────────────────────
+  livre: { target: "g", factor: 453.59 },
+  livres: { target: "g", factor: 453.59 },
+  once: { target: "g", factor: 28.35 },
+  onces: { target: "g", factor: 28.35 },
+
+  // ── Français : dénombrables (miroir de cloves / slices / pieces) ────────────
+  gousse: { target: "unite", factor: 1 },
+  gousses: { target: "unite", factor: 1 },
+  tranche: { target: "unite", factor: 1 },
+  tranches: { target: "unite", factor: 1 },
+  branche: { target: "unite", factor: 1 },
+  branches: { target: "unite", factor: 1 },
+  filet: { target: "unite", factor: 1 },
+  filets: { target: "unite", factor: 1 },
+  morceau: { target: "unite", factor: 1 },
+  morceaux: { target: "unite", factor: 1 },
+  feuille: { target: "unite", factor: 1 },
+  feuilles: { target: "unite", factor: 1 },
+  brin: { target: "unite", factor: 1 },
+  brins: { target: "unite", factor: 1 },
+  tige: { target: "unite", factor: 1 },
+  tiges: { target: "unite", factor: 1 },
+  "tête": { target: "unite", factor: 1 },
+  tete: { target: "unite", factor: 1 },
+  oeuf: { target: "unite", factor: 1 },
+  oeufs: { target: "unite", factor: 1 },
+  "œuf": { target: "unite", factor: 1 },
+  "œufs": { target: "unite", factor: 1 },
+  "unité": { target: "unite", factor: 1 },
+  "unités": { target: "unite", factor: 1 },
+
+  // ── Calibres : un adjectif de TAILLE, pas une unité. La quantité est le compte. ──
+  gros: { target: "unite", factor: 1 },
+  grosse: { target: "unite", factor: 1 },
+  grosses: { target: "unite", factor: 1 },
+  petit: { target: "unite", factor: 1 },
+  petite: { target: "unite", factor: 1 },
+  petits: { target: "unite", factor: 1 },
+  petites: { target: "unite", factor: 1 },
+  moyen: { target: "unite", factor: 1 },
+  moyenne: { target: "unite", factor: 1 },
+
+  // ── Contenants français sans taille fixe : « au goût », jamais un poids inventé ──
   pincee: null,
   "pincée": null,
+  "poignée": null,
+  poignee: null,
+  botte: null,
+  bottes: null,
+  sachet: null,
+  sachets: null,
+  "boîte": null,
+  boite: null,
+  "boîtes": null,
+  conserve: null,
+  conserves: null,
+  trait: null,
+  filet_liquide: null,
 
   // ── Anglais : masses ────────────────────────────────────────────────────────
   gram: { target: "g", factor: 1 },
@@ -93,6 +164,21 @@ const FACTORS: Record<string, { target: "g" | "ml" | "unite"; factor: number } |
   cloves: { target: "unite", factor: 1 },
   slice: { target: "unite", factor: 1 },
   slices: { target: "unite", factor: 1 },
+  stalk: { target: "unite", factor: 1 },
+  stalks: { target: "unite", factor: 1 },
+  sprig: { target: "unite", factor: 1 },
+  sprigs: { target: "unite", factor: 1 },
+  head: { target: "unite", factor: 1 },
+  heads: { target: "unite", factor: 1 },
+  fillet: { target: "unite", factor: 1 },
+  fillets: { target: "unite", factor: 1 },
+  leaf: { target: "unite", factor: 1 },
+  leaves: { target: "unite", factor: 1 },
+  strip: { target: "unite", factor: 1 },
+  strips: { target: "unite", factor: 1 },
+  large: { target: "unite", factor: 1 },
+  medium: { target: "unite", factor: 1 },
+  small: { target: "unite", factor: 1 },
 
   // ── Contenants sans taille fixe : « au goût », jamais un poids inventé ──────
   pinch: null,
@@ -103,12 +189,27 @@ const FACTORS: Record<string, { target: "g" | "ml" | "unite"; factor: number } |
   packages: null,
   bunch: null,
   handful: null,
+  splash: null,
+  knob: null,
 };
+
+/**
+ * Ingrédients pour lesquels « stick » est une PLAQUE DE BEURRE (113 g) et non une tige.
+ *
+ * Sans ça, « 1 cinnamon stick » valait 113 g de cannelle — absurde en cuisine, et le prix
+ * estimé suivait. Le nom de l'ingrédient est le seul discriminant possible ; il arrive donc
+ * en paramètre séparé, JAMAIS fondu dans `rawText` : celui-ci sert à désambiguïser les
+ * cuillères en cherchant « thé »/« café », et « 1 c. à soupe de café moulu » deviendrait
+ * alors 5 ml au lieu de 15.
+ */
+const STICK_EST_DU_BEURRE = /beurre|butter|margarine/i;
 
 export function normalizeQty(
   qty: number | null | undefined,
   unit: string | null | undefined,
   rawText = "",
+  /** Nom de l'ingrédient — sert UNIQUEMENT à lever l'ambiguïté de « stick » (cf. plus haut). */
+  nomIngredient = "",
 ): NormalizedQty {
   if (qty === null || qty === undefined || !Number.isFinite(qty) || qty <= 0) {
     return { qty: null, unit: null };
@@ -129,6 +230,15 @@ export function normalizeQty(
   // `key in FACTORS` plutôt que `??` : il faut distinguer « connue mais non convertible »
   // (valeur null, ex. « pincée ») de « inconnue » (absente) — sinon la seconde recherche
   // écraserait la première et le sens du null se perdrait.
+  // « stick » : plaque de beurre (113 g) ou bâton de cannelle (1 pièce) ? Seul le nom de
+  // l'ingrédient tranche. Par défaut on compte une PIÈCE : se tromper d'un bâton est sans
+  // conséquence, se tromper de 113 g de cannelle fausse la recette et son prix.
+  if (cleNettoyee === "stick" || cleNettoyee === "sticks") {
+    return STICK_EST_DU_BEURRE.test(nomIngredient)
+      ? { qty: round(qty * 113), unit: "g" }
+      : { qty: round(qty), unit: "unite" };
+  }
+
   const mapped = key in FACTORS ? FACTORS[key] : FACTORS[cleNettoyee];
   if (mapped === undefined) return { qty: null, unit: null }; // unité inconnue → au goût
   if (mapped === null) return { qty: null, unit: null }; // pincée & co

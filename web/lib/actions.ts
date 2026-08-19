@@ -9,6 +9,7 @@ import { eq, inArray } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db, schema } from "@/lib/db";
 import { aggregateShoppingList, fillMissingCosts, shoppingTitles } from "@/lib/aggregate";
+import { ecarterIngredientsDeFond } from "@/lib/ingredientsDeFond";
 import { upsertTaskList } from "@/lib/googleTasks";
 import { splitNewCatalogRecipes } from "@/lib/catalogSelect";
 import { MAX_TRANSCRIPT_CHARS } from "@/lib/transcription";
@@ -406,7 +407,7 @@ export async function createBatch(input: {
       .from(schema.recipeIngredients)
       .where(inArray(schema.recipeIngredients.recipeId, ids));
 
-    const aggregated = aggregateShoppingList(
+    const agregeComplet = aggregateShoppingList(
       selections.map((sel) => {
         const recipe = recipeRows.find((r) => r.id === sel.recipeId)!;
         return {
@@ -418,6 +419,11 @@ export async function createBatch(input: {
         };
       }),
     );
+
+    // Sel, poivre et eau ne vont jamais sur une liste d'épicerie (demande de Marc, 17/08).
+    // AUTOMATIQUE et sans rien à tenir à jour — l'inverse du garde-manger déclaratif retiré
+    // le même jour. L'écart est DIT à l'écran (`/courses/[id]`), jamais silencieux.
+    const { aAcheter: aggregated } = ecarterIngredientsDeFond(agregeComplet);
 
     const [batch] = await db
       .insert(schema.batches)
