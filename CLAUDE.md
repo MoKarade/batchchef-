@@ -112,6 +112,16 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   où le nom atterrit — catalogue, bibliothèque, listes existantes — et l'import du catalogue
   répare aussi, sinon une ré-importation ré-introduirait le défaut. Verrouillé par
   `tests/deploiement.test.ts`.
+  ⚠️ **Le même bug a aussi faussé les UNITÉS** (`ING-04`) : `1 gousses d'ail` a été
+  enregistré en `g`, donc « 3 g d'ail » là où il en faut trois gousses. Là, c'est ce qu'on
+  ACHÈTE qui est faux. Non réparable depuis la production (`unit='g'` ne porte aucune trace
+  de « gousse ») : la vérité n'est plus que dans `raw_text` du seed, que `lib/ingredientsSource.ts`
+  relit. ⚠️ La passe **s'abstient** dès que les sources d'un ingrédient se contredisent —
+  « 200 g de gingembre » ne doit JAMAIS devenir 200 unités. Le garde est prouvé par mutation.
+  ⚠️ Leçon de méthode : `ING-03` s'était crue complète (« 2 371 détectées, 2 371 réparées »)
+  parce qu'elle **comptait avec son propre détecteur**. Le corpus en portait 677 de plus,
+  sous des formes que mes trois motifs ne connaissaient pas. Mesurer la complétude avec
+  l'instrument qui définit le périmètre ne mesure rien.
 - **Sel, poivre et eau ne vont jamais sur une liste d'épicerie** (`lib/ingredientsDeFond.ts`).
   AUTOMATIQUE et sans rien à tenir à jour — c'est l'inverse du garde-manger déclaratif, livré
   puis retiré le 17/08 : Marc a refusé de tenir une liste, pas de ne plus acheter de sel.

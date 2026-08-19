@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "vercel-build": "npm run db:migrate && npm run db:reparer-noms && next build",
+    "vercel-build": "npm run db:migrate && npm run db:reparer-ingredients && next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
@@ -14,7 +14,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "catalog:import": "tsx scripts/import-catalog.ts",
-    "db:reparer-noms": "tsx scripts/reparer-noms-ingredients.ts"
+    "db:reparer-ingredients": "tsx scripts/reparer-ingredients.ts"
   },
   "//drizzle-orm": "Plancher 0.45.2 : en dessous, injection SQL par identifiants mal échappés (GHSA-gpj5-g38j-94v9, HIGH). Ne jamais redescendre. Une clé « // » ne se met qu'à la RACINE — npm refuse un nom de paquet invalide à l'intérieur de `dependencies`.",
   "dependencies": {

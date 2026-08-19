@@ -26,7 +26,7 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **345 tests**, 26 fichiers (19/08/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **362 tests**, 27 fichiers (19/08/2026).
 
 ## Ce qui vient d'être livré (17/08/2026)
 
@@ -98,9 +98,26 @@ liste d'épicerie, donc « à_soupe_de_persil » et « persil » faisaient deux 
   deviennent lisibles et la fusion jouera aux prochains batchs ; réécrire des quantités sur
   une liste contre laquelle Marc a peut-être déjà fait ses courses serait une autre décision.
 
+### Quatrième lot du 19/08 — les unités (ING-04), et ING-03 complétée
+
+Trouvé en créant un batch de test par le MCP, à la demande de Marc : la liste disait
+« **Gousses D'Ail — 3 g** ». Trois grammes d'ail, c'est une demi-gousse.
+
+Même cause qu'ING-03 — l'extraction d'unité de la V3 ne bornait pas ses mots — mais cette
+fois c'est la QUANTITÉ qui est fausse, donc ce que Marc ACHÈTE. Mesuré : `gousses`→`g`
+1 926 lignes, `grosses`→`g` 167, `gouttes`→`g` 90, `clous`→`cl` 89, `gingembre`→`g` 35.
+
+- **Pas réparable comme les noms.** `unit='g', qty=0.25` ne contient aucune trace de
+  « gousse ». La vérité n'existe plus qu'en un endroit : `raw_text` dans le seed. La passe le
+  lit donc, contrairement à ING-03 qui se suffisait d'un retrait de préfixe.
+- **325 unités corrigées, 0 cas ambigu.** La passe s'abstient dès que les sources d'un même
+  ingrédient se contredisent — « 200 g de gingembre » ne doit jamais devenir 200 unités.
+- ⚠️ **ING-03 était INCOMPLÈTE**, découvert en mesurant celle-ci : ma détection ne connaissait
+  que trois motifs. La restauration depuis la source en corrige **677**, sans énumérer.
+
 ## Prochaine chose prévue
 
-Rien d'engagé. Le MCP est branché et en service, et `ING-03` est livré.
+Rien d'engagé. Le MCP est branché et en service ; `ING-03`, `ING-04` et `ING-05` sont livrés.
 
 ⚠️ **L'assistant n'a jamais été essayé contre la vraie API** : cette session n'a pas de
 réseau vers Anthropic. Le protocole, les bornes et le classement sont testés ; la boucle

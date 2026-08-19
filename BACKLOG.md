@@ -27,35 +27,20 @@
   comme tripwire de versions. Vérifié par onze sondes contre un serveur réellement démarré,
   pas seulement compilé.
 
-- [ ] **`ING-04` — le même bug de frontière a corrompu les UNITÉS, pas seulement les noms.**
-  Trouvé le 19/08 en créant un batch de test par le MCP, dans la liste rendue :
-  « **Gousses D'Ail — 3 g** ». Trois grammes d'ail, c'est une demi-gousse ; il en faut trois.
-  Même cause qu'`ING-03` (l'extraction d'unité de l'app V3 ne bornait pas ses mots), mais
-  cette fois c'est la QUANTITÉ qui est fausse, pas l'étiquette. Mesuré sur le seed :
+- [x] ~~**`ING-04` — le bug de frontière a corrompu les UNITÉS.**~~ **Livré le 19/08.**
+  325 ingrédients corrigés (`g`/`ml` → `unite`) d'après le texte source du seed, seule
+  donnée qui porte encore la vérité. ⚠️ La passe **s'abstient** dès que les sources se
+  contredisent (« 200 g de gingembre » contre « 1 gingembre ») : mesuré, 0 cas ambigu sur
+  325, et le garde est prouvé par mutation.
 
-  | texte source | unité enregistrée | lignes |
-  |---|---|---|
-  | `gousses` | `g` | **1 926** |
-  | `grosses` | `g` | 167 |
-  | `gouttes` | `g` | 90 |
-  | `clous` (de girofle) | `cl` | 89 |
-  | `gingembre` | `g` | 35 |
-  | `glaçons` | `g` | 34 |
-
-  ⚠️ **Pas réparable comme `ING-03`.** Là, le dégât était un préfixe du nom, donc il se
-  retirait sans rien consulter. Ici, `unit='g', qty=0.25` ne contient AUCUNE trace de
-  « gousse » : l'information est ailleurs. Elle existe encore — `recipe_ingredient.raw_text`
-  dans `data/batchchef.seed.db` est intact — mais elle n'est PAS en production (l'import ne
-  garde `raw_text` dans `note` que si la quantité est nulle, ce qui n'est pas le cas ici).
-  Le correctif exige donc de rapparier les lignes de production au seed, ce qui est un autre
-  chantier — et il CHANGE des quantités sur des listes d'épicerie, donc il se fait valider
-  par Marc avant d'être poussé (cf. « une préversion écrit dans la base de production »).
-
-- [ ] **`ING-05` — huit noms finissent par une préposition orpheline.** « Huile végétale
-  pure à », relevé dans le même batch de test. C'est la quatrième forme de dégât mesurée le
-  19/08 (8 entrées sur 15 389) ; je ne l'ai volontairement PAS couverte dans `ING-03` —
-  contrairement aux trois autres, ce qu'il faut retirer n'est pas un préfixe, et à ce volume
-  le jeu n'en valait pas la chandelle sans avoir mesuré ce que la coupe emporterait.
+- [x] ~~**`ING-05` — noms finissant par une préposition orpheline.**~~ **Traité autrement,
+  et plus largement, le 19/08.** En mesurant ING-04, `ING-03` s'est révélée **incomplète** :
+  ma détection ne cherchait que trois motifs, alors que le corpus en portait d'autres —
+  `grosses`→« Rosses », `lamelles`→« Amelles », `clous`→« Ous », `demis`→« Mis ». La
+  restauration se fait désormais depuis le texte source (`nomRestaure`), qui rend les lettres
+  mangées sans avoir à énumérer les motifs : **677 noms** restaurés, contre 2 371 par
+  préfixe. Elle refuse de restaurer au-delà de trois lettres perdues — au-delà, ce n'est plus
+  une troncature, c'est un autre mot.
 
 ## Écarté volontairement
 
