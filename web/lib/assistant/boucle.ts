@@ -38,6 +38,8 @@ export interface ReponseAssistant {
   toursOutils: number;
   /** `true` si la borne a été atteinte : la réponse est PARTIELLE et le dit. */
   borneAtteinte: boolean;
+  /** `true` si le modèle a été coupé par le plafond de jetons — la phrase s'arrête net. */
+  coupeeEnCours: boolean;
 }
 
 type BlocContenu = Anthropic.Messages.ContentBlockParam;
@@ -51,6 +53,7 @@ export async function repondre(historique: readonly Message[]): Promise<ReponseA
       texte: "L'assistant n'est pas configuré (clé API absente).",
       toursOutils: 0,
       borneAtteinte: false,
+      coupeeEnCours: false,
     };
   }
   const client = new Anthropic({ apiKey });
@@ -81,11 +84,18 @@ export async function repondre(historique: readonly Message[]): Promise<ReponseA
         .map((b) => b.text)
         .join("\n")
         .trim();
+      // ⚠️ Une réponse coupée par le plafond de jetons s'arrête EN PLEIN MILIEU d'une
+      // phrase. Rendue telle quelle, elle a l'air complète : Marc lirait une recette dont
+      // la dernière étape manque sans rien pour le lui dire. On l'annonce.
+      const coupee = reponse.stop_reason === "max_tokens";
       return {
         ok: true,
-        texte: texte || "Je n'ai pas trouvé quoi répondre.",
+        texte:
+          (texte || "Je n'ai pas trouvé quoi répondre.") +
+          (coupee ? "\n\n[Réponse coupée : elle était trop longue. Demande-moi la suite.]" : ""),
         toursOutils: tours,
         borneAtteinte: false,
+        coupeeEnCours: coupee,
       };
     }
 
@@ -113,5 +123,6 @@ export async function repondre(historique: readonly Message[]): Promise<ReponseA
       "Reformule en précisant (un ingrédient principal, un type de plat) — je repartirai de là.",
     toursOutils: MAX_TOURS_OUTILS,
     borneAtteinte: true,
+    coupeeEnCours: false,
   };
 }

@@ -30,6 +30,13 @@ autre question que celle posée.
 avant d'écrire un `clamp`, se demander si la valeur vit sur un CONTINUUM (borner) ou désigne
 une ENTITÉ (refuser). Et se méfier d'un helper générique réutilisé pour les deux.
 
+**Troisième défaut du même passage, même famille** : `stop_reason` n'était pas lu. Une
+réponse coupée par le plafond de jetons s'arrête EN PLEIN MILIEU d'une phrase — rendue telle
+quelle, elle a l'air complète, et Marc lirait une recette dont la dernière étape manque sans
+rien pour le lui dire. Le point commun des trois : **du code qui produit un résultat
+plausible là où il devrait admettre qu'il n'en a pas**. C'est ce que la relecture doit
+chercher en priorité dans du code non exécuté — pas les plantages, qui se signalent seuls.
+
 Corollaire du même passage : la sortie d'un outil aussi est une entrée qui croît (la
 préparation d'une recette fait des kilo-octets, × 8 allers-retours). Elle est maintenant
 bornée, et la troncature est DITE — sinon le modèle croirait avoir tout lu et pourrait citer
