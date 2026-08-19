@@ -270,6 +270,28 @@ proposerait de rétrograder Next en 9.x, ce qui casserait l'app.
 ⚠️ La branche par défaut du dépôt est **`master`**, pas `main` — `main` est une vieille
 branche abandonnée qui a divergé. Repartir de `master`.
 
+## ⚠️ Une PRÉVERSION écrit dans la base de PRODUCTION
+
+Il n'y a qu'une base Neon, et `vercel-build` fait `db:migrate` (puis `db:reparer-noms`)
+**avant** `next build`. Or Vercel construit aussi chaque préversion. Donc **toute migration
+et tout script de données d'une branche s'appliquent à la production dès le premier build de
+la PR — avant tout merge, avant toute revue.**
+
+Constaté le 19/08 : la réparation des noms (`ING-03`) avait déjà traité 16 870 lignes de
+production quand j'ai lu les logs de la PRÉVERSION. Sans conséquence ici — la passe est
+idempotente, non destructive, et c'était le correctif voulu — mais le mécanisme, lui, ne
+distingue pas.
+
+Ce n'est pas nouveau (`db:migrate` y était depuis toujours) ; c'est simplement rarement
+visible. Deux règles qui en découlent :
+
+1. **« On essaiera d'abord sur une branche » est FAUX ici.** Une migration destructive
+   (suppression de colonne, réécriture de données) touche la production au premier push.
+   Faire valider par Marc AVANT de pousser, pas avant de merger.
+2. Un script de données dans `vercel-build` doit être **idempotent**, **non destructif**, et
+   **tracer ce qu'il a fait** — sinon on ne peut même pas savoir, après coup, ce qu'une
+   préversion a modifié.
+
 ## Après un merge : vérifier le DÉPLOIEMENT, pas seulement la CI
 
 **CI verte ne veut pas dire « en ligne ».** Ce sont deux systèmes indépendants : la CI

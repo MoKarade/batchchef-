@@ -40,6 +40,41 @@ l'autorisait. Même famille que « Tailwind génère du CSS depuis la prose qui 
 un scan ancré sur un MOT attrape ce qui parle de la chose autant que la chose. Ancrer sur la
 FORME de la valeur (ici guillemet + directive + espace), jamais sur le terme.
 
+## 2026-08-19 — La préversion d'une PR écrit dans la base de production
+
+J'ai livré la réparation des noms d'ingrédients et j'allais annoncer à Marc qu'elle
+s'appliquerait « au prochain déploiement de production ». Par acquit de conscience, j'ai lu
+les logs de build de la PRÉVERSION de la PR. Elle disait :
+
+    [noms] catalogue : 2371 nom(s) distinct(s) réparé(s), 16822 ligne(s) mise(s) à jour.
+    [noms] Terminé : 16870 ligne(s) réparée(s).
+
+C'était déjà fait. Sur la vraie base, depuis une branche non mergée.
+
+L'explication est simple et elle était sous mes yeux : il n'y a qu'UNE base Neon, et
+`vercel-build` enchaîne `db:migrate` puis mon script avant `next build`. Vercel construit
+aussi les préversions. Donc chaque push sur une branche applique ses migrations à la
+production. Ce n'est pas moi qui l'ai introduit — `db:migrate` y était depuis toujours — mais
+personne ne l'avait jamais constaté, parce qu'une migration de schéma additive ne se voit pas.
+Il a fallu un script qui COMPTE ce qu'il touche pour que le mécanisme devienne lisible.
+
+Sans conséquence cette fois : la passe est idempotente, non destructive, et c'était le
+correctif voulu. Mais le mécanisme ne fait pas la différence entre « le correctif voulu » et
+« une migration qu'on voulait d'abord essayer ».
+
+**Règle** : sur un projet à base unique, « on essaiera d'abord sur une branche » est FAUX. Une
+migration destructive touche la production au premier push, avant merge et avant revue. Ce
+qui se fait valider se fait valider avant le PUSH. Et tout script de données placé dans le
+chemin de build doit être idempotent, non destructif, et **tracer ce qu'il a modifié** — sinon
+on ne peut même pas savoir après coup ce qu'une préversion a fait.
+
+**Corollaire de méthode** : c'est le fait d'avoir mis un compteur dans les logs qui a rendu ce
+mécanisme visible. Un script silencieux aurait « marché » et je serais parti avec une
+description fausse de ce qui s'était passé — pas un bug, juste une compréhension erronée du
+système, qui aurait servi de base à la décision suivante.
+
+---
+
 ## 2026-08-19 — Un test de présence par sous-chaîne est satisfait par la ligne d'import
 
 En livrant la réparation des noms d'ingrédients, j'ai posé un verrou : l'import du catalogue
