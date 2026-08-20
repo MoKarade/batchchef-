@@ -19,15 +19,41 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   retrouvé pour **10 049** d'entre elles (4 pers : 4 705 · 6 : 2 002 · 2 : 846 · 8 : 776…).
   `servings` et les quantités bougent ENSEMBLE, dans la même transaction : le facteur
   d'échelle d'un batch vaut `portions / servings`, donc **aucun batch existant ne bouge**.
-- [ ] **`CAT-B` — la recherche accent-insensible.** `ilike '%q%'` sans normalisation :
-  « creme » rend **1** recette sur 346, « pâte » **0** sur 312, « gateau » **18** sur 395.
-  **5 895 titres sur 10 188 portent un accent.** C'est le plus gros gain d'usage restant.
+- [ ] **`CAT-B` — la recherche insensible aux accents ET à l'apostrophe.** `ilike '%q%'`
+  sans normalisation : « creme » rend **1** recette sur 346, « pâte » **0** sur 312,
+  « gateau » **18** sur 395. **5 895 titres sur 10 188 portent un accent.** C'est le plus
+  gros gain d'usage restant.
+  ⚠️ **Le recensement des 60 caractères non-ASCII du corpus a déplacé la cible** : l'accent
+  n'est pas le seul coupable, ni même le plus gênant sur les ingrédients.
+  - **`’` typographique — 340 noms d'ingrédient et 240 titres.** Taper `d'ail` au clavier
+    droit ne les trouve JAMAIS. Un utilisateur ne tape pas `’`.
+  - **Accents DÉCOMPOSÉS (NFD)** — 20 titres, 12 noms, 90 instructions. « Pâte » y est
+    stocké `P` + `a` + accent combinant : identique à l'œil, différent à l'octet. Ça rate
+    la recherche **et** la détection de doublons.
+  - **Caractères invisibles** : `U+FE0F` (149 occurrences, dont 130 noms d'ingrédient),
+    espace insécable `U+00A0` (325).
+  - **Marques déposées** `®™©` — 587 noms, 226 titres. « Kub Or Maggi » ne trouve pas
+    « Kub® Or Maggi® ».
+  - Guillemets typographiques (338), fractions vulgaires `¼½¾` (119).
+  **Conception retenue** : des colonnes **générées** (`GENERATED ALWAYS AS … STORED`), pas
+  des colonnes remplies par du code. Un chemin d'insertion ne peut PAS oublier une colonne
+  générée — c'est exactement le défaut qui a fait perdre `ville` quatre fois chez JobAI. Le
+  calcul se fait avec des fonctions immuables (`lower`, `translate`, `replace`) : aucune
+  extension Postgres à installer, donc aucun risque de permission sur Neon. ⚠️ La même règle
+  vivra alors à DEUX endroits (le SQL de la migration et le TS qui normalise la requête) —
+  donc tripwire qui compare les deux, sinon elles divergeront.
 - [ ] **`CAT-C` — temps de préparation et de cuisson.** Présents dans le seed pour les
   10 188 recettes (médiane 15 min / 20 min), **jamais importés**. Deux colonnes, un import,
   un affichage.
 - [ ] **`CAT-D` — ménage du texte.** 1 entité HTML (`&quot;`), 23 titres à espaces douteux,
   7 titres > 120 caractères, 6 instructions avec du mojibake, 5 vides, et **71 instructions
-  sans le moindre saut de ligne** (un bloc illisible).
+  sans le moindre saut de ligne** (un bloc illisible). S'y ajoutent, trouvés en préparant
+  `CAT-B` : les 32 titres/noms en accents décomposés (à recomposer en NFC), les 149
+  `U+FE0F` invisibles et les 325 espaces insécables.
+  ⚠️ Distinguer `CAT-B` de `CAT-D` : `CAT-B` normalise ce qu'on CHERCHE (colonne dérivée,
+  le texte affiché reste tel quel), `CAT-D` corrige ce qu'on AFFICHE. Les deux touchent les
+  mêmes caractères mais pas la même colonne — les confondre réécrirait des titres pour une
+  raison de recherche.
 - [ ] **`CAT-E` — recettes creuses et vrais doublons, SUPPRIMÉES** (décision de Marc,
   19/08 : « supprimer pour de bon »). 3 recettes sans aucun ingrédient, 22 avec un seul,
   15 vrais doublons. ⚠️ **Ne PAS dédoublonner par titre** : sur les 87 titres partagés, 72
