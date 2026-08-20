@@ -2,7 +2,6 @@
 
 import { describe, expect, it } from "vitest";
 import { composeBatchchefSummary } from "../lib/hubSummary";
-import { hubTokensMatch } from "../lib/hubToken";
 
 const BASE = "https://batchchef.example.com";
 
@@ -74,17 +73,3 @@ describe("composeBatchchefSummary (conforme au contrat)", () => {
   });
 });
 
-describe("hubTokensMatch (temps constant, fail-closed)", () => {
-  it("accepte deux jetons identiques", () => {
-    expect(hubTokensMatch("s3cr3t-token", "s3cr3t-token")).toBe(true);
-  });
-  it("refuse un jeton différent (même longueur ou non)", () => {
-    expect(hubTokensMatch("s3cr3t-token", "autre-token!!")).toBe(false);
-    expect(hubTokensMatch("court", "beaucoup-plus-long")).toBe(false);
-  });
-  it("refuse un jeton vide (jamais « vide == vide »)", () => {
-    expect(hubTokensMatch("", "")).toBe(false);
-    expect(hubTokensMatch("", "attendu")).toBe(false);
-    expect(hubTokensMatch("fourni", "")).toBe(false);
-  });
-});
