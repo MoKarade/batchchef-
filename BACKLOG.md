@@ -19,29 +19,27 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   retrouvé pour **10 049** d'entre elles (4 pers : 4 705 · 6 : 2 002 · 2 : 846 · 8 : 776…).
   `servings` et les quantités bougent ENSEMBLE, dans la même transaction : le facteur
   d'échelle d'un batch vaut `portions / servings`, donc **aucun batch existant ne bouge**.
-- [ ] **`CAT-B` — la recherche insensible aux accents ET à l'apostrophe.** `ilike '%q%'`
-  sans normalisation : « creme » rend **1** recette sur 346, « pâte » **0** sur 312,
-  « gateau » **18** sur 395. **5 895 titres sur 10 188 portent un accent.** C'est le plus
-  gros gain d'usage restant.
-  ⚠️ **Le recensement des 60 caractères non-ASCII du corpus a déplacé la cible** : l'accent
-  n'est pas le seul coupable, ni même le plus gênant sur les ingrédients.
-  - **`’` typographique — 340 noms d'ingrédient et 240 titres.** Taper `d'ail` au clavier
-    droit ne les trouve JAMAIS. Un utilisateur ne tape pas `’`.
-  - **Accents DÉCOMPOSÉS (NFD)** — 20 titres, 12 noms, 90 instructions. « Pâte » y est
-    stocké `P` + `a` + accent combinant : identique à l'œil, différent à l'octet. Ça rate
-    la recherche **et** la détection de doublons.
-  - **Caractères invisibles** : `U+FE0F` (149 occurrences, dont 130 noms d'ingrédient),
-    espace insécable `U+00A0` (325).
-  - **Marques déposées** `®™©` — 587 noms, 226 titres. « Kub Or Maggi » ne trouve pas
-    « Kub® Or Maggi® ».
-  - Guillemets typographiques (338), fractions vulgaires `¼½¾` (119).
-  **Conception retenue** : des colonnes **générées** (`GENERATED ALWAYS AS … STORED`), pas
-  des colonnes remplies par du code. Un chemin d'insertion ne peut PAS oublier une colonne
-  générée — c'est exactement le défaut qui a fait perdre `ville` quatre fois chez JobAI. Le
-  calcul se fait avec des fonctions immuables (`lower`, `translate`, `replace`) : aucune
-  extension Postgres à installer, donc aucun risque de permission sur Neon. ⚠️ La même règle
-  vivra alors à DEUX endroits (le SQL de la migration et le TS qui normalise la requête) —
-  donc tripwire qui compare les deux, sinon elles divergeront.
+- [x] ~~**`CAT-B` — la recherche insensible aux accents, à l'apostrophe et aux marques.**~~
+  **Livré le 20/08.** Mesuré avant et après, sur le corpus entier :
+
+  | on tape | titres avant → après | ingrédients avant → après |
+  |---|---|---|
+  | « creme » | 1 → **346** | 0 → **470** |
+  | « pate » | 0 → **312** | 2 → **372** |
+  | « legumes » | 1 → **332** | 0 → **83** |
+  | « gateau » | 18 → **395** | 0 → 15 |
+  | « crepe » | 0 → **114** | 0 → 24 |
+  | « kub or maggi » | 0 → 0 | 0 → **3** |
+
+  **6 057 titres et 8 964 noms** changent de forme cherchable. La comparaison se fait sur
+  des colonnes **générées** (`GENERATED ALWAYS AS … STORED`) : un chemin d'insertion ne peut
+  pas oublier de les remplir. Uniquement des fonctions immuables — pas d'extension
+  `unaccent`, qui n'est pas immuable et demanderait un privilège sur Neon.
+  ⚠️ La règle vit des deux côtés (Postgres et TypeScript). L'expression SQL est **fabriquée**
+  depuis les constantes du module TS, et un tripwire vérifie que la migration porte
+  exactement cette expression : changer la règle sans régénérer la migration fait échouer le
+  test. Prouvé par mutation, comme le retour d'un chemin de recherche au texte brut.
+
 - [ ] **`CAT-C` — temps de préparation et de cuisson.** Présents dans le seed pour les
   10 188 recettes (médiane 15 min / 20 min), **jamais importés**. Deux colonnes, un import,
   un affichage.

@@ -6,6 +6,8 @@
 // l'UNICITÉ de la source.
 
 import { describe, expect, it } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   A_RETIRER,
   DEVELOPPEMENTS,
@@ -89,4 +91,53 @@ describe("l'expression SQL et le TypeScript ne peuvent pas diverger", () => {
     expect(expressionSql("name")).toContain("name");
     expect(expressionSql("title")).not.toContain("name");
   });
+});
+
+describe("les DEUX exemplaires de la règle ne peuvent pas diverger", () => {
+  const dossier = resolve(process.cwd(), "drizzle");
+  const sqlDesMigrations = readdirSync(dossier)
+    .filter((f) => f.endsWith(".sql"))
+    .map((f) => readFileSync(resolve(dossier, f), "utf8"))
+    .join("\n");
+
+  it("la migration porte EXACTEMENT l'expression fabriquée par le code", () => {
+    // Le vrai risque du lot : quelqu'un retouche `A_RETIRER` ou `EQUIVALENCES` sans
+    // régénérer la migration. Les colonnes générées gardent alors l'ANCIENNE règle, la
+    // requête utilise la NOUVELLE, et des résultats disparaissent sans une seule erreur.
+    // Mutation : ajouter un caractère à `A_RETIRER` sans régénérer fait tomber ce test.
+    for (const colonne of ["title", "name"]) {
+      expect(sqlDesMigrations, `expression absente pour ${colonne}`).toContain(expressionSql(colonne));
+    }
+  });
+
+  it("les quatre colonnes de recherche sont GÉNÉRÉES, pas remplies par du code", () => {
+    // Une colonne remplie par un `INSERT` s'oublie ; une colonne générée, non.
+    for (const col of ["titre_recherche", "nom_recherche"]) {
+      const declarations = [...sqlDesMigrations.matchAll(new RegExp(`"${col}" text([^;]*)`, "g"))];
+      expect(declarations.length).toBeGreaterThan(0);
+      for (const d of declarations) expect(d[1]).toContain("GENERATED ALWAYS AS");
+    }
+  });
+});
+
+describe("les deux chemins de recherche passent par la colonne normalisée", () => {
+  // Surface : aucun test unitaire ne voit une requête revenue au texte brut, et le symptôme
+  // (« la recherche trouve moins de choses ») ne ressemble pas à un bug.
+  const fichiers = {
+    "la page catalogue": readFileSync(resolve(process.cwd(), "app/catalogue/page.tsx"), "utf8"),
+    "l'outil MCP": readFileSync(resolve(process.cwd(), "lib/mcp/outils.ts"), "utf8"),
+  };
+
+  for (const [quoi, code] of Object.entries(fichiers)) {
+    it(`${quoi} compare des colonnes normalisées`, () => {
+      const lignesIlike = code
+        .split("\n")
+        .filter((l) => l.includes("ilike(") && !l.trimStart().startsWith("//"));
+      expect(lignesIlike.length).toBeGreaterThan(0);
+      for (const l of lignesIlike) {
+        expect(l, `comparaison sur du texte brut : ${l.trim()}`).toMatch(/Recherche\b/);
+      }
+      expect(code).toContain("normaliserPourRecherche");
+    });
+  }
 });

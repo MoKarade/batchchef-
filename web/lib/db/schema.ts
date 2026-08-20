@@ -4,6 +4,7 @@
 // estimations (LLM + filet déterministe, couverture 100 %) ; il n'y a pas de prix « réels »
 // relevés — pas de suivi de prix magasin prévu (trop de friction pour la valeur).
 
+import { sql } from "drizzle-orm";
 import {
   boolean,
   integer,
@@ -13,6 +14,20 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
+import { expressionSql } from "../rechercheNormalisee";
+
+/**
+ * Colonne de recherche DÉRIVÉE, calculée par Postgres à chaque écriture (CAT-B).
+ *
+ * ⚠️ GÉNÉRÉE, jamais remplie par du code : un chemin d'insertion ne peut pas l'oublier.
+ * C'est le défaut qui a fait perdre une colonne quatre fois de suite chez JobAI — quatre
+ * `INSERT` recopiés, un champ neuf absent des quatre, aucune erreur nulle part.
+ *
+ * L'expression vient de `expressionSql`, seule source de la règle : la version TypeScript
+ * qui normalise la requête de l'utilisateur est fabriquée depuis les MÊMES constantes.
+ */
+const colonneRecherche = (nomSql: string, source: string) =>
+  text(nomSql).generatedAlwaysAs(sql.raw(expressionSql(source)));
 
 /** Bibliothèque perso : recettes importées par URL (parse LLM) ou saisies à la main. */
 export const recipes = pgTable("recipes", {
@@ -31,6 +46,7 @@ export const recipes = pgTable("recipes", {
   servings: integer("servings").notNull().default(4),
   instructions: text("instructions"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  titreRecherche: colonneRecherche("titre_recherche", "title"),
 });
 
 export const recipeIngredients = pgTable("recipe_ingredients", {
@@ -47,6 +63,7 @@ export const recipeIngredients = pgTable("recipe_ingredients", {
   /** g | ml | unite — normalisée au parse (kg→g, l→ml, c. à soupe→ml…). */
   unit: text("unit", { enum: ["g", "ml", "unite"] }),
   note: text("note"),
+  nomRecherche: colonneRecherche("nom_recherche", "name"),
 });
 
 export const batches = pgTable("batches", {
@@ -100,6 +117,7 @@ export const catalogRecipes = pgTable("catalog_recipes", {
   imageUrl: text("image_url"),
   servings: integer("servings").notNull().default(1),
   instructions: text("instructions"),
+  titreRecherche: colonneRecherche("titre_recherche", "title"),
 });
 
 export const catalogIngredients = pgTable("catalog_ingredients", {
@@ -112,6 +130,7 @@ export const catalogIngredients = pgTable("catalog_ingredients", {
   qty: real("qty"),
   unit: text("unit", { enum: ["g", "ml", "unite"] }),
   note: text("note"),
+  nomRecherche: colonneRecherche("nom_recherche", "name"),
 });
 
 // ── Usage LLM (coût API) ─────────────────────────────────────────────────────────
