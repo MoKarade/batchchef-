@@ -124,6 +124,22 @@ describe("réparation des ingrédients — la passe reste branchée au build", (
     }
   });
 
+  it("la quantité et son UNITÉ sont écrites ENSEMBLE", () => {
+    // ⚠️ Vécu le 20/08 : la passe écrivait `qty` et `note`, jamais `unit`. Les six lignes
+    // « grandes cuillères » recevaient donc 7,5 tout en gardant `unit='g'` de la colonne
+    // fautive — « 7,5 g » au lieu de « 7,5 ml ». Un bon nombre sous une mauvaise unité est
+    // PIRE que le défaut d'origine : il a l'air corrigé.
+    //
+    // Aucun test unitaire ne peut voir ça (la suite n'a pas de base) : c'est un tripwire de
+    // surface. Il regarde le `set({...})` de la mise à jour des ingrédients.
+    const src = readFileSync(resolve(process.cwd(), "scripts/reparer-ingredients.ts"), "utf8");
+    const bloc = /\.update\(tableIngredients\)\s*\.set\(\{([\s\S]*?)\}\)/.exec(src)?.[1];
+    expect(bloc, "le bloc de mise à jour des ingrédients doit exister").toBeTruthy();
+    for (const champ of ["qty:", "unit:", "note:"]) {
+      expect(bloc, `${champ} doit voyager avec les autres`).toContain(champ);
+    }
+  });
+
   it("l'import du catalogue répare aussi, sinon il ré-introduirait le défaut", () => {
     // ⚠️ On cherche l'APPEL, pas le nom : une première version de ce test se contentait de
     // `toContain("reparerNom")` et passait au vert alors que l'appel avait été retiré — la

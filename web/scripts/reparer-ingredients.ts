@@ -182,6 +182,19 @@ async function appliquer(libelle: string, table: Table, map: Map<string, Correct
 
 interface QuantiteAttendue {
   qty: number | null;
+  /**
+   * L'unité qui va AVEC cette quantité.
+   *
+   * ⚠️ Elle a manqué au premier jet, et le défaut était pire que celui qu'il corrigeait :
+   * « 1 grandes cuillères d'arôme vanille » recevait bien 7,5 mais gardait `unit='g'` de la
+   * colonne fautive — donc « 7,5 g » au lieu de « 7,5 ml ». Un bon nombre sous une mauvaise
+   * unité est plus trompeur qu'un mauvais nombre : il a l'air d'avoir été corrigé.
+   *
+   * Et la valeur attendue compose les DEUX autorités, sinon les passes se défont l'une
+   * l'autre à chaque build : `normalizeQty` dit ce que le texte annonce, `uniteCorrigee` dit
+   * ce que l'accord entre recettes impose (le `g` de « gousses » qui doit devenir `unite`).
+   */
+  unit: "g" | "ml" | "unite" | null;
   /** Texte source à garder en note quand la quantité disparaît ET qu'elle portait un chiffre. */
   note: string | null;
 }
@@ -212,7 +225,7 @@ interface RecetteAttendue {
  * n'attendent pas la même quantité, on ne touche à aucune des deux — sinon on écraserait
  * l'une par l'autre sans rien pour choisir.
  */
-function referenceSeed(sqlite: Sqlite): Map<string, RecetteAttendue> {
+function referenceSeed(sqlite: Sqlite, corr: Map<string, Correction>): Map<string, RecetteAttendue> {
   const parRecette = new Map<number, Array<{ raw: string; qpp: number | null; unit: string | null; nom: string; canon: string }>>();
   const stmt = sqlite.prepare(
     `SELECT ri.recipe_id AS r, ri.raw_text AS raw, ri.quantity_per_portion AS q, ri.unit AS u,
@@ -278,10 +291,15 @@ function referenceSeed(sqlite: Sqlite): Map<string, RecetteAttendue> {
       const qty = norm.qty === null ? null : Math.round(norm.qty * servings * 100) / 100;
       const note = noteSourcePerdue(l.raw, qty);
       const cle = reparerCanonique(l.canon.toLowerCase().trim());
+      // MÊME règle que la passe des noms/unités : sans ça, l'une écrit `unite` et l'autre
+      // réécrit `g` au build suivant, indéfiniment.
+      const correction = corr.get(cle);
+      const unit =
+        correction?.unite && (norm.unit === "g" || norm.unit === "ml") ? correction.unite : norm.unit;
       const deja = attendu.lignes.get(cle);
-      if (deja === undefined) { attendu.lignes.set(cle, { qty, note }); continue; }
+      if (deja === undefined) { attendu.lignes.set(cle, { qty, unit, note }); continue; }
       if (deja === null) continue;
-      if (deja.qty !== qty) { attendu.lignes.set(cle, null); ambigues += 1; }
+      if (deja.qty !== qty || deja.unit !== unit) { attendu.lignes.set(cle, null); ambigues += 1; }
     }
     map.set(recette.url, attendu);
   }
@@ -324,6 +342,7 @@ interface IngredientProd {
   recette: number;
   canonical: string;
   qty: number | null;
+  unit: "g" | "ml" | "unite" | null;
   note: string | null;
 }
 
@@ -406,9 +425,10 @@ async function appliquerReference(
       const a = attendu.lignes.get(i.canonical);
       if (!a) continue; // absente du seed, ou ambiguë
       const memeQty = i.qty === a.qty || (i.qty !== null && a.qty !== null && Math.abs(i.qty - a.qty) < 1e-9);
+      const memeUnite = i.unit === a.unit;
       const noteAPoser = a.note !== null && !i.note;
-      if (memeQty && !noteAPoser) continue;
-      chantier.quantites.push([i.id, { qty: a.qty, note: noteAPoser ? a.note : null }]);
+      if (memeQty && memeUnite && !noteAPoser) continue;
+      chantier.quantites.push([i.id, { qty: a.qty, unit: a.unit, note: noteAPoser ? a.note : null }]);
     }
     if (chantier.recette || chantier.quantites.length > 0) chantiers.push(chantier);
   }
@@ -428,6 +448,7 @@ async function appliquerReference(
           .update(tableIngredients)
           .set({
             qty: casPar(sql.raw("id"), majQuantites, "real", (v) => v.qty),
+            unit: casPar(sql.raw("id"), majQuantites, "text", (v) => v.unit),
             // On POSE une note, on n'en efface jamais une.
             note: sql`COALESCE(${casPar(sql.raw("id"), majQuantites, "text", (v) => v.note)}, ${tableIngredients.note})`,
           })
@@ -610,7 +631,7 @@ async function main(): Promise<void> {
   const sqlite = await ouvrirSeed();
   const map = corrections(sqlite);
   console.log(`[ingr] ${map.size} clé(s) de référence lues dans le seed.`);
-  const reference = referenceSeed(sqlite);
+  const reference = referenceSeed(sqlite, map);
   const retraits = retraitsDepuisSeed(sqlite);
   sqlite.close();
 
@@ -641,6 +662,7 @@ async function main(): Promise<void> {
         recette: schema.catalogIngredients.catalogRecipeId,
         canonical: schema.catalogIngredients.canonical,
         qty: schema.catalogIngredients.qty,
+        unit: schema.catalogIngredients.unit,
         note: schema.catalogIngredients.note,
       })
       .from(schema.catalogIngredients),
@@ -670,6 +692,7 @@ async function main(): Promise<void> {
         recette: schema.recipeIngredients.recipeId,
         canonical: schema.recipeIngredients.canonical,
         qty: schema.recipeIngredients.qty,
+        unit: schema.recipeIngredients.unit,
         note: schema.recipeIngredients.note,
       })
       .from(schema.recipeIngredients),
