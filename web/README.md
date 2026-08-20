@@ -22,7 +22,10 @@ scan de reçus ni de prix « réels » relevés.
 - **Budget** : chaque article reçoit un coût **estimé** (LLM à Québec en CAD, taxes
   exclues) ; un filet déterministe garantit qu'aucun article ne reste sans prix
   (couverture 100 %). Ce sont des estimations, pas des prix relevés.
-- **Privé** : login Google mono-adresse (pattern du hub perso), middleware fail-closed.
+- **Privé** : login Google (BatchChef garde son propre fournisseur) + middleware
+  fail-closed. L'**autorisation**, elle, vient du hub : `AUTHORIZED_EMAIL` est le
+  propriétaire, et tout le monde d'autre se gère depuis `hubperso.com/administration`,
+  app par app. Donner accès à quelqu'un = y cocher `batchchef`, rien d'autre.
 
 ## Démarrage
 
@@ -217,6 +220,18 @@ npm run typecheck && npm run test && npm run build
 Endpoint `GET /api/hub/summary` (gardé par jeton `x-hub-token`) : le hub perso
 (hubperso) affiche un widget BatchChef (recettes, batchs actifs, articles à acheter,
 budget). Voir `lib/hubSummary.ts`.
+
+`HUB_TOKEN` sert dans **les deux sens**, et le second manquait ici :
+
+| Sens | Qui appelle | Quoi |
+|---|---|---|
+| **Entrant** | le hub | `GET /api/hub/summary` avec `x-hub-token` → le widget |
+| **Sortant** | BatchChef | `POST /api/acces` sur le hub (`lib/accesHub.ts`) → « cette personne a-t-elle le droit d'entrer ici ? » |
+
+C'est le **même** secret, et c'est lui qui identifie BatchChef côté hub — aucun `appId`
+n'est envoyé dans le corps, sinon une app pourrait interroger les accès d'une autre.
+Sans `HUB_TOKEN`, aucun invité n'entre (échec fermé) ; le propriétaire, lui, passe, parce
+qu'il est vérifié avant et sans réseau.
 
 ## Serveur MCP — brancher Claude sur BatchChef
 
