@@ -16,6 +16,7 @@ import { db, schema } from "../lib/db";
 import { normalizeQty } from "../lib/units";
 import { reparerCanonique, reparerNom } from "../lib/ingredientsNoms";
 import { tempsCorrige } from "../lib/tempsRecette";
+import { nettoyerTexte } from "../lib/menageTexte";
 import { noteSourcePerdue, quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
 
 const require = createRequire(import.meta.url);
@@ -73,11 +74,11 @@ async function main() {
       .insert(schema.catalogRecipes)
       .values(
         slice.map((r) => ({
-          title: String(r.title ?? "Sans titre").slice(0, 400),
+          title: (nettoyerTexte(String(r.title ?? "")) || "Sans titre").slice(0, 400),
           sourceUrl: r.marmiton_url ? String(r.marmiton_url) : null,
           imageUrl: r.image_url ? String(r.image_url) : null,
           servings: Number(r.servings) > 0 ? Number(r.servings) : 1,
-          instructions: r.instructions ? String(r.instructions) : null,
+          instructions: nettoyerTexte(r.instructions ? String(r.instructions) : null),
           prepMinutes: tempsCorrige(numOrNull(r.prep_time_min)),
           cuissonMinutes: tempsCorrige(numOrNull(r.cook_time_min)),
         })),
@@ -120,7 +121,7 @@ async function main() {
         // ⚠️ Le catalogue V3 livre des noms abîmés (« À Soupe De Persil », « Ousses D'Ail ») :
         // son extraction d'unité mordait dans le mot. On répare À L'IMPORT, sinon une
         // ré-importation ré-introduirait ce que la passe de réparation vient de corriger.
-        name: reparerNom(String(ing.name ?? "ingrédient")).slice(0, 200),
+        name: (nettoyerTexte(reparerNom(String(ing.name ?? ""))) || "ingrédient").slice(0, 200),
         canonical: reparerCanonique(String(ing.canonical ?? "").toLowerCase().trim()).slice(0, 120) || "ingredient",
         qty: total,
         unit: norm.unit,

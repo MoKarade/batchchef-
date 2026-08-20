@@ -157,7 +157,33 @@ function sansQuantiteNiUnite(raw: string): string {
  * et seulement si le mot retrouvé se termine EXACTEMENT par le fragment. Rend le nom
  * inchangé au moindre doute — un nom laid vaut mieux qu'un nom inventé.
  */
-export function nomRestaure(nom: string, textesSource: string[]): string {
+export function nomRestaure(nom: string, textesSource: string[], unites: readonly string[] = []): string {
+  // ── Restauration EXACTE par l'unité (CAT-F) ─────────────────────────────────────────────
+  //
+  // Le budget ci-dessous refuse de rendre plus de quelques lettres, et il a raison : à trois,
+  // « Ail » devenait « Portail ». Mais il laisse passer 16 noms où la V3 a mangé un mot long
+  // — « S (250Ml) De Farine T45 », dont le « S » est tout ce qui reste de « tasses ».
+  //
+  // Pour douze d'entre eux, il n'y a rien à deviner : la colonne `unit` du seed porte
+  // « tasse », le fragment porte « s », et le mot « tasses » est LITTÉRALEMENT dans le texte
+  // source. On ne restaure que dans ce cas — le mot reconstruit doit exister tel quel.
+  // Les quatre autres (« hachés », « fraise ») ne viennent pas de l'unité : intouchés.
+  const tete = nom.trim().split(/\s+/)[0];
+  if (tete && tete.length <= 3) {
+    const fragment = tete.toLowerCase();
+    for (const unite of unites) {
+      const mot = `${unite.toLowerCase().trim()}${fragment}`;
+      if (mot.length <= fragment.length) continue;
+      const present = textesSource.some((raw) =>
+        raw.toLowerCase().split(/[^\p{L}]+/u).includes(mot),
+      );
+      if (present) return nom.replace(tete, mot[0]!.toUpperCase() + mot.slice(1));
+    }
+  }
+  return nomRestaureParFragment(nom, textesSource);
+}
+
+function nomRestaureParFragment(nom: string, textesSource: string[]): string {
   const premier = nom.trim().split(/\s+/)[0];
   if (!premier || premier.length < 2) return nom;
   const bas = premier.toLowerCase();
@@ -207,4 +233,17 @@ export function nomSansPrepositionFinale(nom: string): string {
   if (t.split(/\s+/).length < 2) return nom;
   const coupe = t.replace(PREPOSITION_FINALE, "").trim();
   return coupe.length > 0 ? coupe : nom;
+}
+
+/**
+ * L'unité que le TEXTE annonce, quand la colonne s'est trompée (CAT-F).
+ *
+ * ⚠️ Encore la frontière de mot : « 1 grandes cuillères d'arôme vanille » a été enregistré
+ * en `g` — le `g` de « grandes ». Six lignes, qui affichaient 0,5 g là où la recette demande
+ * une cuillerée. L'unité est ici dans le TEXTE, pas dans la colonne, et c'est la seule chose
+ * qui permet de trancher.
+ */
+export function uniteReelle(unite: string | null, raw: string): string | null {
+  if (unite === "g" && /grandes?\s+cuill/i.test(raw)) return "cuillères";
+  return unite;
 }

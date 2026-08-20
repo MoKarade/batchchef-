@@ -4,6 +4,7 @@
 // une recette saisie à la main non plus. Un rectangle gris vide donnait l'impression d'un
 // chargement qui n'aboutit jamais ; on affiche une marque discrète qui assume le vide.
 import Link from "next/link";
+import { ImageRecette } from "@/components/ImageRecette";
 
 export function RecipeCard({
   href,
@@ -17,8 +18,8 @@ export function RecipeCard({
   return (
     <Link href={href} className="carte flex h-full flex-col overflow-hidden">
       {imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt="" className="aspect-video w-full object-cover" loading="lazy" />
+         
+        <ImageRecette src={imageUrl} className="aspect-video w-full object-cover" lazy />
       ) : (
         <div
           className="flex aspect-video w-full items-center justify-center"

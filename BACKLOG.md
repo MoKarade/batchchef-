@@ -55,23 +55,68 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   **dérivée du schéma** (`getTableColumns`), pas réécrite à la main — c'est le défaut qui a
   fait entrer 40 offres sans ville en production chez JobAI.
 
-- [ ] **`CAT-D` — ménage du texte.** 1 entité HTML (`&quot;`), 23 titres à espaces douteux,
-  7 titres > 120 caractères, 6 instructions avec du mojibake, 5 vides, et **71 instructions
-  sans le moindre saut de ligne** (un bloc illisible). S'y ajoutent, trouvés en préparant
-  `CAT-B` : les 32 titres/noms en accents décomposés (à recomposer en NFC), les 149
-  `U+FE0F` invisibles et les 325 espaces insécables.
-  ⚠️ Distinguer `CAT-B` de `CAT-D` : `CAT-B` normalise ce qu'on CHERCHE (colonne dérivée,
-  le texte affiché reste tel quel), `CAT-D` corrige ce qu'on AFFICHE. Les deux touchent les
-  mêmes caractères mais pas la même colonne — les confondre réécrirait des titres pour une
-  raison de recherche.
-- [ ] **`CAT-E` — recettes creuses et vrais doublons, SUPPRIMÉES** (décision de Marc,
-  19/08 : « supprimer pour de bon »). 3 recettes sans aucun ingrédient, 22 avec un seul,
-  15 vrais doublons. ⚠️ **Ne PAS dédoublonner par titre** : sur les 87 titres partagés, 72
-  sont des variantes réelles (deux « sauce bolognaise » différentes). Mesuré. Réversible en
-  pratique : le catalogue est une dérivation pure du seed committé.
-- [ ] **`CAT-G` — sonder les images.** Toutes sur le CDN Marmiton, 0 non-https. ⚠️ Leur
-  vivacité n'est **pas** vérifiable depuis une session Claude (le proxy bloque `afcdn.com`,
-  code 000 ≠ 404) : ça se sonde depuis l'app, une passe bornée.
+- [x] ~~**`CAT-D` — ménage du texte affiché.**~~ **Livré le 20/08.**
+
+  | | titres | instructions | noms d'ingrédient |
+  |---|---|---|---|
+  | espaces multiples | 23 | 1 662 | 1 |
+  | accents décomposés (NFD → NFC) | 20 | 90 | 12 |
+  | caractères invisibles | 19 | 30 | 130 |
+  | entités HTML | 1 | 19 | 0 |
+  | **total** | **63** | **1 802** | **143** |
+
+  ⚠️ **L'inventaire initial a été démenti sur trois de ses cinq items**, et c'est la partie
+  utile de ce lot :
+  - « 6 instructions avec du mojibake » → **zéro**. Mon détecteur cherchait `Ã|Â|â€`, qui
+    attrape les « À » et « Â » légitimes d'un corpus français. Le compte mesurait mon motif.
+  - « 7 titres de plus de 120 caractères » → de vrais titres de plats gastronomiques.
+  - « 71 instructions sans saut de ligne » → 37 font moins de 200 caractères et sont des
+    recettes en UNE étape. Une seule dépasse 600. Re-segmenter aurait inventé une structure.
+
+  ⚠️ **L'espace insécable est CONSERVÉ** (325 occurrences) : en français il est correct
+  devant `; : ! ?`. Le « nettoyer » aurait abîmé un texte juste. Verrouillé par mutation.
+
+- [x] ~~**`CAT-F` — le reliquat d'ingrédients (ex-`ING-09`).**~~ **Livré le 20/08 — il
+  n'était pas irréductible.** 18 des 26 lignes se réparent par des règles EXACTES :
+  - **12 noms tronqués sur 16** : le mot mangé vaut « unité du seed + fragment » ET figure
+    LITTÉRALEMENT dans le texte source (« S (250Ml) De Farine T45 » ← « 2.5 **tasses**
+    (250ml) de farine T45 »). Le budget de deux lettres reste en place partout ailleurs —
+    c'est lui qui empêche « Ail » de devenir « Portail » ; la règle est un AJOUT.
+  - **6 « grandes cuillères » comptées en grammes** : encore la frontière de mot, le `g` de
+    « grandes ». 0,5 g d'arôme vanille devient 7,5 ml. L'unité était dans le TEXTE.
+
+  Reste **8 lignes sur 87 444** : 4 noms non restaurables (« hachés », « fraise ») et 4
+  écarts de rapport dont rien ne dit lequel des deux chiffres est faux.
+
+- [x] ~~**`CAT-G` — les images.**~~ **Livré le 20/08, autrement que prévu.** Une sonde de
+  vivacité aurait produit un chiffre périmé le lendemain, et je ne peux pas l'exécuter : le
+  proxy de la session bloque le CDN et répond « 000 », pas « 404 » — un échec de MON réseau,
+  qui ne dit rien de l'image. `components/ImageRecette.tsx` fait disparaître proprement une
+  image qui ne charge pas, quel que soit leur nombre, et continue de marcher quand ce nombre
+  change. Garde de surface : aucun `<img>` ne sert une adresse de recette sans repli.
+
+- [x] ~~**`CAT-E` — les recettes retirées du catalogue.**~~ **Livré le 20/08**, après que
+  Marc a tranché les trois piles (« supprime tout », 20/08). **18 recettes** sur 10 188 :
+  1 vraiment vide (#1268, ni ingrédient ni instructions), 2 sans ingrédient mais avec un
+  texte de préparation (#7596, #8038 — donnée perdue, invérifiable), et **15 doublons**,
+  un exemplaire par groupe partageant titre ET liste d'ingrédients.
+
+  ⚠️ **Mon cadrage initial annonçait 40 retraits et il était FAUX.** Les 22 recettes « à un
+  seul ingrédient » sont des recettes normales — « Oeufs durs » (4 oeufs), « Purée d'amande »
+  (250 g d'amandes), « Compote de nectarines » (8 nectarines), les cinq « Confiture de lait »
+  déclinées par appareil. Elles ne sont PAS supprimées, et un test les protège nommément.
+  Les avoir regardées une par une avant de coder est la seule raison pour laquelle elles
+  existent encore.
+
+  ⚠️ **Ne JAMAIS dédoublonner par titre** : sur les 87 titres partagés, 72 sont des variantes
+  réelles (deux « sauce bolognaise » aux ingrédients différents). Le titre est un indice, la
+  liste d'ingrédients est la preuve — verrouillé par mutation.
+
+  Gardes de la seule suppression de l'app : liste calculée par un module PUR et testé, un
+  **plafond** (25) qui fait échouer le build si le compte déborde, une résolution URL → ids
+  **vérifiée avant d'écrire**, et le choix de l'exemplaire conservé fait sur l'URL (stable),
+  jamais sur l'ordre d'arrivée. Réversible en pratique : `npm run catalog:import` reconstruit
+  le catalogue entier depuis le seed committé.
 
 - [x] ~~**`MCP-02` — poser `MCP_TOKEN` dans Vercel.**~~ **Fait le 19/08.** Marc a branché le
   connecteur claude.ai ; les outils rendent ses vraies données depuis la base de production.
