@@ -40,9 +40,21 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   exactement cette expression : changer la règle sans régénérer la migration fait échouer le
   test. Prouvé par mutation, comme le retour d'un chemin de recherche au texte brut.
 
-- [ ] **`CAT-C` — temps de préparation et de cuisson.** Présents dans le seed pour les
-  10 188 recettes (médiane 15 min / 20 min), **jamais importés**. Deux colonnes, un import,
-  un affichage.
+- [x] ~~**`CAT-C` — temps de préparation et de cuisson.**~~ **Livré le 20/08.** La donnée
+  était dans le seed depuis le début pour les **10 188 recettes** (médiane 15 min / 20 min)
+  et n'avait jamais été importée : une fiche ne disait rien du temps qu'elle demande.
+  Deux défauts mesurés AVANT de l'afficher, parce qu'une donnée fausse est pire que rien :
+  - **71 durées étaient des minutes lues comme des heures** (« Funky Pop Corn », 1 800 min
+    de préparation = 30 h). Preuve : 71 des 75 valeurs > 12 h sont des multiples EXACTS de
+    60, contre **3,8 %** des valeurs plausibles — 25× d'enrichissement — et tous les
+    quotients retombent sur des durées ordinaires. Les 4 restantes ne sont pas des
+    multiples de 60 : intactes.
+  - **224 recettes portent 0 en préparation ET 0 en cuisson** : donnée manquante, pas
+    recette instantanée. Rien ne s'affiche. Un 0 en cuisson SEUL reste crédible et se dit.
+  ⚠️ Garde né du lot : la copie catalogue → bibliothèque est vérifiée contre une liste
+  **dérivée du schéma** (`getTableColumns`), pas réécrite à la main — c'est le défaut qui a
+  fait entrer 40 offres sans ville en production chez JobAI.
+
 - [ ] **`CAT-D` — ménage du texte.** 1 entité HTML (`&quot;`), 23 titres à espaces douteux,
   7 titres > 120 caractères, 6 instructions avec du mojibake, 5 vides, et **71 instructions
   sans le moindre saut de ligne** (un bloc illisible). S'y ajoutent, trouvés en préparant

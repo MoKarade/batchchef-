@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { DeleteRecipeButton } from "@/components/DeleteRecipeButton";
+import { Durees } from "@/components/Durees";
 import { RecipeEditor } from "@/components/RecipeEditor";
 import { ajouteeParMarc, formatDateAjout, libelleOrigine } from "@/lib/origine";
 
@@ -33,6 +34,7 @@ export default async function RecipeDetailPage({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">{recipe.title}</h1>
+          <Durees prep={recipe.prepMinutes} cuisson={recipe.cuissonMinutes} />
           {/* D'où vient cette recette : la bibliothèque mélange ce que Marc a apporté et
               ce qu'il a pioché dans le catalogue de 10 188 recettes. Une origine absente
               (recettes antérieures à la colonne) se DIT, elle ne se devine pas. */}
