@@ -26,9 +26,17 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **393 tests**, 28 fichiers (19/08/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **397 tests**, 28 fichiers (19/08/2026).
 
 ## Ce qui vient d'être livré (19/08/2026, soir)
+
+- **`CAT-A` — le catalogue annonce enfin son vrai nombre de portions.** Les 10 188 recettes
+  disaient « pour 1 portion » ; 10 049 portent maintenant leur rendement réel, et leurs
+  quantités sont celles de la recette entière (« 320 g de fusilli », plus « 80 g »).
+  ⚠️ `servings` et `qty` partent dans la MÊME transaction (`db.batch`) : séparées, une
+  coupure laisserait la recette fausse d'un facteur R sans qu'aucun écran ne le dise.
+  Aucun batch existant ne bouge — vérifié sur le batch #13, liste identique au gramme.
+  Le chantier catalogue complet est planifié dans `BACKLOG.md` (`CAT-B` à `CAT-G`).
 
 - **`ING-08` — les quantités reconstruites depuis le texte source.** 13 448 lignes
   corrigées. Le défaut le plus coûteux : une fraction en tête était lue « 1 », donc
@@ -60,6 +68,14 @@ Gate : `typecheck` · `lint` · `test` · `build`. **393 tests**, 28 fichiers (1
 - **Web Analytics** (PR #44), remise sur `master` après dix commits de dérive.
 
 ## Ce qui vient d'être livré (19/08/2026, soir)
+
+- **`CAT-A` — le catalogue annonce enfin son vrai nombre de portions.** Les 10 188 recettes
+  disaient « pour 1 portion » ; 10 049 portent maintenant leur rendement réel, et leurs
+  quantités sont celles de la recette entière (« 320 g de fusilli », plus « 80 g »).
+  ⚠️ `servings` et `qty` partent dans la MÊME transaction (`db.batch`) : séparées, une
+  coupure laisserait la recette fausse d'un facteur R sans qu'aucun écran ne le dise.
+  Aucun batch existant ne bouge — vérifié sur le batch #13, liste identique au gramme.
+  Le chantier catalogue complet est planifié dans `BACKLOG.md` (`CAT-B` à `CAT-G`).
 
 - **`MCP-01` — serveur MCP distant.** `POST /api/mcp` : Claude Code ou l'app Claude peuvent
   fouiller les recettes, lire une liste d'épicerie, **et écrire** (créer un batch, copier une

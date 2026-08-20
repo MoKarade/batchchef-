@@ -8,6 +8,35 @@
 
 ## En cours / décidé, pas encore livré
 
+### Chantier CATALOGUE (plan arbitré par Marc le 19/08, un lot par PR)
+
+Audit large des 10 188 recettes fait avant de proposer quoi que ce soit. Ce qui suit est
+mesuré, pas supposé. ⚠️ `difficulté`, `type de repas`, `calories` et `tags` sont **vides dans
+le seed** : il n'y a rien à en tirer, et on ne le promet pas.
+
+- [x] ~~**`CAT-A` — le vrai nombre de portions.**~~ **Livré le 19/08.** Les 10 188 recettes
+  annonçaient « pour 1 portion » et divisaient leurs quantités d'autant. Le rendement réel est
+  retrouvé pour **10 049** d'entre elles (4 pers : 4 705 · 6 : 2 002 · 2 : 846 · 8 : 776…).
+  `servings` et les quantités bougent ENSEMBLE, dans la même transaction : le facteur
+  d'échelle d'un batch vaut `portions / servings`, donc **aucun batch existant ne bouge**.
+- [ ] **`CAT-B` — la recherche accent-insensible.** `ilike '%q%'` sans normalisation :
+  « creme » rend **1** recette sur 346, « pâte » **0** sur 312, « gateau » **18** sur 395.
+  **5 895 titres sur 10 188 portent un accent.** C'est le plus gros gain d'usage restant.
+- [ ] **`CAT-C` — temps de préparation et de cuisson.** Présents dans le seed pour les
+  10 188 recettes (médiane 15 min / 20 min), **jamais importés**. Deux colonnes, un import,
+  un affichage.
+- [ ] **`CAT-D` — ménage du texte.** 1 entité HTML (`&quot;`), 23 titres à espaces douteux,
+  7 titres > 120 caractères, 6 instructions avec du mojibake, 5 vides, et **71 instructions
+  sans le moindre saut de ligne** (un bloc illisible).
+- [ ] **`CAT-E` — recettes creuses et vrais doublons, SUPPRIMÉES** (décision de Marc,
+  19/08 : « supprimer pour de bon »). 3 recettes sans aucun ingrédient, 22 avec un seul,
+  15 vrais doublons. ⚠️ **Ne PAS dédoublonner par titre** : sur les 87 titres partagés, 72
+  sont des variantes réelles (deux « sauce bolognaise » différentes). Mesuré. Réversible en
+  pratique : le catalogue est une dérivation pure du seed committé.
+- [ ] **`CAT-G` — sonder les images.** Toutes sur le CDN Marmiton, 0 non-https. ⚠️ Leur
+  vivacité n'est **pas** vérifiable depuis une session Claude (le proxy bloque `afcdn.com`,
+  code 000 ≠ 404) : ça se sonde depuis l'app, une passe bornée.
+
 - [x] ~~**`MCP-02` — poser `MCP_TOKEN` dans Vercel.**~~ **Fait le 19/08.** Marc a branché le
   connecteur claude.ai ; les outils rendent ses vraies données depuis la base de production.
 

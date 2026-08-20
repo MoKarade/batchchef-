@@ -118,6 +118,21 @@ export function rendementRecette(lignes: LigneSource[]): number | null {
 }
 
 /**
+ * Le nombre de portions POUR LEQUEL la recette est écrite.
+ *
+ * Le seed l'annonce à 1 pour les 10 188 recettes — un chiffre jamais mesuré, seulement
+ * subi : chaque fiche disait « pour 1 portion » et divisait ses quantités d'autant. Le vrai
+ * rendement est celui que la V3 a APPLIQUÉ, et il se retrouve (10 049 recettes sur 10 185).
+ *
+ * ⚠️ Le changer n'a de sens qu'en multipliant les quantités par le MÊME nombre : le facteur
+ * d'échelle d'un batch vaut `portions / servings`, donc les deux se compensent exactement et
+ * aucun batch déjà composé ne bouge. Les déplacer séparément fausserait tout d'un facteur R.
+ */
+export function portionsRecette(lignes: LigneSource[], servingsSeed: number): number {
+  return rendementRecette(lignes) ?? servingsSeed;
+}
+
+/**
  * Mots DÉNOMBRABLES qui valent « une pièce » quand le texte n'annonce aucun nombre :
  * « branche de persil » se lit « UNE branche de persil ». Liste FERMÉE, dérivée du corpus.
  *
