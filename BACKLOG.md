@@ -76,14 +76,39 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   ⚠️ **L'espace insécable est CONSERVÉ** (325 occurrences) : en français il est correct
   devant `; : ! ?`. Le « nettoyer » aurait abîmé un texte juste. Verrouillé par mutation.
 
-- [ ] **`CAT-E` — recettes creuses et vrais doublons, SUPPRIMÉES** (décision de Marc,
-  19/08 : « supprimer pour de bon »). 3 recettes sans aucun ingrédient, 22 avec un seul,
-  15 vrais doublons. ⚠️ **Ne PAS dédoublonner par titre** : sur les 87 titres partagés, 72
-  sont des variantes réelles (deux « sauce bolognaise » différentes). Mesuré. Réversible en
-  pratique : le catalogue est une dérivation pure du seed committé.
-- [ ] **`CAT-G` — sonder les images.** Toutes sur le CDN Marmiton, 0 non-https. ⚠️ Leur
-  vivacité n'est **pas** vérifiable depuis une session Claude (le proxy bloque `afcdn.com`,
-  code 000 ≠ 404) : ça se sonde depuis l'app, une passe bornée.
+- [x] ~~**`CAT-F` — le reliquat d'ingrédients (ex-`ING-09`).**~~ **Livré le 20/08 — il
+  n'était pas irréductible.** 18 des 26 lignes se réparent par des règles EXACTES :
+  - **12 noms tronqués sur 16** : le mot mangé vaut « unité du seed + fragment » ET figure
+    LITTÉRALEMENT dans le texte source (« S (250Ml) De Farine T45 » ← « 2.5 **tasses**
+    (250ml) de farine T45 »). Le budget de deux lettres reste en place partout ailleurs —
+    c'est lui qui empêche « Ail » de devenir « Portail » ; la règle est un AJOUT.
+  - **6 « grandes cuillères » comptées en grammes** : encore la frontière de mot, le `g` de
+    « grandes ». 0,5 g d'arôme vanille devient 7,5 ml. L'unité était dans le TEXTE.
+
+  Reste **8 lignes sur 87 444** : 4 noms non restaurables (« hachés », « fraise ») et 4
+  écarts de rapport dont rien ne dit lequel des deux chiffres est faux.
+
+- [x] ~~**`CAT-G` — les images.**~~ **Livré le 20/08, autrement que prévu.** Une sonde de
+  vivacité aurait produit un chiffre périmé le lendemain, et je ne peux pas l'exécuter : le
+  proxy de la session bloque le CDN et répond « 000 », pas « 404 » — un échec de MON réseau,
+  qui ne dit rien de l'image. `components/ImageRecette.tsx` fait disparaître proprement une
+  image qui ne charge pas, quel que soit leur nombre, et continue de marcher quand ce nombre
+  change. Garde de surface : aucun `<img>` ne sert une adresse de recette sans repli.
+
+- [ ] **`CAT-E` — EN ATTENTE D'UNE DÉCISION DE MARC.** ⚠️ **Mon cadrage initial était FAUX**
+  et son autorisation (« supprimer pour de bon », 19/08) portait dessus : je ne supprime
+  rien tant qu'il n'a pas revu le périmètre.
+  - Les **22 recettes « à un seul ingrédient » sont légitimes** — « Oeufs durs » (4 oeufs),
+    « Purée d'amande » (250 g d'amandes), « Compote de nectarines » (8 nectarines), les cinq
+    « Confiture de lait » par appareil. Ce n'est pas une classe de défaut, c'est à quoi
+    ressemble une recette simple.
+  - Périmètre HONNÊTE : **9** — la recette #1268 (ni ingrédient ni instructions) et 8
+    groupes dont le titre, les ingrédients ET les instructions sont identiques.
+  - **Non tranchables par comptage** : #7596 et #8038 (aucun ingrédient mais un vrai texte
+    de préparation — donnée perdue, pas déchet) et 7 groupes aux mêmes ingrédients mais aux
+    instructions DIFFÉRENTES (supprimer l'un perd une rédaction).
+  ⚠️ **Ne JAMAIS dédoublonner par titre** : sur les 87 titres partagés, 72 sont des
+  variantes réelles (deux « sauce bolognaise » différentes). Mesuré.
 
 - [x] ~~**`MCP-02` — poser `MCP_TOKEN` dans Vercel.**~~ **Fait le 19/08.** Marc a branché le
   connecteur claude.ai ; les outils rendent ses vraies données depuis la base de production.
