@@ -33,7 +33,7 @@ import { db, schema } from "../lib/db";
 import { aggregateShoppingList } from "../lib/aggregate";
 import { ecarterIngredientsDeFond } from "../lib/ingredientsDeFond";
 import { reparerCanonique, reparerNom } from "../lib/ingredientsNoms";
-import { nomRestaure, nomSansPrepositionFinale, uniteCorrigee } from "../lib/ingredientsSource";
+import { nomRestaure, nomSansPrepositionFinale, uniteCorrigee, uniteReelle } from "../lib/ingredientsSource";
 import { noteSourcePerdue, portionsRecette, quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
 import { tempsCorrige } from "../lib/tempsRecette";
 import { nettoyerTexte } from "../lib/menageTexte";
@@ -60,14 +60,22 @@ async function ouvrirSeed() {
 function corrections(sqlite: Sqlite): Map<string, Correction> {
 
   const sources = new Map<number, string[]>();
+  // Les unités vues pour un ingrédient : elles servent à restaurer EXACTEMENT un nom dont la
+  // V3 a mangé l'unité (« S (250Ml) De Farine » ← « tasses »), cf. lib/ingredientsSource.ts.
+  const unites = new Map<number, Set<string>>();
   const stmtSrc = sqlite.prepare(
-    "SELECT ingredient_master_id AS m, raw_text AS r FROM recipe_ingredient WHERE raw_text IS NOT NULL AND ingredient_master_id IS NOT NULL",
+    "SELECT ingredient_master_id AS m, raw_text AS r, unit AS u FROM recipe_ingredient WHERE raw_text IS NOT NULL AND ingredient_master_id IS NOT NULL",
   );
   while (stmtSrc.step()) {
-    const row = stmtSrc.getAsObject() as { m: number; r: string };
+    const row = stmtSrc.getAsObject() as { m: number; r: string; u: string | null };
     const liste = sources.get(row.m);
     if (liste) liste.push(row.r);
     else sources.set(row.m, [row.r]);
+    if (row.u) {
+      const vues = unites.get(row.m) ?? new Set<string>();
+      vues.add(row.u);
+      unites.set(row.m, vues);
+    }
   }
   stmtSrc.free();
 
@@ -88,7 +96,7 @@ function corrections(sqlite: Sqlite): Map<string, Correction> {
     // Le nom tel que la production le porte : ING-03 d'abord, puis restauration des lettres.
     // Le ménage (CAT-D) s'applique ICI, sur le nom de référence : un second écrivain sur la
     // même colonne se battrait avec celui-ci à chaque build.
-    const nom = nettoyerTexte(nomSansPrepositionFinale(nomRestaure(reparerNom(n), src))) ?? "";
+    const nom = nettoyerTexte(nomSansPrepositionFinale(nomRestaure(reparerNom(n), src, [...(unites.get(i) ?? [])]))) ?? "";
     const unite = uniteCorrigee("g", src) ?? uniteCorrigee("ml", src);
 
     // ⚠️ Le conflit se juge CHAMP PAR CHAMP, jamais en bloc.
@@ -265,7 +273,7 @@ function referenceSeed(sqlite: Sqlite): Map<string, RecetteAttendue> {
     for (const l of lignes) {
       const verdict = quantiteCorrigee({ raw: l.raw, qpp: l.qpp, unite: l.unit }, rendement);
       const qtySource = verdict.corriger ? verdict.qpp : l.qpp;
-      const norm = normalizeQty(qtySource, l.unit, l.raw, l.nom);
+      const norm = normalizeQty(qtySource, uniteReelle(l.unit, l.raw), l.raw, l.nom);
       const qty = norm.qty === null ? null : Math.round(norm.qty * servings * 100) / 100;
       const note = noteSourcePerdue(l.raw, qty);
       const cle = reparerCanonique(l.canon.toLowerCase().trim());

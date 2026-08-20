@@ -5,7 +5,14 @@
 // sur le corpus réel, pas inventés.
 
 import { describe, expect, it } from "vitest";
-import { analyserTexteSource, estUniteDeMesure, nomRestaure, nomSansPrepositionFinale, uniteCorrigee } from "../lib/ingredientsSource";
+import {
+  analyserTexteSource,
+  estUniteDeMesure,
+  nomRestaure,
+  nomSansPrepositionFinale,
+  uniteCorrigee,
+  uniteReelle,
+} from "../lib/ingredientsSource";
 
 describe("lecture du texte source", () => {
   it("reconnaît une VRAIE unité de masse ou de volume", () => {
@@ -200,5 +207,52 @@ describe("préposition orpheline en fin de nom", () => {
   it("est idempotente", () => {
     const une = nomSansPrepositionFinale("Huile végétale pure à");
     expect(nomSansPrepositionFinale(une)).toBe(une);
+  });
+});
+
+describe("nomRestaure — restauration EXACTE par l'unité (CAT-F)", () => {
+  it("rend le mot mangé quand il vaut « unité + fragment » ET figure dans la source", () => {
+    // « S (250Ml) De Farine T45 » : la V3 a retiré « tasse » de « tasses », il reste « S ».
+    // Le budget de deux lettres refuse de rendre cinq lettres — à raison, puisque c'est ce
+    // qui empêchait « Ail » de devenir « Portail ». Ici il n'y a rien à deviner : le mot
+    // reconstruit est littéralement dans le texte.
+    expect(
+      nomRestaure("S (250Ml) De Farine T45", ["2.5 tasses (250ml) de farine T45"], ["tasse"]),
+    ).toBe("Tasses (250Ml) De Farine T45");
+  });
+
+  it("REFUSE si le mot reconstruit n'est pas dans la source", () => {
+    // Mutation : retirer la vérification de présence fait fabriquer un mot que le texte
+    // ne porte pas — exactement ce que le budget existait pour empêcher.
+    expect(nomRestaure("S De Quinoa", ["1 boîtes de quinoa"], ["tasse"])).toBe("S De Quinoa");
+  });
+
+  it("ne touche pas un nom dont le premier mot n'est pas un fragment", () => {
+    expect(nomRestaure("Farine T45", ["2 tasses de farine T45"], ["tasse"])).toBe("Farine T45");
+  });
+
+  it("sans unité connue, le comportement d'avant est inchangé", () => {
+    // Le garde du budget continue de protéger « Ail » : la nouvelle règle est un AJOUT,
+    // elle n'assouplit rien.
+    expect(nomRestaure("Ail", ["3 gousses d'ail", "1 portail"], [])).toBe("Ail");
+    expect(nomRestaure("Ail", ["3 gousses d'ail", "1 portail"], ["gousse"])).toBe("Ail");
+  });
+});
+
+describe("uniteReelle — quand la colonne se trompe et que le texte a raison (CAT-F)", () => {
+  it("« grandes cuillères » enregistré en grammes redevient une cuillerée", () => {
+    // Encore la frontière de mot : le `g` de « grandes ». Six lignes affichaient 0,5 g là
+    // où la recette demande une cuillerée.
+    expect(uniteReelle("g", "1 grandes cuillères d'arôme vanille")).toBe("cuillères");
+    expect(uniteReelle("g", "3 grande cuillere d'huile")).toBe("cuillères");
+  });
+
+  it("ne touche à rien d'autre", () => {
+    // Mutation : élargir à toute unité `g` dont le texte contient « cuill » convertirait
+    // « 200 g de crème (2 cuillères) » en volume.
+    expect(uniteReelle("g", "200 g de farine")).toBe("g");
+    expect(uniteReelle("g", "2 cuillères à soupe de sucre")).toBe("g");
+    expect(uniteReelle("ml", "1 grandes cuillères d'huile")).toBe("ml");
+    expect(uniteReelle(null, "1 grandes cuillères d'huile")).toBeNull();
   });
 });

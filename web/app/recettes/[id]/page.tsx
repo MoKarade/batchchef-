@@ -7,6 +7,7 @@ import { DeleteRecipeButton } from "@/components/DeleteRecipeButton";
 import { Durees } from "@/components/Durees";
 import { RecipeEditor } from "@/components/RecipeEditor";
 import { ajouteeParMarc, formatDateAjout, libelleOrigine } from "@/lib/origine";
+import { ImageRecette } from "@/components/ImageRecette";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export default async function RecipeDetailPage({
     <article className="space-y-5">
       {recipe.imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={recipe.imageUrl} alt="" className="aspect-video w-full rounded-2xl object-cover" />
+        <ImageRecette src={recipe.imageUrl} className="aspect-video w-full rounded-2xl object-cover" />
       )}
       <div className="flex items-start justify-between gap-3">
         <div>

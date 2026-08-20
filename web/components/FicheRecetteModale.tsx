@@ -13,6 +13,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import type { FicheRecette } from "@/lib/actions";
+import { ImageRecette } from "@/components/ImageRecette";
 
 export function FicheRecetteModale({
   fiche,
@@ -68,7 +69,7 @@ export function FicheRecetteModale({
           <div className="space-y-4">
             {fiche.imageUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={fiche.imageUrl} alt="" className="aspect-video w-full object-cover" />
+              <ImageRecette src={fiche.imageUrl} className="aspect-video w-full object-cover" />
             )}
             <div className="space-y-4 p-5">
               <div>
