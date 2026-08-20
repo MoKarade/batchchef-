@@ -26,7 +26,7 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **397 tests**, 28 fichiers (19/08/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **399 tests**, 28 fichiers (20/08/2026).
 
 ## Ce qui vient d'être livré (19/08/2026, soir)
 

@@ -252,8 +252,36 @@ function referenceSeed(sqlite: Sqlite): Map<string, RecetteAttendue> {
   return map;
 }
 
+/**
+ * Les DEUX couples de tables (catalogue, bibliothèque) reçoivent le même traitement, mais
+ * ils ne portent PAS les mêmes noms de colonnes : la clé étrangère s'appelle
+ * `catalog_recipe_id` d'un côté et `recipe_id` de l'autre.
+ *
+ * ⚠️ La première version de cette passe faisait passer les deux par un `as unknown as` et
+ * lisait `catalogRecipeId` dans les deux cas. TypeScript n'avait plus rien à dire — le cast
+ * lui interdisait de parler — et le script est mort en PRODUCTION sur un
+ * « Cannot convert undefined or null to object » incompréhensible, après avoir migré le
+ * catalogue et avant de toucher la bibliothèque. D'où la forme ci-dessous : les LECTURES se
+ * font chez l'appelant, avec les vrais types, et cette fonction ne reçoit que des données
+ * déjà nommées. Le cast ne subsiste que sur les ÉCRITURES, qui n'emploient que des colonnes
+ * présentes des deux côtés (`id`, `servings`, `qty`, `note`).
+ */
 type TableRecettes = typeof schema.catalogRecipes;
 type TableIngredients = typeof schema.catalogIngredients;
+
+interface RecetteProd {
+  id: number;
+  sourceUrl: string | null;
+  servings: number;
+}
+
+interface IngredientProd {
+  id: number;
+  recette: number;
+  canonical: string;
+  qty: number | null;
+  note: string | null;
+}
 
 /** `CASE id WHEN … THEN … END` : une seule instruction pour des centaines de lignes. */
 function casPar<T>(
@@ -278,24 +306,13 @@ function casPar<T>(
  */
 async function appliquerReference(
   libelle: string,
+  recettes: RecetteProd[],
+  ingredients: IngredientProd[],
   tableRecettes: TableRecettes,
   tableIngredients: TableIngredients,
   reference: Map<string, RecetteAttendue>,
 ): Promise<number> {
-  const recettes = await db
-    .select({ id: tableRecettes.id, sourceUrl: tableRecettes.sourceUrl, servings: tableRecettes.servings })
-    .from(tableRecettes);
-  const ingredients = await db
-    .select({
-      id: tableIngredients.id,
-      recette: tableIngredients.catalogRecipeId,
-      canonical: tableIngredients.canonical,
-      qty: tableIngredients.qty,
-      note: tableIngredients.note,
-    })
-    .from(tableIngredients);
-
-  const parRecette = new Map<number, typeof ingredients>();
+  const parRecette = new Map<number, IngredientProd[]>();
   for (const i of ingredients) {
     const l = parRecette.get(i.recette) ?? [];
     l.push(i);
@@ -446,9 +463,49 @@ async function main(): Promise<void> {
   ];
   let total = 0;
   for (const [libelle, table] of cibles) total += await appliquer(libelle, table, map);
-  total += await appliquerReference("catalogue", schema.catalogRecipes, schema.catalogIngredients, reference);
+  total += await appliquerReference(
+    "catalogue",
+    await db
+      .select({
+        id: schema.catalogRecipes.id,
+        sourceUrl: schema.catalogRecipes.sourceUrl,
+        servings: schema.catalogRecipes.servings,
+      })
+      .from(schema.catalogRecipes),
+    await db
+      .select({
+        id: schema.catalogIngredients.id,
+        recette: schema.catalogIngredients.catalogRecipeId,
+        canonical: schema.catalogIngredients.canonical,
+        qty: schema.catalogIngredients.qty,
+        note: schema.catalogIngredients.note,
+      })
+      .from(schema.catalogIngredients),
+    schema.catalogRecipes,
+    schema.catalogIngredients,
+    reference,
+  );
   total += await appliquerReference(
     "bibliothèque",
+    await db
+      .select({
+        id: schema.recipes.id,
+        sourceUrl: schema.recipes.sourceUrl,
+        servings: schema.recipes.servings,
+      })
+      .from(schema.recipes),
+    await db
+      .select({
+        id: schema.recipeIngredients.id,
+        // ⚠️ `recipeId` ici, `catalogRecipeId` dans le catalogue : c'est CET écart qui a fait
+        // tomber la première version, et il n'est visible que parce que la lecture est écrite
+        // avec le vrai type de la table.
+        recette: schema.recipeIngredients.recipeId,
+        canonical: schema.recipeIngredients.canonical,
+        qty: schema.recipeIngredients.qty,
+        note: schema.recipeIngredients.note,
+      })
+      .from(schema.recipeIngredients),
     schema.recipes as unknown as TableRecettes,
     schema.recipeIngredients as unknown as TableIngredients,
     reference,

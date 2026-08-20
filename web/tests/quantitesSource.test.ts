@@ -14,6 +14,7 @@ import { resolve } from "node:path";
 import initSqlJs from "sql.js";
 import { nombreEnTete, noteSourcePerdue, portionsRecette, quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
 import { normalizeQty } from "../lib/units";
+import * as schema from "../lib/db/schema";
 
 describe("nombreEnTete — ce que le texte annonce vraiment", () => {
   it("lit une fraction, un mixte, une décimale", () => {
@@ -258,6 +259,38 @@ describe("le CORPUS ENTIER — invariant indépendant des règles", () => {
     expect(parRecette.size).toBeGreaterThan(10_000);
     expect(reelles).toBeGreaterThanOrEqual(9_500);
   }, 60_000);
+});
+
+describe("les deux couples de tables que la passe écrit", () => {
+  // Vécu le 20/08, en production : la passe traitait le catalogue et la bibliothèque par la
+  // même fonction, via un `as unknown as`. Or la clé étrangère s'appelle `catalogRecipeId`
+  // d'un côté et `recipeId` de l'autre — le cast a fait passer au typecheck une colonne qui
+  // n'existe pas, et le script est mort APRÈS avoir migré le catalogue, sur un
+  // « Cannot convert undefined or null to object » qui ne nomme rien.
+  //
+  // La lecture ne passe plus par un cast (TypeScript fait son travail). Ce test couvre ce
+  // qu'il reste de cast, c'est-à-dire l'écriture : elle n'emploie que des colonnes présentes
+  // des DEUX côtés. Prouvé par mutation : y ajouter une colonne absente d'un des deux fait
+  // tomber le test.
+  const couples = [
+    { r: schema.catalogRecipes, i: schema.catalogIngredients },
+    { r: schema.recipes, i: schema.recipeIngredients },
+  ];
+
+  it("portent toutes les colonnes que l'écriture touche", () => {
+    for (const { r, i } of couples) {
+      for (const col of ["id", "servings"] as const) expect(r[col]).toBeDefined();
+      for (const col of ["id", "qty", "note"] as const) expect(i[col]).toBeDefined();
+    }
+  });
+
+  it("et NE partagent PAS le nom de leur clé étrangère — c'est le piège", () => {
+    expect(schema.catalogIngredients.catalogRecipeId.name).toBe("catalog_recipe_id");
+    expect(schema.recipeIngredients.recipeId.name).toBe("recipe_id");
+    expect(schema.catalogIngredients.catalogRecipeId.name).not.toBe(
+      schema.recipeIngredients.recipeId.name,
+    );
+  });
 });
 
 describe("le nombre de portions et les quantités partent ENSEMBLE", () => {
