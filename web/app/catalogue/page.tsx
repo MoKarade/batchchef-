@@ -3,6 +3,7 @@
 // Source d'idées, séparée de ta bibliothèque perso.
 import Link from "next/link";
 import { and, eq, exists, ilike, or, sql } from "drizzle-orm";
+import { normaliserPourRecherche } from "@/lib/rechercheNormalisee";
 import { db, schema } from "@/lib/db";
 import { CatalogueSearch } from "@/components/CatalogueSearch";
 import { CatalogueGrid } from "@/components/CatalogueGrid";
@@ -21,7 +22,12 @@ export default async function CataloguePage({
 
   // Un ingrédient de la recette contient q → EXISTS corrélé (pas de doublon même si
   // plusieurs ingrédients matchent, contrairement à un JOIN classique).
-  const ingredientMatch = q
+  // ⚠️ On compare les colonnes NORMALISÉES, jamais le texte brut : « creme » ne trouvait
+  // qu'UNE recette sur 346, et « d'ail » au clavier droit n'en trouvait aucune, les noms
+  // portant l'apostrophe typographique. La requête passe par la MÊME règle que la colonne
+  // générée (cf. lib/rechercheNormalisee.ts).
+  const qn = normaliserPourRecherche(q);
+  const ingredientMatch = qn
     ? exists(
         db
           .select({ x: sql`1` })
@@ -29,12 +35,12 @@ export default async function CataloguePage({
           .where(
             and(
               eq(schema.catalogIngredients.catalogRecipeId, schema.catalogRecipes.id),
-              ilike(schema.catalogIngredients.name, `%${q}%`),
+              ilike(schema.catalogIngredients.nomRecherche, `%${qn}%`),
             ),
           ),
       )
     : undefined;
-  const where = q ? or(ilike(schema.catalogRecipes.title, `%${q}%`), ingredientMatch) : undefined;
+  const where = qn ? or(ilike(schema.catalogRecipes.titreRecherche, `%${qn}%`), ingredientMatch) : undefined;
 
   const countRows = await db
     .select({ n: sql<number>`count(*)::int` })

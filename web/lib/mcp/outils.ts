@@ -17,6 +17,7 @@
 // mettrait en base des quantités que personne n'a vues.
 
 import { and, eq, ilike, inArray, or, sql, exists, desc } from "drizzle-orm";
+import { normaliserPourRecherche } from "../rechercheNormalisee";
 import { db, schema } from "@/lib/db";
 import { formatQty } from "@/lib/aggregate";
 import { formatMontant, progressionCourses } from "@/lib/courses";
@@ -73,13 +74,18 @@ async function chercherRecettes(a: Record<string, unknown>): Promise<string> {
     const I = cat ? schema.catalogIngredients : schema.recipeIngredients;
     const cle = cat ? schema.catalogIngredients.catalogRecipeId : schema.recipeIngredients.recipeId;
 
+    // ⚠️ Colonnes NORMALISÉES des deux côtés (CAT-B). L'outil cherchait dans `canonical`,
+    // qui porte les accents (`crème_liquide`) : « creme » n'y trouvait rien non plus.
     const parIng = ingredients.map((ing) =>
       exists(
-        db.select({ x: sql`1` }).from(I).where(and(eq(cle, R.id), ilike(I.canonical, `%${ing}%`))),
+        db
+          .select({ x: sql`1` })
+          .from(I)
+          .where(and(eq(cle, R.id), ilike(I.nomRecherche, `%${normaliserPourRecherche(ing)}%`))),
       ),
     );
     const conditions = [
-      ...(texte ? [ilike(R.title, `%${texte}%`)] : []),
+      ...(texte ? [ilike(R.titreRecherche, `%${normaliserPourRecherche(texte)}%`)] : []),
       ...(parIng.length > 0 ? [or(...parIng)!] : []),
     ];
     if (conditions.length === 0) continue;
