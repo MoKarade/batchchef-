@@ -68,7 +68,7 @@ export function FicheRecetteModale({
         {fiche && (
           <div className="space-y-4">
             {fiche.imageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
+               
               <ImageRecette src={fiche.imageUrl} className="aspect-video w-full object-cover" />
             )}
             <div className="space-y-4 p-5">

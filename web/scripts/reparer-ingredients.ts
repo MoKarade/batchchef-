@@ -38,6 +38,7 @@ import { noteSourcePerdue, portionsRecette, quantiteCorrigee, rendementRecette }
 import { tempsCorrige } from "../lib/tempsRecette";
 import { nettoyerTexte } from "../lib/menageTexte";
 import { normalizeQty } from "../lib/units";
+import { PLAFOND_RETRAITS, retraitsCatalogue, type RecetteCandidate } from "../lib/menageCatalogue";
 
 const require = createRequire(import.meta.url);
 const SEED = path.resolve(process.cwd(), "data", "batchchef.seed.db");
@@ -520,6 +521,87 @@ async function recalculerListes(): Promise<number> {
   return corrigees;
 }
 
+
+/**
+ * Retire du catalogue les recettes que Marc a décidé de supprimer (CAT-E, 20/08).
+ *
+ * ⚠️ SEULE SUPPRESSION DE TOUTE L'APP. Trois gardes, dans cet ordre :
+ *   1. la liste vient d'un module PUR et TESTÉ, pas d'une requête écrite ici ;
+ *   2. un PLAFOND fait échouer le build si le compte déborde — le corpus est figé, donc un
+ *      débordement signifie qu'une règle a dérapé, pas que le catalogue a changé ;
+ *   3. on résout les URL en ids et on VÉRIFIE le compte AVANT d'écrire : un `sourceUrl`
+ *      dupliqué en production emporterait des recettes non visées, et une suppression ne se
+ *      rattrape pas après coup.
+ *
+ * Réversible en pratique, et c'est ce qui rend la décision tenable : le catalogue est une
+ * dérivation pure du seed committé, donc `npm run catalog:import` le reconstruit entier.
+ */
+function retraitsDepuisSeed(sqlite: Sqlite): ReturnType<typeof retraitsCatalogue> {
+  const ingredients = new Map<number, string[]>();
+  const stmtIng = sqlite.prepare("SELECT recipe_id AS r, raw_text AS t FROM recipe_ingredient");
+  while (stmtIng.step()) {
+    const row = stmtIng.getAsObject() as { r: number; t: string | null };
+    const liste = ingredients.get(row.r) ?? [];
+    liste.push(String(row.t ?? ""));
+    ingredients.set(row.r, liste);
+  }
+  stmtIng.free();
+
+  const candidates: RecetteCandidate[] = [];
+  const stmt = sqlite.prepare(
+    "SELECT id AS i, title AS t, marmiton_url AS u, instructions AS n FROM recipe WHERE marmiton_url IS NOT NULL",
+  );
+  while (stmt.step()) {
+    const row = stmt.getAsObject() as { i: number; t: string | null; u: string; n: string | null };
+    candidates.push({
+      url: row.u,
+      titre: String(row.t ?? ""),
+      instructions: String(row.n ?? ""),
+      ingredients: ingredients.get(row.i) ?? [],
+    });
+  }
+  stmt.free();
+
+  const retraits = retraitsCatalogue(candidates);
+  if (retraits.length > PLAFOND_RETRAITS) {
+    throw new Error(
+      `[ingr] ${retraits.length} retraits calculés pour un plafond de ${PLAFOND_RETRAITS} : ` +
+        "une règle a dérapé, rien n'est supprimé.",
+    );
+  }
+  return retraits;
+}
+
+async function retirerRecettes(retraits: ReturnType<typeof retraitsCatalogue>): Promise<number> {
+  const urls = retraits.map((r) => r.url);
+  if (urls.length === 0) return 0;
+
+  const vises = await db
+    .select({ id: schema.catalogRecipes.id, url: schema.catalogRecipes.sourceUrl })
+    .from(schema.catalogRecipes)
+    .where(inArray(schema.catalogRecipes.sourceUrl, urls));
+  if (vises.length > urls.length) {
+    throw new Error(
+      `[ingr] ${vises.length} recettes visées pour ${urls.length} URL : des sourceUrl sont ` +
+        "dupliqués en production, rien n'est supprimé.",
+    );
+  }
+  if (vises.length === 0) {
+    console.log("[ingr] retraits : 0 recette à retirer (déjà fait).");
+    return 0;
+  }
+  for (const r of retraits) {
+    if (!vises.some((v) => v.url === r.url)) continue;
+    console.log(`[ingr]   retire (${r.motif}) ${r.url}${r.garde ? ` — garde ${r.garde}` : ""}`);
+  }
+  const supprimees = await db
+    .delete(schema.catalogRecipes)
+    .where(inArray(schema.catalogRecipes.id, vises.map((v) => v.id)))
+    .returning({ id: schema.catalogRecipes.id });
+  console.log(`[ingr] retraits : ${supprimees.length} recette(s) retirée(s) du catalogue.`);
+  return supprimees.length;
+}
+
 async function main(): Promise<void> {
   if (!process.env.DATABASE_URL) {
     console.log("[ingr] DATABASE_URL absente : correction sautée (aucune base à corriger).");
@@ -529,6 +611,7 @@ async function main(): Promise<void> {
   const map = corrections(sqlite);
   console.log(`[ingr] ${map.size} clé(s) de référence lues dans le seed.`);
   const reference = referenceSeed(sqlite);
+  const retraits = retraitsDepuisSeed(sqlite);
   sqlite.close();
 
   const cibles: [string, Table][] = [
@@ -537,6 +620,7 @@ async function main(): Promise<void> {
     ["listes d'épicerie", schema.shoppingItems as unknown as Table],
   ];
   let total = 0;
+  total += await retirerRecettes(retraits);
   for (const [libelle, table] of cibles) total += await appliquer(libelle, table, map);
   total += await appliquerReference(
     "catalogue",

@@ -95,20 +95,28 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   image qui ne charge pas, quel que soit leur nombre, et continue de marcher quand ce nombre
   change. Garde de surface : aucun `<img>` ne sert une adresse de recette sans repli.
 
-- [ ] **`CAT-E` — EN ATTENTE D'UNE DÉCISION DE MARC.** ⚠️ **Mon cadrage initial était FAUX**
-  et son autorisation (« supprimer pour de bon », 19/08) portait dessus : je ne supprime
-  rien tant qu'il n'a pas revu le périmètre.
-  - Les **22 recettes « à un seul ingrédient » sont légitimes** — « Oeufs durs » (4 oeufs),
-    « Purée d'amande » (250 g d'amandes), « Compote de nectarines » (8 nectarines), les cinq
-    « Confiture de lait » par appareil. Ce n'est pas une classe de défaut, c'est à quoi
-    ressemble une recette simple.
-  - Périmètre HONNÊTE : **9** — la recette #1268 (ni ingrédient ni instructions) et 8
-    groupes dont le titre, les ingrédients ET les instructions sont identiques.
-  - **Non tranchables par comptage** : #7596 et #8038 (aucun ingrédient mais un vrai texte
-    de préparation — donnée perdue, pas déchet) et 7 groupes aux mêmes ingrédients mais aux
-    instructions DIFFÉRENTES (supprimer l'un perd une rédaction).
-  ⚠️ **Ne JAMAIS dédoublonner par titre** : sur les 87 titres partagés, 72 sont des
-  variantes réelles (deux « sauce bolognaise » différentes). Mesuré.
+- [x] ~~**`CAT-E` — les recettes retirées du catalogue.**~~ **Livré le 20/08**, après que
+  Marc a tranché les trois piles (« supprime tout », 20/08). **18 recettes** sur 10 188 :
+  1 vraiment vide (#1268, ni ingrédient ni instructions), 2 sans ingrédient mais avec un
+  texte de préparation (#7596, #8038 — donnée perdue, invérifiable), et **15 doublons**,
+  un exemplaire par groupe partageant titre ET liste d'ingrédients.
+
+  ⚠️ **Mon cadrage initial annonçait 40 retraits et il était FAUX.** Les 22 recettes « à un
+  seul ingrédient » sont des recettes normales — « Oeufs durs » (4 oeufs), « Purée d'amande »
+  (250 g d'amandes), « Compote de nectarines » (8 nectarines), les cinq « Confiture de lait »
+  déclinées par appareil. Elles ne sont PAS supprimées, et un test les protège nommément.
+  Les avoir regardées une par une avant de coder est la seule raison pour laquelle elles
+  existent encore.
+
+  ⚠️ **Ne JAMAIS dédoublonner par titre** : sur les 87 titres partagés, 72 sont des variantes
+  réelles (deux « sauce bolognaise » aux ingrédients différents). Le titre est un indice, la
+  liste d'ingrédients est la preuve — verrouillé par mutation.
+
+  Gardes de la seule suppression de l'app : liste calculée par un module PUR et testé, un
+  **plafond** (25) qui fait échouer le build si le compte déborde, une résolution URL → ids
+  **vérifiée avant d'écrire**, et le choix de l'exemplaire conservé fait sur l'URL (stable),
+  jamais sur l'ordre d'arrivée. Réversible en pratique : `npm run catalog:import` reconstruit
+  le catalogue entier depuis le seed committé.
 
 - [x] ~~**`MCP-02` — poser `MCP_TOKEN` dans Vercel.**~~ **Fait le 19/08.** Marc a branché le
   connecteur claude.ai ; les outils rendent ses vraies données depuis la base de production.

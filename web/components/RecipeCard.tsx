@@ -18,7 +18,7 @@ export function RecipeCard({
   return (
     <Link href={href} className="carte flex h-full flex-col overflow-hidden">
       {imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
+         
         <ImageRecette src={imageUrl} className="aspect-video w-full object-cover" lazy />
       ) : (
         <div

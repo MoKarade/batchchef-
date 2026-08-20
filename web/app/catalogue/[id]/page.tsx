@@ -29,7 +29,7 @@ export default async function CatalogueDetailPage({
     <article className="space-y-5">
       <Link href="/catalogue" className="text-sm underline">← Catalogue</Link>
       {recipe.imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
+         
         <ImageRecette src={recipe.imageUrl} className="aspect-video w-full rounded-2xl object-cover" />
       )}
       <div className="flex items-start justify-between gap-3">

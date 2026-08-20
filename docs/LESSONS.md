@@ -8,6 +8,50 @@
 
 ---
 
+## 2026-08-20 — Compter un symptôme n'est pas l'avoir compris
+
+Le chantier catalogue a produit six inventaires. **Trois se sont effondrés au contact des
+données**, et à chaque fois le compte était juste — c'est la conclusion qui était fausse.
+
+**« 22 recettes creuses à un seul ingrédient. »** Le compte était exact. Ce sont « Oeufs
+durs » (4 oeufs), « Purée d'amande » (250 g d'amandes), « Compote de nectarines », et les
+cinq « Confiture de lait » déclinées par appareil. Un seul ingrédient n'est pas un défaut,
+c'est à quoi ressemble une recette simple. J'avais obtenu de Marc l'autorisation de les
+supprimer **pour de bon** sur la foi de ce cadrage. Les avoir ouvertes une par une avant
+d'écrire la moindre ligne est la seule raison pour laquelle elles existent encore.
+
+**« 6 instructions avec du mojibake. »** Il y en avait zéro. Mon motif cherchait `Ã|Â|â€`
+et attrapait le « À » de « À feu doux » — la lettre française la plus banale. Le détecteur
+produisait le défaut qu'il prétendait mesurer.
+
+**« 26 lignes d'ingrédients irréductibles. »** 18 étaient réparables. Je les avais classées
+irréductibles parce que ma règle de restauration refusait de rendre plus de deux lettres —
+un garde utile, posé pour la bonne raison (à trois, « Ail » devenait « Portail »). Mais la
+colonne `unit` du seed portait « tasse » et le texte source portait « tasses » : il n'y
+avait rien à deviner, seulement à vérifier que le mot reconstruit existe littéralement.
+
+Le point commun : **j'avais diagnostiqué depuis une SORTIE — un compte, une distribution —
+au lieu de la mécanique qui la produit.** Une sortie dit qu'il y a un problème, jamais
+lequel. C'est la même faute que l'ADR-0005 de JobAI, trois de ses quatre conclusions
+réfutées par la lecture du code.
+
+Ce qui a marché, et qu'il faut garder : **ouvrir les objets avant de décider de leur sort**.
+Quinze minutes à lire 40 titres ont évité de détruire 22 recettes légitimes et ont réduit un
+lot de 40 à 18 — pas en étant prudent, en étant précis.
+
+Deux corollaires méthodologiques du même jour :
+
+- **Un test de mutation ne vaut que si le cas testé EXERCE la règle.** J'ai voulu prouver
+  qu'on ne groupe pas deux recettes vides entre elles ; mon test leur donnait deux titres
+  différents, donc elles ne se groupaient de toute façon jamais. La mutation passait au vert.
+  Corriger le test (même titre) l'a fait tomber immédiatement. Écrire la mutation AVANT de
+  se féliciter du test est ce qui l'a révélé.
+- **Un plafond de sécurité se pose serré sur un corpus figé.** Le catalogue est committé :
+  le nombre de retraits est une VALEUR (18), pas une borne. Le plafond est à 25, et il fait
+  échouer le build. Un plafond large ne protège de rien.
+
+---
+
 ## 2026-08-20 — Un `as unknown as` fait taire le seul outil qui aurait vu l'erreur
 
 La passe de réparation traite deux couples de tables identiques *en apparence* : le catalogue

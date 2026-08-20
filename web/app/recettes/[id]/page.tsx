@@ -29,7 +29,7 @@ export default async function RecipeDetailPage({
   return (
     <article className="space-y-5">
       {recipe.imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
+         
         <ImageRecette src={recipe.imageUrl} className="aspect-video w-full rounded-2xl object-cover" />
       )}
       <div className="flex items-start justify-between gap-3">
