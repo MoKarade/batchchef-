@@ -34,7 +34,7 @@ import { aggregateShoppingList } from "../lib/aggregate";
 import { ecarterIngredientsDeFond } from "../lib/ingredientsDeFond";
 import { reparerCanonique, reparerNom } from "../lib/ingredientsNoms";
 import { nomRestaure, nomSansPrepositionFinale, uniteCorrigee } from "../lib/ingredientsSource";
-import { noteSourcePerdue, quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
+import { noteSourcePerdue, portionsRecette, quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
 import { normalizeQty } from "../lib/units";
 
 const require = createRequire(import.meta.url);
@@ -173,8 +173,27 @@ interface QuantiteAttendue {
   note: string | null;
 }
 
-/** `${sourceUrl}\u0000${clé}` → attendu, ou `null` quand deux lignes source se contredisent. */
-function quantitesAttendues(sqlite: Sqlite): Map<string, QuantiteAttendue | null> {
+interface RecetteAttendue {
+  /**
+   * Le RENDEMENT retrouvé, c'est-à-dire le nombre de portions pour lequel la recette est
+   * écrite. Le seed le dit à 1 pour les 10 188 recettes — un chiffre qui n'a jamais été
+   * mesuré, seulement subi : chaque fiche annonçait « pour 1 portion » et divisait ses
+   * quantités d'autant.
+   */
+  servings: number;
+  lignes: Map<string, QuantiteAttendue | null>;
+}
+
+/**
+ * Ce que CHAQUE recette de production devrait porter, lu depuis le seed et indexé par l'URL
+ * d'origine (`marmiton_url`, unique et stable).
+ *
+ * ⚠️ AMBIGUÏTÉ ASSUMÉE : 1 266 recettes du seed citent deux fois le même ingrédient (deux
+ * lignes, deux textes) et retombent sur UNE clé en production. Quand les deux lignes
+ * n'attendent pas la même quantité, on ne touche à aucune des deux — sinon on écraserait
+ * l'une par l'autre sans rien pour choisir.
+ */
+function referenceSeed(sqlite: Sqlite): Map<string, RecetteAttendue> {
   const parRecette = new Map<number, Array<{ raw: string; qpp: number | null; unit: string | null; nom: string; canon: string }>>();
   const stmt = sqlite.prepare(
     `SELECT ri.recipe_id AS r, ri.raw_text AS raw, ri.quantity_per_portion AS q, ri.unit AS u,
@@ -198,114 +217,172 @@ function quantitesAttendues(sqlite: Sqlite): Map<string, QuantiteAttendue | null
   }
   stmtR.free();
 
-  const map = new Map<string, QuantiteAttendue | null>();
-  let recettesSansRendement = 0;
+  const map = new Map<string, RecetteAttendue>();
+  let sansRendement = 0;
+  let ambigues = 0;
   for (const [rid, lignes] of parRecette) {
     const recette = urls.get(rid);
     if (!recette) continue;
     const rendement = rendementRecette(lignes.map((l) => ({ raw: l.raw, qpp: l.qpp })));
-    if (rendement === null) recettesSansRendement += 1;
+    if (rendement === null) sansRendement += 1;
+    // Le rendement DEVIENT le nombre de portions de la recette, et les quantités sont celles
+    // de la recette ENTIÈRE. Les deux bougent ENSEMBLE : le facteur d'échelle d'un batch vaut
+    // `portions / servings`, donc multiplier `qty` par R et `servings` par R laisse tout
+    // batch existant rigoureusement identique. C'est ce qui rend ce changement sûr.
+    const servings = portionsRecette(lignes.map((l) => ({ raw: l.raw, qpp: l.qpp })), recette.servings);
+    const attendu: RecetteAttendue = { servings, lignes: new Map() };
     for (const l of lignes) {
       const verdict = quantiteCorrigee({ raw: l.raw, qpp: l.qpp, unite: l.unit }, rendement);
       const qtySource = verdict.corriger ? verdict.qpp : l.qpp;
       const norm = normalizeQty(qtySource, l.unit, l.raw, l.nom);
-      const qty = norm.qty === null ? null : Math.round(norm.qty * recette.servings * 100) / 100;
+      const qty = norm.qty === null ? null : Math.round(norm.qty * servings * 100) / 100;
       const note = noteSourcePerdue(l.raw, qty);
-      const cle = `${recette.url}\u0000${reparerCanonique(l.canon.toLowerCase().trim())}`;
-      const deja = map.get(cle);
-      if (deja === undefined) { map.set(cle, { qty, note }); continue; }
+      const cle = reparerCanonique(l.canon.toLowerCase().trim());
+      const deja = attendu.lignes.get(cle);
+      if (deja === undefined) { attendu.lignes.set(cle, { qty, note }); continue; }
       if (deja === null) continue;
-      if (deja.qty !== qty) map.set(cle, null);
+      if (deja.qty !== qty) { attendu.lignes.set(cle, null); ambigues += 1; }
     }
+    map.set(recette.url, attendu);
   }
-  const ambigues = [...map.values()].filter((v) => v === null).length;
   console.log(
-    `[ingr] quantités : ${map.size} ligne(s) de référence · ${ambigues} clé(s) ambiguë(s) laissée(s) intacte(s) ` +
-      `· ${recettesSansRendement} recette(s) au rendement irrécupérable (quantités rendues « au goût »).`,
+    `[ingr] référence : ${map.size} recette(s) du seed · ${ambigues} clé(s) ambiguë(s) laissée(s) intacte(s) ` +
+      `· ${sansRendement} recette(s) au rendement irrécupérable (quantités rendues « au goût », portions inchangées).`,
   );
   return map;
 }
 
 /**
- * Écrit par paquets de 400 : 13 000 `UPDATE` un par un tiendraient le build plusieurs
- * minutes sur une base servie en HTTP. Les casts explicites sont nécessaires — une colonne
- * de `VALUES` dont toutes les lignes sont nulles n'a aucun type inférable.
+ * Les DEUX couples de tables (catalogue, bibliothèque) reçoivent le même traitement, mais
+ * ils ne portent PAS les mêmes noms de colonnes : la clé étrangère s'appelle
+ * `catalog_recipe_id` d'un côté et `recipe_id` de l'autre.
  *
- * `COALESCE(v.note, t.note)` : on POSE une note, on n'en efface jamais une.
+ * ⚠️ La première version de cette passe faisait passer les deux par un `as unknown as` et
+ * lisait `catalogRecipeId` dans les deux cas. TypeScript n'avait plus rien à dire — le cast
+ * lui interdisait de parler — et le script est mort en PRODUCTION sur un
+ * « Cannot convert undefined or null to object » incompréhensible, après avoir migré le
+ * catalogue et avant de toucher la bibliothèque. D'où la forme ci-dessous : les LECTURES se
+ * font chez l'appelant, avec les vrais types, et cette fonction ne reçoit que des données
+ * déjà nommées. Le cast ne subsiste que sur les ÉCRITURES, qui n'emploient que des colonnes
+ * présentes des deux côtés (`id`, `servings`, `qty`, `note`).
  */
-async function ecrireQuantites(
-  nomTable: string,
-  lignes: Array<{ id: number; qty: number | null; note: string | null }>,
+type TableRecettes = typeof schema.catalogRecipes;
+type TableIngredients = typeof schema.catalogIngredients;
+
+interface RecetteProd {
+  id: number;
+  sourceUrl: string | null;
+  servings: number;
+}
+
+interface IngredientProd {
+  id: number;
+  recette: number;
+  canonical: string;
+  qty: number | null;
+  note: string | null;
+}
+
+/** `CASE id WHEN … THEN … END` : une seule instruction pour des centaines de lignes. */
+function casPar<T>(
+  colonne: ReturnType<typeof sql.raw>,
+  entrees: Array<[number, T]>,
+  cast: string,
+  valeur: (v: T) => unknown,
+) {
+  const branches = entrees.map(([id, v]) => sql`WHEN ${id} THEN ${valeur(v)}${sql.raw("::" + cast)}`);
+  return sql`CASE ${colonne} ${sql.join(branches, sql` `)} END`;
+}
+
+/**
+ * Applique la référence du seed à un couple (recettes, ingrédients) de production.
+ *
+ * ⚠️ LES DEUX ÉCRITURES D'UNE MÊME RECETTE PARTENT DANS LA MÊME TRANSACTION (`db.batch`,
+ * qui est un vrai `transaction` côté Neon). Une coupure entre le nombre de portions et les
+ * quantités laisserait la recette fausse d'un facteur R — quatre fois trop, ou quatre fois
+ * trop peu — sans qu'aucun écran ne le dise. Découper par PAQUETS DE RECETTES plutôt que par
+ * table est ce qui garantit qu'une recette est toujours cohérente avec elle-même, même si le
+ * build meurt au milieu.
+ */
+async function appliquerReference(
+  libelle: string,
+  recettes: RecetteProd[],
+  ingredients: IngredientProd[],
+  tableRecettes: TableRecettes,
+  tableIngredients: TableIngredients,
+  reference: Map<string, RecetteAttendue>,
 ): Promise<number> {
-  const PAQUET = 400;
-  let ecrites = 0;
-  for (let i = 0; i < lignes.length; i += PAQUET) {
-    const paquet = lignes.slice(i, i + PAQUET);
-    const valeurs = paquet.map((l) => sql`(${l.id}::int, ${l.qty}::real, ${l.note}::text)`);
-    await db.execute(
-      sql`UPDATE ${sql.raw(nomTable)} AS t SET qty = v.qty, note = COALESCE(v.note, t.note)
-          FROM (VALUES ${sql.join(valeurs, sql`, `)}) AS v(id, qty, note) WHERE t.id = v.id`,
-    );
-    ecrites += paquet.length;
+  const parRecette = new Map<number, IngredientProd[]>();
+  for (const i of ingredients) {
+    const l = parRecette.get(i.recette) ?? [];
+    l.push(i);
+    parRecette.set(i.recette, l);
   }
-  return ecrites;
-}
 
-async function appliquerQuantitesCatalogue(attendues: Map<string, QuantiteAttendue | null>): Promise<number> {
-  const recettes = await db
-    .select({ id: schema.catalogRecipes.id, sourceUrl: schema.catalogRecipes.sourceUrl })
-    .from(schema.catalogRecipes);
-  const urlParId = new Map(recettes.map((r) => [r.id, r.sourceUrl]));
-  const rows = await db
-    .select({
-      id: schema.catalogIngredients.id,
-      recette: schema.catalogIngredients.catalogRecipeId,
-      canonical: schema.catalogIngredients.canonical,
-      qty: schema.catalogIngredients.qty,
-      note: schema.catalogIngredients.note,
-    })
-    .from(schema.catalogIngredients);
-  const aEcrire = aCorriger(rows.map((r) => ({ ...r, url: urlParId.get(r.recette) ?? null })), attendues);
-  const n = await ecrireQuantites("catalog_ingredients", aEcrire);
-  console.log(`[ingr] quantités catalogue : ${n} ligne(s) corrigée(s) sur ${rows.length}.`);
-  return n;
-}
-
-async function appliquerQuantitesBibliotheque(attendues: Map<string, QuantiteAttendue | null>): Promise<number> {
-  const recettes = await db
-    .select({ id: schema.recipes.id, sourceUrl: schema.recipes.sourceUrl })
-    .from(schema.recipes);
-  const urlParId = new Map(recettes.map((r) => [r.id, r.sourceUrl]));
-  const rows = await db
-    .select({
-      id: schema.recipeIngredients.id,
-      recette: schema.recipeIngredients.recipeId,
-      canonical: schema.recipeIngredients.canonical,
-      qty: schema.recipeIngredients.qty,
-      note: schema.recipeIngredients.note,
-    })
-    .from(schema.recipeIngredients);
-  const aEcrire = aCorriger(rows.map((r) => ({ ...r, url: urlParId.get(r.recette) ?? null })), attendues);
-  const n = await ecrireQuantites("recipe_ingredients", aEcrire);
-  console.log(`[ingr] quantités bibliothèque : ${n} ligne(s) corrigée(s) sur ${rows.length}.`);
-  return n;
-}
-
-function aCorriger(
-  rows: Array<{ id: number; url: string | null; canonical: string; qty: number | null; note: string | null }>,
-  attendues: Map<string, QuantiteAttendue | null>,
-): Array<{ id: number; qty: number | null; note: string | null }> {
-  const out: Array<{ id: number; qty: number | null; note: string | null }> = [];
-  for (const r of rows) {
-    if (!r.url) continue; // recette apportée par Marc (vidéo, page) : aucune source seed.
-    const attendu = attendues.get(`${r.url}\u0000${r.canonical}`);
-    if (!attendu) continue; // absente ou ambiguë
-    const memeQty = r.qty === attendu.qty || (r.qty !== null && attendu.qty !== null && Math.abs(r.qty - attendu.qty) < 1e-9);
-    const noteAPoser = attendu.note !== null && !r.note;
-    if (memeQty && !noteAPoser) continue;
-    out.push({ id: r.id, qty: attendu.qty, note: noteAPoser ? attendu.note : null });
+  interface Chantier {
+    portions: [number, number] | null;
+    quantites: Array<[number, QuantiteAttendue]>;
   }
-  return out;
+  const chantiers: Chantier[] = [];
+  for (const r of recettes) {
+    if (!r.sourceUrl) continue; // recette apportée par Marc (vidéo, page) : aucune source seed.
+    const attendu = reference.get(r.sourceUrl);
+    if (!attendu) continue;
+    const chantier: Chantier = {
+      portions: attendu.servings === r.servings ? null : [r.id, attendu.servings],
+      quantites: [],
+    };
+    for (const i of parRecette.get(r.id) ?? []) {
+      const a = attendu.lignes.get(i.canonical);
+      if (!a) continue; // absente du seed, ou ambiguë
+      const memeQty = i.qty === a.qty || (i.qty !== null && a.qty !== null && Math.abs(i.qty - a.qty) < 1e-9);
+      const noteAPoser = a.note !== null && !i.note;
+      if (memeQty && !noteAPoser) continue;
+      chantier.quantites.push([i.id, { qty: a.qty, note: noteAPoser ? a.note : null }]);
+    }
+    if (chantier.portions || chantier.quantites.length > 0) chantiers.push(chantier);
+  }
+
+  const PAQUET = 60;
+  let portions = 0;
+  let quantites = 0;
+  for (let i = 0; i < chantiers.length; i += PAQUET) {
+    const paquet = chantiers.slice(i, i + PAQUET);
+    const majPortions = paquet.map((c) => c.portions).filter((v): v is [number, number] => v !== null);
+    const majQuantites = paquet.flatMap((c) => c.quantites);
+    const requetes = [];
+    if (majQuantites.length > 0) {
+      const ids = majQuantites.map(([id]) => id);
+      requetes.push(
+        db
+          .update(tableIngredients)
+          .set({
+            qty: casPar(sql.raw("id"), majQuantites, "real", (v) => v.qty),
+            // On POSE une note, on n'en efface jamais une.
+            note: sql`COALESCE(${casPar(sql.raw("id"), majQuantites, "text", (v) => v.note)}, ${tableIngredients.note})`,
+          })
+          .where(inArray(tableIngredients.id, ids)),
+      );
+    }
+    if (majPortions.length > 0) {
+      requetes.push(
+        db
+          .update(tableRecettes)
+          .set({ servings: casPar(sql.raw("id"), majPortions, "int", (v) => v) })
+          .where(inArray(tableRecettes.id, majPortions.map(([id]) => id))),
+      );
+    }
+    const [premiere, seconde] = requetes;
+    if (premiere && seconde) await db.batch([premiere, seconde]);
+    else if (premiere) await premiere;
+    portions += majPortions.length;
+    quantites += majQuantites.length;
+  }
+  console.log(
+    `[ingr] ${libelle} : ${portions} recette(s) au bon nombre de portions, ${quantites} quantité(s) corrigée(s) ` +
+      `(sur ${recettes.length} recettes et ${ingredients.length} ingrédients).`,
+  );
+  return portions + quantites;
 }
 
 /**
@@ -376,7 +453,7 @@ async function main(): Promise<void> {
   const sqlite = await ouvrirSeed();
   const map = corrections(sqlite);
   console.log(`[ingr] ${map.size} clé(s) de référence lues dans le seed.`);
-  const quantites = quantitesAttendues(sqlite);
+  const reference = referenceSeed(sqlite);
   sqlite.close();
 
   const cibles: [string, Table][] = [
@@ -386,8 +463,53 @@ async function main(): Promise<void> {
   ];
   let total = 0;
   for (const [libelle, table] of cibles) total += await appliquer(libelle, table, map);
-  total += await appliquerQuantitesCatalogue(quantites);
-  total += await appliquerQuantitesBibliotheque(quantites);
+  total += await appliquerReference(
+    "catalogue",
+    await db
+      .select({
+        id: schema.catalogRecipes.id,
+        sourceUrl: schema.catalogRecipes.sourceUrl,
+        servings: schema.catalogRecipes.servings,
+      })
+      .from(schema.catalogRecipes),
+    await db
+      .select({
+        id: schema.catalogIngredients.id,
+        recette: schema.catalogIngredients.catalogRecipeId,
+        canonical: schema.catalogIngredients.canonical,
+        qty: schema.catalogIngredients.qty,
+        note: schema.catalogIngredients.note,
+      })
+      .from(schema.catalogIngredients),
+    schema.catalogRecipes,
+    schema.catalogIngredients,
+    reference,
+  );
+  total += await appliquerReference(
+    "bibliothèque",
+    await db
+      .select({
+        id: schema.recipes.id,
+        sourceUrl: schema.recipes.sourceUrl,
+        servings: schema.recipes.servings,
+      })
+      .from(schema.recipes),
+    await db
+      .select({
+        id: schema.recipeIngredients.id,
+        // ⚠️ `recipeId` ici, `catalogRecipeId` dans le catalogue : c'est CET écart qui a fait
+        // tomber la première version, et il n'est visible que parce que la lecture est écrite
+        // avec le vrai type de la table.
+        recette: schema.recipeIngredients.recipeId,
+        canonical: schema.recipeIngredients.canonical,
+        qty: schema.recipeIngredients.qty,
+        note: schema.recipeIngredients.note,
+      })
+      .from(schema.recipeIngredients),
+    schema.recipes as unknown as TableRecettes,
+    schema.recipeIngredients as unknown as TableIngredients,
+    reference,
+  );
   total += await recalculerListes();
   console.log(
     total === 0

@@ -8,6 +8,46 @@
 
 ---
 
+## 2026-08-20 — Un `as unknown as` fait taire le seul outil qui aurait vu l'erreur
+
+La passe de réparation traite deux couples de tables identiques *en apparence* : le catalogue
+(`catalog_recipes` / `catalog_ingredients`) et la bibliothèque (`recipes` /
+`recipe_ingredients`). Mêmes colonnes utiles, même traitement. J'ai donc écrit une seule
+fonction et je lui ai passé le second couple avec un `as unknown as`.
+
+Sauf que la clé étrangère s'appelle `catalog_recipe_id` d'un côté et `recipe_id` de l'autre.
+Ma fonction lisait `catalogRecipeId` dans les deux cas. Sur la bibliothèque, cette propriété
+vaut `undefined` — et le cast avait explicitement retiré à TypeScript le droit de le dire.
+
+Le résultat n'est pas un joli message d'erreur. C'est, **en production**, au milieu du build :
+
+```
+TypeError: Cannot convert undefined or null to object
+    at Object.entries … orderSelectedFields … PgSelectBase._prepare
+```
+
+Rien ne nomme la colonne, rien ne nomme la table. Et la passe était déjà allée au bout du
+catalogue (9 526 recettes migrées) avant de mourir sur la bibliothèque : un état à moitié
+fait, dont seul le hasard de l'ordre décidait de la moitié survivante.
+
+**La leçon n'est pas « j'ai fait une faute de frappe ».** C'est que j'ai supprimé la
+vérification qui l'aurait attrapée, pour économiser une duplication de quinze lignes. Le
+typecheck était vert — il ne pouvait pas être autre chose.
+
+Correctif structurel : **les LECTURES sortent de la fonction**, chez l'appelant, écrites avec
+les vrais types de chaque table. TypeScript retrouve le droit de parler, et il aurait refusé
+`catalogRecipeId` sur `recipeIngredients`. Le cast ne subsiste que sur les ÉCRITURES, qui
+n'emploient que des colonnes présentes des deux côtés — et cette affirmation-là est
+maintenant un test, pas une conviction : il vérifie la présence de chaque colonne écrite dans
+les deux couples, et il vérifie que les deux clés étrangères portent bien des noms
+DIFFÉRENTS, pour que la prochaine session voie le piège avant de le reproduire.
+
+Règle qui en sort : **avant d'écrire `as unknown as`, se demander ce que le compilateur
+allait dire.** Si la réponse est « je ne sais pas », c'est exactement l'information qu'on est
+en train de jeter. Deux tables qui se ressemblent ne sont pas la même table, et « je vérifie
+que ça marche » ne remplace pas un type — surtout quand le seul endroit où ça s'exécute
+vraiment est un build de production.
+
 ## 2026-08-19 — Un audit ne mesure que l'axe qu'il regarde, et le sien paraît complet
 
 `ING-06` avait conclu « 99,85 % correct » sur 87 443 lignes d'ingrédients. Le chiffre était

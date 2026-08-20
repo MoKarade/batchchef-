@@ -12,8 +12,9 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import initSqlJs from "sql.js";
-import { nombreEnTete, noteSourcePerdue, quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
+import { nombreEnTete, noteSourcePerdue, portionsRecette, quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
 import { normalizeQty } from "../lib/units";
+import * as schema from "../lib/db/schema";
 
 describe("nombreEnTete — ce que le texte annonce vraiment", () => {
   it("lit une fraction, un mixte, une décimale", () => {
@@ -150,6 +151,18 @@ describe("quantiteCorrigee — on ne corrige que ce qu'on sait expliquer", () =>
   });
 });
 
+describe("portionsRecette — le nombre de portions pour lequel la recette est écrite", () => {
+  it("prend le rendement retrouvé, et retombe sur le seed quand il est perdu", () => {
+    const cohérente = [
+      { raw: "320 g de fusilli", qpp: 80 },
+      { raw: "2 blancs de poulet", qpp: 0.5 },
+    ];
+    expect(portionsRecette(cohérente, 1)).toBe(4);
+    // Mutation : renvoyer `rendementRecette(...) ?? 1` au lieu du seed casse ce cas.
+    expect(portionsRecette([{ raw: "200 g de thon", qpp: 0.019 }], 6)).toBe(6);
+  });
+});
+
 describe("noteSourcePerdue — ce qu'on garde quand la quantité disparaît", () => {
   it("garde le texte source seulement s'il annonçait un nombre", () => {
     expect(noteSourcePerdue("200 g de thon", null)).toBe("200 g de thon");
@@ -221,4 +234,81 @@ describe("le CORPUS ENTIER — invariant indépendant des règles", () => {
       "rapport 18400.00 ≠ rendement 4 : -4600 g de pomme de terre",
     ].sort());
   }, 60_000);
+
+  it("rend un vrai nombre de portions à la quasi-totalité du catalogue", async () => {
+    // Ce que ce test protège : les 10 188 recettes annonçaient « pour 1 portion ». Si une
+    // modification de `rendementRecette` resserre ses conditions, ce compte baisse et le
+    // catalogue se remet à mentir en silence — le taux est donc verrouillé, pas constaté.
+    const SQL = await initSqlJs({ locateFile: () => require_.resolve("sql.js/dist/sql-wasm.wasm") });
+    const seed = new SQL.Database(readFileSync(resolve(process.cwd(), "data", "batchchef.seed.db")));
+    const stmt = seed.prepare(
+      "SELECT recipe_id AS r, raw_text AS raw, quantity_per_portion AS q FROM recipe_ingredient",
+    );
+    const parRecette = new Map<number, Array<{ raw: string; qpp: number | null }>>();
+    while (stmt.step()) {
+      const row = stmt.getAsObject() as { r: number; raw: string | null; q: number | null };
+      const l = parRecette.get(row.r) ?? [];
+      l.push({ raw: String(row.raw ?? ""), qpp: row.q });
+      parRecette.set(row.r, l);
+    }
+    stmt.free();
+    seed.close();
+
+    let reelles = 0;
+    for (const [, lignes] of parRecette) if (portionsRecette(lignes, 1) > 1) reelles += 1;
+    expect(parRecette.size).toBeGreaterThan(10_000);
+    expect(reelles).toBeGreaterThanOrEqual(9_500);
+  }, 60_000);
+});
+
+describe("les deux couples de tables que la passe écrit", () => {
+  // Vécu le 20/08, en production : la passe traitait le catalogue et la bibliothèque par la
+  // même fonction, via un `as unknown as`. Or la clé étrangère s'appelle `catalogRecipeId`
+  // d'un côté et `recipeId` de l'autre — le cast a fait passer au typecheck une colonne qui
+  // n'existe pas, et le script est mort APRÈS avoir migré le catalogue, sur un
+  // « Cannot convert undefined or null to object » qui ne nomme rien.
+  //
+  // La lecture ne passe plus par un cast (TypeScript fait son travail). Ce test couvre ce
+  // qu'il reste de cast, c'est-à-dire l'écriture : elle n'emploie que des colonnes présentes
+  // des DEUX côtés. Prouvé par mutation : y ajouter une colonne absente d'un des deux fait
+  // tomber le test.
+  const couples = [
+    { r: schema.catalogRecipes, i: schema.catalogIngredients },
+    { r: schema.recipes, i: schema.recipeIngredients },
+  ];
+
+  it("portent toutes les colonnes que l'écriture touche", () => {
+    for (const { r, i } of couples) {
+      for (const col of ["id", "servings"] as const) expect(r[col]).toBeDefined();
+      for (const col of ["id", "qty", "note"] as const) expect(i[col]).toBeDefined();
+    }
+  });
+
+  it("et NE partagent PAS le nom de leur clé étrangère — c'est le piège", () => {
+    expect(schema.catalogIngredients.catalogRecipeId.name).toBe("catalog_recipe_id");
+    expect(schema.recipeIngredients.recipeId.name).toBe("recipe_id");
+    expect(schema.catalogIngredients.catalogRecipeId.name).not.toBe(
+      schema.recipeIngredients.recipeId.name,
+    );
+  });
+});
+
+describe("le nombre de portions et les quantités partent ENSEMBLE", () => {
+  // Tripwire de SURFACE, pas de comportement : une coupure entre les deux écritures
+  // laisserait une recette fausse d'un facteur R — quatre fois trop, ou quatre fois trop
+  // peu — sans qu'aucun écran ne le dise, et aucun test unitaire ne peut voir ça (il n'y a
+  // pas de base dans la suite). Ce qui se vérifie ici, c'est que le code les envoie dans la
+  // MÊME transaction. Prouvé par mutation : remplacer `db.batch` par deux `await` successifs
+  // fait tomber ce test.
+  const script = readFileSync(resolve(process.cwd(), "scripts", "reparer-ingredients.ts"), "utf8");
+
+  it("les deux mises à jour passent par db.batch", () => {
+    expect(script).toContain("await db.batch([premiere, seconde])");
+  });
+
+  it("aucune des deux ne peut partir seule quand les deux existent", () => {
+    // Le seul `await` isolé admis est celui du cas où il n'y a qu'UNE requête à envoyer.
+    expect(script).toContain("else if (premiere) await premiere;");
+    expect(script).not.toMatch(/await\s+db\s*\n?\s*\.update\(tableRecettes\)/);
+  });
 });
