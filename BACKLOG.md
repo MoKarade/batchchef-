@@ -55,15 +55,27 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   **dérivée du schéma** (`getTableColumns`), pas réécrite à la main — c'est le défaut qui a
   fait entrer 40 offres sans ville en production chez JobAI.
 
-- [ ] **`CAT-D` — ménage du texte.** 1 entité HTML (`&quot;`), 23 titres à espaces douteux,
-  7 titres > 120 caractères, 6 instructions avec du mojibake, 5 vides, et **71 instructions
-  sans le moindre saut de ligne** (un bloc illisible). S'y ajoutent, trouvés en préparant
-  `CAT-B` : les 32 titres/noms en accents décomposés (à recomposer en NFC), les 149
-  `U+FE0F` invisibles et les 325 espaces insécables.
-  ⚠️ Distinguer `CAT-B` de `CAT-D` : `CAT-B` normalise ce qu'on CHERCHE (colonne dérivée,
-  le texte affiché reste tel quel), `CAT-D` corrige ce qu'on AFFICHE. Les deux touchent les
-  mêmes caractères mais pas la même colonne — les confondre réécrirait des titres pour une
-  raison de recherche.
+- [x] ~~**`CAT-D` — ménage du texte affiché.**~~ **Livré le 20/08.**
+
+  | | titres | instructions | noms d'ingrédient |
+  |---|---|---|---|
+  | espaces multiples | 23 | 1 662 | 1 |
+  | accents décomposés (NFD → NFC) | 20 | 90 | 12 |
+  | caractères invisibles | 19 | 30 | 130 |
+  | entités HTML | 1 | 19 | 0 |
+  | **total** | **63** | **1 802** | **143** |
+
+  ⚠️ **L'inventaire initial a été démenti sur trois de ses cinq items**, et c'est la partie
+  utile de ce lot :
+  - « 6 instructions avec du mojibake » → **zéro**. Mon détecteur cherchait `Ã|Â|â€`, qui
+    attrape les « À » et « Â » légitimes d'un corpus français. Le compte mesurait mon motif.
+  - « 7 titres de plus de 120 caractères » → de vrais titres de plats gastronomiques.
+  - « 71 instructions sans saut de ligne » → 37 font moins de 200 caractères et sont des
+    recettes en UNE étape. Une seule dépasse 600. Re-segmenter aurait inventé une structure.
+
+  ⚠️ **L'espace insécable est CONSERVÉ** (325 occurrences) : en français il est correct
+  devant `; : ! ?`. Le « nettoyer » aurait abîmé un texte juste. Verrouillé par mutation.
+
 - [ ] **`CAT-E` — recettes creuses et vrais doublons, SUPPRIMÉES** (décision de Marc,
   19/08 : « supprimer pour de bon »). 3 recettes sans aucun ingrédient, 22 avec un seul,
   15 vrais doublons. ⚠️ **Ne PAS dédoublonner par titre** : sur les 87 titres partagés, 72

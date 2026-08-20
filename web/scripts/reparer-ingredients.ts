@@ -36,6 +36,7 @@ import { reparerCanonique, reparerNom } from "../lib/ingredientsNoms";
 import { nomRestaure, nomSansPrepositionFinale, uniteCorrigee } from "../lib/ingredientsSource";
 import { noteSourcePerdue, portionsRecette, quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
 import { tempsCorrige } from "../lib/tempsRecette";
+import { nettoyerTexte } from "../lib/menageTexte";
 import { normalizeQty } from "../lib/units";
 
 const require = createRequire(import.meta.url);
@@ -85,7 +86,9 @@ function corrections(sqlite: Sqlite): Map<string, Correction> {
     // a déjà réparé une partie des clés en base. On rejoue la même transformation.
     const cleProd = reparerCanonique(c);
     // Le nom tel que la production le porte : ING-03 d'abord, puis restauration des lettres.
-    const nom = nomSansPrepositionFinale(nomRestaure(reparerNom(n), src));
+    // Le ménage (CAT-D) s'applique ICI, sur le nom de référence : un second écrivain sur la
+    // même colonne se battrait avec celui-ci à chaque build.
+    const nom = nettoyerTexte(nomSansPrepositionFinale(nomRestaure(reparerNom(n), src))) ?? "";
     const unite = uniteCorrigee("g", src) ?? uniteCorrigee("ml", src);
 
     // ⚠️ Le conflit se juge CHAMP PAR CHAMP, jamais en bloc.
@@ -185,6 +188,9 @@ interface RecetteAttendue {
   /** Minutes, corrigées de l'erreur d'unité de la V3 (cf. lib/tempsRecette.ts). */
   prep: number | null;
   cuisson: number | null;
+  /** Texte remis au propre (CAT-D) : entités HTML, invisibles, accents décomposés. */
+  titre: string;
+  instructions: string | null;
   lignes: Map<string, QuantiteAttendue | null>;
 }
 
@@ -213,17 +219,24 @@ function referenceSeed(sqlite: Sqlite): Map<string, RecetteAttendue> {
   }
   stmt.free();
 
-  const urls = new Map<number, { url: string; servings: number; prep: number | null; cuisson: number | null }>();
+  const urls = new Map<
+    number,
+    { url: string; servings: number; prep: number | null; cuisson: number | null; titre: string; instructions: string | null }
+  >();
   const stmtR = sqlite.prepare(
-    "SELECT id AS i, marmiton_url AS u, servings AS s, prep_time_min AS p, cook_time_min AS c FROM recipe WHERE marmiton_url IS NOT NULL",
+    "SELECT id AS i, marmiton_url AS u, servings AS s, prep_time_min AS p, cook_time_min AS c, title AS t, instructions AS n FROM recipe WHERE marmiton_url IS NOT NULL",
   );
   while (stmtR.step()) {
-    const row = stmtR.getAsObject() as { i: number; u: string; s: number | null; p: number | null; c: number | null };
+    const row = stmtR.getAsObject() as {
+      i: number; u: string; s: number | null; p: number | null; c: number | null; t: string | null; n: string | null;
+    };
     urls.set(row.i, {
       url: row.u,
       servings: Number(row.s) > 0 ? Number(row.s) : 1,
       prep: tempsCorrige(row.p),
       cuisson: tempsCorrige(row.c),
+      titre: nettoyerTexte(row.t) ?? "",
+      instructions: nettoyerTexte(row.n),
     });
   }
   stmtR.free();
@@ -241,7 +254,14 @@ function referenceSeed(sqlite: Sqlite): Map<string, RecetteAttendue> {
     // `portions / servings`, donc multiplier `qty` par R et `servings` par R laisse tout
     // batch existant rigoureusement identique. C'est ce qui rend ce changement sûr.
     const servings = portionsRecette(lignes.map((l) => ({ raw: l.raw, qpp: l.qpp })), recette.servings);
-    const attendu: RecetteAttendue = { servings, prep: recette.prep, cuisson: recette.cuisson, lignes: new Map() };
+    const attendu: RecetteAttendue = {
+      servings,
+      prep: recette.prep,
+      cuisson: recette.cuisson,
+      titre: recette.titre,
+      instructions: recette.instructions,
+      lignes: new Map(),
+    };
     for (const l of lignes) {
       const verdict = quantiteCorrigee({ raw: l.raw, qpp: l.qpp, unite: l.unit }, rendement);
       const qtySource = verdict.corriger ? verdict.qpp : l.qpp;
@@ -286,6 +306,8 @@ interface RecetteProd {
   servings: number;
   prep: number | null;
   cuisson: number | null;
+  titre: string;
+  instructions: string | null;
 }
 
 interface IngredientProd {
@@ -336,6 +358,8 @@ async function appliquerReference(
     servings: number;
     prep: number | null;
     cuisson: number | null;
+    titre: string;
+    instructions: string | null;
   }
   interface Chantier {
     recette: [number, MajRecette] | null;
@@ -349,10 +373,23 @@ async function appliquerReference(
     // Les trois champs de la recette voyagent ENSEMBLE : ils viennent de la même ligne du
     // seed, et les écrire en deux fois n'apporterait rien qu'un état intermédiaire.
     const aChanger =
-      attendu.servings !== r.servings || attendu.prep !== r.prep || attendu.cuisson !== r.cuisson;
+      attendu.servings !== r.servings ||
+      attendu.prep !== r.prep ||
+      attendu.cuisson !== r.cuisson ||
+      attendu.titre !== r.titre ||
+      attendu.instructions !== r.instructions;
     const chantier: Chantier = {
       recette: aChanger
-        ? [r.id, { servings: attendu.servings, prep: attendu.prep, cuisson: attendu.cuisson }]
+        ? [
+            r.id,
+            {
+              servings: attendu.servings,
+              prep: attendu.prep,
+              cuisson: attendu.cuisson,
+              titre: attendu.titre,
+              instructions: attendu.instructions,
+            },
+          ]
         : null,
       quantites: [],
     };
@@ -396,6 +433,8 @@ async function appliquerReference(
             servings: casPar(sql.raw("id"), majRecettes, "int", (v) => v.servings),
             prepMinutes: casPar(sql.raw("id"), majRecettes, "int", (v) => v.prep),
             cuissonMinutes: casPar(sql.raw("id"), majRecettes, "int", (v) => v.cuisson),
+            title: casPar(sql.raw("id"), majRecettes, "text", (v) => v.titre),
+            instructions: casPar(sql.raw("id"), majRecettes, "text", (v) => v.instructions),
           })
           .where(inArray(tableRecettes.id, majRecettes.map(([id]) => id))),
       );
@@ -407,7 +446,7 @@ async function appliquerReference(
     quantites += majQuantites.length;
   }
   console.log(
-    `[ingr] ${libelle} : ${portions} recette(s) mise(s) à jour (portions et durées), ${quantites} quantité(s) corrigée(s) ` +
+    `[ingr] ${libelle} : ${portions} recette(s) mise(s) à jour (portions, durées, texte), ${quantites} quantité(s) corrigée(s) ` +
       `(sur ${recettes.length} recettes et ${ingredients.length} ingrédients).`,
   );
   return portions + quantites;
@@ -500,6 +539,8 @@ async function main(): Promise<void> {
         servings: schema.catalogRecipes.servings,
         prep: schema.catalogRecipes.prepMinutes,
         cuisson: schema.catalogRecipes.cuissonMinutes,
+        titre: schema.catalogRecipes.title,
+        instructions: schema.catalogRecipes.instructions,
       })
       .from(schema.catalogRecipes),
     await db
@@ -524,6 +565,8 @@ async function main(): Promise<void> {
         servings: schema.recipes.servings,
         prep: schema.recipes.prepMinutes,
         cuisson: schema.recipes.cuissonMinutes,
+        titre: schema.recipes.title,
+        instructions: schema.recipes.instructions,
       })
       .from(schema.recipes),
     await db
