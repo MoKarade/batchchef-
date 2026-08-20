@@ -300,6 +300,10 @@ export async function ajouterDuCatalogueInterne(
           imageUrl: cat.imageUrl,
           servings: cat.servings,
           instructions: cat.instructions,
+          // ⚠️ Tout champ ajouté au catalogue doit être recopié ICI aussi, sinon la
+          // bibliothèque le perd en silence. Verrouillé par tests/tempsRecette.test.ts.
+          prepMinutes: cat.prepMinutes,
+          cuissonMinutes: cat.cuissonMinutes,
         })
         .returning({ id: schema.recipes.id });
       if (!row) continue;

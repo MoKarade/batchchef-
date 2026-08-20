@@ -35,6 +35,7 @@ import { ecarterIngredientsDeFond } from "../lib/ingredientsDeFond";
 import { reparerCanonique, reparerNom } from "../lib/ingredientsNoms";
 import { nomRestaure, nomSansPrepositionFinale, uniteCorrigee } from "../lib/ingredientsSource";
 import { noteSourcePerdue, portionsRecette, quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
+import { tempsCorrige } from "../lib/tempsRecette";
 import { normalizeQty } from "../lib/units";
 
 const require = createRequire(import.meta.url);
@@ -181,6 +182,9 @@ interface RecetteAttendue {
    * quantités d'autant.
    */
   servings: number;
+  /** Minutes, corrigées de l'erreur d'unité de la V3 (cf. lib/tempsRecette.ts). */
+  prep: number | null;
+  cuisson: number | null;
   lignes: Map<string, QuantiteAttendue | null>;
 }
 
@@ -209,11 +213,18 @@ function referenceSeed(sqlite: Sqlite): Map<string, RecetteAttendue> {
   }
   stmt.free();
 
-  const urls = new Map<number, { url: string; servings: number }>();
-  const stmtR = sqlite.prepare("SELECT id AS i, marmiton_url AS u, servings AS s FROM recipe WHERE marmiton_url IS NOT NULL");
+  const urls = new Map<number, { url: string; servings: number; prep: number | null; cuisson: number | null }>();
+  const stmtR = sqlite.prepare(
+    "SELECT id AS i, marmiton_url AS u, servings AS s, prep_time_min AS p, cook_time_min AS c FROM recipe WHERE marmiton_url IS NOT NULL",
+  );
   while (stmtR.step()) {
-    const row = stmtR.getAsObject() as { i: number; u: string; s: number | null };
-    urls.set(row.i, { url: row.u, servings: Number(row.s) > 0 ? Number(row.s) : 1 });
+    const row = stmtR.getAsObject() as { i: number; u: string; s: number | null; p: number | null; c: number | null };
+    urls.set(row.i, {
+      url: row.u,
+      servings: Number(row.s) > 0 ? Number(row.s) : 1,
+      prep: tempsCorrige(row.p),
+      cuisson: tempsCorrige(row.c),
+    });
   }
   stmtR.free();
 
@@ -230,7 +241,7 @@ function referenceSeed(sqlite: Sqlite): Map<string, RecetteAttendue> {
     // `portions / servings`, donc multiplier `qty` par R et `servings` par R laisse tout
     // batch existant rigoureusement identique. C'est ce qui rend ce changement sûr.
     const servings = portionsRecette(lignes.map((l) => ({ raw: l.raw, qpp: l.qpp })), recette.servings);
-    const attendu: RecetteAttendue = { servings, lignes: new Map() };
+    const attendu: RecetteAttendue = { servings, prep: recette.prep, cuisson: recette.cuisson, lignes: new Map() };
     for (const l of lignes) {
       const verdict = quantiteCorrigee({ raw: l.raw, qpp: l.qpp, unite: l.unit }, rendement);
       const qtySource = verdict.corriger ? verdict.qpp : l.qpp;
@@ -273,6 +284,8 @@ interface RecetteProd {
   id: number;
   sourceUrl: string | null;
   servings: number;
+  prep: number | null;
+  cuisson: number | null;
 }
 
 interface IngredientProd {
@@ -319,8 +332,13 @@ async function appliquerReference(
     parRecette.set(i.recette, l);
   }
 
+  interface MajRecette {
+    servings: number;
+    prep: number | null;
+    cuisson: number | null;
+  }
   interface Chantier {
-    portions: [number, number] | null;
+    recette: [number, MajRecette] | null;
     quantites: Array<[number, QuantiteAttendue]>;
   }
   const chantiers: Chantier[] = [];
@@ -328,8 +346,14 @@ async function appliquerReference(
     if (!r.sourceUrl) continue; // recette apportée par Marc (vidéo, page) : aucune source seed.
     const attendu = reference.get(r.sourceUrl);
     if (!attendu) continue;
+    // Les trois champs de la recette voyagent ENSEMBLE : ils viennent de la même ligne du
+    // seed, et les écrire en deux fois n'apporterait rien qu'un état intermédiaire.
+    const aChanger =
+      attendu.servings !== r.servings || attendu.prep !== r.prep || attendu.cuisson !== r.cuisson;
     const chantier: Chantier = {
-      portions: attendu.servings === r.servings ? null : [r.id, attendu.servings],
+      recette: aChanger
+        ? [r.id, { servings: attendu.servings, prep: attendu.prep, cuisson: attendu.cuisson }]
+        : null,
       quantites: [],
     };
     for (const i of parRecette.get(r.id) ?? []) {
@@ -340,7 +364,7 @@ async function appliquerReference(
       if (memeQty && !noteAPoser) continue;
       chantier.quantites.push([i.id, { qty: a.qty, note: noteAPoser ? a.note : null }]);
     }
-    if (chantier.portions || chantier.quantites.length > 0) chantiers.push(chantier);
+    if (chantier.recette || chantier.quantites.length > 0) chantiers.push(chantier);
   }
 
   const PAQUET = 60;
@@ -348,7 +372,7 @@ async function appliquerReference(
   let quantites = 0;
   for (let i = 0; i < chantiers.length; i += PAQUET) {
     const paquet = chantiers.slice(i, i + PAQUET);
-    const majPortions = paquet.map((c) => c.portions).filter((v): v is [number, number] => v !== null);
+    const majRecettes = paquet.map((c) => c.recette).filter((v): v is [number, MajRecette] => v !== null);
     const majQuantites = paquet.flatMap((c) => c.quantites);
     const requetes = [];
     if (majQuantites.length > 0) {
@@ -364,22 +388,26 @@ async function appliquerReference(
           .where(inArray(tableIngredients.id, ids)),
       );
     }
-    if (majPortions.length > 0) {
+    if (majRecettes.length > 0) {
       requetes.push(
         db
           .update(tableRecettes)
-          .set({ servings: casPar(sql.raw("id"), majPortions, "int", (v) => v) })
-          .where(inArray(tableRecettes.id, majPortions.map(([id]) => id))),
+          .set({
+            servings: casPar(sql.raw("id"), majRecettes, "int", (v) => v.servings),
+            prepMinutes: casPar(sql.raw("id"), majRecettes, "int", (v) => v.prep),
+            cuissonMinutes: casPar(sql.raw("id"), majRecettes, "int", (v) => v.cuisson),
+          })
+          .where(inArray(tableRecettes.id, majRecettes.map(([id]) => id))),
       );
     }
     const [premiere, seconde] = requetes;
     if (premiere && seconde) await db.batch([premiere, seconde]);
     else if (premiere) await premiere;
-    portions += majPortions.length;
+    portions += majRecettes.length;
     quantites += majQuantites.length;
   }
   console.log(
-    `[ingr] ${libelle} : ${portions} recette(s) au bon nombre de portions, ${quantites} quantité(s) corrigée(s) ` +
+    `[ingr] ${libelle} : ${portions} recette(s) mise(s) à jour (portions et durées), ${quantites} quantité(s) corrigée(s) ` +
       `(sur ${recettes.length} recettes et ${ingredients.length} ingrédients).`,
   );
   return portions + quantites;
@@ -470,6 +498,8 @@ async function main(): Promise<void> {
         id: schema.catalogRecipes.id,
         sourceUrl: schema.catalogRecipes.sourceUrl,
         servings: schema.catalogRecipes.servings,
+        prep: schema.catalogRecipes.prepMinutes,
+        cuisson: schema.catalogRecipes.cuissonMinutes,
       })
       .from(schema.catalogRecipes),
     await db
@@ -492,6 +522,8 @@ async function main(): Promise<void> {
         id: schema.recipes.id,
         sourceUrl: schema.recipes.sourceUrl,
         servings: schema.recipes.servings,
+        prep: schema.recipes.prepMinutes,
+        cuisson: schema.recipes.cuissonMinutes,
       })
       .from(schema.recipes),
     await db

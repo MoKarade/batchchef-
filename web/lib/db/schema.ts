@@ -46,6 +46,9 @@ export const recipes = pgTable("recipes", {
   servings: integer("servings").notNull().default(4),
   instructions: text("instructions"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Minutes. Renseignées quand la recette vient du catalogue ; `null` sinon. */
+  prepMinutes: integer("prep_minutes"),
+  cuissonMinutes: integer("cuisson_minutes"),
   titreRecherche: colonneRecherche("titre_recherche", "title"),
 });
 
@@ -117,6 +120,9 @@ export const catalogRecipes = pgTable("catalog_recipes", {
   imageUrl: text("image_url"),
   servings: integer("servings").notNull().default(1),
   instructions: text("instructions"),
+  /** Minutes, telles que le seed les porte. `null` = la source ne dit rien (cf. lib/tempsRecette.ts). */
+  prepMinutes: integer("prep_minutes"),
+  cuissonMinutes: integer("cuisson_minutes"),
   titreRecherche: colonneRecherche("titre_recherche", "title"),
 });
 

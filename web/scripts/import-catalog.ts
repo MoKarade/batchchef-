@@ -15,6 +15,7 @@ import initSqlJs from "sql.js";
 import { db, schema } from "../lib/db";
 import { normalizeQty } from "../lib/units";
 import { reparerCanonique, reparerNom } from "../lib/ingredientsNoms";
+import { tempsCorrige } from "../lib/tempsRecette";
 import { noteSourcePerdue, quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
 
 const require = createRequire(import.meta.url);
@@ -31,7 +32,7 @@ async function main() {
 
   // Recettes (marmiton_url est unique → sert de clé de jointure vers les nouveaux ids).
   const recipeRes = sqlite.exec(
-    `SELECT id, title, marmiton_url, image_url, servings, instructions FROM recipe`,
+    `SELECT id, title, marmiton_url, image_url, servings, instructions, prep_time_min, cook_time_min FROM recipe`,
   );
   const recipeRows = rowsOf(recipeRes);
   console.log(`  ${recipeRows.length} recettes`);
@@ -77,6 +78,8 @@ async function main() {
           imageUrl: r.image_url ? String(r.image_url) : null,
           servings: Number(r.servings) > 0 ? Number(r.servings) : 1,
           instructions: r.instructions ? String(r.instructions) : null,
+          prepMinutes: tempsCorrige(numOrNull(r.prep_time_min)),
+          cuissonMinutes: tempsCorrige(numOrNull(r.cook_time_min)),
         })),
       )
       .returning({ id: schema.catalogRecipes.id, sourceUrl: schema.catalogRecipes.sourceUrl });

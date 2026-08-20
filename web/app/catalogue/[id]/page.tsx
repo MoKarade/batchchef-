@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { formatQty } from "@/lib/aggregate";
 import { AddToLibraryButton } from "@/components/AddToLibraryButton";
+import { Durees } from "@/components/Durees";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,8 @@ export default async function CatalogueDetailPage({
         <h1 className="text-xl font-bold">{recipe.title}</h1>
         <AddToLibraryButton catalogRecipeId={recipe.id} />
       </div>
+
+      <Durees prep={recipe.prepMinutes} cuisson={recipe.cuissonMinutes} />
 
       <section>
         <h2 className="mb-2 font-semibold">Ingrédients (pour {recipe.servings} portion{recipe.servings > 1 ? "s" : ""})</h2>
