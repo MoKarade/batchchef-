@@ -2,16 +2,6 @@
 
 Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit dans `web/`.
 
-## Documents vivants (tenus dans la MÊME PR que le code)
-
-- **`HANDOVER.md`** — état courant, **à lire en premier** à chaque reprise.
-- `BACKLOG.md` — tâches, chacune avec sa case, cochée au merge. ⚠️ Un item peut être périmé.
-- `docs/LESSONS.md` — ce qui a été appris en le vivant · `docs/adr/` — décisions verrouillées.
-
-⚠️ Doc périmée = pire que pas de doc.
-
-## Stack
-
 - **Next.js 15** (App Router, Server Components + Server Actions), **Vercel**.
 - **Drizzle ORM** + **Neon** (Postgres serverless).
 - **Auth.js v5** (Google — BatchChef GARDE son fournisseur, contrairement à JobAI/CarAI),
@@ -26,7 +16,9 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
 - **LLM** (`@anthropic-ai/sdk`) pour le parse de recettes et l'estimation des prix.
 - **Tailwind v4**, **Zod**, **vitest**.
 
-## Principes non négociables
+> 📐 Structure de ce fichier et de `docs/` : [convention commune aux huit dépôts](https://github.com/MoKarade/claude-config/blob/main/conventions/STRUCTURE-DEPOT.md).
+
+## 1. Principes non négociables
 
 - **No fake data.** Un parse douteux est rejeté (Zod), jamais inséré sale. Les prix sont
   des **estimations** (LLM + filet déterministe, couverture 100 %) — jamais présentés comme
@@ -223,7 +215,30 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   vulnérable et invisible depuis le premier niveau). Discrimination prouvée. Retirer un
   `override` seulement après avoir mesuré `npm audit --omit=dev` → 0.
 
-## Direction visuelle (décision de Marc, 13/08/2026)
+## 2. Conventions de code
+
+- Réponses, commits et docs **en français** (`feat:`, `fix:`, `docs:`…).
+- TypeScript strict, pas de `any` silencieux. Erreurs honnêtes, jamais avalées.
+- Pas d'emoji dans l'UI ni les docs (sauf demande explicite).
+
+### Structure `web/`
+
+| Chemin | Rôle |
+|---|---|
+| `app/` | routes (recettes, batchs, courses, catalogue, `/api/hub/summary`, `/api/mcp`) |
+| `lib/actions.ts` | Server Actions (import, batch, liste, statut, catalogue) |
+| `lib/aggregate.ts` | agrégation liste d'épicerie, mise à l'échelle, filet de prix (purs) |
+| `lib/ingredientsDeFond.ts` | sel/poivre/eau écartés de la liste — automatique, mot à mot, et DIT à l'écran (PUR, testé) |
+| `lib/assistant/` | `protocole.ts` = bornes, troncature, classement, balisage (PUR, testé) · `outils.ts` = ce que Claude peut interroger · `boucle.ts` = les allers-retours |
+| `lib/mcp/` | `protocole.ts` = JSON-RPC + négociation de version (PUR, testé) · `declarations.ts` = les 7 outils ANNONCÉS (données pures, testables sans next-auth) · `outils.ts` = ce qui les EXÉCUTE. La correspondance des deux derniers est verrouillée dans les DEUX sens |
+| `lib/llm/` | parse de recette (page web **et** vidéo) + estimation de coûts (Zod, honnête) |
+| `lib/video/` | `frames.ts` = sondage/empreintes/budget (PUR, testé) · `capture.ts` = extraction `<video>`+`<canvas>` en 2 passes (repérage 32×32 puis extraction 768 px) **dans le navigateur** (la vidéo ne monte jamais au serveur) |
+| `lib/partage.ts` + `public/sw.js` | cible de partage Android (PWA). Le service worker intercepte le POST **côté navigateur** : la vidéo partagée ne transite pas par le serveur |
+| `lib/db/` | schéma Drizzle + connexion Neon paresseuse |
+| `lib/hubSummary.ts` | résumé conforme `@mokarade/hub-contract` (widget hub perso) |
+| `data/batchchef.seed.db` | base seed du catalogue (10 188 recettes) |
+
+### Direction visuelle (décision de Marc, 13/08/2026)
 
 **Identité d'app de cuisine, pas de tableau de bord.** Les deux écrans les plus utilisés —
 la liste d'épicerie et une recette — se lisent DEBOUT, une main occupée, parfois sous les
@@ -263,24 +278,7 @@ néons d'un supermarché.
   dépendance réseau au déploiement, et tout build hors ligne casse. Les piles système
   donnent déjà le contraste serif (titres) / sans (texte).
 
-## Structure `web/`
-
-| Chemin | Rôle |
-|---|---|
-| `app/` | routes (recettes, batchs, courses, catalogue, `/api/hub/summary`, `/api/mcp`) |
-| `lib/actions.ts` | Server Actions (import, batch, liste, statut, catalogue) |
-| `lib/aggregate.ts` | agrégation liste d'épicerie, mise à l'échelle, filet de prix (purs) |
-| `lib/ingredientsDeFond.ts` | sel/poivre/eau écartés de la liste — automatique, mot à mot, et DIT à l'écran (PUR, testé) |
-| `lib/assistant/` | `protocole.ts` = bornes, troncature, classement, balisage (PUR, testé) · `outils.ts` = ce que Claude peut interroger · `boucle.ts` = les allers-retours |
-| `lib/mcp/` | `protocole.ts` = JSON-RPC + négociation de version (PUR, testé) · `declarations.ts` = les 7 outils ANNONCÉS (données pures, testables sans next-auth) · `outils.ts` = ce qui les EXÉCUTE. La correspondance des deux derniers est verrouillée dans les DEUX sens |
-| `lib/llm/` | parse de recette (page web **et** vidéo) + estimation de coûts (Zod, honnête) |
-| `lib/video/` | `frames.ts` = sondage/empreintes/budget (PUR, testé) · `capture.ts` = extraction `<video>`+`<canvas>` en 2 passes (repérage 32×32 puis extraction 768 px) **dans le navigateur** (la vidéo ne monte jamais au serveur) |
-| `lib/partage.ts` + `public/sw.js` | cible de partage Android (PWA). Le service worker intercepte le POST **côté navigateur** : la vidéo partagée ne transite pas par le serveur |
-| `lib/db/` | schéma Drizzle + connexion Neon paresseuse |
-| `lib/hubSummary.ts` | résumé conforme `@mokarade/hub-contract` (widget hub perso) |
-| `data/batchchef.seed.db` | base seed du catalogue (10 188 recettes) |
-
-## Workflow git (décision Marc, 2026-08-12)
+## 3. Workflow git
 
 Branche `claude/<slug>` → commits en français → push → PR → **Claude merge lui-même**
 (squash sur `master`), sans demander. Le gate local + la CI sont les filets ; le merge n'est
@@ -291,7 +289,21 @@ tests, leçons) est committé AVANT le merge — une PR mergée ne se rattrape p
 (`git fetch origin master && git checkout -B <branche> origin/master`) avant la tâche
 suivante, jamais empiler sur l'historique déjà mergé.
 
-## Vérifications avant commit
+- ⚠️ **`git fetch origin master` AVANT de committer.** Plusieurs sessions travaillent en
+  parallèle sur l'écosystème ; le 20/08/2026, deux d'entre elles ont produit la même
+  correction, mot pour mot, dans la même heure.
+
+## 4. Commandes utiles
+
+```bash
+cd web
+npm run dev        # http://localhost:3000
+npm run test       # vitest
+npm run typecheck  # tsc --noEmit
+npm run build      # build de production
+```
+
+## 5. Vérifications avant commit
 
 ```bash
 cd web && npm run typecheck && npm run test && npm run build
@@ -305,29 +317,7 @@ proposerait de rétrograder Next en 9.x, ce qui casserait l'app.
 ⚠️ La branche par défaut du dépôt est **`master`**, pas `main` — `main` est une vieille
 branche abandonnée qui a divergé. Repartir de `master`.
 
-## ⚠️ Une PRÉVERSION écrit dans la base de PRODUCTION
-
-Il n'y a qu'une base Neon, et `vercel-build` fait `db:migrate` (puis `db:reparer-ingredients`)
-**avant** `next build`. Or Vercel construit aussi chaque préversion. Donc **toute migration
-et tout script de données d'une branche s'appliquent à la production dès le premier build de
-la PR — avant tout merge, avant toute revue.**
-
-Constaté le 19/08 : la réparation des noms (`ING-03`) avait déjà traité 16 870 lignes de
-production quand j'ai lu les logs de la PRÉVERSION. Sans conséquence ici — la passe est
-idempotente, non destructive, et c'était le correctif voulu — mais le mécanisme, lui, ne
-distingue pas.
-
-Ce n'est pas nouveau (`db:migrate` y était depuis toujours) ; c'est simplement rarement
-visible. Deux règles qui en découlent :
-
-1. **« On essaiera d'abord sur une branche » est FAUX ici.** Une migration destructive
-   (suppression de colonne, réécriture de données) touche la production au premier push.
-   Faire valider par Marc AVANT de pousser, pas avant de merger.
-2. Un script de données dans `vercel-build` doit être **idempotent**, **non destructif**, et
-   **tracer ce qu'il a fait** — sinon on ne peut même pas savoir, après coup, ce qu'une
-   préversion a modifié.
-
-## Après un merge : vérifier le DÉPLOIEMENT, pas seulement la CI
+## 6. Après un merge : vérifier le DÉPLOIEMENT, pas seulement la CI
 
 **CI verte ne veut pas dire « en ligne ».** Ce sont deux systèmes indépendants : la CI
 juge le code, Vercel construit et sert. Un merge peut passer le gate et ne jamais être
@@ -358,8 +348,79 @@ famille). Le seul déclencheur fiable est un NOUVEAU push sur `master`. Attentio
 l'`ignoreCommand` : un commit qui ne touche que `*.md` ou `web/tests/*` serait ignoré — le
 commit de rattrapage doit toucher un fichier hors exemptions.
 
-## Style (hérité du CLAUDE.md global de Marc)
+Corollaire : un merge qui ne change QUE de la doc n'a pas de déploiement à vérifier. Le dire
+plutôt que de laisser croire qu'on a vérifié.
 
-- Réponses, commits et docs **en français** (`feat:`, `fix:`, `docs:`…).
-- TypeScript strict, pas de `any` silencieux. Erreurs honnêtes, jamais avalées.
-- Pas d'emoji dans l'UI ni les docs (sauf demande explicite).
+### ⚠️ Une PRÉVERSION écrit dans la base de PRODUCTION
+
+Il n'y a qu'une base Neon, et `vercel-build` fait `db:migrate` (puis `db:reparer-ingredients`)
+**avant** `next build`. Or Vercel construit aussi chaque préversion. Donc **toute migration
+et tout script de données d'une branche s'appliquent à la production dès le premier build de
+la PR — avant tout merge, avant toute revue.**
+
+Constaté le 19/08 : la réparation des noms (`ING-03`) avait déjà traité 16 870 lignes de
+production quand j'ai lu les logs de la PRÉVERSION. Sans conséquence ici — la passe est
+idempotente, non destructive, et c'était le correctif voulu — mais le mécanisme, lui, ne
+distingue pas.
+
+Ce n'est pas nouveau (`db:migrate` y était depuis toujours) ; c'est simplement rarement
+visible. Deux règles qui en découlent :
+
+1. **« On essaiera d'abord sur une branche » est FAUX ici.** Une migration destructive
+   (suppression de colonne, réécriture de données) touche la production au premier push.
+   Faire valider par Marc AVANT de pousser, pas avant de merger.
+2. Un script de données dans `vercel-build` doit être **idempotent**, **non destructif**, et
+   **tracer ce qu'il a fait** — sinon on ne peut même pas savoir, après coup, ce qu'une
+   préversion a modifié.
+
+## 7. Intégration hub
+
+- BatchChef publie `GET /api/hub/summary` conforme à `@mokarade/hub-contract`, gardé par le
+  jeton `x-hub-token`. Voir `lib/hubSummary.ts`.
+- ⚠️ **`HUB_TOKEN` sert dans LES DEUX SENS.** Entrant : le hub le présente pour lire le
+  summary. **Sortant** : BatchChef le présente au hub sur `POST /api/acces`
+  (`web/lib/accesHub.ts`) pour demander qui a le droit d'entrer. C'est le MÊME secret, et
+  c'est lui qui IDENTIFIE BatchChef côté hub — aucun `appId` n'est envoyé dans le corps,
+  sinon une app pourrait interroger les accès d'une autre.
+- ⚠️ **`NEXT_PUBLIC_HUB_URL` n'est pas décoratif** : `web/lib/accesHub.ts` s'en sert comme
+  base de `POST /api/acces`. La pointer ailleurs coupe l'accès de tout le monde sauf le
+  propriétaire, **silencieusement** (échec fermé → `false`).
+- **BatchChef garde son fournisseur Google**, contrairement à JobAI et CarAI. Ce qui vient du
+  hub, c'est l'**autorisation**, pas l'authentification.
+- **Période des coûts** : `total`. Le hub somme PAR période et ne fusionne jamais « cumulé »
+  avec « ce mois-ci » — une app qui publierait `mois` se retrouverait seule dans sa colonne.
+
+## 8. Documentation (où vit quoi)
+
+- **`HANDOVER.md`** — état courant, **à lire en premier** à chaque reprise.
+- `BACKLOG.md` — tâches, chacune avec sa case, cochée au merge. ⚠️ Un item peut être périmé.
+- `docs/LESSONS.md` — ce qui a été appris en le vivant · `docs/adr/` — décisions verrouillées.
+
+⚠️ Doc périmée = pire que pas de doc.
+
+| Fichier | Contenu |
+|---|---|
+| `README.md` · `web/README.md` | À quoi sert l'app, pour un lecteur extérieur. |
+| `CLAUDE.md` | Ce fichier. Se charge à **chaque session** → il reste **court**. |
+| `HANDOVER.md` | L'état RÉEL : ce qui tourne, ce qui reste à poser. À lire en premier. |
+| `BACKLOG.md` | Ce qui est décidé mais pas fait. |
+| `docs/adr/` | Décisions architecturales, `NNNN-slug.md`. |
+| `docs/LESSONS.md` | Les leçons détaillées. Elles vont là, pas dans ce fichier. |
+
+⚠️ **Doc périmée = pire que pas de doc.** Le 19/08/2026, trois fichiers annonçaient encore un
+« login Google mono-adresse » alors qu'`web/auth.ts` a deux étages depuis l'étape 2 — et le
+commentaire d'`auth.ts` disait déjà l'inverse, en toutes lettres. Mettre à jour la doc touchée
+dans la MÊME PR que le code.
+
+⚠️ **Un chiffre au présent rote.** `docs/LESSONS.md` cite ses nombres de tests dans des récits
+**datés** : c'est le bon usage, à garder.
+
+## 9. Leçons apprises
+
+Elles vivent dans [`docs/LESSONS.md`](./docs/LESSONS.md) — ce fichier se charge à chaque
+session, elles n'y tiendraient pas. Les ADR sont dans [`docs/adr/`](./docs/adr/).
+
+## 10. Style (hérité du CLAUDE.md global de Marc)
+
+- Réponses, commits et docs **en français** (`feat:`, `fix:`, `docs:`, …).
+- Ton direct, technique mais clair. Pas de flatterie.
