@@ -9,9 +9,10 @@ name: CI
 #   cd web && npm run typecheck && npm run test && npm run build
 on:
   push:
-    # La branche par défaut est `master` — `main` est une vieille branche abandonnée
-    # qui a divergé (voir CLAUDE.md). Ne pas l'ajouter ici : une CI verte sur une
-    # branche morte est un signal faux.
+    # La branche par défaut est `master`. Ne pas ajouter `main` ici : ce n'est pas un
+    # tronc de ce projet mais une HISTOIRE SANS ANCÊTRE COMMUN — le BatchChef d'avant la
+    # reprise sous `web/`, conservé sur `archive/pre-web-2026-04-24` (cf. CLAUDE.md §5).
+    # Une CI verte sur une branche qui n'est pas le tronc est un signal faux.
     branches: [master]
   pull_request:
   # Le cron ne sert qu'au job `audit` : une vulnérabilité paraît sans qu'une ligne
