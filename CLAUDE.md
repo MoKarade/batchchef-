@@ -424,3 +424,23 @@ session, elles n'y tiendraient pas. Les ADR sont dans [`docs/adr/`](./docs/adr/)
 
 - Réponses, commits et docs **en français** (`feat:`, `fix:`, `docs:`, …).
 - Ton direct, technique mais clair. Pas de flatterie.
+
+### Règles de travail (source : `claude-config`)
+
+Copie des trois règles de cadrage de Marc. Le texte qui **fait foi** est celui du
+[`CLAUDE.md` global](https://github.com/MoKarade/claude-config/blob/main/CLAUDE.md) — en cas
+de divergence, c'est lui qui gagne.
+
+- **Avant de coder : TOUTES les questions de cadrage d'un coup**, en un seul batch — y
+  compris ce qui définit « fini » et l'objectif exact. Pas de questions au compte-gouttes.
+- **Une fois que tu as tout ce qu'il te faut : exécute en continu** jusqu'à atteindre
+  l'objectif, puis arrête-toi. Ni avant, ni au-delà.
+- **Sur le technique, assume ton expertise** : sois ferme sur les faits, très réfléchi. Une
+  recommandation molle qui renvoie la décision à Marc ne l'aide pas — et si tu t'es trompé,
+  corrige-toi franchement.
+
+⚠️ Ces règles se chargent au DÉMARRAGE d'une session, depuis un dépôt cloné. Les écrire dans
+un `~/.claude/CLAUDE.md` local sans pousser ne les fait pas descendre dans une session
+distante — vécu le 20/08/2026, où Marc constatait « je ne vois pas la différence » alors que
+rien n'était jamais arrivé jusqu'à la session.
+
