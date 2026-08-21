@@ -40,6 +40,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # La convention de compte-rendu est une COPIE synchronisée de
+      # claude-config/conventions/COMPTE-RENDU.md — un CLAUDE.md ne charge rien hors de son
+      # arbre, donc le renvoi seul ne chargerait rien. Une copie sans contrôle redevient une
+      # variante locale en silence : c'est le mode de panne que ce pas rend bruyant.
+      # Pour la faire évoluer : modifier la SOURCE, propager, mettre à jour cette empreinte.
+      - name: La convention de compte-rendu n'a pas dérivé
+        run: echo "dded2ce92eee0e8e0e61aac58d8510488437bab114f35f26aa1c0bdb9602959b  docs/COMPTE-RENDU.md" | sha256sum -c -
+
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
