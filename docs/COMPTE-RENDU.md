@@ -14,6 +14,33 @@
 
 ---
 
+## 0. La règle qui prime toutes les autres
+
+Elle passe avant tout ce qui suit, et elle ne se négocie pas.
+
+1. **AUCUNE phrase entre deux appels d'outils.** On enchaîne les outils en silence, on
+   écrit UNE fois, à la fin du lot. Pas de « je regarde », pas de « je bascule sur »,
+   pas de « bonne nouvelle ». C'est le point le plus important de cette convention parce
+   que c'est le seul qui soit **observable sans jugement** : soit il y a du texte entre
+   deux outils, soit il n'y en a pas.
+2. **Un tour intermédiaire : 3 lignes maximum.** Un tour final : la structure fixe de la
+   §4, sections vides omises.
+3. **Il n'existe aucune exception « ce sujet l'exige ».** Si le sujet l'exige, Marc le
+   demandera — « creuse », « explique-moi en détail », « montre-moi le code ». Sans cette
+   demande, le plafond tient, quelle que soit la taille du travail accompli.
+
+⚠️ **Écrire moins n'autorise JAMAIS à chercher moins** (cf. §4). Un rapport court sur un
+travail approfondi est le but ; un travail superficiel n'en est jamais un.
+
+⚠️ **Pourquoi cette section existe.** Le 21/08/2026, la convention était chargée, complète
+et exacte — et la session qui venait de la déployer dans les neuf dépôts a quand même écrit
+une phrase avant chaque appel d'outil pendant des heures. Marc : « je comprends pas après
+tout ce qu'on a fait pourquoi tu as encore tout ce dialogue ». Le problème n'était pas
+l'ignorance de la règle mais sa FORME : « ~15 lignes, dépasser si le sujet l'exige » se juge
+soi-même, et tout le monde juge que son sujet l'exige. D'où une règle qui ne se juge pas.
+
+---
+
 ## 1. Principe directeur
 
 Marc doit pouvoir suivre le travail **sans décoder du jargon ni lire un journal de debug**.
@@ -220,3 +247,4 @@ explicite**, après l'audit des neuf dépôts — jamais de ma propre initiative
 | 2026-08-21 | §7 | La porte de plan (« plan court + OK avant de coder »), généralisée depuis FinanceAI | La convention n'avait aucune porte d'approbation ; FinanceAI en avait une. Marc a étendu la porte plutôt que de la supprimer. |
 | 2026-08-21 | §8 | Troisième catégorie d'emoji : les marqueurs de statut de document | ⬜ 🟦 ✅ ⏸️ ne sont ni de la gravité ni de la décoration. La v1 les interdisait sans le vouloir, et `docAJour.mjs` les lit. |
 | 2026-08-21 | §4 | Le volume porte sur l'écrit, pas sur l'effort | Sans ça, « ~15 lignes » se lisait comme une autorisation à chercher moins. |
+| 2026-08-21 | §0 | Une règle qui ne se juge pas soi-même, placée avant tout le reste | La convention était chargée et exacte, et elle n'était toujours pas suivie : une cible molle assortie d'une exception auto-jugée n'est pas une contrainte. Le seul critère observable — pas de texte entre deux outils — devient le point 1. |

@@ -55,7 +55,7 @@ jobs:
         # sortir de `web/` explicitement — sans ça le fichier est introuvable et le pas
         # échoue en accusant une dérive qui n'existe pas. Vécu au premier run, 21/08/2026.
         working-directory: ${{ github.workspace }}
-        run: echo "dded2ce92eee0e8e0e61aac58d8510488437bab114f35f26aa1c0bdb9602959b  docs/COMPTE-RENDU.md" | sha256sum -c -
+        run: echo "97e36acba8770c9614b6295773267b9690d07bc5bcd130b3bc0d03da996ab62b  docs/COMPTE-RENDU.md" | sha256sum -c -
 
       - uses: actions/setup-node@v4
         with:
