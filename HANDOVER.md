@@ -59,6 +59,14 @@ Gate : `typecheck` · `lint` · `test` · `build`. **462 tests**, 34 fichiers (1
   carte est prouvée par les tests et le build, pas par un écran. À regarder au premier
   chargement.
 
+  ⚠️ **La migration `0013` n'atteindra la base qu'au MERGE**, pas avant : `web/vercel.json`
+  porte `git.deploymentEnabled: { "claude/*": false }`, donc aucune préversion n'est
+  construite pour ces branches — vérifié, zéro déploiement créé pour le push de la PR #86.
+  C'est l'inverse de ce que le `CLAUDE.md` affirmait ; corrigé dans la même PR. Après le
+  merge, vérifier qu'un déploiement de production a bien été CRÉÉ (les deux merges
+  précédents sont `CANCELED` — normal, l'`ignoreCommand` saute les commits de docs seules,
+  mais celui-ci touche du code et doit donc construire).
+
 ## Le chantier catalogue (19/08/2026, premier lot)
 
 - **`CAT-A` — le catalogue annonce enfin son vrai nombre de portions.** Les 10 188 recettes

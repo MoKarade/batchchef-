@@ -758,3 +758,20 @@ sans l'inscrire dans le test qui garde les planchers, c'est le laisser redescend
 `npm install` distrait**. Les deux entrées (`next ≥ 15.5.24`, `sharp ≥ 0.35.4`) sont dans
 `tests/dependances.test.ts` avec leur motif, et la discrimination est prouvée : porter le
 plancher à 99.0.0 fait rougir le test, donc il voit bien la version installée.
+
+**Un point d'attention se VÉRIFIE avant d'être écrit, même quand il vient du `CLAUDE.md`.**
+J'ai écrit dans la PR #86 que « la préversion appliquera la migration à la base de production
+dès le premier build », en recopiant fidèlement l'avertissement du `CLAUDE.md`. Vérifié
+ensuite chez Vercel : **aucun déploiement n'a été créé pour ce push**, et la cause est dans
+le dépôt — `web/vercel.json` porte `git.deploymentEnabled: { "claude/*": false }`. Les
+branches `claude/*` ne produisent aucune préversion, donc leurs migrations n'atteignent la
+production qu'au merge. L'avertissement était vrai quand il a été écrit, il ne l'est plus
+pour la moitié des branches du dépôt — et je l'ai relayé sans le mesurer. Une phrase de
+garde-fou vieillit comme n'importe quelle autre : celle-là avait cessé d'être vraie sans que
+personne ne la relise.
+
+⚠️ Corollaire de lecture d'un tableau de bord : un déploiement `CANCELED` n'est pas une panne
+ici, c'est l'`ignoreCommand` qui a fait son travail sur un commit de docs seules. Les deux
+derniers merges de `master` sont dans ce cas. Ce qui se vérifie après un merge qui touche du
+CODE, c'est donc qu'un déploiement a été **créé ET construit**, pas seulement qu'il existe
+une ligne récente.
