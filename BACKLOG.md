@@ -261,6 +261,37 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   | « grandes cuillères » en grammes | 6 | « 1 grandes cuillères d'arôme vanille » → 0,5 g | encore la frontière de mot (le `g` de « grandes ») ; la corriger demande de lire l'unité dans le TEXTE, pas dans la colonne |
   | écart de rapport inexpliqué | 4 | « 2.5 kg de moules », « 12 cl d'huile », « -134 oeufs », « -4600 g de pomme de terre » | l'un des deux chiffres est faux et rien ne dit lequel. Énumérées une par une dans `tests/quantitesSource.test.ts` |
 
+- [ ] **`ING-10` — le double arrondi : « 1,98 gousses d'ail », « 499,98 g de haricots ».**
+  Constaté le 14/09 en lisant quatre fiches du catalogue, trois portaient le défaut.
+
+  **Cause exacte** : `normalizeQty` (`lib/units.ts`, son `round` interne) arrondit à deux
+  décimales une quantité qui est encore **PAR PORTION** ; `import-catalog.ts` et
+  `scripts/reparer-ingredients.ts` la multiplient ensuite par `servings`. L'erreur d'arrondi
+  est donc multipliée par le nombre de portions. « 500 g » devient `83,33 × 6 = 499,98`.
+
+  **Mesuré sur le seed** : **22 328 lignes sur 87 444 (25,5 %)** changent de chiffre pour au
+  moins un nombre de portions entre 2 et 12 ; pire écart absolu **0,06**.
+
+  ⚠️ **Ce n'est pas une régression de `CAT-A`, c'est sa mise en lumière.** Le double arrondi
+  existait depuis l'import ; tant que `servings` valait 1 partout, la fiche affichait la
+  quantité par portion déjà arrondie et personne ne voyait rien.
+
+  ⚠️ **La valeur reste juste à 0,004 %** — ce qui se répare ici n'est pas un chiffre faux,
+  c'est la CONFIANCE : « 4,02 carottes » se lit comme une erreur, et fait douter du reste de
+  la fiche, y compris de ce qui est exact.
+
+  Le correctif n'est **pas** d'une ligne : `normalizeQty` arrondit en interne et ne rend que
+  deux décimales. Il faut lui faire porter la précision jusqu'au point d'écriture, et
+  n'arrondir qu'une fois, après la multiplication. Les deux écrivains partagent la formule —
+  les corriger séparément les ferait diverger au build suivant.
+
+- [ ] **Deux doublons dans la bibliothèque PERSO de Marc** — « Fusilli à la crème champignons
+  et poulet » y figure deux fois (`mes-recettes` #1 et #8, mêmes ingrédients). `CAT-E` ne
+  dédoublonne que le CATALOGUE : la bibliothèque perso n'a jamais été balayée. Deux recettes
+  seulement sur quinze, mais le mécanisme existe déjà (`lib/menageCatalogue.ts`) et ne
+  demanderait qu'une source d'entrée différente. ⚠️ Ne rien supprimer sans l'accord de Marc :
+  ce sont SES recettes, pas du catalogue importé.
+
 ## Écarté volontairement
 
 - [x] ~~Recherche dans la bibliothèque perso~~ — **écarté par Marc le 17/08**. Le catalogue
