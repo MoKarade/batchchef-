@@ -8,6 +8,72 @@
 
 ## En cours / décidé, pas encore livré
 
+### Chantier SEMAINE (demandé par Marc le 21/08) — pas encore cadré
+
+Deux demandes qui n'en font qu'une : **classer les recettes**, puis **s'en servir pour
+proposer une semaine**. La seconde ne vaut rien sans la première.
+
+- [ ] **`SEM-01` — classer les recettes : type de plat, régime, effort.**
+
+  ⚠️ **Rien de tout ça n'est dans le seed.** Mesuré au chantier catalogue : `difficulty`,
+  `meal_type`, `calories` et `tags_json` sont **NULL sur les 10 188 recettes**. Il n'y a rien
+  à importer — tout doit être DÉDUIT du titre, des ingrédients et des instructions. C'est
+  d'ailleurs ce que Marc a demandé (« détermine en fonction de ce qu'il y a dans le
+  catalogue »), mais ça change la nature du travail : on produit des ESTIMATIONS, pas des
+  données, et elles se présentent comme telles.
+
+  Les trois axes ne se valent pas, et c'est le point à trancher avant de coder :
+
+  | axe | source | fiabilité |
+  |---|---|---|
+  | **rapide / long** | `prep_minutes` + `cuisson_minutes`, RÉELS et déjà importés (lot `CAT-C`) | mesuré, aucune inférence |
+  | **type de plat** (entrée, plat, dessert, sauce, accompagnement) | titre + ingrédients | heuristique, erreur sans conséquence |
+  | **effort** (simple / élaboré) | nombre d'ingrédients, nombre d'étapes, temps total | heuristique ; à nommer « effort estimé », pas « difficulté » |
+  | **végétarien** | ingrédients | heuristique à PIÈGES : gélatine, bouillon de volaille, anchois d'une sauce Worcestershire, parmesan à la présure |
+  | **sans gluten** | ingrédients | ⚠️ voir ci-dessous |
+
+  ⚠️ **« Sans gluten » n'est pas une catégorie, c'est une affirmation de santé.** Se tromper
+  peut rendre quelqu'un malade. Or l'absence de gluten n'est pas déductible d'une liste
+  d'ingrédients scrapée : « sauce soja » en contient, un cube de bouillon souvent aussi, et
+  la levure chimique dépend de la marque. La règle honnête est ASYMÉTRIQUE — on peut
+  affirmer **« contient du gluten »** quand on le détecte (vrai positif sûr), jamais
+  **« sans gluten »**. Le reste reste « non déterminé ». Même prudence, à un cran en dessous,
+  pour « végétarien ».
+
+  Corollaire de tenue : ces champs sont des DÉRIVÉS du seed, donc ils se recalculent dans la
+  passe de déploiement comme le reste — pas de colonne remplie à la main qu'un import
+  écraserait.
+
+- [ ] **`SEM-02` — quatre recettes proposées chaque semaine, ajustables en parlant.**
+
+  Ce que Marc veut : une proposition hebdomadaire de 4 recettes, qu'il peut modifier en
+  disant à l'assistant ce qu'il aimerait, y compris à partir des ingrédients qu'il a.
+
+  Ce qui existe déjà et qu'il faut RÉUTILISER, pas réécrire : l'assistant fouille la base par
+  outils (`lib/assistant/outils.ts` — `chercher_recettes`, `lire_recette`,
+  `ingredients_les_plus_utilises`), et `chercher_recettes` sait déjà répondre par ingrédients
+  en disant ce qui est COUVERT et ce qui MANQUE. La brique « en fonction des ingrédients »
+  est donc à moitié là.
+
+  Ce qui manque : une notion de SEMAINE persistée (sinon « change celle du mercredi » ne veut
+  rien dire), et un outil d'écriture pour que l'assistant puisse remplacer une proposition.
+
+  ⚠️ **Contrainte mesurée sur le cron hebdomadaire** : le plan Vercel Hobby n'accepte QUE des
+  crons quotidiens — une expression hebdomadaire fait ÉCHOUER le déploiement (vécu par CarAI,
+  « Hobby accounts are limited to daily cron jobs »). Un cron quotidien qui ne fait rien sauf
+  le bon jour, ou GitHub Actions comme pour le poll de CarAI.
+
+  ⚠️ **Prior art à REGARDER, pas à copier** : `WeekPlannerPage.tsx` (647 lignes) existe sur
+  `archive/pre-web-2026-04-24` — un planificateur hebdomadaire à glisser-déposer, créneaux
+  midi/soir/snack, de la V3. Autre pile (React Query, dnd-kit, API séparée) et bien plus
+  lourd que ce que Marc demande ici. À ouvrir pour ce qu'il a appris du DOMAINE (créneaux,
+  navigation de semaine), pas pour son code.
+
+  À cadrer avec Marc avant de coder : est-ce 4 recettes pour la semaine (des batchs) ou
+  4 repas datés ? La proposition remplace-t-elle la précédente ou s'archive-t-elle ? Et la
+  proposition doit-elle éviter ce qu'il a déjà cuisiné récemment (l'historique des batchs
+  existe et pourrait servir) ?
+
 ### Chantier CATALOGUE (plan arbitré par Marc le 19/08, un lot par PR)
 
 Audit large des 10 188 recettes fait avant de proposer quoi que ce soit. Ce qui suit est
@@ -194,6 +260,37 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   | premier mot tronqué | 16 | « S (250Ml) De Farine T45 » ← « 2.5 tasses (250ml) de farine T45 » | restaurer 5 lettres n'est plus une troncature ; le budget est à 2 depuis qu'il a transformé « Ail » en « Portail ». La colonne `unit` du seed porte « tasse » (singulier) et le texte « tasses » : la piste existe, elle demande de rouvrir `nomRestaure`, qui a déjà cassé 595 restaurations aujourd'hui |
   | « grandes cuillères » en grammes | 6 | « 1 grandes cuillères d'arôme vanille » → 0,5 g | encore la frontière de mot (le `g` de « grandes ») ; la corriger demande de lire l'unité dans le TEXTE, pas dans la colonne |
   | écart de rapport inexpliqué | 4 | « 2.5 kg de moules », « 12 cl d'huile », « -134 oeufs », « -4600 g de pomme de terre » | l'un des deux chiffres est faux et rien ne dit lequel. Énumérées une par une dans `tests/quantitesSource.test.ts` |
+
+- [ ] **`ING-10` — le double arrondi : « 1,98 gousses d'ail », « 499,98 g de haricots ».**
+  Constaté le 14/09 en lisant quatre fiches du catalogue, trois portaient le défaut.
+
+  **Cause exacte** : `normalizeQty` (`lib/units.ts`, son `round` interne) arrondit à deux
+  décimales une quantité qui est encore **PAR PORTION** ; `import-catalog.ts` et
+  `scripts/reparer-ingredients.ts` la multiplient ensuite par `servings`. L'erreur d'arrondi
+  est donc multipliée par le nombre de portions. « 500 g » devient `83,33 × 6 = 499,98`.
+
+  **Mesuré sur le seed** : **22 328 lignes sur 87 444 (25,5 %)** changent de chiffre pour au
+  moins un nombre de portions entre 2 et 12 ; pire écart absolu **0,06**.
+
+  ⚠️ **Ce n'est pas une régression de `CAT-A`, c'est sa mise en lumière.** Le double arrondi
+  existait depuis l'import ; tant que `servings` valait 1 partout, la fiche affichait la
+  quantité par portion déjà arrondie et personne ne voyait rien.
+
+  ⚠️ **La valeur reste juste à 0,004 %** — ce qui se répare ici n'est pas un chiffre faux,
+  c'est la CONFIANCE : « 4,02 carottes » se lit comme une erreur, et fait douter du reste de
+  la fiche, y compris de ce qui est exact.
+
+  Le correctif n'est **pas** d'une ligne : `normalizeQty` arrondit en interne et ne rend que
+  deux décimales. Il faut lui faire porter la précision jusqu'au point d'écriture, et
+  n'arrondir qu'une fois, après la multiplication. Les deux écrivains partagent la formule —
+  les corriger séparément les ferait diverger au build suivant.
+
+- [ ] **Deux doublons dans la bibliothèque PERSO de Marc** — « Fusilli à la crème champignons
+  et poulet » y figure deux fois (`mes-recettes` #1 et #8, mêmes ingrédients). `CAT-E` ne
+  dédoublonne que le CATALOGUE : la bibliothèque perso n'a jamais été balayée. Deux recettes
+  seulement sur quinze, mais le mécanisme existe déjà (`lib/menageCatalogue.ts`) et ne
+  demanderait qu'une source d'entrée différente. ⚠️ Ne rien supprimer sans l'accord de Marc :
+  ce sont SES recettes, pas du catalogue importé.
 
 ## Écarté volontairement
 
