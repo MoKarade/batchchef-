@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import { Durees } from "@/components/Durees";
 import { ImageRecette } from "@/components/ImageRecette";
 import { creerBatchDepuisSemaine, remplacerRecetteSemaine } from "@/lib/actions";
+import { LIBELLES, type TypePlat } from "@/lib/typePlat";
 
 export interface RecetteProposee {
   catalogRecipeId: number;
@@ -22,6 +23,7 @@ export interface RecetteProposee {
   prepMinutes: number | null;
   cuissonMinutes: number | null;
   position: number;
+  type: TypePlat | null;
 }
 
 export function SemaineProposee({
@@ -83,7 +85,7 @@ export function SemaineProposee({
     <section className="carte space-y-3 p-4">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-lg font-semibold">Ta semaine</h2>
-        <span className="text-xs doux">Quatre idées à cuisiner</span>
+        <span className="text-xs doux">Trois plats et un dessert</span>
       </div>
 
       <ul className="grid gap-3 sm:grid-cols-2">
@@ -113,6 +115,7 @@ export function SemaineProposee({
                 >
                   {r.titre}
                 </Link>
+                {r.type && <div className="mt-1 text-xs doux">{LIBELLES[r.type]}</div>}
                 <div className="mt-1 text-xs">
                   <Durees prep={r.prepMinutes} cuisson={r.cuissonMinutes} />
                 </div>
@@ -143,6 +146,14 @@ export function SemaineProposee({
         <Link href={`/batchs/${batchCree}`} className="bouton bouton-principal block w-full text-center">
           Batch créé — voir la liste d’épicerie
         </Link>
+      )}
+
+      {recettes.length < 4 && (
+        <p className="text-sm doux">
+          {4 - recettes.length} place(s) non pourvue(s) : le catalogue n’a pas de quoi compléter
+          la semaine sous cette composition. Mieux vaut une place vide qu’une recette qui ment
+          sur ce qu’elle est.
+        </p>
       )}
 
       {erreur && <p className="text-sm texte-erreur">{erreur}</p>}

@@ -775,3 +775,42 @@ ici, c'est l'`ignoreCommand` qui a fait son travail sur un commit de docs seules
 derniers merges de `master` sont dans ce cas. Ce qui se vérifie après un merge qui touche du
 CODE, c'est donc qu'un déploiement a été **créé ET construit**, pas seulement qu'il existe
 une ligne récente.
+
+## 14/09/2026 — le type de plat (`SEM-01`)
+
+**Un classificateur se met au point sur un ÉCHANTILLON LU, pas sur une idée de ce que le
+corpus contient.** Trois règles du module y sont nées, et aucune n'aurait été écrite sans
+avoir regardé des titres réels :
+
+1. « Porc **sauce** aigre douce » sortait en SAUCE. Un mot de famille doit OUVRIR le titre
+   (article toléré) pour les familles dont le mot peut qualifier un accompagnement. ⚠️ Et la
+   première version de cette règle comptait en CARACTÈRES : « Porc sauce » et « Ma sauce »
+   commencent au même caractère, donc tout premier mot de quatre lettres devenait un article.
+   C'est le test qui l'a imposé — la règle se compte en MOTS, avec une liste d'articles.
+2. « **Flan** de thon provençal » sortait en DESSERT. Un mot qui sert des deux côtés de la
+   cuisine française n'appartient à aucune famille : il devient ambigu et ce sont les
+   ingrédients qui tranchent. Cinq autres sont arrivés là par le même chemin (verrine, toast,
+   terrine, crumble, clafoutis).
+3. « **Frites de cookie** » sortait en ACCOMPAGNEMENT. Un camp sucré franc l'emporte sur une
+   famille salée nommée par le titre. ⚠️ L'inverse n'est PAS vrai : beurre, oeufs et une
+   pointe de sel sont des faux amis dans une pâtisserie, donc un dessert nommé comme tel
+   reste un dessert.
+
+**`NFD` ne décompose pas les ligatures, et « bœuf » devenait « b uf ».** Sur un corpus
+français où le boeuf est partout, le marqueur salé disparaissait de toutes ces recettes. Le
+défaut est invisible à la relecture — la chaîne a l'air normalisée — et c'est un test
+d'égalité sur `comparable()` qui l'a sorti. Tout ce qui normalise du français remplace `œ` et
+`æ` AVANT `normalize("NFD")`.
+
+⚠️ **Une mutation qui ne fait pas ce qu'on croit ne prouve rien.** Pour éprouver la règle des
+mots ambigus, j'ai retiré « flan » de la liste des ambigus — et les 25 tests sont restés
+verts. Normal : le mot ne matchait alors plus rien du tout, et les ingrédients tranchaient
+quand même. La VRAIE mutation était de le remettre chez les desserts, et elle a bien rougi.
+Une mutation se relit comme du code : « est-ce que je viens d'écrire la règle inverse, ou
+juste de supprimer la règle ? »
+
+**Une couverture n'est pas une exactitude, et les deux se publient séparément.** 91,4 % dit
+combien de recettes reçoivent un type ; 54/56 dit combien le reçoivent JUSTE, et ce second
+chiffre exige de lire des titres un par un. Publier le premier seul laisserait croire que
+91,4 % sont bien classées. ⚠️ Et 56 est un petit échantillon : le chiffre ne se recopie pas
+sans sa taille, sinon il devient « 96 % » dans six mois, sans marge et sans date.

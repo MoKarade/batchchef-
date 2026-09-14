@@ -7,6 +7,8 @@ import { formatQty } from "@/lib/aggregate";
 import { AddToLibraryButton } from "@/components/AddToLibraryButton";
 import { Durees } from "@/components/Durees";
 import { ImageRecette } from "@/components/ImageRecette";
+import { TypePlatEditeur } from "@/components/TypePlatEditeur";
+import { estTypePlat, typeEffectif } from "@/lib/typePlat";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,21 @@ export default async function CatalogueDetailPage({
     .from(schema.catalogIngredients)
     .where(eq(schema.catalogIngredients.catalogRecipeId, id));
 
+  // La correction de Marc l'emporte sur l'estimation. ⚠️ Elle est indexée par `source_url`,
+  // pas par l'id : une réimportation du catalogue change les ids, jamais les URL.
+  const correction = recipe.sourceUrl
+    ? (
+        await db
+          .select({ type: schema.typeCorrections.type })
+          .from(schema.typeCorrections)
+          .where(eq(schema.typeCorrections.sourceUrl, recipe.sourceUrl))
+      )[0]
+    : undefined;
+  const { type, corrige } = typeEffectif(
+    estTypePlat(recipe.typeEstime) ? recipe.typeEstime : null,
+    correction ? { type: estTypePlat(correction.type) ? correction.type : null } : null,
+  );
+
   return (
     <article className="space-y-5">
       <Link href="/catalogue" className="text-sm underline">← Catalogue</Link>
@@ -38,6 +55,8 @@ export default async function CatalogueDetailPage({
       </div>
 
       <Durees prep={recipe.prepMinutes} cuisson={recipe.cuissonMinutes} />
+
+      <TypePlatEditeur catalogRecipeId={recipe.id} type={type} corrige={corrige} />
 
       <section>
         <h2 className="mb-2 font-semibold">Ingrédients (pour {recipe.servings} portion{recipe.servings > 1 ? "s" : ""})</h2>

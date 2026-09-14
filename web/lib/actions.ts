@@ -18,6 +18,7 @@ import { splitNewCatalogRecipes } from "@/lib/catalogSelect";
 import { MAX_TRANSCRIPT_CHARS } from "@/lib/transcription";
 import { estOrigine, formatDateAjout, type OrigineRecette } from "@/lib/origine";
 import { remplacerPosition, semaineCourante } from "@/lib/semaineDb";
+import { estTypePlat, type TypePlat } from "@/lib/typePlat";
 import {
   clampServings,
   normaliserImage,
@@ -939,6 +940,45 @@ export async function creerBatchDepuisSemaine(): Promise<ActionResult & { id?: n
     revalidatePath("/");
     revalidatePath("/batchs");
     return batch;
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Corrige le type d'une recette du catalogue (SEM-01). `null` = « aucune de ces familles ».
+ *
+ * ⚠️ La correction est indexée par `source_url`, jamais par l'id : `npm run catalog:import`
+ * reconstruit le catalogue et change les ids. Une correction indexée par id disparaîtrait à
+ * la première réimportation, sans la moindre erreur.
+ *
+ * ⚠️ Une recette du catalogue SANS source ne peut pas être corrigée — et on le DIT, plutôt
+ * que d'accepter le clic et de perdre la correction en silence.
+ */
+export async function corrigerTypeRecette(
+  catalogRecipeId: number,
+  type: TypePlat | null,
+): Promise<ActionResult> {
+  try {
+    await requireSession();
+    if (type !== null && !estTypePlat(type)) return { ok: false, error: "Type inconnu." };
+    const [recette] = await db
+      .select({ sourceUrl: schema.catalogRecipes.sourceUrl })
+      .from(schema.catalogRecipes)
+      .where(eq(schema.catalogRecipes.id, catalogRecipeId));
+    if (!recette) return { ok: false, error: "Cette recette n'existe plus." };
+    if (!recette.sourceUrl) {
+      return { ok: false, error: "Cette recette n'a pas de source : sa correction ne survivrait pas." };
+    }
+
+    await db
+      .insert(schema.typeCorrections)
+      .values({ sourceUrl: recette.sourceUrl, type })
+      .onConflictDoUpdate({ target: schema.typeCorrections.sourceUrl, set: { type } });
+
+    revalidatePath("/catalogue");
+    revalidatePath(`/catalogue/${catalogRecipeId}`);
+    return { ok: true };
   } catch (err) {
     return fail(err);
   }

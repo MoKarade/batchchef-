@@ -12,6 +12,7 @@
 import { and, eq, inArray, ne, notInArray, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import {
+  COMPOSITION,
   RECETTES_PAR_SEMAINE,
   TAILLE_PRESELECTION,
   choisirQuatre,
@@ -19,6 +20,7 @@ import {
   semaineISO,
   type CandidateSemaine,
 } from "@/lib/semaine";
+import { estRepas, estTypePlat, type TypePlat } from "@/lib/typePlat";
 
 export interface RecetteSemaine {
   catalogRecipeId: number;
@@ -27,6 +29,8 @@ export interface RecetteSemaine {
   prepMinutes: number | null;
   cuissonMinutes: number | null;
   position: number;
+  /** Type effectif (correction de Marc, sinon estimation). `null` = non déterminé. */
+  type: TypePlat | null;
 }
 
 export interface SemaineAffichee {
@@ -53,17 +57,28 @@ async function dejaCuisinees(): Promise<number[]> {
  * la suivante — sans rien persister pour ça.
  */
 async function candidates(graine: string, exclues: readonly number[]): Promise<CandidateSemaine[]> {
+  // ⚠️ Le type EFFECTIF, pas l'estimation : une recette que Marc a corrigée doit être tirée
+  // sous sa nouvelle famille. Et on ne présélectionne QUE ce qui peut être proposé (plats,
+  // soupes, salades, desserts) — tirer des sauces pour les jeter ensuite gaspillerait la
+  // présélection et laisserait des places vides.
+  const typeSql = sql<string | null>`coalesce(${schema.typeCorrections.type}, ${schema.catalogRecipes.typeEstime})`;
+  const proposable = sql`coalesce(${schema.typeCorrections.type}, ${schema.catalogRecipes.typeEstime}) in ('plat','soupe','salade','dessert')`;
   const base = db
     .select({
       id: schema.catalogRecipes.id,
       titre: schema.catalogRecipes.title,
       prepMinutes: schema.catalogRecipes.prepMinutes,
       cuissonMinutes: schema.catalogRecipes.cuissonMinutes,
+      type: typeSql,
     })
-    .from(schema.catalogRecipes);
-  const pre = await (exclues.length > 0
-    ? base.where(notInArray(schema.catalogRecipes.id, [...exclues]))
-    : base)
+    .from(schema.catalogRecipes)
+    .leftJoin(schema.typeCorrections, eq(schema.typeCorrections.sourceUrl, schema.catalogRecipes.sourceUrl));
+  const pre = await base
+    .where(
+      exclues.length > 0
+        ? and(proposable, notInArray(schema.catalogRecipes.id, [...exclues]))
+        : proposable,
+    )
     .orderBy(sql`md5(${graine} || ${schema.catalogRecipes.id}::text)`)
     .limit(TAILLE_PRESELECTION);
   if (pre.length === 0) return [];
@@ -103,6 +118,7 @@ async function candidates(graine: string, exclues: readonly number[]): Promise<C
     titre: r.titre,
     prepMinutes: r.prepMinutes,
     cuissonMinutes: r.cuissonMinutes,
+    type: estTypePlat(r.type) ? r.type : null,
     distinctifs: [
       ...new Set(
         ings.filter((i) => i.recette === r.id && !communs.has(i.canonical)).map((i) => i.canonical),
@@ -121,12 +137,14 @@ async function lire(semaine: string): Promise<RecetteSemaine[]> {
       imageUrl: schema.catalogRecipes.imageUrl,
       prepMinutes: schema.catalogRecipes.prepMinutes,
       cuissonMinutes: schema.catalogRecipes.cuissonMinutes,
+      type: sql<string | null>`coalesce(${schema.typeCorrections.type}, ${schema.catalogRecipes.typeEstime})`,
     })
     .from(schema.weekPicks)
     .innerJoin(schema.catalogRecipes, eq(schema.catalogRecipes.id, schema.weekPicks.catalogRecipeId))
+    .leftJoin(schema.typeCorrections, eq(schema.typeCorrections.sourceUrl, schema.catalogRecipes.sourceUrl))
     .where(eq(schema.weekPicks.semaine, semaine))
     .orderBy(schema.weekPicks.position);
-  return rows;
+  return rows.map((r) => ({ ...r, type: estTypePlat(r.type) ? r.type : null }));
 }
 
 /**
@@ -193,6 +211,12 @@ export async function remplacerPosition(
   if (!cible) return { ok: false, error: "Position introuvable dans la semaine." };
 
   const gardees = actuelles.filter((r) => r.position !== position).map((r) => r.catalogRecipeId);
+  // ⚠️ La place a un RÔLE : remplacer le dessert doit rendre un dessert, remplacer un plat un
+  // plat. Sans ça, « Remplacer » sur la quatrième carte transformerait la semaine en quatre
+  // plats sans que rien ne le dise.
+  const roleAttendu = (p: number): ((t: TypePlat | null) => boolean) =>
+    p >= COMPOSITION.repas ? (t) => t === "dessert" : estRepas;
+  const admis = roleAttendu(position);
   const exclues = [...new Set([...(await dejaCuisinees()), ...gardees, ...actuelles.map((r) => r.catalogRecipeId)])];
   // La graine change à chaque remplacement, sinon le bouton rendrait toujours la même.
   const graine = `${semaine}:${position}:${Date.now()}`;
@@ -206,9 +230,19 @@ export async function remplacerPosition(
         : sql`false`,
     );
   const pris = new Set(distinctifsGardes.map((d) => d.canonical));
+  const compatibles = dispo.filter((c) => admis(c.type));
   const remplacante =
-    dispo.find((c) => c.distinctifs.length > 0 && !c.distinctifs.some((d) => pris.has(d))) ?? dispo[0];
-  if (!remplacante) return { ok: false, error: "Plus aucune recette à proposer." };
+    compatibles.find((c) => c.distinctifs.length > 0 && !c.distinctifs.some((d) => pris.has(d))) ??
+    compatibles[0];
+  if (!remplacante) {
+    return {
+      ok: false,
+      error:
+        position >= COMPOSITION.repas
+          ? "Plus aucun dessert à proposer."
+          : "Plus aucun plat à proposer.",
+    };
+  }
 
   await db
     .update(schema.weekPicks)
