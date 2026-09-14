@@ -999,3 +999,41 @@ un contrat public oblige tous ses lecteurs à le connaître. La bonne forme éta
 conversion NON arrondie dans une fonction privée, et d'en exposer deux entrées qui
 n'appliquent pas la même politique d'arrondi — zéro test touché, et une seule table de
 facteurs.
+
+---
+
+## 2026-09-14 — Le chantier n'existait pas : le bouton était déjà là, et mon entrée de backlog était fausse sur deux points
+
+Marc a donné le feu vert pour les deux doublons de sa bibliothèque perso. Avant d'écrire une
+ligne, j'ai re-mesuré ce que l'entrée du backlog affirmait — et **deux de ses trois
+affirmations n'ont pas tenu**, alors que je l'avais écrite moi-même quelques jours plus tôt.
+
+**« Deux recettes seulement sur quinze. »** La bibliothèque en compte **quatorze** : les ids
+vont de 1 à 15 mais #10 n'existe plus. J'avais lu une PLAGE D'IDS comme un compte — le
+chiffre d'à côté, déjà dans le log de build (« sur 14 recettes »), disait l'inverse depuis
+des semaines. Recensement refait : #1 et #8 sont la SEULE paire en double des quatorze,
+identiques au caractère près.
+
+**« Le mécanisme existe déjà (`lib/menageCatalogue.ts`) et ne demanderait qu'une source
+d'entrée différente. »** Faux, et c'est la partie utile. `retraitsCatalogue` groupe par titre
++ signature d'ingrédients, puis désigne l'exemplaire CONSERVÉ **par son URL** — un critère
+choisi précisément pour être stable et indépendant des ids de production. Or ces deux lignes
+partagent leur URL : l'outil ne peut ni les distinguer ni nommer celle qu'il garde. Un
+mécanisme « réutilisable » se juge sur la CLÉ qu'il emploie, jamais sur ce qu'il fait en
+gros.
+
+**Et le chantier lui-même n'existait pas.** Le bouton « Supprimer » est sur la fiche depuis
+toujours (`DeleteRecipeButton` → `deleteRecipe`), avec le refus honnête quand un batch
+utilise la recette (clé étrangère `restrict`). Ce que j'allais proposer de construire — une
+passe de suppression au déploiement — n'aurait fait que retirer à Marc le seul geste qui lui
+restait sur SES données. Il a tranché pour le clic.
+
+⚠️ **La règle, déjà écrite ici et re-payée** : vérifier qu'une tâche n'est pas DÉJÀ faite
+avant de la planifier. La variante du jour est plus discrète que les précédentes — ce n'était
+pas un fichier que j'allais réécrire, c'était une *capacité produit* qui existait, et que
+mon entrée de backlog ne mentionnait pas.
+
+⚠️ **Ce que je ne peux PAS mesurer se dit aussi.** Lequel des deux exemplaires garder dépend
+de leur provenance (`lib/origine.ts`), et ni le serveur MCP ni le seed ne l'exposent : la
+fiche l'affiche, moi non. Une recommandation qui aurait choisi « garde le plus petit id »
+aurait eu l'air informée sans l'être.
