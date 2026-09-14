@@ -259,6 +259,35 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   ⚠️ **Une recette sans durée ne vaut pas 0 minute** dans le temps de la semaine : elle sort
   du total et son titre est nommé (`tempsSemaine`, pur). 224 recettes sur 10 188 n'ont aucune
   durée dans la source.
+- **L'assistant PROPOSE un changement de semaine, Marc l'applique** (`SEM-03`, arbitrage de
+  Marc du 14/09 — il a écarté l'application directe). Le marqueur `[semaine 3 ← catalogue
+  #482]` devient un BOUTON, comme `[catalogue #482]` devient une carte : même mécanisme, même
+  sévérité. ⚠️ **Tolérant sur la FORME** (flèche `←`, `<-`, `->` ou absente, `#` optionnel,
+  casse ignorée — un modèle varie et jeter une proposition juste priverait Marc du bouton),
+  **strict sur le FOND** : une place hors de 1-4 ne produit AUCUNE carte et le marqueur reste
+  du texte. Un bouton vers la cinquième place d'une semaine qui en compte quatre est une
+  promesse creuse.
+  ⚠️ **Les places se disent de 1 à 4, la base compte de 0**, et `positionEnBase` est le SEUL
+  endroit où la conversion se fait. Un décalage d'un cran remplacerait silencieusement une
+  recette que Marc voulait garder.
+  ⚠️ **La composition « 3 plats + 1 dessert » peut être cassée, mais jamais en silence**
+  (arbitrage de Marc) : le clic VAUT demande explicite, donc la carte affiche l'avertissement
+  AVANT — elle ne peut valoir demande explicite que si Marc sait ce qu'il demande. Le serveur
+  ne refuse pas le rôle ; il refuse une place inexistante et une recette absente du catalogue,
+  parce que l'identifiant vient d'un modèle et que la Server Action est un point d'entrée POST
+  atteignable sans passer par le chat.
+  ⚠️ **L'outil `lire_semaine` LIT, il ne fabrique jamais.** `semaineCourante` crée la
+  proposition quand elle manque (delete + insert) : appelée depuis un outil, elle fabriquerait
+  la semaine de Marc au détour d'une question et effacerait la précédente. Même règle que pour
+  le hub, pour la même raison.
+  ⚠️ **Le prompt et le parseur doivent parler du MÊME marqueur**, et leur divergence ne lève
+  RIEN — l'assistant répond bien, aucun bouton n'apparaît jamais. `tests/semaineAssistant.test.ts`
+  extrait le gabarit ÉCRIT dans le prompt et le fait parser pour de vrai.
+  ⚠️ **Regénérer la semaine entière change de GRAINE** (`${semaine}:regen:${Date.now()}`) :
+  `choisirQuatre` est déterministe par conception, donc rejouer sur la graine de la semaine
+  rendrait les quatre mêmes recettes et le bouton aurait l'air cassé. Le retrait et la pose
+  sont dans la même transaction, et l'écran demande une CONFIRMATION — un clic qui efface
+  quatre choix faits un par un mérite un second geste.
 - **Fonctions pures testées** pour la logique (agrégation, mise à l'échelle, prix, jetons,
   ingrédients de fond, protocole de l'assistant).
 - **Planchers de version, jamais redescendus.** `drizzle-orm ≥ 0.45.2` (injection SQL par

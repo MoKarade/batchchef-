@@ -4,6 +4,8 @@
 // d'outils, mise en forme des résultats. La boucle d'appels et les requêtes SQL vivent à
 // côté (`boucle.ts`, `outils.ts`), et c'est ce découpage qui rend l'assistant vérifiable.
 
+import { RECETTES_PAR_SEMAINE } from "@/lib/semaine";
+
 export type Role = "user" | "assistant";
 
 export interface Message {
@@ -158,9 +160,24 @@ export interface ReferenceRecette {
   id: number;
 }
 
+/**
+ * Une PROPOSITION de remplacement dans la semaine (SEM-03) : « mets celle-là à la place 3 ».
+ *
+ * ⚠️ La position est celle que Marc DIT — 1 à 4, comme « le troisième ». Les positions en
+ * base sont 0 à 3. La conversion se fait à UN seul endroit (`positionEnBase`) : un décalage
+ * d'un cran ici remplacerait silencieusement la mauvaise recette, et rien à l'écran ne le
+ * dirait.
+ */
+export interface PropositionSemaine {
+  /** 1 à 4, tel que Marc le dit. */
+  place: number;
+  id: number;
+}
+
 export type Segment =
   | { type: "texte"; valeur: string }
-  | { type: "reference"; source: "catalogue" | "mes-recettes"; id: number; brut: string };
+  | { type: "reference"; source: "catalogue" | "mes-recettes"; id: number; brut: string }
+  | { type: "proposition"; place: number; id: number; brut: string };
 
 /**
  * Tolérante sur la FORME, stricte sur le FOND : le « # » est optionnel, les espaces aussi,
@@ -168,25 +185,76 @@ export type Segment =
  * priverait Marc de la carte. Mais la source doit être l'une des deux connues, et l'id un
  * entier : on ne devine pas.
  */
-const MOTIF_REFERENCE = /\[\s*(catalogue|mes-recettes)\s*#?\s*(\d+)\s*\]/gi;
+/**
+ * Les DEUX marqueurs dans un seul balayage, pour que l'ordre du texte soit préservé et
+ * qu'aucun ne mange l'autre. La proposition passe en premier dans l'alternance : elle
+ * contient le mot « semaine », donc elle ne peut pas être confondue avec une référence nue.
+ *
+ * La flèche est OPTIONNELLE et accepte ses trois graphies — un modèle écrit « ← », « <- »
+ * ou rien du tout, et jeter une proposition juste pour un caractère priverait Marc du
+ * bouton. La PLACE et l'ID, eux, doivent être des entiers.
+ */
+const MOTIF_MARQUEURS =
+  /\[\s*semaine\s*(\d+)\s*(?:←|<-|<—|→|->)?\s*catalogue\s*#?\s*(\d+)\s*\]|\[\s*(catalogue|mes-recettes)\s*#?\s*(\d+)\s*\]/gi;
 
-/** Découpe une réponse en texte et références, dans l'ordre, sans rien perdre. */
+/**
+ * Découpe une réponse en texte, références et propositions, dans l'ordre, sans rien perdre.
+ *
+ * ⚠️ STRICT sur le FOND : une place hors de la semaine ne produit AUCUNE carte, et le
+ * marqueur reste alors du texte brut. Un bouton qui viserait la cinquième place d'une
+ * semaine qui en compte quatre est exactement le genre de promesse creuse que le reste de
+ * l'app refuse.
+ */
 export function decouperReponse(texte: string): Segment[] {
   const segments: Segment[] = [];
   let curseur = 0;
-  for (const trouve of texte.matchAll(MOTIF_REFERENCE)) {
+  for (const trouve of texte.matchAll(MOTIF_MARQUEURS)) {
     const debut = trouve.index ?? 0;
+    const estProposition = trouve[1] !== undefined;
+    const place = estProposition ? Number(trouve[1]) : 0;
+    // Une place hors de la semaine : on laisse le marqueur en texte plutôt que d'offrir un
+    // bouton qui ne mène nulle part.
+    if (estProposition && (place < 1 || place > RECETTES_PAR_SEMAINE)) continue;
+
     if (debut > curseur) segments.push({ type: "texte", valeur: texte.slice(curseur, debut) });
-    segments.push({
-      type: "reference",
-      source: trouve[1]!.toLowerCase() === "catalogue" ? "catalogue" : "mes-recettes",
-      id: Number(trouve[2]),
-      brut: trouve[0],
-    });
+    segments.push(
+      estProposition
+        ? { type: "proposition", place, id: Number(trouve[2]), brut: trouve[0] }
+        : {
+            type: "reference",
+            source: trouve[3]!.toLowerCase() === "catalogue" ? "catalogue" : "mes-recettes",
+            id: Number(trouve[4]),
+            brut: trouve[0],
+          },
+    );
     curseur = debut + trouve[0].length;
   }
   if (curseur < texte.length) segments.push({ type: "texte", valeur: texte.slice(curseur) });
   return segments;
+}
+
+/**
+ * La position en BASE (0 à 3) d'une place telle que Marc la dit (1 à 4).
+ *
+ * ⚠️ Le SEUL endroit où la conversion se fait. Recopier `place - 1` ailleurs, c'est se
+ * donner deux chances de se tromper d'un cran — et se tromper d'un cran ici remplace
+ * silencieusement une recette que Marc voulait garder.
+ */
+export function positionEnBase(place: number): number | null {
+  if (!Number.isInteger(place) || place < 1 || place > RECETTES_PAR_SEMAINE) return null;
+  return place - 1;
+}
+
+/** Les propositions d'une réponse, dédoublonnées par place, dans l'ordre d'apparition. */
+export function propositionsDe(texte: string): PropositionSemaine[] {
+  const vues = new Set<number>();
+  const out: PropositionSemaine[] = [];
+  for (const seg of decouperReponse(texte)) {
+    if (seg.type !== "proposition" || vues.has(seg.place)) continue;
+    vues.add(seg.place);
+    out.push({ place: seg.place, id: seg.id });
+  }
+  return out;
 }
 
 /** Les références d'une réponse, dédoublonnées, dans l'ordre d'apparition. */

@@ -919,3 +919,44 @@ install périmée.
 ⚠️ Et le champ reste **requis**, pas optionnel. L'optionnel aurait fait taire le typecheck
 en une seconde — et c'est exactement ce qui laisserait une requête oublier la colonne en
 silence, pour afficher « difficulté non estimée » sur des recettes parfaitement notées.
+
+---
+
+## 2026-09-14 — Deux pièces qui doivent s'accorder, et dont la divergence ne lève rien
+
+`SEM-03` fait dialoguer un **prompt** (qui enseigne au modèle d'écrire
+`[semaine 3 ← catalogue #482]`) et un **parseur** (qui transforme ce marqueur en bouton).
+Le mode de panne n'est pas qu'une des deux soit fausse : c'est qu'elles **divergent**. Et
+cette divergence est parfaitement silencieuse — l'assistant répond bien, le texte s'affiche,
+et aucun bouton n'apparaît plus jamais. Pas d'erreur, pas de test rouge, rien.
+
+Le verrou n'est donc pas un scan (« le prompt contient-il le mot marqueur ? ») mais un test
+d'**accord comportemental** : on extrait le gabarit ÉCRIT dans le prompt, on y substitue une
+place et un identifiant, et on le donne au vrai parseur. La mutation qui le prouve est celle
+qui arriverait vraiment — quelqu'un « améliore » le format du prompt sans toucher au
+parseur. Elle rougit.
+
+**La règle générale** : quand deux pièces doivent s'accorder sur une FORME et qu'aucune ne
+plante si l'accord se rompt, le test prend la forme chez l'une et la fait consommer par
+l'autre. Écrire la forme en dur dans le test recréerait une troisième copie — donc une
+troisième chance de diverger.
+
+⚠️ **Un outil de lecture qui appelle une fonction qui ÉCRIT n'est plus un outil de lecture.**
+`semaineCourante` fabrique la proposition quand elle manque (un `delete` suivi d'un
+`insert`). Branchée sur `lire_semaine`, elle aurait fabriqué la semaine de Marc au détour
+d'une question — et effacé la précédente. Une autre session avait rencontré exactement ça
+quelques heures plus tôt pour la carte du hub, et sa note dans le code est ce qui m'a fait
+regarder. La garde vaut dans les deux sens : l'outil doit appeler `lireSemaine`, et ne
+**jamais** mentionner `semaineCourante`.
+
+⚠️ **Une place qui se dit « 3 » et se stocke « 2 » a besoin d'un seul convertisseur.**
+Marc dit « le troisième », la base compte de 0. Recopier `place - 1` à chaque site, c'est se
+donner autant de chances de se tromper d'un cran — et se tromper d'un cran ici remplace
+silencieusement une recette qu'il voulait garder. `positionEnBase` est le seul endroit, et
+elle refuse tout ce qui n'est pas un entier de 1 à 4.
+
+⚠️ **Un tirage DÉTERMINISTE rend son bouton de rejeu inerte.** La semaine est tirée sur la
+graine `2026-W38` précisément pour ne pas bouger d'un affichage à l'autre. Un bouton
+« propose-m'en quatre autres » qui rejouerait sur cette graine rendrait exactement les mêmes
+quatre recettes : rien ne planterait, le bouton aurait juste l'air cassé. La graine doit
+changer — et c'est ce que la garde vérifie, pas le fait qu'un tirage ait lieu.

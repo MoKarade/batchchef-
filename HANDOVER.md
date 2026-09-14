@@ -21,6 +21,7 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Export Google Tasks | En service |
 | **Assistant** | **Neuf (19/08)** — `/assistant`, Claude fouille la base par outils ; les recettes citées deviennent des cartes cliquables qui s'ouvrent PAR-DESSUS le chat. ⚠️ Éteint si `ANTHROPIC_API_KEY` absente (dit à l'écran, pas une panne) |
 | **Proposition de la semaine** | **Neuve (14/09)** — carte « Ta semaine » sur l'accueil : **3 plats + 1 dessert**, remplaçables un à un, et un bouton qui monte le batch avec sa liste d'épicerie. Fabriquée à l'ouverture de l'app, pas par un cron |
+| **Semaine par l'assistant** | **Neuf (14/09)** — « mets-moi quelque chose avec du poulet à la place du troisième » : l'assistant lit ta semaine, propose, et un bouton dans le chat applique. Plus un « Propose-moi une autre semaine » sur la carte, derrière une confirmation |
 | **Prix, temps et difficulté** | **Neuf (14/09)** — la carte « Ta semaine » annonce le temps total et le prix estimé de l'épicerie ; chaque recette porte une note de difficulté en étoiles (1 à 5), partout où elle s'affiche |
 | **Type de plat** | **Neuf (14/09)** — sept familles déduites du titre et des ingrédients (91,4 % de couverture, 54/56 sur un échantillon jugé). Filtre dans le catalogue, étiquette « estimé » sur les fiches, correction manuelle qui survit au recalcul |
 | Widget hub | `GET /api/hub/summary`, contrat `@mokarade/hub-contract` |
@@ -29,9 +30,27 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **515 tests**, 37 fichiers (14/09/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **546 tests**, 38 fichiers (14/09/2026).
 
 ## Ce qui vient d'être livré (14/09/2026)
+
+- **`SEM-03` — changer la semaine en parlant.** L'assistant voit ta semaine (`lire_semaine`),
+  propose un remplacement par un marqueur qui devient un **bouton**, et c'est toi qui cliques.
+  La carte dit ce qu'elle remplace, et **avertit quand elle casse la composition** « trois
+  plats et un dessert » — ton clic vaut demande explicite, il ne peut la valoir que si tu sais
+  ce que tu demandes.
+
+  ⚠️ **Le chat vit sur `/assistant`, la carte sur l'accueil** : après un clic tu ne verras
+  rien bouger. Le bouton devient « X est posée à la place N de ta semaine » — c'est la seule
+  confirmation que tu auras.
+
+  ⚠️ **L'outil LIT, il ne fabrique jamais la semaine.** `semaineCourante` la crée quand elle
+  manque : appelée depuis un outil, elle la fabriquerait au détour d'une question et effacerait
+  la précédente.
+
+- **Regénérer la semaine entière** (demandé en cours de lot). Bouton « Propose-moi une autre
+  semaine », derrière une **confirmation** : les quatre partent et ne reviennent pas. La graine
+  change à chaque appel, sinon le tirage déterministe rendrait les quatre mêmes recettes.
 
 - **`SEM-05` — prix, temps et difficulté.** La carte « Ta semaine » porte maintenant trois
   chiffres : le **temps total** de cuisine, le **prix estimé** de l'épicerie, et une note de

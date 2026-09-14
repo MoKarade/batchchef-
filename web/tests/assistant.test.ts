@@ -16,6 +16,8 @@ import {
   validerMessage,
   type Message,
   type RecetteTrouvee,
+  positionEnBase,
+  propositionsDe,
 } from "../lib/assistant/protocole";
 import { MAX_CARACTERES_RESULTAT, bornerResultat, idRecette } from "../lib/assistant/outils";
 
@@ -177,6 +179,71 @@ describe("decouperReponse", () => {
 
   it("gère une réponse vide", () => {
     expect(decouperReponse("")).toEqual([]);
+  });
+});
+
+describe("propositions de remplacement dans la semaine (SEM-03)", () => {
+  it("repère une proposition et garde le texte autour", () => {
+    const segs = decouperReponse("Je te propose [semaine 3 ← catalogue #482] à la place.");
+    expect(segs).toEqual([
+      { type: "texte", valeur: "Je te propose " },
+      { type: "proposition", place: 3, id: 482, brut: "[semaine 3 ← catalogue #482]" },
+      { type: "texte", valeur: " à la place." },
+    ]);
+  });
+
+  it("tolère les trois graphies de flèche, et son absence", () => {
+    // Un modèle écrit « ← », « <- », ou rien : jeter une proposition juste pour un
+    // caractère priverait Marc de son bouton.
+    for (const brut of [
+      "[semaine 2 ← catalogue #9]",
+      "[semaine 2 <- catalogue #9]",
+      "[semaine 2 catalogue 9]",
+      "[ SEMAINE 2 -> CATALOGUE # 9 ]",
+    ]) {
+      expect(propositionsDe(brut), brut).toEqual([{ place: 2, id: 9 }]);
+    }
+  });
+
+  it("⚠️ une place HORS de la semaine ne produit AUCUNE carte", () => {
+    // Un bouton qui viserait la cinquième place d'une semaine qui en compte quatre est une
+    // promesse creuse. Le marqueur reste alors du texte brut, il ne disparaît pas.
+    expect(propositionsDe("[semaine 5 ← catalogue #9]")).toEqual([]);
+    expect(propositionsDe("[semaine 0 ← catalogue #9]")).toEqual([]);
+    const segs = decouperReponse("avant [semaine 9 ← catalogue #1] après");
+    expect(segs).toEqual([{ type: "texte", valeur: "avant [semaine 9 ← catalogue #1] après" }]);
+  });
+
+  it("une proposition n'est pas confondue avec une référence simple", () => {
+    const segs = decouperReponse("[catalogue #1] et [semaine 2 ← catalogue #3]");
+    expect(segs.filter((x) => x.type === "reference")).toHaveLength(1);
+    expect(segs.filter((x) => x.type === "proposition")).toHaveLength(1);
+  });
+
+  it("ne perd aucun caractère, marqueurs mélangés", () => {
+    const texte = "A [catalogue #1] B [semaine 4 ← catalogue #2] C [mes-recettes #3] D";
+    const recompose = decouperReponse(texte)
+      .map((x) => (x.type === "texte" ? x.valeur : x.brut))
+      .join("");
+    expect(recompose).toBe(texte);
+  });
+
+  it("dédoublonne PAR PLACE : deux propositions pour la même place, la première gagne", () => {
+    // Sinon un clic poserait une recette et le suivant une autre, sur la même place, sans
+    // que rien ne dise laquelle a gagné.
+    expect(propositionsDe("[semaine 1 ← catalogue #5] puis [semaine 1 ← catalogue #6]")).toEqual([
+      { place: 1, id: 5 },
+    ]);
+  });
+
+  it("⚠️ positionEnBase convertit la place DITE en position de base, à UN seul endroit", () => {
+    // Marc dit « le troisième » ; la base compte de 0. Un décalage d'un cran remplacerait
+    // silencieusement une recette qu'il voulait garder.
+    expect(positionEnBase(1)).toBe(0);
+    expect(positionEnBase(4)).toBe(3);
+    expect(positionEnBase(5)).toBeNull();
+    expect(positionEnBase(0)).toBeNull();
+    expect(positionEnBase(2.5)).toBeNull();
   });
 });
 
