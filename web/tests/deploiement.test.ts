@@ -186,6 +186,30 @@ describe("réparation des ingrédients — la passe reste branchée au build", (
     expect((src.match(/await noterDifficulte\(/g) ?? []).length).toBe(2);
   });
 
+  it("⚠️ les DEUX écrivains arrondissent une seule fois, après la multiplication", () => {
+    // `ING-10`. Le catalogue stocke une quantité PAR PORTION ; l'arrondir avant de la
+    // multiplier par `servings` multiplie aussi l'erreur — « 50 g » sur 6 portions donnait
+    // 49,98, « 2 pièces » donnait 1,98. Mesuré : 17 788 lignes sur 73 542 chiffrées.
+    //
+    // ⚠️ Le tripwire vise les DEUX écrivains ensemble, parce que le risque n'est pas qu'un
+    // seul se trompe : c'est qu'ils DIVERGENT. Corrigé d'un seul côté, les deux passes se
+    // défont l'une l'autre à chaque build — exactement ce qui est arrivé au nom (`ING-03`)
+    // et à l'unité (`ING-04`).
+    for (const chemin of ["scripts/import-catalog.ts", "scripts/reparer-ingredients.ts"]) {
+      const src = readFileSync(resolve(process.cwd(), chemin), "utf8")
+        .split("\n")
+        .filter((l) => !l.trimStart().startsWith("//"))
+        .join("\n");
+      expect(src, `${chemin} doit passer par la formule partagée`).toMatch(
+        /normalizeQtyPourPortions\s*\(/,
+      );
+      // Et surtout : plus aucune multiplication maison par le nombre de portions.
+      expect(src, `${chemin} ne doit plus multiplier lui-même`).not.toMatch(
+        /\*\s*servings\s*\*\s*100/,
+      );
+    }
+  });
+
   it("l'import du catalogue répare aussi, sinon il ré-introduirait le défaut", () => {
     // ⚠️ On cherche l'APPEL, pas le nom : une première version de ce test se contentait de
     // `toContain("reparerNom")` et passait au vert alors que l'appel avait été retiré — la

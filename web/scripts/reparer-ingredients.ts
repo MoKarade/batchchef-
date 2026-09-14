@@ -37,7 +37,7 @@ import { nomRestaure, nomSansPrepositionFinale, uniteCorrigee, uniteReelle } fro
 import { noteSourcePerdue, portionsRecette, quantiteCorrigee, rendementRecette } from "../lib/quantitesSource";
 import { tempsCorrige } from "../lib/tempsRecette";
 import { nettoyerTexte } from "../lib/menageTexte";
-import { normalizeQty } from "../lib/units";
+import { normalizeQtyPourPortions } from "../lib/units";
 import { PLAFOND_RETRAITS, retraitsCatalogue, type RecetteCandidate } from "../lib/menageCatalogue";
 import { classerRecette } from "../lib/typePlat";
 import { compterEtapes, estimerDifficulte } from "../lib/difficulte";
@@ -289,8 +289,10 @@ function referenceSeed(sqlite: Sqlite, corr: Map<string, Correction>): Map<strin
     for (const l of lignes) {
       const verdict = quantiteCorrigee({ raw: l.raw, qpp: l.qpp, unite: l.unit }, rendement);
       const qtySource = verdict.corriger ? verdict.qpp : l.qpp;
-      const norm = normalizeQty(qtySource, uniteReelle(l.unit, l.raw), l.raw, l.nom);
-      const qty = norm.qty === null ? null : Math.round(norm.qty * servings * 100) / 100;
+      // ⚠️ UN SEUL arrondi, APRÈS la multiplication (`ING-10`) — même formule que
+      // l'import, parce que deux copies se défont l'une l'autre à chaque build.
+      const norm = normalizeQtyPourPortions(qtySource, uniteReelle(l.unit, l.raw), servings, l.raw, l.nom);
+      const qty = norm.qty;
       const note = noteSourcePerdue(l.raw, qty);
       const cle = reparerCanonique(l.canon.toLowerCase().trim());
       // MÊME règle que la passe des noms/unités : sans ça, l'une écrit `unite` et l'autre

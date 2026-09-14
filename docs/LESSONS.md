@@ -960,3 +960,42 @@ graine `2026-W38` précisément pour ne pas bouger d'un affichage à l'autre. Un
 « propose-m'en quatre autres » qui rejouerait sur cette graine rendrait exactement les mêmes
 quatre recettes : rien ne planterait, le bouton aurait juste l'air cassé. La graine doit
 changer — et c'est ce que la garde vérifie, pas le fait qu'un tirage ait lieu.
+
+---
+
+## 2026-09-14 — Ma première mesure de ING-10 a rendu ZÉRO, et c'est la fixture qui était aveugle
+
+Le ticket disait : le catalogue stocke une quantité PAR PORTION, les écrivains la
+multiplient par `servings`, et l'arrondi appliqué AVANT la multiplication est multiplié lui
+aussi. J'ai écrit le correctif, puis mesuré son effet sur le corpus. Résultat : **0 ligne
+changée sur 84 696**.
+
+Deux lectures possibles, et une seule est flatteuse : « le correctif ne sert à rien » ou
+« ma mesure ne l'atteint pas ». La seconde était la bonne. Je mesurais avec
+`recipe.servings` **du seed**, qui vaut 1 presque partout — or l'app ne s'en sert pas : elle
+recalcule les portions depuis le texte source (`portionsRecette`, lot `CAT-A`). Et **à une
+portion, les deux formules donnent le même résultat par construction** : `round(round(x))`
+vaut `round(x)`. La fixture rendait le défaut mathématiquement invisible.
+
+Re-mesuré avec les portions RÉELLES, celles que les écrivains emploient : **17 788 lignes
+sur 73 542 chiffrées (24,2 %)** changent de valeur, pire écart absolu **0,20**. Et les
+exemples sont exactement le symptôme de départ — « 49,98 g de farine de riz » → 50, « 1,98
+pièces de blanc d'oeuf » → 2, « 4,02 tranches de jambon » → 4.
+
+**La règle générale** : une mesure se fait avec les valeurs que la PRODUCTION emploie, pas
+avec celles que la source porte. Ici les deux existent côte à côte dans la même table, sous
+le même nom — `servings` — et l'une est celle que le code a cessé de croire il y a un mois.
+C'est la variante « mesure » de `UNE-FIXTURE-QUI-SATURE-LA-CONTRAINTE-REND-LA-MESURE-AVEUGLE` :
+le paramètre choisi annulait l'effet cherché, donc l'expérience ne pouvait rien dire.
+
+⚠️ **Et un « 0 » est un résultat à EXPLIQUER, jamais un feu vert.** S'il avait été lu comme
+« le correctif est inerte », le lot serait parti avec une conclusion fausse dans son message
+de commit, et le défaut serait resté au backlog marqué « mesuré, sans effet ».
+
+⚠️ **Deux entrées publiques valent mieux qu'un champ de plus.** Mon premier jet ajoutait
+`qtyExacte` à `NormalizedQty` : le typecheck passait, et **17 assertions** existantes
+tombaient, parce qu'elles comparent la forme complète du retour. Un champ interne poussé dans
+un contrat public oblige tous ses lecteurs à le connaître. La bonne forme était d'extraire la
+conversion NON arrondie dans une fonction privée, et d'en exposer deux entrées qui
+n'appliquent pas la même politique d'arrondi — zéro test touché, et une seule table de
+facteurs.

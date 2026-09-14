@@ -30,9 +30,26 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **546 tests**, 38 fichiers (14/09/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **552 tests**, 38 fichiers (14/09/2026).
 
 ## Ce qui vient d'être livré (14/09/2026)
+
+- **`ING-10` — le double arrondi.** « 49,98 g de farine », « 1,98 pièces de blanc d'oeuf »,
+  « 4,02 tranches de jambon » : le catalogue stockait une quantité par portion **déjà
+  arrondie**, que les deux écrivains multipliaient ensuite par le nombre de portions —
+  l'erreur d'arrondi était donc multipliée elle aussi. Un seul arrondi désormais, et il vient
+  après la multiplication.
+
+  Mesuré sur le corpus : **17 788 lignes sur 73 542 chiffrées (24,2 %)** changent de valeur,
+  pire écart absolu **0,20**.
+
+  ⚠️ **Ce qui se répare n'est pas un chiffre faux, c'est la confiance.** La valeur était juste
+  à une fraction de pour cent près ; mais « 4,02 tranches » se lit comme une erreur et fait
+  douter du reste de la fiche.
+
+  ⚠️ **Au prochain déploiement, la passe de réparation réécrit ces ~17 800 lignes** en
+  production. Idempotent et non destructif — c'est la correction voulue — mais c'est une
+  écriture de masse, et le log la comptera.
 
 - **`SEM-03` — changer la semaine en parlant.** L'assistant voit ta semaine (`lire_semaine`),
   propose un remplacement par un marqueur qui devient un **bouton**, et c'est toi qui cliques.

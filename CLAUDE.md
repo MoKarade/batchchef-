@@ -139,6 +139,21 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   regarde l'unité d'ARRIVÉE, pas le mot.
   ⚠️ Le taux d'un audit ne vaut que par l'AXE qu'il nomme : `ING-06` annonçait 99,85 % en
   ne jugeant que le nom et l'unité. La troisième colonne portait 2 671 lignes fausses.
+- **Un ARRONDI, et il vient APRÈS la multiplication** (`ING-10`, `normalizeQtyPourPortions`).
+  Le catalogue stocke une quantité PAR PORTION que les deux écrivains multiplient ensuite par
+  `servings` : arrondir avant de multiplier multiplie aussi l'erreur. « 50 g » sur 6 portions
+  donnait `8,33 × 6 = 49,98`, « 2 pièces » donnait `1,98`, « 4 tranches » `4,02`. Mesuré le
+  14/09 : **17 788 lignes sur 73 542 chiffrées (24,2 %)** changent, pire écart absolu **0,20**.
+  ⚠️ **Ce qui se répare n'est pas un chiffre faux, c'est la CONFIANCE.** La valeur était juste
+  à une fraction de pour cent ; mais « 4,02 tranches de jambon » se lit comme une erreur et
+  fait douter du reste de la fiche, y compris de ce qui est exact.
+  ⚠️ **Une seule conversion, deux entrées.** `convertir` (privée, sans arrondi) est le seul
+  endroit qui lit la table des facteurs ; `normalizeQty` arrondit tout de suite (affichage,
+  import LLM où la quantité vaut déjà pour la recette entière), `normalizeQtyPourPortions`
+  arrondit après avoir multiplié. Une seconde copie de la conversion divergerait au premier
+  facteur ajouté d'un seul côté — et la moitié des recettes serait convertie autrement que
+  l'autre, sans qu'aucune erreur n'apparaisse. Verrou : `tests/deploiement.test.ts` exige que
+  **les deux** écrivains passent par la formule partagée et qu'aucun ne remultiplie lui-même.
 - **Sel, poivre et eau ne vont jamais sur une liste d'épicerie** (`lib/ingredientsDeFond.ts`).
   AUTOMATIQUE et sans rien à tenir à jour — c'est l'inverse du garde-manger déclaratif, livré
   puis retiré le 17/08 : Marc a refusé de tenir une liste, pas de ne plus acheter de sel.

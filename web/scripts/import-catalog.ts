@@ -13,7 +13,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import initSqlJs from "sql.js";
 import { db, schema } from "../lib/db";
-import { normalizeQty } from "../lib/units";
+import { normalizeQtyPourPortions } from "../lib/units";
 import { reparerCanonique, reparerNom } from "../lib/ingredientsNoms";
 import { tempsCorrige } from "../lib/tempsRecette";
 import { nettoyerTexte } from "../lib/menageTexte";
@@ -114,8 +114,17 @@ async function main() {
         rendement,
       );
       const qtySource = verdict.corriger ? verdict.qpp : numOrNull(ing.qty);
-      const norm = normalizeQty(qtySource, ing.unit as string | null, String(ing.raw_text ?? ""), String(ing.name ?? ""));
-      const total = norm.qty === null ? null : Math.round(norm.qty * servings * 100) / 100;
+      // ⚠️ UN SEUL arrondi, APRÈS la multiplication (`ING-10`) : arrondir la quantité par
+      // portion puis multiplier multipliait aussi l'erreur (« 50 g » sur 6 portions donnait
+      // 49,98). La formule vit dans `lib/units.ts`, partagée avec la passe de réparation.
+      const norm = normalizeQtyPourPortions(
+        qtySource,
+        ing.unit as string | null,
+        servings,
+        String(ing.raw_text ?? ""),
+        String(ing.name ?? ""),
+      );
+      const total = norm.qty;
       ingValues.push({
         catalogRecipeId: newId,
         // ⚠️ Le catalogue V3 livre des noms abîmés (« À Soupe De Persil », « Ousses D'Ail ») :
