@@ -50,6 +50,8 @@ export const recipes = pgTable("recipes", {
   /** Minutes. Renseignées quand la recette vient du catalogue ; `null` sinon. */
   prepMinutes: integer("prep_minutes"),
   cuissonMinutes: integer("cuisson_minutes"),
+  /** Difficulté ESTIMÉE en étoiles, comme au catalogue (SEM-05). Recalculée au déploiement. */
+  difficulteEstimee: integer("difficulte_estimee"),
   titreRecherche: colonneRecherche("titre_recherche", "title"),
 });
 
@@ -131,6 +133,13 @@ export const catalogRecipes = pgTable("catalog_recipes", {
    * écrasé au build suivant. La correction manuelle vit dans `typeCorrections`.
    */
   typeEstime: text("type_estime"),
+  /**
+   * Difficulté ESTIMÉE en étoiles, 1 à 5 (SEM-05), ou `null` quand moins de deux des trois
+   * signaux sont lisibles. DÉRIVÉE du nombre d'ingrédients, du nombre d'étapes et de la
+   * durée — recalculée à chaque déploiement comme `typeEstime` : ne jamais l'écrire à la
+   * main, ce serait écrasé au build suivant. Cf. `lib/difficulte.ts`.
+   */
+  difficulteEstimee: integer("difficulte_estimee"),
   titreRecherche: colonneRecherche("titre_recherche", "title"),
 });
 
@@ -191,6 +200,31 @@ export const weekPicks = pgTable(
   },
   (t) => [unique("week_picks_semaine_position").on(t.semaine, t.position)],
 );
+
+/**
+ * Le prix estimé d'une SEMAINE (SEM-05). Une ligne par semaine, recalculée quand la
+ * composition change.
+ *
+ * ⚠️ `signature` n'est pas décorative : sans elle, remplacer une recette laisserait le prix
+ * de l'ANCIENNE composition à l'écran — un chiffre qui décrit une semaine qui n'existe plus,
+ * et qui a l'exacte apparence d'une mesure. C'est elle qui déclenche le recalcul.
+ *
+ * ⚠️ `methode` distingue « estimé comme le batch » (`llm`) de « filet déterministe seul »
+ * (`filet`, quand l'appel a échoué). L'écran le DIT : les confondre présenterait un tarif
+ * forfaitaire comme une estimation par ingrédient.
+ */
+export const weekEstimations = pgTable("week_estimations", {
+  id: serial("id").primaryKey(),
+  /** Semaine ISO dans le fuseau de Marc, « 2026-W38 ». */
+  semaine: text("semaine").notNull().unique(),
+  /** Les ids du catalogue de la semaine, triés et joints — l'empreinte de la composition. */
+  signature: text("signature").notNull(),
+  /** En CENTS : un entier, pour qu'aucun arrondi ne s'accumule au stockage. */
+  prixCents: integer("prix_cents").notNull(),
+  /** "llm" | "filet" — comment le chiffre a été obtenu. */
+  methode: text("methode").notNull(),
+  calculeLe: timestamp("calcule_le", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // ── Usage LLM (coût API) ─────────────────────────────────────────────────────────
 // Une ligne par appel LLM : tokens consommés + coût USD estimé. Sert au bloc `usage`

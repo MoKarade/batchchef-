@@ -228,6 +228,37 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   ⚠️ Si le RÉGIME revient un jour au programme, la règle du gluten reste **asymétrique** — on
   peut affirmer « contient du gluten » quand on le détecte, jamais « sans gluten ». C'est une
   affirmation de santé, pas une catégorie.
+- **La DIFFICULTÉ est une estimation d'EFFORT, relative au catalogue** (`SEM-05`,
+  `lib/difficulte.ts`, PUR et testé). Cinq étoiles (arbitrage de Marc, 14/09), déduites de
+  trois signaux et de rien d'autre : nombre d'ingrédients, nombre d'étapes, durée totale.
+  `difficulty` est NULL sur les 10 188 recettes du seed, comme `meal_type` et
+  `estimated_cost_per_portion` — il n'y a rien à lire, tout est à déduire.
+  ⚠️ **Les coupes sont les QUINTILES MESURÉS du score composite**, pas des seuils choisis.
+  Trois signaux corrélés et moyennés font une cloche : des seuils « ronds » écrasent tout le
+  monde sur 2-3-4 et rendent les étoiles 1 et 5 décoratives (mesuré, et c'est la mutation qui
+  garde le test du corpus). Conséquence à DIRE : « 1 étoile » signifie « parmi les plus
+  simples du catalogue », jamais « facile dans l'absolu ».
+  ⚠️ **Ce qui est mesuré est l'EFFORT, pas la TECHNIQUE.** Une omelette roulée sort « très
+  simple » — aucun signal du corpus ne dit le contraire, et l'inventer serait précisément le
+  défaut que le reste de l'app s'interdit. Les libellés parlent d'exigence, jamais de
+  savoir-faire.
+  ⚠️ **Un signal ABSENT est retiré de la moyenne, jamais compté comme zéro** : une durée
+  inconnue ferait passer une recette pour la plus simple du catalogue. En dessous de deux
+  signaux sur trois, la réponse est « non estimée » (3 recettes sur 10 188).
+- **Le prix de la SEMAINE passe par les mêmes fonctions que celui du BATCH** (`SEM-05`,
+  `prixSemaine` dans `lib/semaineDb.ts`) : `aggregateShoppingList` →
+  `ecarterIngredientsDeFond` → `estimateShoppingCosts` → `fillMissingCosts`, sur les MÊMES
+  portions. Deux implémentations d'une même règle, c'est une règle et demie — Marc verrait un
+  prix avant de monter le batch, un autre après, pour exactement les mêmes courses.
+  ⚠️ Il est calculé **une fois par composition** et mémorisé (`week_estimations`), et la
+  `signature` des recettes déclenche le recalcul : sans elle, remplacer une recette laisserait
+  à l'écran le prix d'une semaine qui n'existe plus. ⚠️ Un échec d'appel ne fait pas
+  disparaître le prix (le filet déterministe chiffre tout) mais change `methode`, **que
+  l'écran dit** — un tarif forfaitaire présenté comme une estimation par ingrédient serait le
+  même défaut, déplacé.
+  ⚠️ **Une recette sans durée ne vaut pas 0 minute** dans le temps de la semaine : elle sort
+  du total et son titre est nommé (`tempsSemaine`, pur). 224 recettes sur 10 188 n'ont aucune
+  durée dans la source.
 - **Fonctions pures testées** pour la logique (agrégation, mise à l'échelle, prix, jetons,
   ingrédients de fond, protocole de l'assistant).
 - **Planchers de version, jamais redescendus.** `drizzle-orm ≥ 0.45.2` (injection SQL par

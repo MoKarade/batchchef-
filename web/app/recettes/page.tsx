@@ -21,6 +21,7 @@ export default async function RecipesPage() {
       id: schema.recipes.id,
       title: schema.recipes.title,
       imageUrl: schema.recipes.imageUrl,
+      difficulte: schema.recipes.difficulteEstimee,
     })
     .from(schema.recipes)
     .orderBy(desc(schema.recipes.createdAt));
@@ -56,7 +57,12 @@ export default async function RecipesPage() {
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {recipes.map((r) => (
             <li key={r.id}>
-              <RecipeCard href={`/recettes/${r.id}`} title={r.title} imageUrl={r.imageUrl} />
+              <RecipeCard
+                href={`/recettes/${r.id}`}
+                title={r.title}
+                imageUrl={r.imageUrl}
+                difficulte={r.difficulte}
+              />
             </li>
           ))}
         </ul>

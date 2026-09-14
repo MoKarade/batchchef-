@@ -13,6 +13,8 @@ interface CatalogItem {
   id: number;
   title: string;
   imageUrl: string | null;
+  /** Difficulté estimée (SEM-05). `null` = non estimable ; la carte le dit. */
+  difficulte: number | null;
 }
 
 export function CatalogueGrid({ recipes }: { recipes: CatalogItem[] }) {
@@ -55,7 +57,12 @@ export function CatalogueGrid({ recipes }: { recipes: CatalogItem[] }) {
           const isSel = selected.has(r.id);
           return (
             <li key={r.id} className="relative">
-              <RecipeCard href={`/catalogue/${r.id}`} title={r.title} imageUrl={r.imageUrl} />
+              <RecipeCard
+                href={`/catalogue/${r.id}`}
+                title={r.title}
+                imageUrl={r.imageUrl}
+                difficulte={r.difficulte}
+              />
               {/* Case de sélection AU-DESSUS du lien (coin) : cocher n'ouvre pas la recette. */}
               <button
                 type="button"

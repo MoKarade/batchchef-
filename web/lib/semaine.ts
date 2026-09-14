@@ -275,3 +275,49 @@ export function choisirQuatre(
     placesNonPourvues: composition.repas + composition.dessert - retenues.length,
   };
 }
+
+/** Le temps total de la semaine, et ce qui manque pour l'établir. */
+export interface TempsSemaine {
+  /** Somme des préparations + cuissons des recettes dont la source donne une durée. */
+  minutes: number;
+  /** Combien de recettes ont RÉELLEMENT été comptées. */
+  comptees: number;
+  /** Les titres dont la source ne dit rien — NOMMÉS, jamais comptés comme zéro. */
+  sansDuree: string[];
+}
+
+/**
+ * Le temps de la semaine (SEM-05).
+ *
+ * ⚠️ Une recette sans durée ne vaut pas 0 minute : elle est RETIRÉE de la somme et son
+ * titre est rendu à l'appelant pour être dit à l'écran. Mesuré sur le seed : 224 recettes
+ * sur 10 188 portent 0 en préparation ET 0 en cuisson — donnée manquante, pas recette
+ * instantanée. Les compter comme zéro afficherait un total plus court que la réalité, et
+ * rien ne le signalerait.
+ */
+export function tempsSemaine(
+  recettes: ReadonlyArray<{ titre: string; prepMinutes: number | null; cuissonMinutes: number | null }>,
+): TempsSemaine {
+  let minutes = 0;
+  let comptees = 0;
+  const sansDuree: string[] = [];
+  for (const r of recettes) {
+    const t = tempsTotal(r);
+    if (t === null) {
+      sansDuree.push(r.titre);
+      continue;
+    }
+    minutes += t;
+    comptees += 1;
+  }
+  return { minutes, comptees, sansDuree };
+}
+
+/** « 3 h 25 » / « 45 min ». Zéro minute ne s'écrit pas : il n'y a rien à annoncer. */
+export function formatMinutes(minutes: number): string | null {
+  if (!Number.isFinite(minutes) || minutes <= 0) return null;
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  if (h === 0) return `${m} min`;
+  return m === 0 ? `${h} h` : `${h} h ${m}`;
+}

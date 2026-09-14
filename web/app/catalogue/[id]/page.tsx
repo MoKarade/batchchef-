@@ -6,6 +6,7 @@ import { db, schema } from "@/lib/db";
 import { formatQty } from "@/lib/aggregate";
 import { AddToLibraryButton } from "@/components/AddToLibraryButton";
 import { Durees } from "@/components/Durees";
+import { Etoiles } from "@/components/Etoiles";
 import { ImageRecette } from "@/components/ImageRecette";
 import { TypePlatEditeur } from "@/components/TypePlatEditeur";
 import { estTypePlat, typeEffectif } from "@/lib/typePlat";
@@ -55,6 +56,7 @@ export default async function CatalogueDetailPage({
       </div>
 
       <Durees prep={recipe.prepMinutes} cuisson={recipe.cuissonMinutes} />
+      <Etoiles etoiles={recipe.difficulteEstimee} />
 
       <TypePlatEditeur catalogRecipeId={recipe.id} type={type} corrige={corrige} />
 

@@ -71,6 +71,7 @@ export default async function CataloguePage({
       id: schema.catalogRecipes.id,
       title: schema.catalogRecipes.title,
       imageUrl: schema.catalogRecipes.imageUrl,
+      difficulte: schema.catalogRecipes.difficulteEstimee,
     })
     .from(schema.catalogRecipes)
     .leftJoin(schema.typeCorrections, eq(schema.typeCorrections.sourceUrl, schema.catalogRecipes.sourceUrl))

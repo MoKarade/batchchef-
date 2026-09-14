@@ -21,6 +21,7 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Export Google Tasks | En service |
 | **Assistant** | **Neuf (19/08)** — `/assistant`, Claude fouille la base par outils ; les recettes citées deviennent des cartes cliquables qui s'ouvrent PAR-DESSUS le chat. ⚠️ Éteint si `ANTHROPIC_API_KEY` absente (dit à l'écran, pas une panne) |
 | **Proposition de la semaine** | **Neuve (14/09)** — carte « Ta semaine » sur l'accueil : **3 plats + 1 dessert**, remplaçables un à un, et un bouton qui monte le batch avec sa liste d'épicerie. Fabriquée à l'ouverture de l'app, pas par un cron |
+| **Prix, temps et difficulté** | **Neuf (14/09)** — la carte « Ta semaine » annonce le temps total et le prix estimé de l'épicerie ; chaque recette porte une note de difficulté en étoiles (1 à 5), partout où elle s'affiche |
 | **Type de plat** | **Neuf (14/09)** — sept familles déduites du titre et des ingrédients (91,4 % de couverture, 54/56 sur un échantillon jugé). Filtre dans le catalogue, étiquette « estimé » sur les fiches, correction manuelle qui survit au recalcul |
 | Widget hub | `GET /api/hub/summary`, contrat `@mokarade/hub-contract` |
 | **Serveur MCP** | **Neuf (19/08)** — `POST /api/mcp`, 7 outils (4 lecture, 3 écriture). **BRANCHÉ ET VÉRIFIÉ EN USAGE RÉEL** le 19/08 : Marc a connecté le connecteur claude.ai (OAuth 2.1, ADR-0002), et les outils rendent ses vraies données. Claude Code reste possible par jeton direct. |
@@ -28,9 +29,35 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **491 tests**, 35 fichiers (14/09/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **515 tests**, 37 fichiers (14/09/2026).
 
 ## Ce qui vient d'être livré (14/09/2026)
+
+- **`SEM-05` — prix, temps et difficulté.** La carte « Ta semaine » porte maintenant trois
+  chiffres : le **temps total** de cuisine, le **prix estimé** de l'épicerie, et une note de
+  **difficulté en étoiles** sur chaque recette — reprise partout où une recette s'affiche
+  (accueil, bibliothèque, catalogue, fiches).
+
+  Mesuré sur les 10 188 : **10 185 recettes notées**, distribution 19,9 / 19,8 / 20,2 / 20,0 /
+  20,0 % sur les cinq niveaux. Trois recettes n'ont pas assez de signaux et disent
+  « difficulté non estimée ».
+
+  ⚠️ **L'échelle est RELATIVE au catalogue.** Les coupes sont les quintiles mesurés du score
+  composite, pas des seuils choisis : trois signaux corrélés et moyennés font une cloche, et
+  des seuils « ronds » auraient écrasé tout le monde sur 2-3-4. Une étoile veut donc dire
+  « parmi les plus simples du catalogue », pas « facile dans l'absolu ».
+
+  ⚠️ **Ce qui est mesuré est l'EFFORT, pas la TECHNIQUE** — ingrédients, étapes, durée. Une
+  omelette roulée sortira « très simple », et aucun signal du corpus ne dit le contraire.
+
+  ⚠️ **Le prix passe par les mêmes fonctions que le batch**, sur les mêmes portions : sans ça,
+  Marc verrait un chiffre avant de monter le batch et un autre après, pour les mêmes courses.
+  Il est calculé une fois par composition et mémorisé ; **remplacer une recette le recalcule**
+  (sinon le prix décrirait une semaine qui n'existe plus). Un appel d'estimation par semaine,
+  plus un par remplacement.
+
+  ⚠️ **Une recette sans durée n'est pas comptée zéro** : elle sort du total et son titre est
+  nommé sous la ligne. 224 recettes sur 10 188 n'ont aucune durée dans la source.
 
 - **Correctif du jour même — la couverture annoncée par la passe de classement était FAUSSE.**
   Le premier build de production a imprimé « 10 170 portent un type » (100 %) là où la
