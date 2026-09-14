@@ -50,8 +50,15 @@ const PLANCHERS: readonly { paquet: string; minimum: string; faille: string }[] 
   },
   {
     paquet: "sharp",
-    minimum: "0.35.3",
-    faille: "GHSA-f88m-g3jw-g9cj — failles libvips héritées (HIGH)",
+    minimum: "0.35.4",
+    faille:
+      "GHSA-rgj7-g3m4-5g8c — failles libheif héritées (HIGH), 14/09/2026. Remplace le plancher 0.35.3 (GHSA-f88m-g3jw-g9cj, libvips) : un plancher MONTE, il ne redescend jamais.",
+  },
+  {
+    paquet: "next",
+    minimum: "15.5.24",
+    faille:
+      "GHSA-2xp9-vwfh-vxw4 — exécution de code à distance NON AUTHENTIFIÉE dans l'API d'optimisation d'images, sur un fichier AVIF (CRITICAL), 14/09/2026. ⚠️ La surface est ouverte ici : `/_next/image` est dans `isPublicPath`, donc atteignable sans session. Le second avis du même lot (GHSA-p293-qw3h-jr36) ne vise que les serveurs Windows et ne s'applique pas à Vercel — celui-ci, si.",
   },
   {
     paquet: "nanoid",

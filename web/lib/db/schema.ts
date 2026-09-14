@@ -13,6 +13,7 @@ import {
   serial,
   text,
   timestamp,
+  unique,
 } from "drizzle-orm/pg-core";
 import { expressionSql } from "../rechercheNormalisee";
 
@@ -138,6 +139,31 @@ export const catalogIngredients = pgTable("catalog_ingredients", {
   note: text("note"),
   nomRecherche: colonneRecherche("nom_recherche", "name"),
 });
+
+// ── Proposition de la semaine (SEM-02) ───────────────────────────────────────────
+// Quatre recettes du CATALOGUE proposées à Marc pour la semaine en cours. Une seule semaine
+// vivante : la nouvelle remplace l'ancienne (décision de Marc, 14/09/2026).
+//
+// ⚠️ L'unicité de `(semaine, position)` n'est pas décorative. Deux onglets ouverts le même
+// lundi matin fabriqueraient la semaine en même temps : sans cette contrainte, la seconde
+// écriture doublerait la proposition. Une garantie d'unicité vit dans l'ÉCRITURE, jamais
+// dans une lecture qui la précède.
+
+export const weekPicks = pgTable(
+  "week_picks",
+  {
+    id: serial("id").primaryKey(),
+    /** Semaine ISO dans le fuseau de Marc, « 2026-W38 » (cf. lib/semaine.ts). */
+    semaine: text("semaine").notNull(),
+    catalogRecipeId: integer("catalog_recipe_id")
+      .notNull()
+      .references(() => catalogRecipes.id, { onDelete: "cascade" }),
+    /** 0 à 3 — l'ordre d'affichage, et ce que « remplace la deuxième » désigne. */
+    position: integer("position").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("week_picks_semaine_position").on(t.semaine, t.position)],
+);
 
 // ── Usage LLM (coût API) ─────────────────────────────────────────────────────────
 // Une ligne par appel LLM : tokens consommés + coût USD estimé. Sert au bloc `usage`

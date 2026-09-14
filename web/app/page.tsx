@@ -3,6 +3,8 @@ import Link from "next/link";
 import { and, count, desc, eq, inArray, ne } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { RecipeCard } from "@/components/RecipeCard";
+import { SemaineProposee } from "@/components/SemaineProposee";
+import { semaineCourante } from "@/lib/semaineDb";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +32,23 @@ export default async function HomePage() {
     .from(schema.recipes)
     .orderBy(desc(schema.recipes.createdAt))
     .limit(6);
+
+  // La semaine se FABRIQUE ici, à la première ouverture de la semaine (choix de Marc) —
+  // pas par un cron.
+  //
+  // ⚠️ Une panne de ce côté ne doit pas emporter l'accueil : le reste de la page doit
+  // continuer de servir. Mais elle ne doit pas non plus DISPARAÎTRE — « aucune proposition »
+  // et « la proposition est cassée » s'afficheraient pareil, et c'est exactement le mode de
+  // panne que ce dépôt chasse. On garde donc le repli ET on dit la cause, à l'écran comme
+  // dans les journaux.
+  let semaine: Awaited<ReturnType<typeof semaineCourante>> | null = null;
+  let panneSemaine: string | null = null;
+  try {
+    semaine = await semaineCourante();
+  } catch (err) {
+    panneSemaine = err instanceof Error ? err.message : String(err);
+    console.error("[semaine] proposition indisponible :", panneSemaine);
+  }
 
   const stats = [
     { label: "Recettes", value: recipeCount?.n ?? 0, href: "/recettes" },
@@ -65,6 +84,8 @@ export default async function HomePage() {
           Nouveau batch
         </Link>
       </div>
+
+      <SemaineProposee recettes={semaine?.recettes ?? []} panne={panneSemaine} />
 
       {recent.length > 0 ? (
         <section className="space-y-3">

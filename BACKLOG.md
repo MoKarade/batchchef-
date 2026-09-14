@@ -8,10 +8,14 @@
 
 ## En cours / décidé, pas encore livré
 
-### Chantier SEMAINE (demandé par Marc le 21/08) — pas encore cadré
+### Chantier SEMAINE (demandé par Marc le 21/08, cadré et ouvert le 14/09)
 
-Deux demandes qui n'en font qu'une : **classer les recettes**, puis **s'en servir pour
-proposer une semaine**. La seconde ne vaut rien sans la première.
+Deux demandes : **classer les recettes**, et **s'en servir pour proposer une semaine**.
+
+⚠️ Cette section a longtemps affirmé que « la seconde ne vaut rien sans la première ». C'était
+FAUX, et Marc l'a tranché le 14/09 : la proposition se fonde d'abord sur ce qui est MESURÉ
+(les temps, réels sur les 10 188 recettes ; la variété des ingrédients, calculée). `SEM-01`
+l'enrichira — « un végé, un plat principal » — mais ne la conditionnait pas.
 
 - [ ] **`SEM-01` — classer les recettes : type de plat, régime, effort.**
 
@@ -44,35 +48,52 @@ proposer une semaine**. La seconde ne vaut rien sans la première.
   passe de déploiement comme le reste — pas de colonne remplie à la main qu'un import
   écraserait.
 
-- [ ] **`SEM-02` — quatre recettes proposées chaque semaine, ajustables en parlant.**
+- [x] ~~**`SEM-02` — quatre recettes proposées chaque semaine.**~~ **Livré le 14/09.** Carte
+  « Ta semaine » sur l'accueil : quatre recettes du catalogue, remplaçables une à une, et un
+  bouton qui monte le batch avec sa liste d'épicerie. Cadré par Marc le 14/09 — quatre
+  recettes à CUISINER sans jour assigné, fabriquées à l'ouverture de l'app (pas de cron), sur
+  des critères MESURÉS, une seule semaine vivante.
 
-  Ce que Marc veut : une proposition hebdomadaire de 4 recettes, qu'il peut modifier en
-  disant à l'assistant ce qu'il aimerait, y compris à partir des ingrédients qu'il a.
+  | règle | ce qui la fonde |
+  |---|---|
+  | la semaine ne bascule pas le dimanche soir | `semaineISO` dans le fuseau de Marc — Vercel tourne en UTC, où il est déjà lundi à 20 h au Québec |
+  | la proposition ne change pas quand on rafraîchit | tirage DÉTERMINISTE dont la graine est le numéro de semaine |
+  | pas deux recettes qui se ressemblent | aucun ingrédient DISTINCTIF partagé ; « distinctif » = présent dans ≤ **2 %** du corpus (mesuré : 50 communs sur 15 389, 58 recettes sans distinctif) |
+  | au moins une recette courte | total ≤ **30 min** (mesuré : p25 = 25, médiane = 40, p90 = 80) |
+  | on ne repropose pas ce qui a été cuisiné | les recettes déjà passées dans un batch sont exclues |
 
-  Ce qui existe déjà et qu'il faut RÉUTILISER, pas réécrire : l'assistant fouille la base par
-  outils (`lib/assistant/outils.ts` — `chercher_recettes`, `lire_recette`,
-  `ingredients_les_plus_utilises`), et `chercher_recettes` sait déjà répondre par ingrédients
-  en disant ce qui est COUVERT et ce qui MANQUE. La brique « en fonction des ingrédients »
-  est donc à moitié là.
+  Vérifié par **18 tests**, dont un balayage des 52 semaines de 2026 sur le corpus réel, et
+  **quatre mutations prouvées** (fuseau retiré, variété désactivée, échange supprimé, tirage
+  rendu dépendant de l'ordre des lignes) — chacune fait rougir le test qui la vise.
 
-  Ce qui manque : une notion de SEMAINE persistée (sinon « change celle du mercredi » ne veut
-  rien dire), et un outil d'écriture pour que l'assistant puisse remplacer une proposition.
+  ⚠️ **Le test de corpus porte sur des présélections de 200**, pas sur les 10 188 : c'est ce
+  que la production passe réellement à `choisirQuatre` (charger 87 444 lignes d'ingrédients
+  par fabrication serait absurde). Une garantie prouvée sur un ensemble que le code n'utilise
+  pas ne prouve rien.
 
-  ⚠️ **Contrainte mesurée sur le cron hebdomadaire** : le plan Vercel Hobby n'accepte QUE des
-  crons quotidiens — une expression hebdomadaire fait ÉCHOUER le déploiement (vécu par CarAI,
-  « Hobby accounts are limited to daily cron jobs »). Un cron quotidien qui ne fait rien sauf
-  le bon jour, ou GitHub Actions comme pour le poll de CarAI.
+  ⚠️ **Décision prise sans feu vert, et son alternative** : Marc a écarté l'historique des
+  propositions, donc l'anti-répétition ne peut pas s'y appuyer. Elle se fonde sur les BATCHS,
+  persistés de toute façon — plus juste (on évite ce qu'il a CUISINÉ, pas ce qu'on lui a
+  MONTRÉ), mais **inerte tant qu'il n'a aucun batch**. L'alternative écartée était de garder
+  l'historique, ce qu'il a refusé.
+
+- [ ] **`SEM-03` — changer une recette de la semaine EN PARLANT à l'assistant.** La moitié
+  restante de la demande du 21/08. Le bouton « Remplacer » couvre le besoin de façon
+  déterministe ; ce qui manque est un outil d'ÉCRITURE côté assistant (`lib/assistant/`) pour
+  que « mets-moi quelque chose avec du poulet à la place du troisième » fonctionne.
+  ⚠️ `chercher_recettes` sait DÉJÀ répondre par ingrédients en disant ce qui est couvert et ce
+  qui manque : la moitié « en fonction des ingrédients » est là, il manque l'écriture.
 
   ⚠️ **Prior art à REGARDER, pas à copier** : `WeekPlannerPage.tsx` (647 lignes) existe sur
-  `archive/pre-web-2026-04-24` — un planificateur hebdomadaire à glisser-déposer, créneaux
-  midi/soir/snack, de la V3. Autre pile (React Query, dnd-kit, API séparée) et bien plus
-  lourd que ce que Marc demande ici. À ouvrir pour ce qu'il a appris du DOMAINE (créneaux,
-  navigation de semaine), pas pour son code.
+  `archive/pre-web-2026-04-24` — un planificateur hebdomadaire à glisser-déposer de la V3.
+  Autre pile (React Query, dnd-kit, API séparée) et bien plus lourd que ce que Marc demande.
+  À ouvrir pour ce qu'il a appris du DOMAINE, pas pour son code.
 
-  À cadrer avec Marc avant de coder : est-ce 4 recettes pour la semaine (des batchs) ou
-  4 repas datés ? La proposition remplace-t-elle la précédente ou s'archive-t-elle ? Et la
-  proposition doit-elle éviter ce qu'il a déjà cuisiné récemment (l'historique des batchs
-  existe et pourrait servir) ?
+  ⚠️ **Si l'idée d'un cron hebdomadaire revient un jour** : le plan Vercel Hobby n'accepte QUE
+  des crons quotidiens — une expression hebdomadaire fait ÉCHOUER le déploiement (vécu par
+  CarAI, « Hobby accounts are limited to daily cron jobs »). `SEM-02` s'en passe : la semaine
+  se fabrique à l'ouverture de l'app.
+
 
 ### Chantier CATALOGUE (plan arbitré par Marc le 19/08, un lot par PR)
 
@@ -291,6 +312,30 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   seulement sur quinze, mais le mécanisme existe déjà (`lib/menageCatalogue.ts`) et ne
   demanderait qu'une source d'entrée différente. ⚠️ Ne rien supprimer sans l'accord de Marc :
   ce sont SES recettes, pas du catalogue importé.
+
+- [x] ~~**`SEC-01` — une RCE non authentifiée était ouverte en production.**~~ **Fermée le
+  14/09**, trouvée en lançant le gate d'un lot sans rapport. `npm audit --omit=dev` rendait
+  **2 avis (1 critique, 1 haut)** là où le `CLAUDE.md` exige zéro.
+
+  | paquet | avis | ce que ça ouvrait |
+  |---|---|---|
+  | `next` 15.5.21 | GHSA-2xp9-vwfh-vxw4, **CRITICAL** | exécution de code à distance **sans authentification** dans l'API d'optimisation d'images, sur un fichier AVIF |
+  | `sharp` 0.35.3 | GHSA-rgj7-g3m4-5g8c, HIGH | failles `libheif` héritées |
+
+  ⚠️ **La surface était bel et bien ouverte** : `/_next/image` figure dans `isPublicPath`
+  (`lib/authGuard.ts`), donc l'optimiseur répond sans session — vérifié avant de conclure, pas
+  supposé. Le second avis Next du même lot (GHSA-p293-qw3h-jr36) ne vise que les serveurs
+  Windows et ne s'appliquait pas à Vercel.
+
+  Correctif : `next ^15.5.25`, `overrides.sharp ^0.35.4`. Les deux planchers sont inscrits
+  dans `tests/dependances.test.ts` avec leur motif — un plancher MONTE, il ne redescend
+  jamais —, et la discrimination est prouvée par mutation. `npm audit --omit=dev` : **0**.
+
+  ⚠️ **Décision prise sans feu vert.** La convention dit qu'un défaut préexistant se signale
+  et s'ajoute au backlog sans se corriger. L'alternative écartée était donc de laisser la
+  faille ouverte en l'inscrivant ici : intenable pour une exécution de code à distance
+  atteignable sans session sur un domaine public. Le correctif est une montée de version
+  mineure, réversible, et le gate complet est resté vert.
 
 ## Écarté volontairement
 

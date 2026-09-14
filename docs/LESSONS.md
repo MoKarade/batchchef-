@@ -703,3 +703,58 @@ retouche pas).
 
 **Règle** : sur une résolution de conflit, le contrôle qui compte est le **diff net contre la
 base**, pas l'absence de marqueurs de conflit.
+
+## 14/09/2026 — la proposition de la semaine (`SEM-02`)
+
+**Un test de corpus doit porter sur l'ensemble que la PRODUCTION utilise, pas sur le plus
+grand qu'on ait sous la main.** Mon premier test balayait les 52 semaines de 2026 sur les
+10 188 recettes, et il était vert. Mais la production ne passe jamais 10 188 recettes au
+tirage : charger leurs 87 444 lignes d'ingrédients à chaque fabrication serait absurde, donc
+elle en présélectionne **200** en SQL. Le test prouvait donc une propriété — « la variété
+tient toujours » — sur un objet que le code n'emprunte pas. Mesuré ensuite sur des
+présélections : la variété tient dès **40** recettes (0 relâchement sur 52), et l'échange
+« au moins une courte » est sollicité 5 fois sur 52 à 200. La propriété était vraie, mais je
+ne l'avais pas prouvée là où elle compte. Même famille que
+`CORRECTIF-VERT-EN-TEST-INERTE-EN-PROD` de FinanceAI : la question n'est pas « mon test
+passe-t-il ? » mais « teste-t-il ce qui tourne ? ».
+
+**Une mutation muette dit d'abord que la FIXTURE ne l'atteint pas.** Ma quatrième mutation
+(supprimer le bloc qui garantit une recette courte) a fait rougir le test de corpus mais PAS
+le test dédié qui portait ce nom. Cause : sous la graine `2026-W38`, la recette courte de ma
+fixture arrivait **première** dans l'ordre déterministe — elle était donc retenue sans le
+bloc, et le test passait sans rien prouver. Mesuré sur cinq graines, `2026-W40` la place
+**dernière des sept** : c'est là, et seulement là, que le bloc d'échange est le seul à pouvoir
+la faire entrer. La graine d'un test déterministe n'est pas un détail de décor, elle fait
+partie de l'assertion — et le commentaire doit dire POURQUOI c'est celle-là.
+
+**Deux sections au même titre dans un document « à lire en premier » en cachent une.** Le
+`HANDOVER.md` portait deux fois « Ce qui vient d'être livré (19/08/2026, soir) », avec un
+paragraphe entier dupliqué mot pour mot, la section du 17/08 coincée entre les deux, et la
+seconde contenant tout le travail MCP. Un lecteur qui s'arrête au premier titre — c'est-à-dire
+tout lecteur — rate la moitié de la journée. Réparé en distinguant les titres par leur contenu
+réel et en retirant le doublon. La règle : un titre répété n'est pas une coquille, c'est un
+document qui a perdu sa table des matières.
+
+**Un repli qui fait DISPARAÎTRE l'élément est un silence, pas une dégradation.** Mon premier
+jet enveloppait la fabrication de la semaine dans un `try/catch` qui rendait `null` : une
+panne de base et un catalogue vide affichaient exactement la même chose — rien. C'est le mode
+de panne que ce dépôt chasse depuis `ING-03`. Le repli reste (l'accueil ne doit pas tomber
+avec la carte), mais il porte maintenant trois états DISTINCTS à l'écran : la panne se nomme,
+le catalogue vide se dit, les quatre recettes s'affichent.
+
+**Un gate qu'on lance pour SON lot mesure aussi l'état du dépôt, et il faut le lire.**
+`npm audit --omit=dev` a rendu 2 avis — dont une **exécution de code à distance non
+authentifiée** dans l'API d'optimisation d'images de Next — sur un lot qui ne touchait aucune
+dépendance. Ce n'était pas mon défaut, mais il était devant moi. Ce qui a décidé l'arbitrage
+n'est pas la gravité annoncée par l'avis : c'est d'avoir vérifié que la surface était
+RÉELLEMENT ouverte ici (`/_next/image` est dans `isPublicPath`, donc servi sans session) au
+lieu de le supposer. La convention dit qu'un défaut préexistant se signale sans se corriger ;
+elle dit aussi de trancher avec l'option la plus prudente quand l'ambiguïté n'était pas
+anticipée. Entre les deux, une RCE atteignable sans authentification sur un domaine public
+n'attend pas le prochain tour — mais la décision se REMONTE, avec son alternative.
+
+⚠️ Et le corollaire, celui qui coûte cher quand on l'oublie : **monter un plancher de version
+sans l'inscrire dans le test qui garde les planchers, c'est le laisser redescendre au prochain
+`npm install` distrait**. Les deux entrées (`next ≥ 15.5.24`, `sharp ≥ 0.35.4`) sont dans
+`tests/dependances.test.ts` avec leur motif, et la discrimination est prouvée : porter le
+plancher à 99.0.0 fait rougir le test, donc il voit bien la version installée.
