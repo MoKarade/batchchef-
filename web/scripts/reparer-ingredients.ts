@@ -659,12 +659,23 @@ async function classerCatalogue(): Promise<number> {
   }
 
   const aEcrire: Array<[number, string | null]> = [];
+  // ⚠️ La couverture se COMPTE sur les verdicts, jamais en retranchant les écritures nulles du
+  // total : une recette déjà à `null` qui reste `null` n'est PAS écrite, donc elle échappait à
+  // la soustraction et se retrouvait comptée « portant un type ». Le premier build a affiché
+  // « 10 170 portent un type » (100 %) pour une couverture réelle de 9 294 (91,4 %) — un chiffre
+  // faux qui avait l'exacte apparence d'une mesure, et qui contredisait la doc sans que rien ne
+  // le signale.
+  let avecType = 0;
   for (const r of recettes) {
     const verdict = classerRecette({ titre: r.titre, ingredients: parRecette.get(r.id) ?? [] });
+    if (verdict.type !== null) avecType += 1;
     if (verdict.type !== r.actuel) aEcrire.push([r.id, verdict.type]);
   }
+  const couverture = `${avecType} sur ${recettes.length} portent un type`;
   if (aEcrire.length === 0) {
-    console.log("[type] Rien à reclasser.");
+    // La couverture se dit AUSSI quand rien ne bouge : sans ça, elle ne serait imprimée qu'au
+    // build qui reclasse — c'est-à-dire plus jamais une fois la passe idempotente.
+    console.log(`[type] Rien à reclasser ; ${couverture}.`);
     return 0;
   }
 
@@ -676,10 +687,8 @@ async function classerCatalogue(): Promise<number> {
       .set({ typeEstime: casPar(sql.raw("id"), lot, "text", (v) => v) as unknown as string })
       .where(inArray(schema.catalogRecipes.id, lot.map(([id]) => id)));
   }
-  const classees = recettes.length - aEcrire.filter(([, t]) => t === null).length;
   console.log(
-    `[type] ${aEcrire.length} recette(s) (re)classée(s) sur ${recettes.length} ; ` +
-      `${classees} portent un type après cette passe.`,
+    `[type] ${aEcrire.length} recette(s) (re)classée(s) sur ${recettes.length} ; ${couverture}.`,
   );
   return aEcrire.length;
 }

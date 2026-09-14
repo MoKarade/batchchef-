@@ -140,6 +140,36 @@ describe("réparation des ingrédients — la passe reste branchée au build", (
     }
   });
 
+  it("la couverture du classement se COMPTE, elle ne se déduit pas du nombre d'écritures", () => {
+    // ⚠️ Vécu le 14/09, au premier build de SEM-01 : le log annonçait « 10 170 portent un
+    // type » — 100 % — alors que la couverture réelle est 9 294 (91,4 %), le chiffre publié
+    // dans la doc. La cause : le compte était DÉDUIT (`total − écritures nulles`), or une
+    // recette déjà à `null` qui reste `null` n'est jamais écrite et échappait donc à la
+    // soustraction. Un chiffre faux avec l'exacte apparence d'une mesure, qui contredisait
+    // la doc sans que rien ne rougisse.
+    //
+    // Le tripwire est SCOPÉ à `classerCatalogue` : `recettes.length` sert légitimement
+    // ailleurs dans le fichier. Et il lit la source DÉCOMMENTÉE — le commentaire ci-dessus
+    // décrit le motif interdit, il ne doit pas satisfaire la garde qui le cherche.
+    const brut = readFileSync(resolve(process.cwd(), "scripts/reparer-ingredients.ts"), "utf8");
+    const corps = /async function classerCatalogue\b[\s\S]*?\n\}/.exec(brut)?.[0];
+    expect(corps, "la fonction classerCatalogue doit exister").toBeTruthy();
+    const code = (corps ?? "")
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"))
+      .join("\n");
+    expect(code.length, "le décommentage ne doit pas avoir tout mangé").toBeGreaterThan(400);
+
+    // Le compte vient des VERDICTS, un par recette examinée.
+    expect(code, "la couverture se compte sur le verdict").toMatch(
+      /verdict\.type\s*!==\s*null/,
+    );
+    // Et surtout : jamais re-dérivée en retranchant quoi que ce soit du total.
+    expect(code, "la couverture ne se déduit pas du total").not.toMatch(
+      /recettes\.length\s*-/,
+    );
+  });
+
   it("l'import du catalogue répare aussi, sinon il ré-introduirait le défaut", () => {
     // ⚠️ On cherche l'APPEL, pas le nom : une première version de ce test se contentait de
     // `toContain("reparerNom")` et passait au vert alors que l'appel avait été retiré — la
