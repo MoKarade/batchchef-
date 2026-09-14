@@ -205,6 +205,29 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   sinon en silence, et une dérive de protocole se manifeste par un client muet, pas par une
   erreur. Ce qui N'EST PAS exposé : l'import par URL — il court-circuiterait l'écran de
   validation (« le LLM propose, le code valide, Marc confirme »).
+- **Le TYPE d'une recette est une ESTIMATION, et l'app le DIT** (`SEM-01`, `lib/typePlat.ts`,
+  PUR et testé). Sept familles fermées — plat, entrée et apéro, accompagnement, soupe, salade,
+  dessert, sauce et condiment — déduites du titre et des ingrédients, parce que `meal_type`,
+  `difficulty` et `tags_json` sont NULL sur les 10 188 recettes du seed. Mesuré le 14/09 :
+  **91,4 % classées**, exactitude **54/56** sur un échantillon stratifié jugé à la main.
+  ⚠️ `null` (« non déterminé ») est une réponse LÉGITIME : tomber dans la famille la plus
+  probable ferait passer une ignorance pour une donnée, ce que le reste de l'app s'interdit.
+  ⚠️ **Trois règles, chacune née d'une erreur mesurée** : un mot de famille doit OUVRIR le
+  titre quand il peut qualifier un accompagnement (« Porc sauce aigre douce » est un plat) ;
+  un mot qui sert des deux côtés est AMBIGU et se tranche aux ingrédients (« Flan de thon »
+  contre « Flan pâtissier ») ; un camp sucré franc l'emporte sur une famille salée du titre
+  (« Frites de cookie »), mais **jamais l'inverse** — beurre et oeufs sont des faux amis en
+  pâtisserie.
+  ⚠️ **`œ` et `æ` se remplacent AVANT `normalize("NFD")`**, qui ne décompose pas les
+  ligatures : « bœuf » devenait « b uf » et perdait son marqueur salé, sur un corpus français
+  où le boeuf est partout.
+  ⚠️ **La correction de Marc vit dans `type_corrections`, indexée par `source_url`** — jamais
+  par l'id du catalogue, que `npm run catalog:import` renumérote. Et une correction à `null`
+  est une DÉCISION (« aucune de ces familles »), distinguée de l'absence de correction par la
+  PRÉSENCE de la ligne : sinon elle serait écrasée par l'estimation au build suivant.
+  ⚠️ Si le RÉGIME revient un jour au programme, la règle du gluten reste **asymétrique** — on
+  peut affirmer « contient du gluten » quand on le détecte, jamais « sans gluten ». C'est une
+  affirmation de santé, pas une catégorie.
 - **Fonctions pures testées** pour la logique (agrégation, mise à l'échelle, prix, jetons,
   ingrédients de fond, protocole de l'assistant).
 - **Planchers de version, jamais redescendus.** `drizzle-orm ≥ 0.45.2` (injection SQL par

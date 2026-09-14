@@ -20,9 +20,20 @@
 // filtre ne retire rien.
 
 import { FUSEAU } from "./origine";
+import { estRepas, type TypePlat } from "./typePlat";
 
 /** Quatre, parce que c'est ce que Marc a demandé. */
 export const RECETTES_PAR_SEMAINE = 4;
+
+/**
+ * La composition de la semaine, arbitrée par Marc le 14/09/2026 : **trois plats et un
+ * dessert**. « Plat » comprend les soupes et les salades (cf. `FAMILLES_REPAS`).
+ *
+ * ⚠️ Ce qui N'EST PAS tiré : entrées, accompagnements, sauces, et tout ce que le classement
+ * n'a pas su trancher. Une sauce bolognaise n'est pas un repas de semaine, et proposer un
+ * « non déterminé » reviendrait à faire passer l'aveu d'ignorance pour une recommandation.
+ */
+export const COMPOSITION = { repas: 3, dessert: 1 } as const;
 
 /**
  * Au-delà de cette part des recettes, un ingrédient ne distingue plus rien.
@@ -80,6 +91,8 @@ export interface CandidateSemaine {
    * écartés. L'appelant les calcule — la fréquence se lit en base, pas ici.
    */
   distinctifs: readonly string[];
+  /** Type de plat effectif (correction de Marc, sinon estimation). `null` = non déterminé. */
+  type: TypePlat | null;
 }
 
 export interface Tirage {
@@ -92,6 +105,13 @@ export interface Tirage {
   varieteRelachee: boolean;
   /** `true` quand aucune des quatre ne descend sous `MINUTES_COURTE`. */
   sansCourte: boolean;
+  /**
+   * Places que le catalogue n'a pas pu pourvoir — par exemple aucun dessert disponible.
+   *
+   * ⚠️ On rend alors MOINS de quatre recettes, et on le dit. Compléter avec n'importe quoi
+   * ferait passer une sauce pour un dessert ; se taire ferait croire à un bug.
+   */
+  placesNonPourvues: number;
 }
 
 /** Un ingrédient présent dans plus de `SEUIL_COMMUN` des recettes ne distingue plus rien. */
@@ -183,7 +203,7 @@ export function choisirQuatre(
   candidates: readonly CandidateSemaine[],
   dejaCuisinees: Iterable<number>,
   graine: string,
-  combien = RECETTES_PAR_SEMAINE,
+  composition: { repas: number; dessert: number } = COMPOSITION,
 ): Tirage {
   const exclues = new Set(dejaCuisinees);
   const eligibles = candidates.filter((c) => !exclues.has(c.id));
@@ -198,44 +218,60 @@ export function choisirQuatre(
 
   const retenues: CandidateSemaine[] = [];
   const pris = new Set<string>();
+  let varieteRelachee = false;
   const compatible = (c: CandidateSemaine, deja: ReadonlySet<string>): boolean =>
     !c.distinctifs.some((d) => deja.has(d));
 
-  for (const c of ordonnees) {
-    if (retenues.length >= combien) break;
-    if (!compatible(c, pris)) continue;
-    retenues.push(c);
-    for (const d of c.distinctifs) pris.add(d);
-  }
-
-  // Pas assez de recettes compatibles : on complète sans la contrainte de variété, et on le dit.
-  let varieteRelachee = false;
-  if (retenues.length < combien) {
+  /**
+   * Remplit `combien` places avec les candidates qui passent `admis`, en gardant la variété.
+   * Si elle ne peut pas, elle relâche la variété plutôt que de rendre une place vide — mais
+   * elle ne franchit JAMAIS `admis` : mieux vaut trois recettes que quatre dont une ment sur
+   * ce qu'elle est.
+   */
+  const remplir = (combien: number, admis: (c: CandidateSemaine) => boolean): void => {
+    const vises = retenues.length + combien;
     const dejaLa = new Set(retenues.map((c) => c.id));
     for (const c of ordonnees) {
-      if (retenues.length >= combien) break;
-      if (dejaLa.has(c.id)) continue;
+      if (retenues.length >= vises) break;
+      if (dejaLa.has(c.id) || !admis(c) || !compatible(c, pris)) continue;
+      retenues.push(c);
+      dejaLa.add(c.id);
+      for (const d of c.distinctifs) pris.add(d);
+    }
+    if (retenues.length >= vises) return;
+    for (const c of ordonnees) {
+      if (retenues.length >= vises) break;
+      if (dejaLa.has(c.id) || !admis(c)) continue;
       retenues.push(c);
       dejaLa.add(c.id);
       varieteRelachee = true;
     }
-  }
+  };
 
-  // Au moins une courte. On n'échange que si l'échange est possible SANS casser la variété
-  // des trois premières — sinon on garde le tirage et `sansCourte` le dit.
-  if (retenues.length === combien && !retenues.some(estCourte)) {
-    const gardees = retenues.slice(0, combien - 1);
-    const prisSansDerniere = new Set(gardees.flatMap((c) => [...c.distinctifs]));
+  remplir(composition.repas, (c) => estRepas(c.type));
+  const apresRepas = retenues.length;
+  remplir(composition.dessert, (c) => c.type === "dessert");
+
+  // Au moins une courte PARMI LES REPAS — un dessert rapide ne dit rien du temps que la
+  // semaine demande en cuisine. On n'échange que si l'échange respecte la variété du reste.
+  const repas = retenues.slice(0, apresRepas);
+  if (repas.length > 0 && !repas.some(estCourte)) {
+    const gardees = repas.slice(0, repas.length - 1);
+    const prisSansDerniere = new Set([
+      ...gardees.flatMap((c) => [...c.distinctifs]),
+      ...retenues.slice(apresRepas).flatMap((c) => [...c.distinctifs]),
+    ]);
     const dejaLa = new Set(retenues.map((c) => c.id));
     const remplacante = ordonnees.find(
-      (c) => !dejaLa.has(c.id) && estCourte(c) && compatible(c, prisSansDerniere),
+      (c) => !dejaLa.has(c.id) && estRepas(c.type) && estCourte(c) && compatible(c, prisSansDerniere),
     );
-    if (remplacante) retenues[combien - 1] = remplacante;
+    if (remplacante) retenues[repas.length - 1] = remplacante;
   }
 
   return {
     recettes: retenues,
     varieteRelachee,
-    sansCourte: !retenues.some(estCourte),
+    sansCourte: !retenues.slice(0, apresRepas).some(estCourte),
+    placesNonPourvues: composition.repas + composition.dessert - retenues.length,
   };
 }

@@ -124,7 +124,34 @@ export const catalogRecipes = pgTable("catalog_recipes", {
   /** Minutes, telles que le seed les porte. `null` = la source ne dit rien (cf. lib/tempsRecette.ts). */
   prepMinutes: integer("prep_minutes"),
   cuissonMinutes: integer("cuisson_minutes"),
+  /**
+   * Type de plat ESTIMÉ (SEM-01) — une des sept familles de `lib/typePlat.ts`, ou `null`
+   * quand rien ne tranche. DÉRIVÉ du titre et des ingrédients, recalculé à chaque
+   * déploiement comme les noms et les quantités : ne jamais l'écrire à la main, ce serait
+   * écrasé au build suivant. La correction manuelle vit dans `typeCorrections`.
+   */
+  typeEstime: text("type_estime"),
   titreRecherche: colonneRecherche("titre_recherche", "title"),
+});
+
+/**
+ * Corrections de Marc sur le type d'une recette du catalogue (SEM-01). Elles l'emportent sur
+ * l'estimation, et RIEN ne les écrase.
+ *
+ * ⚠️ La clé est `source_url`, PAS l'id du catalogue. `npm run catalog:import` reconstruit le
+ * catalogue entier depuis le seed committé : les ids changent, l'URL non. Une correction
+ * indexée par id disparaîtrait à la première réimportation, sans la moindre erreur — c'est
+ * la même leçon que `menageCatalogue`, où l'exemplaire conservé se choisit sur l'URL.
+ *
+ * ⚠️ `type` peut valoir `null` et ce n'est PAS « pas de correction » : c'est Marc qui dit
+ * « aucune de ces familles ». Les deux se distinguent par la PRÉSENCE de la ligne
+ * (cf. `typeEffectif`), sinon sa décision serait remplacée par l'estimation au build suivant.
+ */
+export const typeCorrections = pgTable("type_corrections", {
+  id: serial("id").primaryKey(),
+  sourceUrl: text("source_url").notNull().unique(),
+  type: text("type"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const catalogIngredients = pgTable("catalog_ingredients", {

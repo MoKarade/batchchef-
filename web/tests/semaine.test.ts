@@ -9,6 +9,7 @@ import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import initSqlJs from "sql.js";
 import {
+  COMPOSITION,
   MINUTES_COURTE,
   RECETTES_PAR_SEMAINE,
   SEUIL_COMMUN,
@@ -21,13 +22,23 @@ import {
   tempsTotal,
   type CandidateSemaine,
 } from "../lib/semaine";
+import { classerRecette, estRepas } from "../lib/typePlat";
 
 const c = (
   id: number,
   distinctifs: string[],
   prepMinutes: number | null = 20,
   cuissonMinutes: number | null = 40,
-): CandidateSemaine => ({ id, titre: `Recette ${id}`, prepMinutes, cuissonMinutes, distinctifs });
+  type: CandidateSemaine["type"] = "plat",
+): CandidateSemaine => ({ id, titre: `Recette ${id}`, prepMinutes, cuissonMinutes, distinctifs, type });
+
+/** Un dessert, pour la quatrième place de la semaine. */
+const d = (
+  id: number,
+  distinctifs: string[],
+  prepMinutes: number | null = 20,
+  cuissonMinutes: number | null = 40,
+): CandidateSemaine => c(id, distinctifs, prepMinutes, cuissonMinutes, "dessert");
 
 describe("semaineISO — le fuseau de Marc, jamais celui du serveur", () => {
   it("un dimanche 20 h au Québec reste dans la semaine qui se termine", () => {
@@ -86,10 +97,44 @@ describe("choisirQuatre", () => {
     c(6, ["saumon", "aneth"], 10, 15),
     c(7, ["porc", "pruneaux"], 25, 90),
     c(8, ["poulet", "estragon"], 20, 45),
+    d(21, ["fraises", "mascarpone"], 20, 0),
+    d(22, ["chocolat", "noisettes"], 15, 25),
+    d(23, ["pommes", "cannelle"], 10, 40),
   ];
 
-  it("rend exactement quatre recettes", () => {
-    expect(choisirQuatre(corpus(), [], "2026-W38").recettes).toHaveLength(RECETTES_PAR_SEMAINE);
+  it("rend trois plats et un dessert, dans cet ordre", () => {
+    // Composition arbitrée par Marc le 14/09 : les soupes et salades comptent comme plats.
+    const { recettes, placesNonPourvues } = choisirQuatre(corpus(), [], "2026-W38");
+    expect(recettes).toHaveLength(RECETTES_PAR_SEMAINE);
+    expect(recettes.slice(0, COMPOSITION.repas).every((r) => estRepas(r.type))).toBe(true);
+    expect(recettes[COMPOSITION.repas]?.type).toBe("dessert");
+    expect(placesNonPourvues).toBe(0);
+  });
+
+  it("ne tire JAMAIS une sauce, une entrée ou un « non déterminé »", () => {
+    // Mutation : retirer le filtre `estRepas` fait entrer la sauce dans les trois plats.
+    const melange = [
+      c(31, ["cornichons"], 5, 5, "sauce"),
+      c(32, ["feuillete"], 5, 5, "entree"),
+      c(33, ["mystere"], 5, 5, null),
+      c(34, ["frites"], 5, 5, "accompagnement"),
+      c(1, ["boeuf"], 15, 65),
+      c(2, ["poulet"], 10, 60),
+      c(3, ["aubergine"], 15, 30),
+      d(21, ["fraises"], 20, 0),
+    ];
+    const { recettes } = choisirQuatre(melange, [], "2026-W38");
+    expect(recettes.map((r) => r.id).sort((a, b) => a - b)).toEqual([1, 2, 3, 21]);
+  });
+
+  it("rend TROIS recettes et le DIT quand le catalogue n'a aucun dessert", () => {
+    // ⚠️ Compléter avec un quatrième plat ferait passer la composition pour respectée.
+    // Mieux vaut une place vide annoncée qu'une promesse tenue de travers.
+    const sansDessert = [c(1, ["a"]), c(2, ["b"]), c(3, ["e"]), c(4, ["f"])];
+    const t = choisirQuatre(sansDessert, [], "2026-W38");
+    expect(t.recettes).toHaveLength(3);
+    expect(t.recettes.every((r) => estRepas(r.type))).toBe(true);
+    expect(t.placesNonPourvues).toBe(1);
   });
 
   it("deux recettes retenues ne partagent JAMAIS un ingrédient distinctif", () => {
@@ -147,14 +192,16 @@ describe("choisirQuatre", () => {
       c(16, ["a6"], 30, 60),
       c(99, ["courte"], 5, 10),
     ];
-    const t = choisirQuatre(longues, [], "2026-W40");
+    const t = choisirQuatre([...longues, d(90, ["dessert"], 10, 10)], [], "2026-W40");
     expect(t.recettes.some(estCourte)).toBe(true);
     expect(t.sansCourte).toBe(false);
   });
 
-  it("le dit quand aucune courte n'existe, au lieu de faire comme si", () => {
+  it("le dit quand aucun PLAT court n'existe, au lieu de faire comme si", () => {
+    // ⚠️ La garantie porte sur les REPAS : un dessert rapide ne dit rien du temps que la
+    // semaine demande en cuisine. Ce dessert-ci est court, et `sansCourte` reste vrai.
     const t = choisirQuatre(
-      [c(21, ["b1"], 40, 40), c(22, ["b2"], 40, 40), c(23, ["b3"], 40, 40), c(24, ["b4"], 40, 40)],
+      [c(41, ["b1"], 40, 40), c(42, ["b2"], 40, 40), c(43, ["b3"], 40, 40), d(44, ["b4"], 2, 3)],
       [],
       "2026-W38",
     );
@@ -165,7 +212,7 @@ describe("choisirQuatre", () => {
   it("complète quand la variété ne peut pas être tenue — et le DIT", () => {
     // Cinq recettes qui partagent toutes le même ingrédient : impossible d'en tenir quatre
     // sans répétition. Rendre deux recettes en silence serait pire que le dire.
-    const memeChose = [1, 2, 3, 4, 5].map((i) => c(i, ["tofu"], 10, 10));
+    const memeChose = [...[1, 2, 3, 4, 5].map((i) => c(i, ["tofu"], 10, 10)), d(9, ["tofu"], 10, 10)];
     const t = choisirQuatre(memeChose, [], "2026-W38");
     expect(t.recettes).toHaveLength(RECETTES_PAR_SEMAINE);
     expect(t.varieteRelachee).toBe(true);
@@ -174,6 +221,7 @@ describe("choisirQuatre", () => {
   it("rend ce qu'il peut quand le corpus est plus petit que quatre", () => {
     const t = choisirQuatre([c(1, ["x"]), c(2, ["y"])], [], "2026-W38");
     expect(t.recettes).toHaveLength(2);
+    expect(t.placesNonPourvues).toBe(2);
   });
 
   it("empreinte est stable et dépend de toute la chaîne", () => {
@@ -217,6 +265,10 @@ describe("le CORPUS RÉEL — la proposition tient-elle sur les 10 188 recettes"
         titre: row.t,
         prepMinutes: row.p,
         cuissonMinutes: row.k,
+        // Le corpus ne porte AUCUN type dans le seed (mesuré) : on le calcule ici, avec le
+        // module qui le calcule en production. Sans ça, le test tournerait sur des `null` et
+        // ne prouverait rien de la composition.
+        type: classerRecette({ titre: row.t, ingredients: [...noms] }).type,
         distinctifs: [...noms].filter((n) => !estCommun(occurrences.get(n) ?? 0, candidates.length || 10_188)),
       });
     }
@@ -231,10 +283,15 @@ describe("le CORPUS RÉEL — la proposition tient-elle sur les 10 188 recettes"
     // FAIT, pas un ensemble qu'elle n'utilise jamais — sinon il prouve une propriété sur le
     // mauvais objet. On balaie plusieurs présélections tirées différemment : la propriété
     // doit tenir pour n'importe laquelle, ce qui est plus fort que de rejouer l'ordre SQL.
+    // ⚠️ La production ne présélectionne que le PROPOSABLE (plats, soupes, salades,
+    // desserts) : le SQL le filtre. Le test doit faire pareil, sinon il éprouve un ensemble
+    // que le code ne voit jamais.
+    const proposables = candidates.filter((c) => estRepas(c.type) || c.type === "dessert");
+    expect(proposables.length).toBeGreaterThan(5_000);
     const presélections: Array<(g: string) => CandidateSemaine[]> = [
-      (g) => [...candidates].sort((x, y) => empreinte(`pre:${g}:${x.id}`) - empreinte(`pre:${g}:${y.id}`)).slice(0, TAILLE_PRESELECTION),
-      (g) => [...candidates].sort((x, y) => empreinte(`autre:${g}:${x.id}`) - empreinte(`autre:${g}:${y.id}`)).slice(0, TAILLE_PRESELECTION),
-      () => candidates.slice(0, TAILLE_PRESELECTION), // le pire cas : les ids les plus bas, sans mélange
+      (g) => [...proposables].sort((x, y) => empreinte(`pre:${g}:${x.id}`) - empreinte(`pre:${g}:${y.id}`)).slice(0, TAILLE_PRESELECTION),
+      (g) => [...proposables].sort((x, y) => empreinte(`autre:${g}:${x.id}`) - empreinte(`autre:${g}:${y.id}`)).slice(0, TAILLE_PRESELECTION),
+      () => proposables.slice(0, TAILLE_PRESELECTION), // le pire cas : les ids les plus bas, sans mélange
     ];
 
     for (let s = 1; s <= 52; s += 1) {
@@ -244,10 +301,14 @@ describe("le CORPUS RÉEL — la proposition tient-elle sur les 10 188 recettes"
         expect(sous.length, graine).toBe(TAILLE_PRESELECTION);
         const p = choisirQuatre(sous, [], graine);
         expect(p.recettes, graine).toHaveLength(RECETTES_PAR_SEMAINE);
+        expect(p.placesNonPourvues, graine).toBe(0);
         expect(p.varieteRelachee, graine).toBe(false);
         expect(p.sansCourte, graine).toBe(false);
+        // La composition tient aussi sur le corpus réel, pas seulement sur une fixture.
+        expect(p.recettes.slice(0, COMPOSITION.repas).every((r) => estRepas(r.type)), graine).toBe(true);
+        expect(p.recettes[COMPOSITION.repas]?.type, graine).toBe("dessert");
       }
-      const t = choisirQuatre(candidates, [], graine);
+      const t = choisirQuatre(proposables, [], graine);
       expect(t.recettes, graine).toHaveLength(RECETTES_PAR_SEMAINE);
       // Sur un corpus de cette taille, la variété ne se relâche jamais et une courte existe
       // toujours. Si l'un des deux bascule un jour, c'est le corpus qui a changé, pas le code.

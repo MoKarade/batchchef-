@@ -15,42 +15,53 @@ Deux demandes : **classer les recettes**, et **s'en servir pour proposer une sem
 ⚠️ Cette section a longtemps affirmé que « la seconde ne vaut rien sans la première ». C'était
 FAUX, et Marc l'a tranché le 14/09 : la proposition se fonde d'abord sur ce qui est MESURÉ
 (les temps, réels sur les 10 188 recettes ; la variété des ingrédients, calculée). `SEM-01`
-l'enrichira — « un végé, un plat principal » — mais ne la conditionnait pas.
+l'a enrichie le même jour — la semaine propose désormais **3 plats + 1 dessert** — mais ne la
+conditionnait pas.
 
-- [ ] **`SEM-01` — classer les recettes : type de plat, régime, effort.**
+- [x] ~~**`SEM-01` — le TYPE de plat.**~~ **Livré le 14/09.** Sept familles arbitrées par
+  Marc — plat principal, entrée et apéro, accompagnement, soupe, salade, dessert, sauce et
+  condiment — déduites du titre et des ingrédients, avec « non déterminé » comme réponse
+  possible. Filtre dans le catalogue, étiquette sur les fiches, correction manuelle, et la
+  semaine passe à **3 plats + 1 dessert**.
 
-  ⚠️ **Rien de tout ça n'est dans le seed.** Mesuré au chantier catalogue : `difficulty`,
-  `meal_type`, `calories` et `tags_json` sont **NULL sur les 10 188 recettes**. Il n'y a rien
-  à importer — tout doit être DÉDUIT du titre, des ingrédients et des instructions. C'est
-  d'ailleurs ce que Marc a demandé (« détermine en fonction de ce qu'il y a dans le
-  catalogue »), mais ça change la nature du travail : on produit des ESTIMATIONS, pas des
-  données, et elles se présentent comme telles.
+  | mesuré sur les 10 188 | |
+  |---|---|
+  | couverture | **91,4 %** (plat 44,6 · dessert 36,1 · soupe 2,9 · salade 2,8 · entrée 2,7 · sauce 1,2 · accompagnement 1,1) |
+  | non déterminé | **8,6 %** |
+  | exactitude | **54 sur 56**, échantillon stratifié de 8 par famille, jugé à la main |
 
-  Les trois axes ne se valent pas, et c'est le point à trancher avant de coder :
+  ⚠️ **Les deux erreurs sont nommées** : « Palmiers jambon-fromage » (apéro classé plat) et
+  « Poêlée de pâtes aux légumes et émincés de poulet » (plat classé accompagnement). Deux
+  confusions entre familles VOISINES, aucune absurde. ⚠️ 56 est un petit échantillon : la
+  marge autour de 96 % est large, et ce chiffre ne se recopie pas sans sa taille.
 
-  | axe | source | fiabilité |
-  |---|---|---|
-  | **rapide / long** | `prep_minutes` + `cuisson_minutes`, RÉELS et déjà importés (lot `CAT-C`) | mesuré, aucune inférence |
-  | **type de plat** (entrée, plat, dessert, sauce, accompagnement) | titre + ingrédients | heuristique, erreur sans conséquence |
-  | **effort** (simple / élaboré) | nombre d'ingrédients, nombre d'étapes, temps total | heuristique ; à nommer « effort estimé », pas « difficulté » |
-  | **végétarien** | ingrédients | heuristique à PIÈGES : gélatine, bouillon de volaille, anchois d'une sauce Worcestershire, parmesan à la présure |
-  | **sans gluten** | ingrédients | ⚠️ voir ci-dessous |
+  Trois règles sont nées de la mesure, chacune après une vraie erreur :
+  - **un mot de famille doit OUVRIR le titre** (article toléré) pour les familles dont le mot
+    peut qualifier un accompagnement — « Porc sauce aigre douce » est un plat, pas une sauce ;
+  - **les mots qui servent des deux côtés sont AMBIGUS** et se tranchent aux ingrédients —
+    « Flan de thon » contre « Flan pâtissier », « Verrines caramel » contre « Verrines de
+    légumes » ;
+  - **un camp sucré franc l'emporte** sur une famille salée du titre — « Frites de cookie ».
 
-  ⚠️ **« Sans gluten » n'est pas une catégorie, c'est une affirmation de santé.** Se tromper
-  peut rendre quelqu'un malade. Or l'absence de gluten n'est pas déductible d'une liste
-  d'ingrédients scrapée : « sauce soja » en contient, un cube de bouillon souvent aussi, et
-  la levure chimique dépend de la marque. La règle honnête est ASYMÉTRIQUE — on peut
-  affirmer **« contient du gluten »** quand on le détecte (vrai positif sûr), jamais
-  **« sans gluten »**. Le reste reste « non déterminé ». Même prudence, à un cran en dessous,
-  pour « végétarien ».
+  ⚠️ **Les ligatures `œ`/`æ` sont remplacées AVANT la normalisation** : `NFD` ne les décompose
+  pas, donc « bœuf » devenait « b uf » et perdait son marqueur salé, sur un corpus français
+  où le boeuf est partout. Trouvé par un test, pas par une relecture.
 
-  Corollaire de tenue : ces champs sont des DÉRIVÉS du seed, donc ils se recalculent dans la
-  passe de déploiement comme le reste — pas de colonne remplie à la main qu'un import
-  écraserait.
+  ⚠️ **La correction de Marc est indexée par `source_url`, jamais par l'id** :
+  `npm run catalog:import` reconstruit le catalogue et change les ids. Et une correction à
+  `null` (« aucune de ces familles ») est une DÉCISION, pas une absence — les deux se
+  distinguent par la présence de la ligne, sinon elle serait écrasée au build suivant.
+
+  Reste hors périmètre, non demandé cette fois : le RÉGIME (végétarien, gluten) et l'EFFORT.
+  ⚠️ Si le gluten revient un jour, la règle reste ASYMÉTRIQUE — on peut affirmer « contient du
+  gluten » quand on le détecte, jamais « sans gluten ». C'est une affirmation de santé, pas
+  une catégorie.
 
 - [x] ~~**`SEM-02` — quatre recettes proposées chaque semaine.**~~ **Livré le 14/09.** Carte
   « Ta semaine » sur l'accueil : quatre recettes du catalogue, remplaçables une à une, et un
-  bouton qui monte le batch avec sa liste d'épicerie. Cadré par Marc le 14/09 — quatre
+  bouton qui monte le batch avec sa liste d'épicerie. ⚠️ La composition est passée à **3 plats
+  + 1 dessert** avec `SEM-01`, le même jour : remplacer la carte du dessert rend un dessert,
+  et une place que le catalogue ne peut pas pourvoir est DITE plutôt que comblée au hasard. Cadré par Marc le 14/09 — quatre
   recettes à CUISINER sans jour assigné, fabriquées à l'ouverture de l'app (pas de cron), sur
   des critères MESURÉS, une seule semaine vivante.
 

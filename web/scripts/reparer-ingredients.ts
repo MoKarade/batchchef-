@@ -39,6 +39,7 @@ import { tempsCorrige } from "../lib/tempsRecette";
 import { nettoyerTexte } from "../lib/menageTexte";
 import { normalizeQty } from "../lib/units";
 import { PLAFOND_RETRAITS, retraitsCatalogue, type RecetteCandidate } from "../lib/menageCatalogue";
+import { classerRecette } from "../lib/typePlat";
 
 const require = createRequire(import.meta.url);
 const SEED = path.resolve(process.cwd(), "data", "batchchef.seed.db");
@@ -623,6 +624,66 @@ async function retirerRecettes(retraits: ReturnType<typeof retraitsCatalogue>): 
   return supprimees.length;
 }
 
+/**
+ * Recalcule le TYPE de plat estimé des recettes du catalogue (SEM-01).
+ *
+ * ⚠️ Écrit `type_estime` et RIEN d'autre : la correction de Marc vit dans `type_corrections`,
+ * indexée par `source_url`, et cette passe n'y touche jamais. C'est ce qui permet à sa
+ * correction de survivre au recalcul ET à une réimportation complète du catalogue.
+ *
+ * ⚠️ N'écrit QUE ce qui change, comme les autres passes : un build qui ne trouve rien à
+ * corriger doit le dire, sinon on ne peut plus distinguer « idempotent » de « ça retravaille
+ * les mêmes lignes à chaque fois » — c'est ce qui avait démasqué le défaut de CAT-F.
+ */
+async function classerCatalogue(): Promise<number> {
+  const recettes = await db
+    .select({
+      id: schema.catalogRecipes.id,
+      titre: schema.catalogRecipes.title,
+      actuel: schema.catalogRecipes.typeEstime,
+    })
+    .from(schema.catalogRecipes);
+  if (recettes.length === 0) return 0;
+
+  const lignes = await db
+    .select({
+      recette: schema.catalogIngredients.catalogRecipeId,
+      nom: schema.catalogIngredients.canonical,
+    })
+    .from(schema.catalogIngredients);
+  const parRecette = new Map<number, string[]>();
+  for (const l of lignes) {
+    const acc = parRecette.get(l.recette) ?? [];
+    acc.push(l.nom);
+    parRecette.set(l.recette, acc);
+  }
+
+  const aEcrire: Array<[number, string | null]> = [];
+  for (const r of recettes) {
+    const verdict = classerRecette({ titre: r.titre, ingredients: parRecette.get(r.id) ?? [] });
+    if (verdict.type !== r.actuel) aEcrire.push([r.id, verdict.type]);
+  }
+  if (aEcrire.length === 0) {
+    console.log("[type] Rien à reclasser.");
+    return 0;
+  }
+
+  const TAILLE = 500;
+  for (let i = 0; i < aEcrire.length; i += TAILLE) {
+    const lot = aEcrire.slice(i, i + TAILLE);
+    await db
+      .update(schema.catalogRecipes)
+      .set({ typeEstime: casPar(sql.raw("id"), lot, "text", (v) => v) as unknown as string })
+      .where(inArray(schema.catalogRecipes.id, lot.map(([id]) => id)));
+  }
+  const classees = recettes.length - aEcrire.filter(([, t]) => t === null).length;
+  console.log(
+    `[type] ${aEcrire.length} recette(s) (re)classée(s) sur ${recettes.length} ; ` +
+      `${classees} portent un type après cette passe.`,
+  );
+  return aEcrire.length;
+}
+
 async function main(): Promise<void> {
   if (!process.env.DATABASE_URL) {
     console.log("[ingr] DATABASE_URL absente : correction sautée (aucune base à corriger).");
@@ -701,6 +762,7 @@ async function main(): Promise<void> {
     reference,
   );
   total += await recalculerListes();
+  total += await classerCatalogue();
   console.log(
     total === 0
       ? "[ingr] Rien à corriger — la passe précédente a déjà tout traité."

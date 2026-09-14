@@ -20,16 +20,35 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Batchs + liste d'épicerie | En service, prix estimés (couverture 100 %) |
 | Export Google Tasks | En service |
 | **Assistant** | **Neuf (19/08)** — `/assistant`, Claude fouille la base par outils ; les recettes citées deviennent des cartes cliquables qui s'ouvrent PAR-DESSUS le chat. ⚠️ Éteint si `ANTHROPIC_API_KEY` absente (dit à l'écran, pas une panne) |
-| **Proposition de la semaine** | **Neuve (14/09)** — carte « Ta semaine » sur l'accueil : quatre recettes du catalogue, remplaçables une à une, et un bouton qui monte le batch avec sa liste d'épicerie. Fabriquée à l'ouverture de l'app, pas par un cron |
+| **Proposition de la semaine** | **Neuve (14/09)** — carte « Ta semaine » sur l'accueil : **3 plats + 1 dessert**, remplaçables un à un, et un bouton qui monte le batch avec sa liste d'épicerie. Fabriquée à l'ouverture de l'app, pas par un cron |
+| **Type de plat** | **Neuf (14/09)** — sept familles déduites du titre et des ingrédients (91,4 % de couverture, 54/56 sur un échantillon jugé). Filtre dans le catalogue, étiquette « estimé » sur les fiches, correction manuelle qui survit au recalcul |
 | Widget hub | `GET /api/hub/summary`, contrat `@mokarade/hub-contract` |
 | **Serveur MCP** | **Neuf (19/08)** — `POST /api/mcp`, 7 outils (4 lecture, 3 écriture). **BRANCHÉ ET VÉRIFIÉ EN USAGE RÉEL** le 19/08 : Marc a connecté le connecteur claude.ai (OAuth 2.1, ADR-0002), et les outils rendent ses vraies données. Claude Code reste possible par jeton direct. |
 | Accès | Google mono-adresse + interrogation du hub (`lib/accesHub.ts`) |
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **462 tests**, 34 fichiers (14/09/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **490 tests**, 35 fichiers (14/09/2026).
 
 ## Ce qui vient d'être livré (14/09/2026)
+
+- **`SEM-01` — le type de plat.** Sept familles (plat, entrée et apéro, accompagnement, soupe,
+  salade, dessert, sauce et condiment), déduites du titre et des ingrédients. **91,4 % du
+  catalogue est classé** ; les 8,6 % restants disent « non déterminé » plutôt que de tomber
+  dans la famille la plus probable. Exactitude **54 sur 56** sur un échantillon stratifié jugé
+  à la main — les deux erreurs sont nommées dans `BACKLOG.md`, et 56 est un petit échantillon.
+
+  Ce qui en découle à l'écran : un filtre par type dans le catalogue, une étiquette sur chaque
+  fiche (marquée « estimé » tant que Marc ne l'a pas corrigée), et la semaine qui passe à
+  **3 plats + 1 dessert**.
+
+  ⚠️ **La correction de Marc est indexée par `source_url`**, pas par l'id du catalogue :
+  `npm run catalog:import` change les ids, jamais les URL. Une correction indexée par id
+  disparaîtrait à la première réimportation, sans erreur.
+
+  ⚠️ **Le type est une ESTIMATION, et l'app le dit.** C'est « no fake data » appliqué à un
+  classement : une estimation présentée comme une donnée est le défaut que le reste de l'app
+  s'interdit.
 
 - **`SEM-02` — la proposition de la semaine.** Marc ouvre l'app, il voit quatre recettes à
   cuisiner. Il peut en remplacer n'importe laquelle, et un bouton monte le batch complet avec
