@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import { Durees } from "@/components/Durees";
 import { Etoiles } from "@/components/Etoiles";
 import { ImageRecette } from "@/components/ImageRecette";
-import { creerBatchDepuisSemaine, remplacerRecetteSemaine } from "@/lib/actions";
+import { creerBatchDepuisSemaine, regenererSemaineAction, remplacerRecetteSemaine } from "@/lib/actions";
 import { formatMinutes, type TempsSemaine } from "@/lib/semaine";
 import { LIBELLES, type TypePlat } from "@/lib/typePlat";
 
@@ -53,6 +53,11 @@ export function SemaineProposee({
   const [erreur, setErreur] = useState<string | null>(null);
   const [batchCree, setBatchCree] = useState<number | null>(null);
   const [enCours, setEnCours] = useState<number | null>(null);
+  // ⚠️ Deux temps pour la regénération : le premier clic DEMANDE, le second CONFIRME.
+  // Elle efface quatre choix que Marc a pu faire un par un, et l'ancienne proposition n'est
+  // pas conservée (une seule semaine vivante, SEM-02) — un geste qu'on ne peut pas défaire
+  // mérite un second geste.
+  const [confirmeRegen, setConfirmeRegen] = useState(false);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -85,6 +90,15 @@ export function SemaineProposee({
       setEnCours(position);
       const res = await remplacerRecetteSemaine(position);
       setEnCours(null);
+      if (!res.ok) setErreur(res.error);
+      else router.refresh();
+    });
+
+  const regenerer = () =>
+    startTransition(async () => {
+      setErreur(null);
+      const res = await regenererSemaineAction();
+      setConfirmeRegen(false);
       if (!res.ok) setErreur(res.error);
       else router.refresh();
     });
@@ -153,6 +167,41 @@ export function SemaineProposee({
           </li>
         ))}
       </ul>
+
+      {confirmeRegen ? (
+        <div className="space-y-2 rounded-xl p-2 alerte">
+          <p className="text-xs">
+            Les quatre recettes seront remplacées, et celles d’aujourd’hui ne reviendront pas.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={pending}
+              onClick={regenerer}
+              className="flex-1 rounded-lg border border-[var(--bordure)] px-3 py-2 text-xs disabled:opacity-50"
+            >
+              {pending ? "…" : "Oui, propose-m’en quatre autres"}
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => setConfirmeRegen(false)}
+              className="flex-1 rounded-lg border border-[var(--bordure)] px-3 py-2 text-xs disabled:opacity-50"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => setConfirmeRegen(true)}
+          className="w-full rounded-lg border border-[var(--bordure)] px-3 py-2 text-xs disabled:opacity-50"
+        >
+          Propose-moi une autre semaine
+        </button>
+      )}
 
       {batchCree === null ? (
         <button

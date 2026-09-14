@@ -8,8 +8,17 @@
 //  - un échec laisse la question EN PLACE dans le champ. Perdre ce que quelqu'un vient
 //    d'écrire parce que le réseau a coupé est la faute la plus agaçante d'un chat.
 
-import { useRef, useState, useTransition } from "react";
-import { demanderAAssistant, lireFicheRecette, type FicheRecette } from "@/lib/actions";
+import { useEffect, useRef, useState, useTransition } from "react";
+import {
+  apercuPlacementSemaine,
+  demanderAAssistant,
+  lireFicheRecette,
+  placerRecetteSemaine,
+  type FicheRecette,
+} from "@/lib/actions";
+// ⚠️ Le TYPE vient du module ordinaire, jamais du fichier "use server" : celui-ci ne peut
+// exporter que des fonctions async, et y ajouter un type casse le build.
+import type { ApercuPlacement } from "@/lib/semaineDb";
 import { FicheRecetteModale } from "@/components/FicheRecetteModale";
 import {
   MAX_CARACTERES_MESSAGE,
@@ -65,6 +74,8 @@ export function Conversation({ configure }: { configure: boolean }) {
     decouperReponse(texte).map((seg, i) =>
       seg.type === "texte" ? (
         <span key={i}>{seg.valeur}</span>
+      ) : seg.type === "proposition" ? (
+        <CartePlacement key={i} place={seg.place} id={seg.id} />
       ) : (
         <button
           key={i}
@@ -185,5 +196,88 @@ export function Conversation({ configure }: { configure: boolean }) {
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * La carte d'une proposition de remplacement (SEM-03) : « mets celle-là à la place 3 ».
+ *
+ * ⚠️ Elle charge un APERÇU avant d'offrir le bouton. Deux raisons, et aucune n'est du
+ * confort : Marc doit voir CE QU'IL REMPLACE (la place porte déjà une recette), et il doit
+ * voir quand le remplacement CASSE la composition « 3 plats + 1 dessert ». Son clic vaut
+ * demande explicite — il ne peut valoir demande explicite que s'il sait ce qu'il demande.
+ *
+ * ⚠️ Un aperçu en échec ne rend AUCUN bouton : la cause est affichée à la place. Un bouton
+ * qui tenterait le placement « pour voir » serait une promesse creuse de plus.
+ */
+function CartePlacement({ place, id }: { place: number; id: number }) {
+  const [apercu, setApercu] = useState<ApercuPlacement | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [pose, setPose] = useState<string | null>(null);
+  const [enCours, setEnCours] = useState(false);
+  const demande = useRef(false);
+
+  useEffect(() => {
+    // ⚠️ Une seule fois par carte : sans ce garde, un re-rendu relancerait la lecture à
+    // chaque frappe dans le champ de saisie.
+    if (demande.current) return;
+    demande.current = true;
+    void apercuPlacementSemaine(place, id).then((res) => {
+      if (res.ok) setApercu(res.apercu);
+      else setErreur(res.error);
+    });
+  }, [place, id]);
+
+  const poser = () => {
+    setEnCours(true);
+    setErreur(null);
+    void placerRecetteSemaine(place, id).then((res) => {
+      setEnCours(false);
+      if (res.ok) setPose(res.titre ?? apercu?.titre ?? "Recette");
+      else setErreur(res.error);
+    });
+  };
+
+  if (erreur) {
+    return (
+      <span className="mx-0.5 inline-block rounded-lg px-2 py-0.5 align-baseline text-xs erreur">
+        {erreur}
+      </span>
+    );
+  }
+  if (pose) {
+    // ⚠️ Le chat vit sur /assistant, la carte « Ta semaine » sur l'accueil : Marc ne verra
+    // rien bouger. Le dire est la seule confirmation qu'il aura.
+    return (
+      <span className="mx-0.5 inline-block rounded-lg px-2 py-0.5 align-baseline text-xs succes">
+        {pose} est posée à la place {place} de ta semaine.
+      </span>
+    );
+  }
+  if (!apercu) {
+    return <span className="mx-0.5 align-baseline text-xs doux">…</span>;
+  }
+
+  return (
+    <span className="my-1 block rounded-xl border border-[var(--bordure)] p-2 text-xs">
+      <span className="block">
+        Mettre <strong>{apercu.titre}</strong> à la place {place}, à la place de{" "}
+        <strong>{apercu.titreActuel}</strong>.
+      </span>
+      {apercu.casseComposition && (
+        <span className="mt-1 block rounded-lg px-2 py-1 alerte">
+          Cette place attend {apercu.roleAttendu === "dessert" ? "un dessert" : "un plat, une soupe ou une salade"} :
+          ta semaine ne sera plus « trois plats et un dessert ».
+        </span>
+      )}
+      <button
+        type="button"
+        disabled={enCours}
+        onClick={poser}
+        className="bouton bouton-principal mt-2 w-full disabled:opacity-50"
+      >
+        {enCours ? "…" : `Mettre à la place ${place}`}
+      </button>
+    </span>
   );
 }

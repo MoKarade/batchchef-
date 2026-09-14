@@ -17,7 +17,14 @@ import { upsertTaskList } from "@/lib/googleTasks";
 import { splitNewCatalogRecipes } from "@/lib/catalogSelect";
 import { MAX_TRANSCRIPT_CHARS } from "@/lib/transcription";
 import { estOrigine, formatDateAjout, type OrigineRecette } from "@/lib/origine";
-import { remplacerPosition, semaineCourante } from "@/lib/semaineDb";
+import {
+  apercuPlacement,
+  placerRecette,
+  regenererSemaine,
+  remplacerPosition,
+  semaineCourante,
+  type ApercuPlacement,
+} from "@/lib/semaineDb";
 import { estTypePlat, type TypePlat } from "@/lib/typePlat";
 import {
   clampServings,
@@ -865,6 +872,65 @@ export async function lireFicheRecette(
 // ── Proposition de la semaine (SEM-02) ───────────────────────────────────────────
 
 /** Remplace UNE des quatre recettes proposées. La règle de variété vit dans `semaineDb`. */
+/**
+ * Ce qu'une proposition de l'assistant ferait, avant de la faire (SEM-03). LECTURE seule.
+ *
+ * ⚠️ Elle sert à ÉCRIRE l'avertissement sur la carte : Marc doit voir qu'il s'apprête à
+ * casser la composition « 3 plats + 1 dessert » AVANT de cliquer, puisque c'est son clic
+ * qui vaut demande explicite.
+ */
+export async function apercuPlacementSemaine(
+  place: number,
+  catalogRecipeId: number,
+): Promise<{ ok: true; apercu: ApercuPlacement } | { ok: false; error: string }> {
+  try {
+    await requireSession();
+    const r = await apercuPlacement(place, catalogRecipeId);
+    if ("erreur" in r) return { ok: false, error: r.erreur };
+    return { ok: true, apercu: r };
+  } catch (err) {
+    // ⚠️ `fail` rend un `ActionResult` sans `apercu` : on reformule ici plutôt que d'élargir
+    // le type de retour, sinon l'appelant devrait gérer un « ok sans aperçu » qui n'existe pas.
+    const echec = fail(err);
+    return { ok: false, error: echec.ok ? "Aperçu indisponible." : echec.error };
+  }
+}
+
+/** Pose une recette précise à une place de la semaine (SEM-03). */
+export async function placerRecetteSemaine(
+  place: number,
+  catalogRecipeId: number,
+): Promise<ActionResult & { titre?: string }> {
+  try {
+    await requireSession();
+    const r = await placerRecette(place, catalogRecipeId);
+    if (!r.ok) return r;
+    revalidatePath("/");
+    return { ok: true, titre: r.titre };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Retire les quatre recettes de la semaine et en propose quatre autres.
+ *
+ * ⚠️ Irréversible au sens où l'ancienne proposition n'est pas conservée — Marc a choisi une
+ * seule semaine vivante (SEM-02). L'écran demande donc une confirmation avant d'appeler :
+ * un clic qui efface quatre choix faits un par un mérite un second geste.
+ */
+export async function regenererSemaineAction(): Promise<ActionResult & { recettes?: number }> {
+  try {
+    await requireSession();
+    const r = await regenererSemaine();
+    if (!r.ok) return r;
+    revalidatePath("/");
+    return { ok: true, recettes: r.recettes };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 export async function remplacerRecetteSemaine(position: number): Promise<ActionResult> {
   try {
     await requireSession();

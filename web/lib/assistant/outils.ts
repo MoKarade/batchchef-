@@ -18,6 +18,10 @@ import {
   classerParDisponibilite,
   type RecetteTrouvee,
 } from "./protocole";
+import { LIBELLES_DIFFICULTE, estDifficulte } from "@/lib/difficulte";
+import { COMPOSITION, semaineISO } from "@/lib/semaine";
+import { lireSemaine } from "@/lib/semaineDb";
+import { LIBELLES as LIBELLES_TYPE, estTypePlat } from "@/lib/typePlat";
 
 export type SourceRecette = "catalogue" | "mes-recettes";
 
@@ -78,6 +82,14 @@ export const OUTILS = [
         },
       },
     },
+  },
+  {
+    name: "lire_semaine",
+    description:
+      "Lit la proposition de la semaine en cours : les quatre recettes, leur PLACE (1 à 4), " +
+      "leur type et leur difficulté estimée. À appeler AVANT toute proposition de " +
+      "remplacement — « le troisième » ne veut rien dire sans ça. Ne modifie rien.",
+    input_schema: { type: "object" as const, properties: {} },
   },
 ] as const;
 
@@ -265,8 +277,43 @@ export async function executerOutil(nom: string, args: Record<string, unknown>):
     if (nom === "ingredients_les_plus_utilises") {
       return bornerResultat(await ingredientsLesPlusUtilises(args));
     }
+    if (nom === "lire_semaine") return bornerResultat(await lireSemainePourAssistant());
     return `Outil inconnu : ${nom}.`;
   } catch (err) {
     return `L'outil ${nom} a échoué : ${err instanceof Error ? err.message : String(err)}`;
   }
+}
+
+/**
+ * La semaine en cours, telle que l'assistant doit la voir (SEM-03).
+ *
+ * ⚠️ LIT, ne fabrique JAMAIS. `semaineCourante` crée la proposition quand elle manque, avec
+ * un `delete` + `insert` : appelée depuis un outil, elle fabriquerait la semaine de Marc au
+ * détour d'une question — et effacerait la précédente. On lit, et on dit quand il n'y a rien.
+ *
+ * ⚠️ Les places sont rendues de 1 à 4, comme Marc les dit. La base compte de 0 ; la
+ * conversion vit dans `positionEnBase` et nulle part ailleurs.
+ */
+async function lireSemainePourAssistant(): Promise<string> {
+  const semaine = semaineISO(new Date());
+  const recettes = await lireSemaine(semaine);
+  if (recettes.length === 0) {
+    return (
+      "Aucune proposition n'existe pour la semaine en cours. Elle se fabrique quand Marc " +
+      "ouvre l'accueil de l'app — dis-le-lui plutôt que d'en inventer une."
+    );
+  }
+  const lignes = recettes.map((r) => {
+    const place = r.position + 1;
+    const role = r.position >= COMPOSITION.repas ? "dessert" : "plat, soupe ou salade";
+    const type = estTypePlat(r.type) ? LIBELLES_TYPE[r.type] : "type non déterminé";
+    const note = estDifficulte(r.difficulte)
+      ? `${LIBELLES_DIFFICULTE[r.difficulte]} (${r.difficulte}/5)`
+      : "difficulté non estimée";
+    return `Place ${place} (attend : ${role}) — ${r.titre} [catalogue #${r.catalogRecipeId}] · ${type} · ${note}`;
+  });
+  return baliserDonnee(
+    "semaine",
+    `Semaine ${semaine}, ${recettes.length} recette(s) :\n${lignes.join("\n")}`,
+  );
 }

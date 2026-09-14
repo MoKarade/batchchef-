@@ -21,6 +21,7 @@ import {
   type CandidateSemaine,
 } from "@/lib/semaine";
 import { estRepas, estTypePlat, type TypePlat } from "@/lib/typePlat";
+import { positionEnBase } from "@/lib/assistant/protocole";
 import { aggregateShoppingList, fillMissingCosts } from "@/lib/aggregate";
 import { ecarterIngredientsDeFond } from "@/lib/ingredientsDeFond";
 import { estimateShoppingCosts } from "@/lib/llm";
@@ -374,4 +375,132 @@ export async function remplacerPosition(
     .set({ catalogRecipeId: remplacante.id })
     .where(and(eq(schema.weekPicks.semaine, semaine), eq(schema.weekPicks.position, position)));
   return { ok: true };
+}
+
+/** Le rôle qu'une place attend : les trois premières portent un repas, la quatrième un dessert. */
+export function roleDeLaPlace(position: number): "repas" | "dessert" {
+  return position >= COMPOSITION.repas ? "dessert" : "repas";
+}
+
+export interface ApercuPlacement {
+  /** La recette proposée. */
+  titre: string;
+  type: TypePlat | null;
+  /** Ce qui occupe la place aujourd'hui — Marc doit voir ce qu'il remplace. */
+  titreActuel: string;
+  /** `true` quand la recette ne tient pas le rôle de la place. */
+  casseComposition: boolean;
+  roleAttendu: "repas" | "dessert";
+}
+
+/**
+ * Ce qu'une proposition de l'assistant ferait, AVANT de la faire (SEM-03).
+ *
+ * ⚠️ Marc a tranché que la composition « 3 plats + 1 dessert » peut être contournée s'il le
+ * demande explicitement — et le clic EST la demande explicite, à condition que la carte
+ * annonce ce qu'elle casse. C'est ce que cet aperçu sert à écrire à l'écran : sans lui, le
+ * bouton appliquerait un dessert à une place de plat sans que rien ne le dise.
+ */
+export async function apercuPlacement(
+  place: number,
+  catalogRecipeId: number,
+  maintenant: Date = new Date(),
+): Promise<ApercuPlacement | { erreur: string }> {
+  const position = positionEnBase(place);
+  if (position === null) return { erreur: "Cette place n'existe pas dans la semaine." };
+
+  const semaine = semaineISO(maintenant);
+  const actuelles = await lireSemaine(semaine);
+  const actuelle = actuelles.find((r) => r.position === position);
+  if (!actuelle) return { erreur: "Aucune proposition à cette place cette semaine." };
+
+  const [cible] = await db
+    .select({
+      titre: schema.catalogRecipes.title,
+      type: sql<string | null>`coalesce(${schema.typeCorrections.type}, ${schema.catalogRecipes.typeEstime})`,
+    })
+    .from(schema.catalogRecipes)
+    .leftJoin(schema.typeCorrections, eq(schema.typeCorrections.sourceUrl, schema.catalogRecipes.sourceUrl))
+    .where(eq(schema.catalogRecipes.id, catalogRecipeId));
+  // ⚠️ On ne fait JAMAIS confiance à l'identifiant du marqueur : il vient d'un modèle.
+  if (!cible) return { erreur: "Cette recette n'existe pas dans le catalogue." };
+
+  const type = estTypePlat(cible.type) ? cible.type : null;
+  const roleAttendu = roleDeLaPlace(position);
+  const tientLeRole = roleAttendu === "dessert" ? type === "dessert" : estRepas(type);
+
+  return {
+    titre: cible.titre,
+    type,
+    titreActuel: actuelle.titre,
+    casseComposition: !tientLeRole,
+    roleAttendu,
+  };
+}
+
+/**
+ * Pose une recette PRÉCISE à une place de la semaine (SEM-03).
+ *
+ * ⚠️ Tout est revalidé ICI — la place, l'existence de la recette, l'existence de la semaine.
+ * Le marqueur qui a produit le bouton vient d'un modèle, et le bouton lui-même est
+ * atteignable sans passer par le chat : une Server Action est un point d'entrée POST.
+ *
+ * ⚠️ Le rôle n'est PAS un refus (arbitrage de Marc, 14/09) : il peut mettre deux desserts
+ * s'il le demande. Ce qui est non négociable, c'est que la carte l'ait DIT avant le clic.
+ */
+export async function placerRecette(
+  place: number,
+  catalogRecipeId: number,
+  maintenant: Date = new Date(),
+): Promise<{ ok: true; titre: string } | { ok: false; error: string }> {
+  const position = positionEnBase(place);
+  if (position === null) return { ok: false, error: "Cette place n'existe pas dans la semaine." };
+
+  const apercu = await apercuPlacement(place, catalogRecipeId, maintenant);
+  if ("erreur" in apercu) return { ok: false, error: apercu.erreur };
+
+  const semaine = semaineISO(maintenant);
+  await db
+    .update(schema.weekPicks)
+    .set({ catalogRecipeId })
+    .where(and(eq(schema.weekPicks.semaine, semaine), eq(schema.weekPicks.position, position)));
+  return { ok: true, titre: apercu.titre };
+}
+
+/**
+ * Retire les quatre recettes et en propose quatre autres (SEM-03, demande de Marc).
+ *
+ * ⚠️ La graine change à chaque appel. `semaineCourante` tire sur `semaine` — déterministe
+ * par conception, pour que la semaine ne bouge pas d'un affichage à l'autre. Rejouer avec
+ * cette graine-là rendrait exactement les quatre mêmes recettes, et le bouton aurait l'air
+ * cassé.
+ *
+ * ⚠️ Écriture ATOMIQUE : le retrait et la pose sont dans la même transaction. Une coupure
+ * entre les deux laisserait Marc sans aucune proposition — pire que l'ancienne.
+ */
+export async function regenererSemaine(
+  maintenant: Date = new Date(),
+): Promise<{ ok: true; recettes: number } | { ok: false; error: string }> {
+  const semaine = semaineISO(maintenant);
+  const exclues = await dejaCuisinees();
+  const graine = `${semaine}:regen:${Date.now()}`;
+  const tirage = choisirQuatre(await candidates(graine, exclues), exclues, graine);
+  if (tirage.recettes.length === 0) {
+    return { ok: false, error: "Plus aucune recette à proposer pour l'instant." };
+  }
+  const lignes = tirage.recettes.map((r, position) => ({
+    semaine,
+    catalogRecipeId: r.id,
+    position,
+  }));
+  try {
+    await db.batch([
+      db.delete(schema.weekPicks).where(eq(schema.weekPicks.semaine, semaine)),
+      db.insert(schema.weekPicks).values(lignes),
+    ]);
+  } catch (err) {
+    const cause = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: `La nouvelle proposition n'a pas pu être enregistrée : ${cause}` };
+  }
+  return { ok: true, recettes: lignes.length };
 }

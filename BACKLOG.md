@@ -133,7 +133,7 @@ conditionnait pas.
   ⚠️ Ce qui est mesuré est l'**effort** (ingrédients, étapes, durée), jamais la **technique** :
   une omelette roulée sortira « très simple ». Aucun signal du corpus ne dit le contraire.
 
-- [ ] **`SEM-03` — changer une recette de la semaine EN PARLANT à l'assistant.** La moitié
+- [x] ~~**`SEM-03` — changer une recette de la semaine EN PARLANT à l'assistant.**~~ **Livré le 14/09.** La moitié
   restante de la demande du 21/08. Le bouton « Remplacer » couvre le besoin de façon
   déterministe ; ce qui manque est un outil d'ÉCRITURE côté assistant (`lib/assistant/`) pour
   que « mets-moi quelque chose avec du poulet à la place du troisième » fonctionne.
@@ -149,6 +149,13 @@ conditionnait pas.
   des crons quotidiens — une expression hebdomadaire fait ÉCHOUER le déploiement (vécu par
   CarAI, « Hobby accounts are limited to daily cron jobs »). `SEM-02` s'en passe : la semaine
   se fabrique à l'ouverture de l'app.
+
+  **Ce qui a été livré**, avec les arbitrages de Marc : l'assistant **propose**, Marc applique
+  d'un bouton (il a écarté l'application directe) ; la composition « 3 plats + 1 dessert »
+  **peut** être cassée s'il le demande, la carte l'avertissant avant le clic ; **le catalogue
+  seulement** (la semaine y pointe en base). Plus, demandé en cours de lot : un bouton
+  **« Propose-moi une autre semaine »** qui rejoue les quatre d'un coup, derrière une
+  confirmation.
 
 
 ### Chantier CATALOGUE (plan arbitré par Marc le 19/08, un lot par PR)
