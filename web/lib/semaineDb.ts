@@ -132,8 +132,18 @@ async function candidates(graine: string, exclues: readonly number[]): Promise<C
   }));
 }
 
-/** Relit la proposition persistée d'une semaine, jointe aux recettes du catalogue. */
-async function lire(semaine: string): Promise<RecetteSemaine[]> {
+/**
+ * Relit la proposition persistée d'une semaine, jointe aux recettes du catalogue.
+ *
+ * ⚠️ EXPORTÉE POUR LE HUB, ET C'EST EXACTEMENT POURQUOI ELLE EST SÉPARÉE DE
+ * `semaineCourante`. Celle-ci FABRIQUE la proposition quand elle manque, avec un
+ * `delete` + `insert` dans une transaction. Un `GET /api/hub/summary` ne doit rien écrire :
+ * le hub interroge toutes les ~15 s tant qu'un onglet est ouvert, et son horloge toutes les
+ * 30 min sans personne devant. Appeler `semaineCourante` depuis là fabriquerait la semaine
+ * de Marc à l'insu de Marc — et le `delete … where semaine <> …` effacerait la précédente.
+ * Le hub LIT, il ne décide pas de la semaine.
+ */
+export async function lireSemaine(semaine: string): Promise<RecetteSemaine[]> {
   const rows = await db
     .select({
       catalogRecipeId: schema.weekPicks.catalogRecipeId,
@@ -162,7 +172,7 @@ async function lire(semaine: string): Promise<RecetteSemaine[]> {
  */
 export async function semaineCourante(maintenant: Date = new Date()): Promise<SemaineAffichee> {
   const semaine = semaineISO(maintenant);
-  const existante = await lire(semaine);
+  const existante = await lireSemaine(semaine);
   if (existante.length > 0) return { semaine, recettes: existante, fabriquee: false };
 
   const exclues = await dejaCuisinees();
@@ -187,12 +197,12 @@ export async function semaineCourante(maintenant: Date = new Date()): Promise<Se
     // autre onglet (la proposition du gagnant est là, on la sert), ou une vraie panne de
     // base. ⚠️ On ne rend JAMAIS la seconde comme « pas de proposition » : on relaie la
     // cause, sinon une base en panne s'affiche comme un catalogue vide.
-    const apres = await lire(semaine).catch(() => []);
+    const apres = await lireSemaine(semaine).catch(() => []);
     if (apres.length > 0) return { semaine, recettes: apres, fabriquee: false };
     const cause = err instanceof Error ? err.message : String(err);
     throw new Error(`La proposition de la semaine n'a pas pu être enregistrée : ${cause}`);
   }
-  return { semaine, recettes: await lire(semaine), fabriquee: true };
+  return { semaine, recettes: await lireSemaine(semaine), fabriquee: true };
 }
 
 export interface PrixSemaine {
@@ -320,7 +330,7 @@ export async function remplacerPosition(
     return { ok: false, error: "Position hors de la semaine." };
   }
   const semaine = semaineISO(maintenant);
-  const actuelles = await lire(semaine);
+  const actuelles = await lireSemaine(semaine);
   if (actuelles.length === 0) return { ok: false, error: "Aucune proposition cette semaine." };
   const cible = actuelles.find((r) => r.position === position);
   if (!cible) return { ok: false, error: "Position introuvable dans la semaine." };

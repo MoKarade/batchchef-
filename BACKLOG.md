@@ -8,6 +8,29 @@
 
 ## En cours / décidé, pas encore livré
 
+### Chantier HUB (14/09) — ce que la carte BatchChef dit du hub
+
+- [x] **`HUB-SEM` — la carte montre enfin ce qu'il y a à faire.** Livré le 14/09. Contrat
+  re-pinné sur `v1.3.0`, puis : `dataAsOf` (le dernier geste de Marc — le plus récent entre la
+  création d'un batch et la dernière case d'épicerie cochée) ; `primary` qui **suit** ce qu'il
+  y a à faire (les courses tant qu'il en reste, l'état de la cuisine sinon — jamais
+  « Recettes », dix mille et des qui ne bougent pas) ; le NOM du batch en cours en alerte
+  d'information ; et un bloc `details` avec la proposition de la semaine et l'épicerie.
+  6 mutations jouées, 6 attrapées.
+  ⚠️ **Aucun `expectedMaxAgeSec`, exprès** — voir le `CLAUDE.md` §7. BatchChef n'a pas de
+  moteur : un seuil ferait crier « figée » à chaque semaine où Marc a mangé dehors.
+  ⚠️ **Le hub LIT la semaine** (`lireSemaine`, exportée pour ça), jamais `semaineCourante`
+  qui la FABRIQUE : un GET du hub ne doit rien écrire, et son `delete … where semaine <> …`
+  effacerait la précédente.
+  ⚠️ **Découvert en écrivant le test des bornes, pas en production** : deux titres partageant
+  leurs 37 premiers caractères produisaient deux libellés identiques, que le contrat REFUSE —
+  `validateSummary` jetait à l'émission et TOUT le summary basculait en `status: "error"`. La
+  carte entière devenait illisible à cause de deux titres qui se ressemblent. Réglé par le
+  numéro de position, unique par contrainte de base et utile à l'usage.
+- [ ] **`HUB-RENDU`** — le hub ne REND pas encore `details` ni `primary` (son lot 2). Rien à
+  faire dans ce dépôt : entrée gardée pour que « publié » ne se lise pas « affiché ».
+
+
 ### Chantier SEMAINE (demandé par Marc le 21/08, cadré et ouvert le 14/09)
 
 Deux demandes : **classer les recettes**, et **s'en servir pour proposer une semaine**.

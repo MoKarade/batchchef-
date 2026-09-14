@@ -6,9 +6,12 @@
 // sans base), `buildBatchchefSummary` lit Neon puis délègue à la première.
 
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
-import { validateSummary, type HubSummary } from "@mokarade/hub-contract";
+import { validateSummary, type HubDetailSection, type HubSummary } from "@mokarade/hub-contract";
 import { db, schema } from "@/lib/db";
 import { totalLlmCostUsd } from "@/lib/llmUsage";
+import { semaineISO } from "@/lib/semaine";
+import { lireSemaine, type RecetteSemaine } from "@/lib/semaineDb";
+import { LIBELLES } from "@/lib/typePlat";
 
 const APP_COLOR = "#c2410c"; // orange cuisine
 const ACTIVE = ["planifie", "courses", "cuisine"] as const;
@@ -36,8 +39,114 @@ export interface BatchchefCounts {
   budgetRemaining: number;
   /** Batch actif le plus récent → lien direct « liste de courses » dans la carte du hub. */
   activeBatchId: number | null;
+  /** Nom du batch actif le plus récent — ce que Marc est en train de cuisiner. */
+  activeBatchName: string | null;
   /** Coût LLM cumulé en USD (bloc usage du hub). */
   llmCostUsd: number;
+  /**
+   * Dernier geste de Marc dans l'app, ISO — le batch le plus récent ou la dernière case
+   * d'épicerie cochée. `null` si rien n'est daté.
+   *
+   * ⚠️ C'est la fraîcheur d'une DONNÉE, pas d'une passe de moteur : BatchChef n'a pas de
+   * moteur. Voir `composeBatchchefSummary`, qui explique pourquoi elle se publie SANS seuil.
+   */
+  lastActivityAt: string | null;
+  /** La proposition de la semaine, LUE (jamais fabriquée depuis un GET du hub). */
+  semaine: { semaine: string; recettes: RecetteSemaine[] } | null;
+}
+
+/** Le contrat borne les libellés à 40 et les précisions à 80 : on tronque plutôt qu'être rejeté. */
+function borne(texte: string, max: number): string {
+  const t = texte.trim();
+  return t.length <= max ? t : `${t.slice(0, max - 1).trimEnd()}\u2026`;
+}
+
+/** « 1 h 20 », « 25 min », ou rien quand la durée est inconnue (jamais « 0 min »). */
+function duree(minutes: number | null): string {
+  if (minutes === null || minutes <= 0) return "";
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h} h` : `${h} h ${m}`;
+}
+
+/**
+ * Les sections `details` du contrat v1.3. PURE.
+ *
+ * ── LA SEMAINE EST LUE, JAMAIS FABRIQUÉE ────────────────────────────────────────────
+ *
+ * `counts.semaine` vient de `lireSemaine` (lecture seule) et pas de `semaineCourante`, qui
+ * FABRIQUE la proposition manquante avec un `delete` + `insert`. Le hub interroge ce endpoint
+ * toutes les ~15 s tant qu'un onglet est ouvert, et son horloge toutes les 30 min sans
+ * personne devant : y brancher `semaineCourante` fabriquerait la semaine de Marc à son insu,
+ * et le `delete … where semaine <> …` effacerait la précédente. Un GET n'écrit pas.
+ *
+ * `null` (pas encore de proposition) n'est donc PAS une anomalie : c'est ce que le hub voit
+ * un lundi matin avant que Marc n'ouvre son app. Aucune section, plutôt qu'un encadré vide
+ * qui ressemblerait à une donnée qui n'a pas chargé.
+ */
+function sectionsDetail(counts: BatchchefCounts): HubDetailSection[] {
+  const sections: HubDetailSection[] = [];
+
+  const semaine = counts.semaine;
+  if (semaine !== null && semaine.recettes.length > 0) {
+    sections.push({
+      title: borne(`Semaine ${semaine.semaine}`, 40),
+      // Le contrat plafonne à 8 lignes ; la proposition en compte 4 (`RECETTES_PAR_SEMAINE`).
+      // Le `slice` est une ceinture au cas où ce nombre monterait un jour : un dépassement
+      // ferait REJETER le résumé entier, donc accuserait BatchChef d'une panne inexistante.
+      items: semaine.recettes.slice(0, 8).map((r) => {
+        const bouts = [
+          r.type !== null ? LIBELLES[r.type] : "",
+          duree((r.prepMinutes ?? 0) + (r.cuissonMinutes ?? 0)),
+        ].filter((x) => x !== "");
+        return {
+          // ⚠️ LE NUMÉRO N'EST PAS DÉCORATIF, IL REND LE LIBELLÉ UNIQUE.
+          //
+          // Le contrat REFUSE deux lignes de même libellé dans une section — et un refus
+          // fait jeter `validateSummary` à l'émission, donc basculer TOUT le summary en
+          // `status: "error"` : la carte entière deviendrait « impossible de lire l'état »
+          // à cause de deux titres qui se ressemblent. Découvert en écrivant le test des
+          // bornes, pas en production, et c'est bien là qu'il fallait le trouver.
+          //
+          // Sur 10 188 recettes, deux titres qui partagent leurs 37 premiers caractères
+          // existent (« Gratin de pommes de terre et de courgettes au parmesan » / « … au
+          // comté ») : la troncature à 40 les rendait identiques. La `position` est UNIQUE
+          // par semaine — contrainte `week_picks_semaine_position` en base, pas une
+          // convention — donc le préfixe l'est aussi.
+          //
+          // Et il informe : c'est le numéro auquel Marc parle (« remplace la deuxième »,
+          // cf. `remplacerPosition`). Le rendre visible fait correspondre ce que le hub
+          // affiche à ce qu'il dira à l'assistant.
+          label: `${r.position + 1}. ${borne(r.titre, 40 - 3)}`,
+          // La VALEUR est le titre et non un numéro de position : c'est ce qu'on lit. Le
+          // libellé porte déjà le titre tronqué à 40 ; la valeur le redonne à 60, parce que
+          // les titres de recettes sont longs et que couper « Gratin de courgettes au… » à
+          // quarante caractères perd souvent le plat.
+          value: borne(r.titre, 60),
+          format: "text" as const,
+          ...(bouts.length > 0 ? { hint: borne(bouts.join(" \u00b7 "), 80) } : {}),
+        };
+      }),
+    });
+  }
+
+  sections.push({
+    title: "Épicerie et cuisine",
+    items: [
+      { label: "Articles à acheter", value: counts.toBuy, format: "number" as const },
+      {
+        label: "Budget restant (est.)",
+        value: Math.round(counts.budgetRemaining * 100) / 100,
+        format: "currency" as const,
+        hint: "somme des lignes RÉELLEMENT chiffrées",
+      },
+      { label: "Batchs actifs", value: counts.activeBatches, format: "number" as const },
+      { label: "Batchs au total", value: counts.batches, format: "number" as const },
+    ],
+  });
+
+  return sections;
 }
 
 /** Compose un HubSummary VALIDÉ à partir des agrégats (jette si le payload dévie du contrat). */
@@ -48,16 +157,31 @@ export function composeBatchchefSummary(counts: BatchchefCounts, base = publicUr
   const status: HubSummary["status"] =
     counts.recipes === 0 && counts.batches === 0 ? "building" : "ok";
 
+  // `primary` (contrat v1.3) = LE chiffre de la carte, et il SUIT ce qu'il y a à faire.
+  //
+  // « Recettes » est le plus gros nombre de l'app (dix mille et des) et le moins informatif :
+  // il ne bouge quasiment jamais. Mettre en avant un nombre figé est la façon la plus sûre de
+  // faire cesser de regarder une carte. Ce qui compte pour une app de cuisine en lots, c'est
+  // ce qui reste à faire — les courses tant qu'il y en a, l'état de la cuisine sinon. Même
+  // repli conditionnel que JobAI, et pour la même raison : une carte sans chiffre mis en
+  // avant est une carte qu'on ne lit pas.
+  const enCourses = counts.toBuy > 0;
   const metrics: HubSummary["metrics"] = [
-    { label: "Recettes", value: counts.recipes, format: "number" },
-    { label: "Batchs actifs", value: counts.activeBatches, format: "number" },
     {
       label: "Articles à acheter",
       value: counts.toBuy,
       format: "number",
-      severity: counts.toBuy > 0 ? "warn" : "ok",
+      severity: enCourses ? "warn" : "ok",
+      ...(enCourses ? { primary: true as const } : {}),
+    },
+    {
+      label: "Batchs actifs",
+      value: counts.activeBatches,
+      format: "number",
+      ...(enCourses ? {} : { primary: true as const }),
     },
     { label: "Budget restant (est.)", value: budgetRemaining, format: "currency" },
+    { label: "Recettes", value: counts.recipes, format: "number" },
   ];
 
   const alerts: HubSummary["alerts"] = [];
@@ -81,14 +205,37 @@ export function composeBatchchefSummary(counts: BatchchefCounts, base = publicUr
     });
   }
 
+  // Le NOM du batch en cours, en alerte d'information : « Batchs actifs : 1 » ne dit pas ce
+  // qu'on cuisine, et c'est la première chose qu'on veut savoir en regardant la carte.
+  if (counts.activeBatchName !== null) {
+    alerts.push({ label: borne(`En cours : ${counts.activeBatchName}`, 40), severity: "info" });
+  }
+
+  const sections = sectionsDetail(counts);
+
   const summary = {
     contractVersion: 1 as const,
     app: { id: "batchchef", name: "BatchChef", url: base, color: APP_COLOR },
     generatedAt: new Date().toISOString(),
+    // ── `dataAsOf` SANS `expectedMaxAgeSec`, ET C'EST UNE DÉCISION ───────────────────
+    //
+    // Le contrat v1.3 permet de publier un seuil au-delà duquel le hub déclare la donnée
+    // FIGÉE. BatchChef n'en publie AUCUN, exprès : les quatre autres apps ont un moteur qui
+    // passe (un tick, un cron, un poll), donc un rythme attendu. Ici il n'y a pas de moteur —
+    // la donnée change quand MARC cuisine. Une semaine sans batch n'est pas une panne, c'est
+    // une semaine où il a mangé dehors.
+    //
+    // Un seuil, quel qu'il soit, ferait donc crier « BatchChef est figée » à chaque semaine
+    // creuse. Sans seuil, le hub affiche l'âge et dit qu'il ne peut pas le juger
+    // (`age-connu-non-juge`, ADR-0003 de Hubperso) — ce qui est exactement vrai. C'est le seul
+    // état des cinq pour lequel cet état-là est le BON, pas un pis-aller en attendant un
+    // re-pin.
+    ...(counts.lastActivityAt !== null ? { dataAsOf: counts.lastActivityAt } : {}),
     status,
     metrics,
     alerts,
     actions,
+    ...(sections.length > 0 ? { details: sections } : {}),
     // Coût LLM cumulé (estimé) — facturé en USD par Anthropic.
     usage: {
       cost: {
@@ -128,15 +275,43 @@ export async function buildBatchchefSummary(): Promise<HubSummary> {
         sql`${schema.shoppingItems.estCost} is not null`,
       ),
     );
-  // Batch actif le plus récent (pour le lien direct « liste de courses »).
+  // Batch actif le plus récent (pour le lien direct « liste de courses » ET son nom).
   const [activeBatch] = await db
-    .select({ id: schema.batches.id })
+    .select({ id: schema.batches.id, name: schema.batches.name, createdAt: schema.batches.createdAt })
     .from(schema.batches)
     .where(inArray(schema.batches.status, [...ACTIVE]))
     .orderBy(desc(schema.batches.createdAt))
     .limit(1);
 
+  // DERNIER GESTE DE MARC — le plus récent des deux seuls faits datés de l'app : la création
+  // d'un batch, et une case d'épicerie cochée. Le maximum des deux, pas l'un ou l'autre :
+  // pendant une semaine de courses, ce qui bouge est `checked_at`, et le batch a des jours ;
+  // le lundi d'un nouveau lot, c'est l'inverse. Prendre un seul des deux publierait une
+  // fraîcheur périmée la moitié du temps.
+  const [dernierBatch] = await db
+    .select({ at: schema.batches.createdAt })
+    .from(schema.batches)
+    .orderBy(desc(schema.batches.createdAt))
+    .limit(1);
+  const [dernierCoche] = await db
+    .select({ at: sql<Date | null>`max(${schema.shoppingItems.checkedAt})` })
+    .from(schema.shoppingItems);
+
   const llmCostUsd = await totalLlmCostUsd();
+
+  // ⚠️ LECTURE SEULE de la semaine (`lireSemaine`), jamais `semaineCourante` qui la FABRIQUE :
+  // un GET du hub ne doit rien écrire. Et échec AVALÉ ici, exprès : la proposition de la
+  // semaine est un agrément, pas l'état de l'app. Laisser une panne de cette lecture faire
+  // basculer tout le summary en `status: "error"` rendrait la carte inutilisable pour une
+  // section de détail — alors que les compteurs, eux, sont là.
+  let semaine: BatchchefCounts["semaine"] = null;
+  try {
+    const cle = semaineISO(new Date());
+    const recettes = await lireSemaine(cle);
+    if (recettes.length > 0) semaine = { semaine: cle, recettes };
+  } catch (err) {
+    console.error("[hub/summary] proposition de la semaine illisible", err);
+  }
 
   return composeBatchchefSummary({
     recipes: recipes?.n ?? 0,
@@ -145,6 +320,17 @@ export async function buildBatchchefSummary(): Promise<HubSummary> {
     toBuy: toBuy?.n ?? 0,
     budgetRemaining: Number(budget?.sum ?? 0),
     activeBatchId: activeBatch?.id ?? null,
+    activeBatchName: activeBatch?.name ?? null,
+    lastActivityAt: plusRecent(dernierBatch?.at ?? null, dernierCoche?.at ?? null),
+    semaine,
     llmCostUsd,
   });
+}
+
+/** Le plus récent de deux instants, en ISO. `null` si aucun des deux n'est utilisable. */
+export function plusRecent(a: Date | string | null, b: Date | string | null): string | null {
+  const ms = [a, b]
+    .map((x) => (x === null ? NaN : new Date(x).getTime()))
+    .filter((n) => Number.isFinite(n));
+  return ms.length === 0 ? null : new Date(Math.max(...ms)).toISOString();
 }
