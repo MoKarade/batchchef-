@@ -381,12 +381,31 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   invisible. Re-mesuré avec les portions RÉELLES : **17 788 lignes sur 73 542 chiffrées
   (24,2 %)**, pire écart absolu **0,20** (amandes en poudre, 125,2 → 125 sur 40 portions).
 
-- [ ] **Deux doublons dans la bibliothèque PERSO de Marc** — « Fusilli à la crème champignons
-  et poulet » y figure deux fois (`mes-recettes` #1 et #8, mêmes ingrédients). `CAT-E` ne
-  dédoublonne que le CATALOGUE : la bibliothèque perso n'a jamais été balayée. Deux recettes
-  seulement sur quinze, mais le mécanisme existe déjà (`lib/menageCatalogue.ts`) et ne
-  demanderait qu'une source d'entrée différente. ⚠️ Ne rien supprimer sans l'accord de Marc :
-  ce sont SES recettes, pas du catalogue importé.
+- [ ] **Le doublon de la bibliothèque PERSO — RENVOYÉ À MARC, un clic suffit.** « Fusilli à
+  la crème champignons et poulet » figure deux fois (`mes-recettes` #1 et #8, identiques au
+  caractère près). `CAT-E` ne dédoublonne que le CATALOGUE : la bibliothèque perso n'a jamais
+  été balayée. Re-mesuré le 14/09 avant d'écrire une ligne, et **deux affirmations de cette
+  entrée étaient fausses** :
+
+  - « deux recettes sur **quinze** » : la bibliothèque en compte **quatorze** (#10 n'existe
+    plus), et #1/#8 sont la SEULE paire en double des quatorze. C'était une plage d'ids lue
+    comme un compte.
+  - « le mécanisme existe déjà et ne demanderait qu'une source d'entrée différente » :
+    **non**. `retraitsCatalogue` groupe par titre + ingrédients puis désigne l'exemplaire
+    gardé **par son URL** — or ces deux lignes-là partagent la leur. L'outil ne saurait pas
+    les distinguer, et son verdict (« garde telle URL ») ne désignerait aucune des deux.
+
+  Ce qui rend l'entrée caduque comme CHANTIER : le bouton « Supprimer » existe déjà sur la
+  fiche (`components/DeleteRecipeButton.tsx` → `deleteRecipe`), et il refuse honnêtement si
+  un batch utilise la recette (clé étrangère `restrict`, message dédié). Aucun batch n'existe
+  aujourd'hui, donc rien ne bloque. **Arbitrage de Marc, 14/09** : il retire l'exemplaire en
+  trop lui-même plutôt que de mettre une suppression de SES recettes dans le script de build,
+  qui tourne à chaque déploiement, ou d'ouvrir la suppression au serveur MCP.
+
+  ⚠️ **Lequel garder se lit sur la FICHE, pas d'ici** : la provenance (`lib/origine.ts`)
+  distingue « ajoutée par toi » d'une recette piochée au catalogue, et ni le MCP ni le seed
+  ne l'exposent. Si les deux exemplaires n'ont pas la même origine, ils ne sont pas
+  interchangeables.
 
 - [x] ~~**`SEC-01` — une RCE non authentifiée était ouverte en production.**~~ **Fermée le
   14/09**, trouvée en lançant le gate d'un lot sans rapport. `npm audit --omit=dev` rendait
