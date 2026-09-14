@@ -20,15 +20,54 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Batchs + liste d'épicerie | En service, prix estimés (couverture 100 %) |
 | Export Google Tasks | En service |
 | **Assistant** | **Neuf (19/08)** — `/assistant`, Claude fouille la base par outils ; les recettes citées deviennent des cartes cliquables qui s'ouvrent PAR-DESSUS le chat. ⚠️ Éteint si `ANTHROPIC_API_KEY` absente (dit à l'écran, pas une panne) |
+| **Proposition de la semaine** | **Neuve (14/09)** — carte « Ta semaine » sur l'accueil : quatre recettes du catalogue, remplaçables une à une, et un bouton qui monte le batch avec sa liste d'épicerie. Fabriquée à l'ouverture de l'app, pas par un cron |
 | Widget hub | `GET /api/hub/summary`, contrat `@mokarade/hub-contract` |
 | **Serveur MCP** | **Neuf (19/08)** — `POST /api/mcp`, 7 outils (4 lecture, 3 écriture). **BRANCHÉ ET VÉRIFIÉ EN USAGE RÉEL** le 19/08 : Marc a connecté le connecteur claude.ai (OAuth 2.1, ADR-0002), et les outils rendent ses vraies données. Claude Code reste possible par jeton direct. |
 | Accès | Google mono-adresse + interrogation du hub (`lib/accesHub.ts`) |
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **399 tests**, 28 fichiers (20/08/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **462 tests**, 34 fichiers (14/09/2026).
 
-## Ce qui vient d'être livré (19/08/2026, soir)
+## Ce qui vient d'être livré (14/09/2026)
+
+- **`SEM-02` — la proposition de la semaine.** Marc ouvre l'app, il voit quatre recettes à
+  cuisiner. Il peut en remplacer n'importe laquelle, et un bouton monte le batch complet avec
+  sa liste d'épicerie.
+
+  Ce qui fonde la sélection, et **rien d'autre** : les temps de préparation et de cuisson
+  (réels, renseignés sur les 10 188 recettes) et la variété des ingrédients. Aucun « facile »,
+  aucun « végétarien » — le classement n'existe pas encore (`SEM-01`), et l'inventer serait le
+  contraire de ce que l'app promet.
+
+  | où | quoi |
+  |---|---|
+  | `lib/semaine.ts` | la DÉCISION, pure et testée : semaine ISO dans le fuseau de Marc, tirage déterministe, variété, « au moins une courte » |
+  | `lib/semaineDb.ts` | l'I/O : présélection SQL déterministe, écriture gardée par l'unicité `(semaine, position)` |
+  | `components/SemaineProposee.tsx` | la carte, sur l'accueil |
+  | table `week_picks` | migration `0013`, purement additive |
+
+  ⚠️ **La semaine se fabrique à l'OUVERTURE**, pas par un cron : le plan Vercel gratuit
+  n'accepte que des crons quotidiens, et une proposition que personne ne regarde n'a pas
+  besoin d'exister.
+
+  ⚠️ **L'anti-répétition s'appuie sur les BATCHS, pas sur les propositions passées** — Marc a
+  écarté l'historique. C'est plus juste (on évite ce qu'il a CUISINÉ, pas ce qu'on lui a
+  MONTRÉ), mais **inerte tant qu'il n'a aucun batch**, et il n'en a aucun aujourd'hui.
+
+  ⚠️ **Pas encore vu dans un navigateur.** Cette session n'a pas d'accès à la production : la
+  carte est prouvée par les tests et le build, pas par un écran. À regarder au premier
+  chargement.
+
+  ⚠️ **La migration `0013` n'atteindra la base qu'au MERGE**, pas avant : `web/vercel.json`
+  porte `git.deploymentEnabled: { "claude/*": false }`, donc aucune préversion n'est
+  construite pour ces branches — vérifié, zéro déploiement créé pour le push de la PR #86.
+  C'est l'inverse de ce que le `CLAUDE.md` affirmait ; corrigé dans la même PR. Après le
+  merge, vérifier qu'un déploiement de production a bien été CRÉÉ (les deux merges
+  précédents sont `CANCELED` — normal, l'`ignoreCommand` saute les commits de docs seules,
+  mais celui-ci touche du code et doit donc construire).
+
+## Le chantier catalogue (19/08/2026, premier lot)
 
 - **`CAT-A` — le catalogue annonce enfin son vrai nombre de portions.** Les 10 188 recettes
   disaient « pour 1 portion » ; 10 049 portent maintenant leur rendement réel, et leurs
@@ -67,17 +106,7 @@ Gate : `typecheck` · `lint` · `test` · `build`. **399 tests**, 28 fichiers (2
   blanc signalée par Marc le 14/08.
 - **Web Analytics** (PR #44), remise sur `master` après dix commits de dérive.
 
-## Ce qui vient d'être livré (19/08/2026, soir)
-
-- **`CAT-A` — le catalogue annonce enfin son vrai nombre de portions.** Les 10 188 recettes
-  disaient « pour 1 portion » ; 10 049 portent maintenant leur rendement réel, et leurs
-  quantités sont celles de la recette entière (« 320 g de fusilli », plus « 80 g »).
-  ⚠️ `servings` et `qty` partent dans la MÊME transaction (`db.batch`) : séparées, une
-  coupure laisserait la recette fausse d'un facteur R sans qu'aucun écran ne le dise.
-  Aucun batch existant ne bouge — vérifié sur le batch #13, liste identique au gramme.
-  Le chantier catalogue complet est planifié dans `BACKLOG.md` (`CAT-B` à `CAT-G`).
-
-- **`MCP-01` — serveur MCP distant.** `POST /api/mcp` : Claude Code ou l'app Claude peuvent
+## Le serveur MCP et son OAuth (19/08/2026, second lot)
   fouiller les recettes, lire une liste d'épicerie, **et écrire** (créer un batch, copier une
   recette du catalogue, cocher un article). Décisions de Marc : distant sur Vercel, lecture
   **et** écriture dès le départ. Détail et alternatives rejetées : `docs/adr/0001`.
@@ -167,7 +196,12 @@ Le reliquat (`ING-07`) est documenté au backlog, classe par classe.
 
 ## Prochaine chose prévue
 
-Rien d'engagé. Le MCP est branché et en service ; `ING-03`, `ING-04` et `ING-05` sont livrés.
+**`SEM-03`** — changer une recette de la semaine en PARLANT à l'assistant, la moitié restante
+de la demande du 21/08. Le bouton « Remplacer » couvre le besoin de façon déterministe ; ce
+qui manque est un outil d'ÉCRITURE côté assistant. Et **`SEM-01`** (classer les recettes) pour
+enrichir la proposition — proposé, pas engagé.
+
+Le MCP est branché et en service ; `ING-03`, `ING-04` et `ING-05` sont livrés.
 
 ⚠️ **L'assistant n'a jamais été essayé contre la vraie API** : cette session n'a pas de
 réseau vers Anthropic. Le protocole, les bornes et le classement sont testés ; la boucle

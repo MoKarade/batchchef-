@@ -366,9 +366,16 @@ plutôt que de laisser croire qu'on a vérifié.
 ### ⚠️ Une PRÉVERSION écrit dans la base de PRODUCTION
 
 Il n'y a qu'une base Neon, et `vercel-build` fait `db:migrate` (puis `db:reparer-ingredients`)
-**avant** `next build`. Or Vercel construit aussi chaque préversion. Donc **toute migration
-et tout script de données d'une branche s'appliquent à la production dès le premier build de
-la PR — avant tout merge, avant toute revue.**
+**avant** `next build`. Or Vercel construit aussi chaque préversion. Donc **une migration ou un
+script de données s'applique à la production dès le premier build de la PR — avant tout merge,
+avant toute revue.**
+
+⚠️ **PLUS VRAI DES BRANCHES `claude/*` depuis le 14/09.** `web/vercel.json` porte
+`git.deploymentEnabled: { "claude/*": false }` : Vercel ne construit AUCUNE préversion pour
+ces branches, donc leurs migrations n'atteignent la production qu'**au merge**. Vérifié sur
+la PR #86 — zéro déploiement créé pour son push. Le paragraphe ci-dessus reste vrai pour
+toute autre branche (`feature/*`, un push direct), et la vigilance reste la même : ce qui a
+changé, c'est QUAND ça mord, pas SI.
 
 Constaté le 19/08 : la réparation des noms (`ING-03`) avait déjà traité 16 870 lignes de
 production quand j'ai lu les logs de la PRÉVERSION. Sans conséquence ici — la passe est
