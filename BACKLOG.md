@@ -345,7 +345,7 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   | « grandes cuillères » en grammes | 6 | « 1 grandes cuillères d'arôme vanille » → 0,5 g | encore la frontière de mot (le `g` de « grandes ») ; la corriger demande de lire l'unité dans le TEXTE, pas dans la colonne |
   | écart de rapport inexpliqué | 4 | « 2.5 kg de moules », « 12 cl d'huile », « -134 oeufs », « -4600 g de pomme de terre » | l'un des deux chiffres est faux et rien ne dit lequel. Énumérées une par une dans `tests/quantitesSource.test.ts` |
 
-- [ ] **`ING-10` — le double arrondi : « 1,98 gousses d'ail », « 499,98 g de haricots ».**
+- [x] ~~**`ING-10` — le double arrondi : « 1,98 gousses d'ail », « 499,98 g de haricots ».**~~ **Livré le 14/09.**
   Constaté le 14/09 en lisant quatre fiches du catalogue, trois portaient le défaut.
 
   **Cause exacte** : `normalizeQty` (`lib/units.ts`, son `round` interne) arrondit à deux
@@ -368,6 +368,18 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   deux décimales. Il faut lui faire porter la précision jusqu'au point d'écriture, et
   n'arrondir qu'une fois, après la multiplication. Les deux écrivains partagent la formule —
   les corriger séparément les ferait diverger au build suivant.
+
+  **Livré** : `convertir` (privée, sans arrondi) devient le seul endroit qui lit la table des
+  facteurs ; `normalizeQty` arrondit tout de suite, `normalizeQtyPourPortions` arrondit après
+  avoir multiplié. Les deux écrivains passent par la seconde, et un tripwire exige qu'aucun ne
+  remultiplie lui-même.
+
+  ⚠️ **Le chiffre du ticket a été re-mesuré, et sa MÉTHODE corrigée.** Ma première mesure a
+  rendu **zéro ligne changée** : j'utilisais `recipe.servings` du seed, qui vaut 1 presque
+  partout — or l'app recalcule les portions (`portionsRecette`, `CAT-A`). À une portion, les
+  deux formules donnent le même résultat par construction : la fixture rendait le défaut
+  invisible. Re-mesuré avec les portions RÉELLES : **17 788 lignes sur 73 542 chiffrées
+  (24,2 %)**, pire écart absolu **0,20** (amandes en poudre, 125,2 → 125 sur 40 portions).
 
 - [ ] **Deux doublons dans la bibliothèque PERSO de Marc** — « Fusilli à la crème champignons
   et poulet » y figure deux fois (`mes-recettes` #1 et #8, mêmes ingrédients). `CAT-E` ne

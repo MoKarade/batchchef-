@@ -3,7 +3,7 @@
 // unités inconnues → « au goût » (jamais un poids inventé), qty ≤ 0 rejetée.
 
 import { describe, expect, it } from "vitest";
-import { noteQuantiteNonConvertie, normalizeQty } from "../lib/units";
+import { noteQuantiteNonConvertie, normalizeQty, normalizeQtyPourPortions } from "../lib/units";
 
 describe("normalizeQty", () => {
   it("garde g/ml/unite tels quels", () => {
@@ -177,5 +177,58 @@ describe("noteQuantiteNonConvertie", () => {
   it("rend null quand il n'y a vraiment rien à dire", () => {
     expect(noteQuantiteNonConvertie(null, null, null)).toBeNull();
     expect(noteQuantiteNonConvertie("  ", null, "  ")).toBeNull();
+  });
+});
+
+describe("normalizeQtyPourPortions — UN SEUL arrondi (ING-10)", () => {
+  it("⚠️ les cas mesurés sur le corpus redeviennent ronds", () => {
+    // Chacun vient du seed, avec sa source et son nombre de portions réels. L'ancienne
+    // formule arrondissait la quantité PAR PORTION puis la multipliait, donc multipliait
+    // aussi l'erreur — et la fiche affichait « 49,98 g », « 1,98 pièces », « 4,02 tranches ».
+    expect(normalizeQtyPourPortions(50 / 6, "g", 6).qty).toBe(50); // « 50 g de farine de riz »
+    expect(normalizeQtyPourPortions(2 / 6, "unite", 6).qty).toBe(2); // « 2 pièces de blanc d'oeuf »
+    expect(normalizeQtyPourPortions(8 / 6, "unite", 6).qty).toBe(8); // « 8 tranches de pain »
+    expect(normalizeQtyPourPortions(4 / 6, "unite", 6).qty).toBe(4); // « 4 tranches de jambon »
+    // Et une conversion d'unité par-dessus la multiplication : 2 c. à café → 10 ml.
+    expect(normalizeQtyPourPortions(2 / 6, "cuillères", 6, "cuillères à café").qty).toBe(10);
+  });
+
+  it("l'ANCIENNE formule, elle, se trompait — la preuve que ce test discrimine", () => {
+    // On rejoue le double arrondi à la main : c'est exactement ce que faisaient les deux
+    // écrivains avant ce lot.
+    const rond = (n: number) => Math.round(n * 100) / 100;
+    const ancienne = (q: number, p: number) => rond(rond(q) * p);
+    expect(ancienne(50 / 6, 6)).toBe(49.98);
+    expect(ancienne(2 / 6, 6)).toBe(1.98);
+    expect(normalizeQtyPourPortions(50 / 6, "g", 6).qty).not.toBe(ancienne(50 / 6, 6));
+  });
+
+  it("à UNE portion, elle rend exactement ce que rend normalizeQty", () => {
+    // Les deux entrées publiques partagent la même conversion : si elles divergeaient, la
+    // moitié des recettes serait convertie autrement que l'autre, sans erreur visible.
+    for (const [q, u, raw] of [
+      [80, "g", ""],
+      [2, "cuillères", "cuillères à soupe"],
+      [1.5, "tasse", ""],
+      [3, "pincée", ""],
+      [2, "inconnue", ""],
+    ] as const) {
+      expect(normalizeQtyPourPortions(q, u, 1, raw), `${q} ${u}`).toEqual(normalizeQty(q, u, raw));
+    }
+  });
+
+  it("des portions inexploitables ne fabriquent AUCUN chiffre", () => {
+    // Une recette mal saisie ne doit pas produire une quantité inventée.
+    for (const p of [0, -2, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(normalizeQtyPourPortions(10, "g", p).qty, String(p)).toBeNull();
+    }
+    // ⚠️ L'unité, elle, SURVIT : elle dit ce que la source annonçait, et la perdre
+    // transformerait « quantité inconnue » en « ingrédient inconnu ».
+    expect(normalizeQtyPourPortions(10, "g", 0).unit).toBe("g");
+  });
+
+  it("« au goût » reste « au goût », quel que soit le nombre de portions", () => {
+    expect(normalizeQtyPourPortions(3, "pincée", 6)).toEqual({ qty: null, unit: null });
+    expect(normalizeQtyPourPortions(2, "can", 6)).toEqual({ qty: null, unit: null });
   });
 });

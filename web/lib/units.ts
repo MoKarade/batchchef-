@@ -204,11 +204,19 @@ const FACTORS: Record<string, { target: "g" | "ml" | "unite"; factor: number } |
  */
 const STICK_EST_DU_BEURRE = /beurre|butter|margarine/i;
 
-export function normalizeQty(
+/**
+ * La conversion PURE, SANS arrondi (`ING-10`).
+ *
+ * ⚠️ C'est le seul endroit où la table des facteurs est lue. Les deux entrées publiques —
+ * `normalizeQty` (arrondi tout de suite) et `normalizeQtyPourPortions` (arrondi APRÈS la
+ * multiplication) — délèguent ici : une seconde copie de la conversion divergerait au premier
+ * facteur ajouté d'un seul côté, et la moitié des recettes serait convertie autrement que
+ * l'autre sans qu'aucune erreur n'apparaisse.
+ */
+function convertir(
   qty: number | null | undefined,
   unit: string | null | undefined,
   rawText = "",
-  /** Nom de l'ingrédient — sert UNIQUEMENT à lever l'ambiguïté de « stick » (cf. plus haut). */
   nomIngredient = "",
 ): NormalizedQty {
   if (qty === null || qty === undefined || !Number.isFinite(qty) || qty <= 0) {
@@ -220,7 +228,7 @@ export function normalizeQty(
   if (key.startsWith("cuill") || key.startsWith("c.")) {
     const raw = rawText.toLowerCase();
     const ml = raw.includes("thé") || raw.includes("the") || raw.includes("café") || raw.includes("cafe") ? 5 : 15;
-    return { qty: round(qty * ml), unit: "ml" };
+    return { qty: qty * ml, unit: "ml" };
   }
 
   // Les abréviations anglaises arrivent ponctuées de façons diverses (« oz. », « fl. oz. »,
@@ -235,14 +243,14 @@ export function normalizeQty(
   // conséquence, se tromper de 113 g de cannelle fausse la recette et son prix.
   if (cleNettoyee === "stick" || cleNettoyee === "sticks") {
     return STICK_EST_DU_BEURRE.test(nomIngredient)
-      ? { qty: round(qty * 113), unit: "g" }
-      : { qty: round(qty), unit: "unite" };
+      ? { qty: qty * 113, unit: "g" }
+      : { qty, unit: "unite" };
   }
 
   const mapped = key in FACTORS ? FACTORS[key] : FACTORS[cleNettoyee];
   if (mapped === undefined) return { qty: null, unit: null }; // unité inconnue → au goût
   if (mapped === null) return { qty: null, unit: null }; // pincée & co
-  return { qty: round(qty * mapped.factor), unit: mapped.target };
+  return { qty: qty * mapped.factor, unit: mapped.target };
 }
 
 function round(n: number): number {
@@ -275,4 +283,52 @@ export function noteQuantiteNonConvertie(
   // Ne pas répéter ce que la note dit déjà — « 2 cups · 2 cups » n'aide personne.
   if (existante.toLowerCase().includes(source.toLowerCase())) return existante;
   return existante ? `${existante} · ${source}` : source;
+}
+
+/**
+ * La quantité normalisée, arrondie au centième — ce qu'on AFFICHE, et ce qu'on écrit quand
+ * elle est déjà exprimée pour la recette entière (import LLM).
+ */
+export function normalizeQty(
+  qty: number | null | undefined,
+  unit: string | null | undefined,
+  rawText = "",
+  /** Nom de l'ingrédient — sert UNIQUEMENT à lever l'ambiguïté de « stick » (cf. plus haut). */
+  nomIngredient = "",
+): NormalizedQty {
+  const brut = convertir(qty, unit, rawText, nomIngredient);
+  return { qty: brut.qty === null ? null : round(brut.qty), unit: brut.unit };
+}
+
+/**
+ * La quantité à ÉCRIRE pour une recette de `portions` portions (`ING-10`).
+ *
+ * ⚠️ UN SEUL arrondi, et il vient APRÈS la multiplication. Le catalogue stocke une quantité
+ * PAR PORTION : arrondir avant de multiplier multiplie aussi l'erreur. « 50 g » sur
+ * 6 portions donnait `8,33 × 6 = 49,98`, « 2 pièces » donnait `1,98`. Mesuré sur le seed :
+ * **17 788 lignes sur 73 542 chiffrées (24,2 %)** changent de valeur, pire écart 0,20.
+ *
+ * ⚠️ La valeur restait juste à 0,004 % près : ce qui se répare n'est pas un chiffre faux,
+ * c'est la CONFIANCE. « 4,02 tranches de jambon » se lit comme une erreur et fait douter du
+ * reste de la fiche, y compris de ce qui est exact.
+ *
+ * ⚠️ Les DEUX écrivains du catalogue (`import-catalog.ts`, `reparer-ingredients.ts`) passent
+ * par ici. Recopiée de part et d'autre, la formule divergerait au premier correctif appliqué
+ * d'un seul côté, et les deux passes se défairaient l'une l'autre à chaque build — c'est
+ * exactement ce qui est arrivé au nom et à l'unité (`ING-03`, `ING-04`).
+ *
+ * ⚠️ `portions` non exploitable (zéro, négatif, non fini) ⇒ `qty: null` plutôt qu'un chiffre :
+ * une recette mal saisie ne doit pas produire une quantité inventée.
+ */
+export function normalizeQtyPourPortions(
+  qty: number | null | undefined,
+  unit: string | null | undefined,
+  portions: number,
+  rawText = "",
+  nomIngredient = "",
+): NormalizedQty {
+  const brut = convertir(qty, unit, rawText, nomIngredient);
+  if (brut.qty === null) return { qty: null, unit: brut.unit };
+  if (!Number.isFinite(portions) || portions <= 0) return { qty: null, unit: brut.unit };
+  return { qty: round(brut.qty * portions), unit: brut.unit };
 }
