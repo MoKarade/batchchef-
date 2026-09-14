@@ -23,10 +23,12 @@ const COUNTS: BatchchefCounts = {
 const SEMAINE = {
   semaine: "2026-W38",
   recettes: [
-    { catalogRecipeId: 1, titre: "Gratin de courgettes au parmesan", imageUrl: null, prepMinutes: 15, cuissonMinutes: 45, position: 0, type: "plat" as const },
-    { catalogRecipeId: 2, titre: "Soupe de lentilles corail", imageUrl: null, prepMinutes: 10, cuissonMinutes: 25, position: 1, type: "soupe" as const },
-    { catalogRecipeId: 3, titre: "Salade de quinoa", imageUrl: null, prepMinutes: 20, cuissonMinutes: null, position: 2, type: "salade" as const },
-    { catalogRecipeId: 4, titre: "Recette sans type ni durée", imageUrl: null, prepMinutes: null, cuissonMinutes: null, position: 3, type: null },
+    { catalogRecipeId: 1, titre: "Gratin de courgettes au parmesan", imageUrl: null, prepMinutes: 15, cuissonMinutes: 45, position: 0, type: "plat" as const, difficulte: 3 },
+    { catalogRecipeId: 2, titre: "Soupe de lentilles corail", imageUrl: null, prepMinutes: 10, cuissonMinutes: 25, position: 1, type: "soupe" as const, difficulte: 2 },
+    { catalogRecipeId: 3, titre: "Salade de quinoa", imageUrl: null, prepMinutes: 20, cuissonMinutes: null, position: 2, type: "salade" as const, difficulte: 1 },
+    // ⚠️ `difficulte: null` est un CAS, pas un remplissage : c'est la recette dont la source
+    // ne dit rien — ni type, ni durée, ni note (SEM-05, 3 recettes sur 10 188).
+    { catalogRecipeId: 4, titre: "Recette sans type ni durée", imageUrl: null, prepMinutes: null, cuissonMinutes: null, position: 3, type: null, difficulte: null },
   ],
 };
 
@@ -211,6 +213,7 @@ describe("details — la semaine LUE, et l'épicerie", () => {
             cuissonMinutes: 150,
             position: i,
             type: "plat" as const,
+            difficulte: 5,
           })),
         },
       },
@@ -243,8 +246,8 @@ describe("details — la semaine LUE, et l'épicerie", () => {
         semaine: {
           semaine: "2026-W38",
           recettes: [
-            { catalogRecipeId: 1, titre: `${commun} parmesan`, imageUrl: null, prepMinutes: null, cuissonMinutes: null, position: 0, type: null },
-            { catalogRecipeId: 2, titre: `${commun} comté`, imageUrl: null, prepMinutes: null, cuissonMinutes: null, position: 1, type: null },
+            { catalogRecipeId: 1, titre: `${commun} parmesan`, imageUrl: null, prepMinutes: null, cuissonMinutes: null, position: 0, type: null, difficulte: null },
+            { catalogRecipeId: 2, titre: `${commun} comté`, imageUrl: null, prepMinutes: null, cuissonMinutes: null, position: 1, type: null, difficulte: null },
           ],
         },
       },

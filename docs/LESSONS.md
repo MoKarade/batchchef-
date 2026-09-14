@@ -904,3 +904,18 @@ nouvelle colonne n'était pas recopiée : une recette piochée au catalogue aura
 existe. Quatrième fois que cette famille mord dans ce dépôt (`ville`, `adresse`, les listes
 de colonnes) : **une colonne ajoutée se suit sur TOUS ses chemins de copie**, et c'est le
 gate complet qui le prouve, jamais la suite qu'on vient d'écrire.
+
+⚠️⚠️ **Deux sessions ont élargi le MÊME type dans la même heure, et git n'a rien vu.**
+Pendant ce lot, une autre session a exporté `lireSemaine` pour la carte du hub (PR #89) et
+posé des fixtures `RecetteSemaine`. J'ajoutais au même moment un champ REQUIS à ce type.
+`git merge` a réussi sans un seul conflit — les deux diffs touchent des lignes différentes —
+et c'est le `typecheck` qui a trouvé les six fixtures incomplètes. Un champ requis ajouté à
+un type partagé est un changement de CONTRAT : il ne produit pas de conflit de texte, il
+produit des erreurs ailleurs. Corollaire vécu dans le même passage : leur commit épinglait
+un nouveau `hub-contract` (v1.3.0) et mon `node_modules` portait l'ancien — `npm install`
+APRÈS un merge qui touche `package.json`, sinon le typecheck accuse le code pour une
+install périmée.
+
+⚠️ Et le champ reste **requis**, pas optionnel. L'optionnel aurait fait taire le typecheck
+en une seconde — et c'est exactement ce qui laisserait une requête oublier la colonne en
+silence, pour afficher « difficulté non estimée » sur des recettes parfaitement notées.
