@@ -814,3 +814,41 @@ combien de recettes reçoivent un type ; 54/56 dit combien le reçoivent JUSTE, 
 chiffre exige de lire des titres un par un. Publier le premier seul laisserait croire que
 91,4 % sont bien classées. ⚠️ Et 56 est un petit échantillon : le chiffre ne se recopie pas
 sans sa taille, sinon il devient « 96 % » dans six mois, sans marge et sans date.
+
+---
+
+## 2026-09-14 — Un compte DÉDUIT du travail effectué ne mesure pas l'état
+
+Le premier build de production de SEM-01 a imprimé `[type] 9294 recette(s) (re)classée(s)
+sur 10170 ; 10170 portent un type après cette passe.` Le premier nombre est juste, le
+second annonce **100 % de couverture** — contre 91,4 % publiés dans le `CLAUDE.md`, le
+`HANDOVER.md` et le `BACKLOG.md` de la même PR.
+
+La cause tient en une ligne : la couverture était **déduite** (`total − écritures nulles`)
+au lieu d'être **comptée**. Or une recette déjà à `null` qui reste `null` n'est pas écrite
+— elle n'entre donc pas dans la liste d'écritures et échappe à la soustraction, tout en
+étant précisément le cas qu'on voulait retrancher. Les 876 non classées étaient comptées
+comme classées.
+
+**Ce que ça apprend.** Un état se mesure sur l'état, jamais sur le journal du travail qui
+l'a produit : la liste des écritures ne connaît que ce qui a CHANGÉ, elle est structurellement
+aveugle à ce qui était déjà dans la valeur visée. Le remède n'est pas une soustraction plus
+fine, c'est de supprimer la dérivation — un compteur incrémenté sur le verdict ne peut pas
+se tromper de population.
+
+⚠️ **Un chiffre faux dans un log a l'exacte apparence d'une mesure**, et celui-ci
+contredisait la doc de sa propre PR sans que rien ne rougisse. Il n'a été vu que parce que
+les logs du déploiement ont été lus après le merge — la vérification que le `CLAUDE.md` §6
+impose pour de tout autres raisons. C'est la même famille que « no fake data », appliquée à
+l'observabilité : un nombre qu'on ne sait pas justifier ne se publie pas, même dans un log.
+
+⚠️ **Et corriger le calcul ne suffisait pas : il fallait aussi le rendre VISIBLE.** La passe
+est idempotente, donc à partir du build suivant elle n'imprimait plus que « Rien à
+reclasser. » — le chiffre corrigé n'aurait donc plus jamais été affiché, et la correction
+serait restée inerte. La couverture se dit maintenant dans les deux branches.
+
+Verrou : `tests/deploiement.test.ts`, tripwire de surface scopé à `classerCatalogue` (la
+couverture vient d'un `verdict.type !== null`, et jamais d'une soustraction sur
+`recettes.length`). Lecture sur la source DÉCOMMENTÉE — le commentaire qui décrit le motif
+interdit ne doit pas satisfaire la garde qui le cherche. Discrimination prouvée par deux
+mutations, une par assertion.

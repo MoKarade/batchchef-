@@ -28,9 +28,22 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **490 tests**, 35 fichiers (14/09/2026).
+Gate : `typecheck` · `lint` · `test` · `build`. **491 tests**, 35 fichiers (14/09/2026).
 
 ## Ce qui vient d'être livré (14/09/2026)
+
+- **Correctif du jour même — la couverture annoncée par la passe de classement était FAUSSE.**
+  Le premier build de production a imprimé « 10 170 portent un type » (100 %) là où la
+  couverture réelle est 9 294 (91,4 %), le chiffre publié partout ailleurs dans cette même
+  livraison. Le compte était **déduit** (`total − écritures nulles`) au lieu d'être compté :
+  une recette déjà à `null` qui reste `null` n'est jamais écrite, donc elle échappait à la
+  soustraction tout en étant exactement le cas à retrancher.
+
+  Corrigé en supprimant la dérivation (un compteur sur le verdict), et la couverture se dit
+  désormais **aussi** quand rien ne bouge — sans ça, la passe étant idempotente, le chiffre
+  corrigé n'aurait plus jamais été imprimé. Verrou : tripwire de surface scopé à
+  `classerCatalogue` dans `tests/deploiement.test.ts`, deux mutations prouvées.
+  ⚠️ Les chiffres de la doc, eux, étaient justes : seul le log mentait.
 
 - **`SEM-01` — le type de plat.** Sept familles (plat, entrée et apéro, accompagnement, soupe,
   salade, dessert, sauce et condiment), déduites du titre et des ingrédients. **91,4 % du
