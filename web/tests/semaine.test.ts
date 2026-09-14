@@ -21,6 +21,8 @@ import {
   semaineISO,
   tempsTotal,
   type CandidateSemaine,
+  formatMinutes,
+  tempsSemaine,
 } from "../lib/semaine";
 import { classerRecette, estRepas } from "../lib/typePlat";
 
@@ -328,4 +330,51 @@ describe("le CORPUS RÉEL — la proposition tient-elle sur les 10 188 recettes"
     const b = choisirQuatre(candidates, [], "2026-W39").recettes.map((r) => r.id);
     expect(a).not.toEqual(b);
   }, 120_000);
+});
+
+describe("le temps de la semaine — ce qui manque se DIT", () => {
+  const r = (titre: string, prepMinutes: number | null, cuissonMinutes: number | null) => ({
+    titre,
+    prepMinutes,
+    cuissonMinutes,
+  });
+
+  it("additionne préparation et cuisson des quatre recettes", () => {
+    const t = tempsSemaine([r("A", 10, 20), r("B", 15, 30), r("C", 5, 0), r("D", 0, 45)]);
+    expect(t.minutes).toBe(125);
+    expect(t.comptees).toBe(4);
+    expect(t.sansDuree).toEqual([]);
+  });
+
+  it("⚠️ une recette sans aucune durée est RETIRÉE de la somme et NOMMÉE", () => {
+    // Mesuré sur le seed : 224 recettes portent 0 en préparation ET 0 en cuisson. La compter
+    // comme zéro afficherait un total plus court que la réalité, sans que rien ne le dise.
+    const t = tempsSemaine([r("Ratatouille", 20, 40), r("Mystère", 0, 0), r("Mystère 2", null, null)]);
+    expect(t.minutes).toBe(60);
+    expect(t.comptees).toBe(1);
+    expect(t.sansDuree).toEqual(["Mystère", "Mystère 2"]);
+  });
+
+  it("toutes sans durée : zéro minute compté sur zéro recette, et les trois titres", () => {
+    const t = tempsSemaine([r("A", 0, 0), r("B", null, 0), r("C", 0, null)]);
+    expect(t.comptees).toBe(0);
+    expect(t.sansDuree).toHaveLength(3);
+    // ⚠️ `formatMinutes(0)` rend `null` : l'écran n'affiche alors AUCUNE durée plutôt qu'un
+    // « 0 min » qui se lirait comme une mesure.
+    expect(formatMinutes(t.minutes)).toBeNull();
+  });
+});
+
+describe("formatMinutes", () => {
+  it("écrit les heures et les minutes", () => {
+    expect(formatMinutes(45)).toBe("45 min");
+    expect(formatMinutes(60)).toBe("1 h");
+    expect(formatMinutes(205)).toBe("3 h 25");
+  });
+
+  it("zéro ou négatif ne s'écrit pas", () => {
+    expect(formatMinutes(0)).toBeNull();
+    expect(formatMinutes(-5)).toBeNull();
+    expect(formatMinutes(Number.NaN)).toBeNull();
+  });
 });

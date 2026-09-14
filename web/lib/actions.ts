@@ -306,6 +306,10 @@ export async function ajouterDuCatalogueInterne(
           // bibliothèque le perd en silence. Verrouillé par tests/tempsRecette.test.ts.
           prepMinutes: cat.prepMinutes,
           cuissonMinutes: cat.cuissonMinutes,
+          // La note suit la recette : sans elle, une recette piochée au catalogue
+          // afficherait « difficulté non estimée » dans la bibliothèque jusqu'au prochain
+          // déploiement — donc un manque annoncé là où la note existe.
+          difficulteEstimee: cat.difficulteEstimee,
         })
         .returning({ id: schema.recipes.id });
       if (!row) continue;

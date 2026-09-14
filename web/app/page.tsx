@@ -4,7 +4,9 @@ import { and, count, desc, eq, inArray, ne } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { RecipeCard } from "@/components/RecipeCard";
 import { SemaineProposee } from "@/components/SemaineProposee";
+import { prixSemaine, type PrixSemaine } from "@/lib/semaineDb";
 import { semaineCourante } from "@/lib/semaineDb";
+import { tempsSemaine, type TempsSemaine } from "@/lib/semaine";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +30,7 @@ export default async function HomePage() {
       id: schema.recipes.id,
       title: schema.recipes.title,
       imageUrl: schema.recipes.imageUrl,
+      difficulte: schema.recipes.difficulteEstimee,
     })
     .from(schema.recipes)
     .orderBy(desc(schema.recipes.createdAt))
@@ -48,6 +51,21 @@ export default async function HomePage() {
   } catch (err) {
     panneSemaine = err instanceof Error ? err.message : String(err);
     console.error("[semaine] proposition indisponible :", panneSemaine);
+  }
+
+  // Le temps se DÉDUIT des recettes déjà chargées : aucune requête de plus, aucune horloge.
+  const temps: TempsSemaine | null = semaine ? tempsSemaine(semaine.recettes) : null;
+
+  // ⚠️ Le prix est le SEUL des trois chiffres qui peut coûter un appel payant. Il est calculé
+  // une fois par composition et mémorisé (cf. `prixSemaine`) — mais son échec ne doit pas
+  // emporter la carte : la semaine reste affichable sans son prix, l'inverse serait absurde.
+  let prix: PrixSemaine | null = null;
+  if (semaine && semaine.recettes.length > 0) {
+    try {
+      prix = await prixSemaine(semaine.semaine, semaine.recettes);
+    } catch (err) {
+      console.error("[semaine] prix indisponible :", err instanceof Error ? err.message : err);
+    }
   }
 
   const stats = [
@@ -85,7 +103,12 @@ export default async function HomePage() {
         </Link>
       </div>
 
-      <SemaineProposee recettes={semaine?.recettes ?? []} panne={panneSemaine} />
+      <SemaineProposee
+        recettes={semaine?.recettes ?? []}
+        temps={temps}
+        prix={prix ? { cents: prix.cents, methode: prix.methode } : null}
+        panne={panneSemaine}
+      />
 
       {recent.length > 0 ? (
         <section className="space-y-3">
@@ -98,7 +121,12 @@ export default async function HomePage() {
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {recent.map((r) => (
               <li key={r.id}>
-                <RecipeCard href={`/recettes/${r.id}`} title={r.title} imageUrl={r.imageUrl} />
+                <RecipeCard
+                  href={`/recettes/${r.id}`}
+                  title={r.title}
+                  imageUrl={r.imageUrl}
+                  difficulte={r.difficulte}
+                />
               </li>
             ))}
           </ul>

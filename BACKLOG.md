@@ -88,6 +88,28 @@ conditionnait pas.
   MONTRÉ), mais **inerte tant qu'il n'a aucun batch**. L'alternative écartée était de garder
   l'historique, ce qu'il a refusé.
 
+- [x] ~~**`SEM-05` — prix, temps et difficulté.**~~ **Livré le 14/09.** Demande de Marc :
+  « estimé prix batch pour la semaine et temps et aussi un nombre d'étoiles pour toutes les
+  recettes, estimé difficulté ». Trois chiffres sur la carte « Ta semaine », et des étoiles
+  partout où une recette s'affiche.
+
+  | mesuré sur les 10 188 | |
+  |---|---|
+  | notées | **10 185** (3 refusées : moins de deux signaux sur trois) |
+  | distribution | 1★ 19,9 % · 2★ 19,8 % · 3★ 20,2 % · 4★ 20,0 % · 5★ 20,0 % |
+  | signaux disponibles | trois sur **9 960** recettes · deux sur 225 · un ou zéro sur 3 |
+
+  Arbitrages de Marc : **cinq niveaux** (il a écarté ma recommandation de trois), **un appel
+  d'estimation par semaine** pour le prix, et **aucune étoile** quand les signaux manquent.
+
+  ⚠️ L'échelle est **relative au catalogue** : les coupes sont les quintiles MESURÉS du score
+  composite. Des seuils choisis au jugé auraient écrasé tout le monde sur 2-3-4 — trois
+  signaux corrélés et moyennés font une cloche — et les étoiles 1 et 5 auraient été
+  décoratives. C'est ce que teste le corpus, pas la moyenne.
+
+  ⚠️ Ce qui est mesuré est l'**effort** (ingrédients, étapes, durée), jamais la **technique** :
+  une omelette roulée sortira « très simple ». Aucun signal du corpus ne dit le contraire.
+
 - [ ] **`SEM-03` — changer une recette de la semaine EN PARLANT à l'assistant.** La moitié
   restante de la demande du 21/08. Le bouton « Remplacer » couvre le besoin de façon
   déterministe ; ce qui manque est un outil d'ÉCRITURE côté assistant (`lib/assistant/`) pour

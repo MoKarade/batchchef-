@@ -40,6 +40,7 @@ import { nettoyerTexte } from "../lib/menageTexte";
 import { normalizeQty } from "../lib/units";
 import { PLAFOND_RETRAITS, retraitsCatalogue, type RecetteCandidate } from "../lib/menageCatalogue";
 import { classerRecette } from "../lib/typePlat";
+import { compterEtapes, estimerDifficulte } from "../lib/difficulte";
 
 const require = createRequire(import.meta.url);
 const SEED = path.resolve(process.cwd(), "data", "batchchef.seed.db");
@@ -693,6 +694,56 @@ async function classerCatalogue(): Promise<number> {
   return aEcrire.length;
 }
 
+/**
+ * Note la difficulté (SEM-05) des deux tables de recettes — catalogue ET bibliothèque.
+ * Même forme que `classerCatalogue` : dérivée, recalculée à chaque déploiement, jamais
+ * écrite à la main.
+ *
+ * ⚠️ La couverture se COMPTE sur les verdicts, jamais en retranchant les écritures nulles
+ * du total (leçon du 14/09 : une recette déjà à `null` qui reste `null` n'est pas écrite,
+ * donc elle échappe à la soustraction — et 876 non classées se comptaient comme classées).
+ */
+async function noterDifficulte(
+  libelle: string,
+  recettes: Array<{ id: number; instructions: string | null; prep: number | null; cuisson: number | null; actuel: number | null }>,
+  lignes: Array<{ recette: number }>,
+  table: typeof schema.catalogRecipes | typeof schema.recipes,
+): Promise<number> {
+  if (recettes.length === 0) return 0;
+  const parRecette = new Map<number, number>();
+  for (const l of lignes) parRecette.set(l.recette, (parRecette.get(l.recette) ?? 0) + 1);
+
+  const aEcrire: Array<[number, number | null]> = [];
+  let notees = 0;
+  for (const r of recettes) {
+    const { etoiles } = estimerDifficulte({
+      ingredients: parRecette.get(r.id) ?? 0,
+      etapes: compterEtapes(r.instructions),
+      dureeMinutes: (r.prep ?? 0) + (r.cuisson ?? 0),
+    });
+    if (etoiles !== null) notees += 1;
+    if (etoiles !== r.actuel) aEcrire.push([r.id, etoiles]);
+  }
+  const couverture = `${notees} sur ${recettes.length} portent une note`;
+  if (aEcrire.length === 0) {
+    console.log(`[diff] ${libelle} : rien à renoter ; ${couverture}.`);
+    return 0;
+  }
+
+  const TAILLE = 500;
+  for (let i = 0; i < aEcrire.length; i += TAILLE) {
+    const lot = aEcrire.slice(i, i + TAILLE);
+    await db
+      .update(table)
+      .set({
+        difficulteEstimee: casPar(sql.raw("id"), lot, "integer", (v) => v) as unknown as number,
+      })
+      .where(inArray(table.id, lot.map(([id]) => id)));
+  }
+  console.log(`[diff] ${libelle} : ${aEcrire.length} note(s) posée(s) sur ${recettes.length} ; ${couverture}.`);
+  return aEcrire.length;
+}
+
 async function main(): Promise<void> {
   if (!process.env.DATABASE_URL) {
     console.log("[ingr] DATABASE_URL absente : correction sautée (aucune base à corriger).");
@@ -772,6 +823,38 @@ async function main(): Promise<void> {
   );
   total += await recalculerListes();
   total += await classerCatalogue();
+  total += await noterDifficulte(
+    "catalogue",
+    await db
+      .select({
+        id: schema.catalogRecipes.id,
+        instructions: schema.catalogRecipes.instructions,
+        prep: schema.catalogRecipes.prepMinutes,
+        cuisson: schema.catalogRecipes.cuissonMinutes,
+        actuel: schema.catalogRecipes.difficulteEstimee,
+      })
+      .from(schema.catalogRecipes),
+    await db
+      .select({ recette: schema.catalogIngredients.catalogRecipeId })
+      .from(schema.catalogIngredients),
+    schema.catalogRecipes,
+  );
+  total += await noterDifficulte(
+    "bibliothèque",
+    await db
+      .select({
+        id: schema.recipes.id,
+        instructions: schema.recipes.instructions,
+        prep: schema.recipes.prepMinutes,
+        cuisson: schema.recipes.cuissonMinutes,
+        actuel: schema.recipes.difficulteEstimee,
+      })
+      .from(schema.recipes),
+    // ⚠️ `recipeId` ici, `catalogRecipeId` au catalogue — le même écart qui a déjà fait
+    // tomber une première version de `appliquerReference`.
+    await db.select({ recette: schema.recipeIngredients.recipeId }).from(schema.recipeIngredients),
+    schema.recipes,
+  );
   console.log(
     total === 0
       ? "[ingr] Rien à corriger — la passe précédente a déjà tout traité."

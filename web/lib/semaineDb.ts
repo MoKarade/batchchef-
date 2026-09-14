@@ -21,6 +21,9 @@ import {
   type CandidateSemaine,
 } from "@/lib/semaine";
 import { estRepas, estTypePlat, type TypePlat } from "@/lib/typePlat";
+import { aggregateShoppingList, fillMissingCosts } from "@/lib/aggregate";
+import { ecarterIngredientsDeFond } from "@/lib/ingredientsDeFond";
+import { estimateShoppingCosts } from "@/lib/llm";
 
 export interface RecetteSemaine {
   catalogRecipeId: number;
@@ -31,6 +34,8 @@ export interface RecetteSemaine {
   position: number;
   /** Type effectif (correction de Marc, sinon estimation). `null` = non déterminé. */
   type: TypePlat | null;
+  /** Difficulté estimée, 1 à 5 (SEM-05). `null` = trop peu de signaux pour oser une note. */
+  difficulte: number | null;
 }
 
 export interface SemaineAffichee {
@@ -138,6 +143,7 @@ async function lire(semaine: string): Promise<RecetteSemaine[]> {
       prepMinutes: schema.catalogRecipes.prepMinutes,
       cuissonMinutes: schema.catalogRecipes.cuissonMinutes,
       type: sql<string | null>`coalesce(${schema.typeCorrections.type}, ${schema.catalogRecipes.typeEstime})`,
+      difficulte: schema.catalogRecipes.difficulteEstimee,
     })
     .from(schema.weekPicks)
     .innerJoin(schema.catalogRecipes, eq(schema.catalogRecipes.id, schema.weekPicks.catalogRecipeId))
@@ -187,6 +193,115 @@ export async function semaineCourante(maintenant: Date = new Date()): Promise<Se
     throw new Error(`La proposition de la semaine n'a pas pu être enregistrée : ${cause}`);
   }
   return { semaine, recettes: await lire(semaine), fabriquee: true };
+}
+
+export interface PrixSemaine {
+  /** En cents. */
+  cents: number;
+  /** "llm" = estimé ingrédient par ingrédient, comme le batch. "filet" = tarif forfaitaire. */
+  methode: "llm" | "filet";
+  /** Ingrédients écartés de la liste d'épicerie (sel, poivre, eau) — comme pour un batch. */
+  ecartes: string[];
+}
+
+/** L'empreinte de la composition : si elle change, le prix ne décrit plus cette semaine. */
+function signatureDe(recettes: ReadonlyArray<{ catalogRecipeId: number }>): string {
+  return recettes
+    .map((r) => r.catalogRecipeId)
+    .slice()
+    .sort((a, b) => a - b)
+    .join("-");
+}
+
+/**
+ * Le prix estimé de la semaine (SEM-05), calculé UNE fois par composition et mémorisé.
+ *
+ * ⚠️ Il passe par les MÊMES fonctions que le batch (`aggregateShoppingList`,
+ * `ecarterIngredientsDeFond`, `estimateShoppingCosts`, `fillMissingCosts`) et sur les MÊMES
+ * portions (celles de la recette). Deux implémentations d'une même règle, c'est une règle et
+ * demie : Marc verrait un prix avant de monter le batch, un autre après, pour exactement les
+ * mêmes courses.
+ *
+ * ⚠️ Un échec d'appel ne fait PAS disparaître le prix — le filet déterministe donne un
+ * chiffre à tout — mais il change `methode`, et l'écran le dit. Un tarif forfaitaire présenté
+ * comme une estimation par ingrédient serait le défaut que le reste de l'app s'interdit.
+ */
+export async function prixSemaine(
+  semaine: string,
+  recettes: ReadonlyArray<{ catalogRecipeId: number }>,
+): Promise<PrixSemaine | null> {
+  if (recettes.length === 0) return null;
+  const signature = signatureDe(recettes);
+
+  const [connu] = await db
+    .select()
+    .from(schema.weekEstimations)
+    .where(eq(schema.weekEstimations.semaine, semaine));
+  if (connu && connu.signature === signature) {
+    return {
+      cents: connu.prixCents,
+      methode: connu.methode === "llm" ? "llm" : "filet",
+      ecartes: [],
+    };
+  }
+
+  const ids = recettes.map((r) => r.catalogRecipeId);
+  const fiches = await db
+    .select({ id: schema.catalogRecipes.id, servings: schema.catalogRecipes.servings })
+    .from(schema.catalogRecipes)
+    .where(inArray(schema.catalogRecipes.id, ids));
+  const lignes = await db
+    .select({
+      recette: schema.catalogIngredients.catalogRecipeId,
+      name: schema.catalogIngredients.name,
+      canonical: schema.catalogIngredients.canonical,
+      qty: schema.catalogIngredients.qty,
+      unit: schema.catalogIngredients.unit,
+    })
+    .from(schema.catalogIngredients)
+    .where(inArray(schema.catalogIngredients.catalogRecipeId, ids));
+  if (fiches.length === 0 || lignes.length === 0) return null;
+
+  // Mêmes portions que `creerBatchDepuisSemaine` : celles de la recette, soit 1×.
+  const agrege = aggregateShoppingList(
+    fiches.map((f) => ({
+      servings: f.servings,
+      portions: f.servings,
+      ingredients: lignes
+        .filter((l) => l.recette === f.id)
+        .map((l) => ({ name: l.name, canonical: l.canonical, qty: l.qty, unit: l.unit })),
+    })),
+  );
+  const { aAcheter, deFond } = ecarterIngredientsDeFond(agrege);
+
+  let methode: "llm" | "filet" = "llm";
+  let bruts: Array<number | null> = new Array(aAcheter.length).fill(null);
+  try {
+    bruts = await estimateShoppingCosts(aAcheter);
+  } catch {
+    // ⚠️ Avalé DÉLIBÉRÉMENT, et le silence ne l'est pas : la panne devient `methode: "filet"`,
+    // que l'écran affiche. Laisser remonter l'erreur ferait disparaître le prix entier pour
+    // une indisponibilité passagère de l'API.
+    methode = "filet";
+  }
+  const cents = fillMissingCosts(aAcheter, bruts).reduce((t, c) => t + Math.round(c * 100), 0);
+
+  // ⚠️ L'écriture n'est PAS une condition d'affichage : une base qui refuse la mémorisation
+  // ne doit pas effacer un prix qu'on vient de calculer et de payer.
+  try {
+    await db
+      .insert(schema.weekEstimations)
+      .values({ semaine, signature, prixCents: cents, methode })
+      .onConflictDoUpdate({
+        target: schema.weekEstimations.semaine,
+        set: { signature, prixCents: cents, methode, calculeLe: new Date() },
+      });
+  } catch {
+    // Le prix reste juste ; seule sa mémorisation a échoué, et le prochain affichage
+    // relancera le calcul.
+  }
+
+  return { cents, methode, ecartes: deFond.map((e) => e.name) };
 }
 
 /**

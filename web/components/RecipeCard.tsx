@@ -4,16 +4,27 @@
 // une recette saisie à la main non plus. Un rectangle gris vide donnait l'impression d'un
 // chargement qui n'aboutit jamais ; on affiche une marque discrète qui assume le vide.
 import Link from "next/link";
+import { Etoiles } from "@/components/Etoiles";
 import { ImageRecette } from "@/components/ImageRecette";
 
 export function RecipeCard({
   href,
   title,
   imageUrl,
+  difficulte,
 }: {
   href: string;
   title: string;
   imageUrl: string | null;
+  /**
+   * Difficulté estimée (SEM-05), 1 à 5. ⚠️ TROIS valeurs, TROIS sens distincts :
+   * un nombre = une note ; `null` = la recette n'est pas notable (trop peu de signaux),
+   * et la carte le DIT ; `undefined` = l'écran n'a pas demandé la note, et la carte
+   * n'affiche alors RIEN. Confondre les deux derniers ferait annoncer « non estimée »
+   * sur des recettes parfaitement notées, simplement parce qu'une requête a oublié la
+   * colonne — un défaut d'affichage qui accuserait la donnée.
+   */
+  difficulte?: number | null;
 }) {
   return (
     <Link href={href} className="carte flex h-full flex-col overflow-hidden">
@@ -42,7 +53,10 @@ export function RecipeCard({
           </svg>
         </div>
       )}
-      <span className="line-clamp-2 p-3 text-sm font-medium">{title}</span>
+      <span className="flex flex-col gap-1 p-3">
+        <span className="line-clamp-2 text-sm font-medium">{title}</span>
+        {difficulte !== undefined && <Etoiles etoiles={difficulte} compact />}
+      </span>
     </Link>
   );
 }

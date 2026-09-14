@@ -852,3 +852,55 @@ couverture vient d'un `verdict.type !== null`, et jamais d'une soustraction sur
 `recettes.length`). Lecture sur la source DÉCOMMENTÉE — le commentaire qui décrit le motif
 interdit ne doit pas satisfaire la garde qui le cherche. Discrimination prouvée par deux
 mutations, une par assertion.
+
+---
+
+## 2026-09-14 — Une échelle à cinq niveaux se MESURE avant d'être promise
+
+Marc a demandé des étoiles de difficulté et a choisi **cinq niveaux** contre ma
+recommandation de trois. Ma réserve était sérieuse et elle était mesurable : la difficulté
+se déduit de trois signaux (ingrédients, étapes, durée) qui sont **corrélés**, et une
+moyenne de grandeurs corrélées fait une **cloche**. Avec des seuils « ronds »
+(0,2 / 0,4 / 0,6 / 0,8), les étoiles 1 et 5 deviennent presque vides : la précision est
+affichée, pas mesurée.
+
+Ce qui a réglé le problème n'est pas un arbitrage mais une **mesure**. Les coupes de
+l'échelle sont les **quintiles observés** du score composite sur le corpus. Résultat mesuré :
+19,9 / 19,8 / 20,2 / 20,0 / 20,0 %. Les cinq niveaux existent vraiment — et le prix à payer
+est que l'échelle est **relative au catalogue**, ce que l'écran doit dire : « 1 étoile »
+signifie « parmi les plus simples du catalogue », pas « facile dans l'absolu ».
+
+**La règle générale** : quand une échelle promet N niveaux, ce qui se teste n'est pas la
+moyenne mais la **distribution**. Le test du corpus exige donc que chaque niveau dépasse
+12 % — et la mutation qui le prouve est exactement le raccourci tentant : remplacer les
+quintiles mesurés par des seuils ronds. Elle rougit.
+
+⚠️ **Écarter une recommandation n'est pas l'ignorer.** Le risque que je signalais était
+réel ; il ne justifiait pas trois niveaux, il justifiait de dériver les coupes du corpus
+plutôt que de les choisir. Quand un arbitrage va contre une réserve technique, la bonne
+réponse est souvent de **supprimer la cause** de la réserve, pas de re-plaider.
+
+⚠️ **Ce qu'on mesure n'est pas ce que le mot promet.** « Difficulté » évoque la technique ;
+les trois signaux disponibles mesurent l'**effort**. Une omelette roulée sort « très
+simple ». Le corpus ne porte aucun signal de savoir-faire, donc les libellés parlent
+d'exigence — nommer la limite vaut mieux que la laisser découvrir en cuisinant.
+
+⚠️ **Un signal absent n'est pas un zéro.** Compter « durée inconnue » comme 0 minute ferait
+passer une recette non renseignée pour la plus simple du catalogue : un manque déguisé en
+mesure. Même règle pour le temps de la semaine — 224 recettes sur 10 188 n'ont aucune durée,
+elles sortent du total et leurs titres sont nommés sous la ligne.
+
+⚠️ **Un prix mémorisé doit savoir qu'il est périmé.** Le prix de la semaine est calculé une
+fois par composition ; sans la `signature` des recettes, remplacer une recette laisserait à
+l'écran le prix d'une semaine qui n'existe plus — avec l'exacte apparence d'une mesure.
+C'est la même famille que le compte déduit du matin : ce qui décrit un état se recalcule
+quand l'état change, sinon il ment sans rien casser.
+
+⚠️ **Et c'est une garde écrite par un AUTRE lot qui a trouvé le vrai trou.** Mes propres
+tests étaient tous verts ; le gate complet a rougi sur `tests/tempsRecette.test.ts`, la
+garde « la copie catalogue → bibliothèque n'oublie aucune colonne » posée au lot CAT-C. La
+nouvelle colonne n'était pas recopiée : une recette piochée au catalogue aurait affiché
+« difficulté non estimée » jusqu'au déploiement suivant — un manque annoncé là où la note
+existe. Quatrième fois que cette famille mord dans ce dépôt (`ville`, `adresse`, les listes
+de colonnes) : **une colonne ajoutée se suit sur TOUS ses chemins de copie**, et c'est le
+gate complet qui le prouve, jamais la suite qu'on vient d'écrire.

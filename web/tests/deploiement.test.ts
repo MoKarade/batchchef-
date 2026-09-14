@@ -170,6 +170,22 @@ describe("réparation des ingrédients — la passe reste branchée au build", (
     );
   });
 
+  it("la difficulté est notée sur LES DEUX tables de recettes", () => {
+    // La note (SEM-05) est dérivée et recalculée au déploiement, comme le type de plat.
+    // ⚠️ Deux tables la portent — catalogue ET bibliothèque — et une bibliothèque oubliée ne
+    // se verrait pas : ses 14 recettes afficheraient « difficulté non estimée » à vie, ce qui
+    // ressemble à une donnée manquante et non à un branchement manquant.
+    const src = readFileSync(resolve(process.cwd(), "scripts/reparer-ingredients.ts"), "utf8")
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("//"))
+      .join("\n");
+    expect(src, "la passe doit appeler noterDifficulte").toMatch(/noterDifficulte\s*\(/);
+    expect(src, "le catalogue").toMatch(/noterDifficulte\([\s\S]{0,400}?catalogRecipes/);
+    expect(src, "la bibliothèque").toMatch(/noterDifficulte\([\s\S]{0,400}?schema\.recipes/);
+    // Anti-vacuité : deux appels, pas un seul qu'on aurait compté deux fois.
+    expect((src.match(/await noterDifficulte\(/g) ?? []).length).toBe(2);
+  });
+
   it("l'import du catalogue répare aussi, sinon il ré-introduirait le défaut", () => {
     // ⚠️ On cherche l'APPEL, pas le nom : une première version de ce test se contentait de
     // `toContain("reparerNom")` et passait au vert alors que l'appel avait été retiré — la
