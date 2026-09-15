@@ -8,6 +8,48 @@
 
 ## En cours / décidé, pas encore livré
 
+### 🔴 `DEPLOI-MUET` — le projet Vercel ne crée plus de déploiement (constaté le 15/09, 20:16 Z)
+
+- [ ] **Comprendre pourquoi `batchchef-glu8` ne construit plus, et le remettre en marche.**
+  Le merge de `HUB-BATCHS-30J` (#99, SHA `24eeccd`, poussé sur `master` à 19:32:12 Z) n'avait
+  produit **aucun déploiement** 44 minutes plus tard. Le `latestDeployment` du projet datait
+  encore de 13:40 Z. **La production sert donc le build de 13:35 Z (`6525785`, #97).**
+
+  C'est le mode de panne du §6 du `CLAUDE.md` de Hubperso : la CI est verte, le code est sur
+  `master`, et rien n'est rouge nulle part — parce qu'un déploiement qui n'existe pas n'a
+  aucun état à être. Le 31/07/2026, ce même défaut a laissé un commit d'en-têtes de sécurité
+  **cinq jours** en attente sans que personne ne le voie.
+
+  **Ce qui est MESURÉ, et qui écarte les explications faciles :**
+  - Ce n'est pas l'intégration Git en général : CarAI a été poussé à 19:39 Z sur la même
+    équipe Vercel et s'est déployé `READY` en ~1 minute. Hubperso (19:24 Z) et JobAI
+    (18:24 Z) sont `READY` aussi. **BatchChef est le seul projet muet.**
+  - Ce n'est pas `build-necessaire.sh` : son `exit 0` produit un déploiement **`CANCELED`**,
+    qui APPARAÎTRAIT dans la liste — et le diff de #99 touche `web/lib/hubSummary.ts`, donc
+    il aurait construit de toute façon. (C'est bien lui, en revanche, qui a correctement
+    ignoré #98, doc seule : ce `CANCELED` de 13:40 est sain.)
+  - Ce n'est pas une mise en pause : le champ `live: false` du projet ne veut pas dire
+    « en pause » — CarAI porte exactement le même `live: false` et vient de déployer.
+
+  **Deux pistes à regarder dans le tableau de bord, sans préjuger :**
+  1. `framework: null` sur ce projet, alors que `web/vercel.json` déclare `"framework":
+     "nextjs"` et que les cinq autres projets rendent bien `"framework": "nextjs"`.
+  2. L'API ne liste **aucun domaine personnalisé** pour ce projet (seulement les
+     `*.vercel.app`), alors que `batchchef.hubperso.com` **résout** vers un enregistrement
+     Vercel — et que c'est exactement l'URL que le hub interroge par défaut
+     (`defaultUrl` de `lib/sources.ts` chez Hubperso). Soit le champ `domains` est
+     incomplet, soit le domaine est attaché ailleurs. **Non tranché d'ici** : la politique
+     réseau de la session refuse `*.hubperso.com` (403 au CONNECT), donc impossible de
+     sonder ce qui est réellement servi.
+
+  **Rattrapage immédiat** : tableau de bord Vercel → `batchchef-glu8` → Deployments → « … »
+  → Redeploy sur `24eeccd`.
+
+  ⚠️ **Pourquoi une entrée de backlog et pas juste un redéploiement.** Un Redeploy remet ce
+  commit en ligne ; il n'explique pas pourquoi le suivant ne partira pas non plus. Tant que
+  la cause est inconnue, **chaque merge de ce dépôt doit être vérifié à la main** — et c'est
+  ça qui est à réparer, pas ce commit-là.
+
 ### Chantier HUB (14/09) — ce que la carte BatchChef dit du hub
 
 - [x] **`HUB-SEM` — la carte montre enfin ce qu'il y a à faire.** Livré le 14/09. Contrat
