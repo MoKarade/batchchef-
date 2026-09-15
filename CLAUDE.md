@@ -68,7 +68,7 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   quantités de la liste d'épicerie sont mises à l'échelle à partir de lui. Même règle pour
   tout futur champ qu'on remplirait faute de source. Idem pour la **provenance**
   (`lib/origine.ts`) : la bibliothèque mélange ce que Marc a apporté et ce qu'il a pioché
-  dans le catalogue de 10 188 recettes, et une origine absente rend « Origine non
+  dans le catalogue, et une origine absente rend « Origine non
   enregistrée » — jamais « ajoutée par toi », qui lui attribuerait des recettes qu'il n'a
   jamais choisies.
 - **La transcription audio est une source d'APPOINT, jamais un arbitre.** La reconnaissance

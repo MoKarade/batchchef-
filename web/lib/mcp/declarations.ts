@@ -17,7 +17,8 @@ export const OUTILS_MCP = [
   {
     name: "batchchef_chercher_recettes",
     description:
-      "Cherche dans les recettes de Marc et le catalogue de découverte (10 188 recettes). " +
+      "Cherche dans les recettes de Marc et le catalogue de découverte (des milliers de " +
+      "recettes). " +
       "Donne `ingredients` pour trouver ce qui se cuisine avec ce qu'il a sous la main : la " +
       "réponse dit pour chaque recette ce qui est COUVERT et ce qui MANQUE. `texte` cherche " +
       "par titre. Les deux se combinent.",

@@ -16,7 +16,7 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 |---|---|
 | Import par URL | En service (parse LLM + vérification, Zod) |
 | Import vidéo (reel) | En service — enregistrement d'écran partagé depuis Android, images extraites DANS le navigateur, transcription audio en appoint |
-| Catalogue | 10 188 recettes, cherchable, paginé |
+| Catalogue | **10 170 recettes** servies (le seed en porte 10 188 ; `CAT-E` en a retiré 18), cherchable, paginé. L'écran affiche un compte DÉRIVÉ, jamais un nombre écrit |
 | Batchs + liste d'épicerie | En service, prix estimés (couverture 100 %) |
 | Export Google Tasks | En service |
 | **Assistant** | **Neuf (19/08)** — `/assistant`, Claude fouille la base par outils ; les recettes citées deviennent des cartes cliquables qui s'ouvrent PAR-DESSUS le chat. ⚠️ Éteint si `ANTHROPIC_API_KEY` absente (dit à l'écran, pas une panne) |

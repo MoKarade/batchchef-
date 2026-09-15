@@ -5,7 +5,8 @@
 // recherche, ouvrir une recette, revenir — au lieu d'être limité par un filtre écrit
 // d'avance. Le coût par question est plus élevé, et il est mesuré (`recordLlmUsage`).
 //
-// 10 188 recettes : aucun modèle ne les reçoit d'un coup. Chaque outil rend donc peu de
+// Le catalogue compte des milliers de recettes : aucun modèle ne les reçoit d'un coup.
+// Chaque outil rend donc peu de
 // lignes, et la recherche par ingrédients calcule EN SQL ce qui est couvert et ce qui
 // manque — c'est le travail que Claude ferait mal et cher en lisant tout.
 
@@ -270,6 +271,23 @@ async function ingredientsLesPlusUtilises(args: Record<string, unknown>): Promis
  * peut alors reformuler ou le dire à Marc, là où une exception tuerait toute la réponse
  * après plusieurs appels déjà payés.
  */
+/**
+ * Combien de recettes le catalogue porte AUJOURD'HUI, pour que le prompt le dise juste.
+ *
+ * ⚠️ Rend `null` plutôt que de lever : ce compte n'est qu'une phrase du prompt, et faire
+ * échouer toute la réponse de l'assistant parce qu'un `count(*)` a raté serait une panne
+ * bien plus grande que le défaut qu'on répare. Ce n'est pas une erreur avalée pour autant —
+ * si la base est tombée, le premier appel d'outil échouera bruyamment, lui.
+ */
+export async function compterCatalogue(): Promise<number | null> {
+  try {
+    const [total] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.catalogRecipes);
+    return typeof total?.n === "number" && Number.isFinite(total.n) ? total.n : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function executerOutil(nom: string, args: Record<string, unknown>): Promise<string> {
   try {
     if (nom === "chercher_recettes") return bornerResultat(await chercherRecettes(args));

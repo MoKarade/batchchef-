@@ -126,6 +126,17 @@ describe("déclaration des outils", () => {
     }
   });
 
+  it("aucune description ne CHIFFRE la taille du catalogue", () => {
+    // ⚠️ `batchchef_chercher_recettes` annonçait « le catalogue de découverte (10 188
+    // recettes) » — la production en sert 10 170 depuis que CAT-E en a retiré 18. Une
+    // description part à un MODÈLE, qui peut la répéter à Marc comme un fait ; et ce module
+    // est PUR par conception (testable sans next-auth), donc il ne peut pas lire le vrai
+    // compte. La seule réponse honnête est de ne pas chiffrer ici.
+    for (const o of OUTILS_MCP) {
+      expect(o.description, o.name).not.toMatch(/\d[\d\u00a0\u202f ]*\s*recettes/);
+    }
+  });
+
   it("aucun nom d'outil en double", () => {
     const noms = OUTILS_MCP.map((o) => o.name);
     expect(new Set(noms).size).toBe(noms.length);

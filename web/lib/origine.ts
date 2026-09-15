@@ -2,7 +2,7 @@
 //
 // Pourquoi ça existe : la bibliothèque mélange deux choses très différentes. Les recettes
 // que Marc a AJOUTÉES lui-même (une vidéo qu'il a filmée, une page qu'il a trouvée) et
-// celles piochées dans le CATALOGUE des 10 188 recettes importées en masse. Rien ne les
+// celles piochées dans le CATALOGUE des recettes importées en masse. Rien ne les
 // distinguait à l'écran : « c'est moi qui l'ai ajoutée ? » n'avait pas de réponse.
 //
 // Fonctions PURES, sans I/O : c'est ce qui les rend testables et réutilisables par la page

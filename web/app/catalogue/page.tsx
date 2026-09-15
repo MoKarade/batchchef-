@@ -1,4 +1,4 @@
-// /catalogue — les 10 188 recettes Marmiton, cherchables par titre OU par ingrédient
+// /catalogue — le catalogue Marmiton, cherchable par titre OU par ingrédient
 // (« gingembre » retrouve toute recette qui en contient, pas seulement dans le titre).
 // Source d'idées, séparée de ta bibliothèque perso.
 import Link from "next/link";

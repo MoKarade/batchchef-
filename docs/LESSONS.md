@@ -1037,3 +1037,38 @@ mon entrée de backlog ne mentionnait pas.
 de leur provenance (`lib/origine.ts`), et ni le serveur MCP ni le seed ne l'exposent : la
 fiche l'affiche, moi non. Une recommandation qui aurait choisi « garde le plus petit id »
 aurait eu l'air informée sans l'être.
+
+---
+
+## 2026-09-15 — Le pire endroit pour un chiffre qui rote, c'est un prompt
+
+Le catalogue annonçait « 10 188 recettes » à deux endroits : le prompt système de
+l'assistant et la description de l'outil MCP `batchchef_chercher_recettes`. La production en
+sert **10 170** depuis que `CAT-E` en a retiré 18 — l'écart date du 20/08.
+
+**Ce qui rend ces deux endroits particuliers, c'est que personne ne les lit.** Un chiffre
+faux dans une page se voit ; un chiffre faux dans un prompt part à un modèle qui le répète
+avec l'assurance d'un fait, et rien dans la chaîne ne le confronte jamais à la base. L'écran
+du catalogue, lui, affichait depuis toujours un compte DÉRIVÉ (`count(*)`) : c'est la
+surface visible qui était juste, et les surfaces invisibles qui mentaient.
+
+**Deux modules, deux réponses — et c'est leur NATURE qui tranche, pas une préférence.**
+`protocole.ts` est pur mais reçoit ses données de l'appelant : le prompt y devient une
+fonction qui prend le compte en ARGUMENT, lu par `compterCatalogue()` au moment de répondre.
+`lib/mcp/declarations.ts` est pur *par contrat* — il doit rester testable sans next-auth,
+donc il ne peut pas lire la base : la seule réponse honnête y est de ne plus chiffrer du
+tout. Vouloir « la même solution partout » aurait cassé l'un des deux.
+
+⚠️ **Un compte qu'on ne peut pas lire ne se remplace pas par le dernier connu.**
+`compterCatalogue()` rend `null` sur échec, et le prompt dit alors « plusieurs milliers de
+recettes » — vrai quel que soit le corpus. Retomber sur « 10 188 » aurait reconstruit le
+défaut à l'endroit exact où on le réparait.
+
+⚠️ **Et l'erreur n'est pas avalée pour autant** : si la base est tombée, le premier appel
+d'outil échouera bruyamment. Ce qui serait disproportionné, c'est de tuer toute la réponse
+de l'assistant parce qu'un `count(*)` a raté — la phrase du prompt n'en vaut pas le prix.
+
+⚠️ **`toLocaleString("fr-CA")` sépare les milliers par une espace INSÉCABLE** (U+00A0,
+mesuré, pas supposé). Ma première assertion — `toContain("10 170 recettes")` avec une espace
+ordinaire — a échoué. C'est la leçon déjà payée sur les montants de FinanceAI, re-payée sur
+un compte : un attendu se compose avec le formateur, ou se normalise avant comparaison.
