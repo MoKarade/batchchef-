@@ -2,7 +2,12 @@
 
 import { describe, expect, it } from "vitest";
 import { validateSummary } from "@mokarade/hub-contract";
-import { composeBatchchefSummary, plusRecent, type BatchchefCounts } from "../lib/hubSummary";
+import {
+  FENETRE_BATCHS_JOURS,
+  composeBatchchefSummary,
+  plusRecent,
+  type BatchchefCounts,
+} from "../lib/hubSummary";
 
 const BASE = "https://batchchef.example.com";
 
@@ -10,6 +15,9 @@ const COUNTS: BatchchefCounts = {
   recipes: 5,
   batches: 1,
   activeBatches: 1,
+  // Volontairement DIFFÉRENT de `batches` et d'`activeBatches` : une fixture qui donnerait la
+  // même valeur aux trois laisserait passer une métrique branchée sur le mauvais compteur.
+  batchesLastMonth: 3,
   toBuy: 4,
   budgetRemaining: 10,
   activeBatchId: null as number | null,
@@ -19,6 +27,16 @@ const COUNTS: BatchchefCounts = {
   semaine: null,
 };
 
+/**
+ * Le compteur des 30 jours, éprouvé SÉPARÉMENT des deux autres.
+ *
+ * `batches` (total), `activeBatches` (instantané) et `batchesLastMonth` (activité récente)
+ * répondent à trois questions différentes, et les trois sont des entiers de même forme : une
+ * métrique branchée sur le mauvais compteur ne se verrait pas à l'œil. D'où trois valeurs
+ * distinctes dans la fixture, et une assertion sur la valeur ET sur le libellé — « 30 jours »
+ * doit apparaître, parce que la fenêtre est glissante et qu'un libellé disant « ce mois-ci »
+ * promettrait un mois civil que le code ne calcule pas.
+ */
 /** Une proposition de semaine telle que `lireSemaine` la rend (lecture seule). */
 const SEMAINE = {
   semaine: "2026-W38",
@@ -48,13 +66,16 @@ describe("composeBatchchefSummary (conforme au contrat)", () => {
     expect(s.usage?.cost).toMatchObject({ amount: 0.37, currency: "USD", period: "total" });
   });
 
-  it("avec des données → status 'ok', 4 métriques, action d'ouverture", () => {
+  it("avec des données → status 'ok', 5 métriques, action d'ouverture", () => {
     const s = composeBatchchefSummary(
       { ...COUNTS, recipes: 12, batches: 3, activeBatches: 2, toBuy: 7, budgetRemaining: 41.239 },
       BASE,
     );
     expect(s.status).toBe("ok");
-    expect(s.metrics).toHaveLength(4);
+    // 4 → 5 le 15/09 avec « Batchs (30 jours) ». Ce compte nu est fragile par nature — c'est
+    // le test « reste sous le plafond de six » qui porte l'invariant qui compte, celui du
+    // contrat. Celui-ci ne dit que « la composition a changé, viens voir ».
+    expect(s.metrics).toHaveLength(5);
     // budget arrondi au cent (jamais un flottant qui bave)
     expect(s.metrics.find((m) => m.label.startsWith("Budget"))?.value).toBe(41.24);
     expect(s.actions[0]).toMatchObject({ kind: "link", href: BASE });
@@ -92,6 +113,42 @@ describe("composeBatchchefSummary (conforme au contrat)", () => {
 
 
 /* ---------- Contrat v1.3 : `primary`, `details`, et le seuil qu'on ne publie PAS ---------- */
+
+describe("Batchs (30 jours) — l'activité, pas l'instantané", () => {
+  it("publie `batchesLastMonth`, jamais le total ni les actifs", () => {
+    // Les trois compteurs sont des entiers de même forme : une métrique branchée sur le
+    // mauvais ne se verrait pas à l'œil sur la carte. La fixture leur donne donc trois
+    // valeurs distinctes (1 / 1 / 3) et on exige la BONNE.
+    const s = composeBatchchefSummary(COUNTS, BASE);
+    // Cherchée par le libellé DÉRIVÉ, pas par « 30 jours » écrit en dur : sinon ce test
+    // tomberait au premier changement légitime de fenêtre, pour une raison sans rapport
+    // avec ce qu'il vérifie (quel compteur alimente la métrique).
+    const m = s.metrics.find((x) => x.label === `Batchs (${FENETRE_BATCHS_JOURS} jours)`);
+    expect(m).toBeDefined();
+    expect(m!.value).toBe(3);
+    expect(m!.value).not.toBe(COUNTS.batches);
+  });
+
+  it("annonce une fenêtre GLISSANTE, jamais « ce mois-ci »", () => {
+    // Le calcul est `now() - interval '30 days'`. Un libellé disant « ce mois-ci »
+    // promettrait un mois civil — donc un compteur qui retombe à zéro le 1er du mois — que
+    // le code ne calcule pas. Même défaut que le « sur 7 j » affiché sur 4 h d'historique.
+    const s = composeBatchchefSummary(COUNTS, BASE);
+    const libelles = s.metrics.map((x) => x.label);
+    // Le libellé est DÉRIVÉ de la constante qui borne aussi le SQL : l'assertion suit donc
+    // la fenêtre réelle au lieu de figer un « 30 » que le calcul pourrait démentir. Sans ce
+    // partage, faire passer l'intervalle à 365 jours ne faisait tomber aucun test — mesuré.
+    expect(libelles).toContain(`Batchs (${FENETRE_BATCHS_JOURS} jours)`);
+    expect(libelles.some((l) => /ce mois|du mois|mois-ci/i.test(l))).toBe(false);
+  });
+
+  it("reste sous le plafond de six métriques du contrat", () => {
+    // `validateSummary` rejette au-delà de six, et un rejet basculerait TOUTE la carte en
+    // « impossible de lire l'état » pour une métrique de plus. Le compteur est à cinq : la
+    // marge est d'UNE ligne, et ce test est ce qui l'empêche d'être dépassée sans le voir.
+    expect(composeBatchchefSummary(COUNTS, BASE).metrics.length).toBeLessThanOrEqual(6);
+  });
+});
 
 describe("plusRecent — le dernier geste de Marc, quel qu'il soit", () => {
   it("rend le plus récent des deux instants", () => {
