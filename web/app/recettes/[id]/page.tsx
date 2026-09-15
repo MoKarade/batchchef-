@@ -41,7 +41,7 @@ export default async function RecipeDetailPage({
             <Etoiles etoiles={recipe.difficulteEstimee} />
           </div>
           {/* D'où vient cette recette : la bibliothèque mélange ce que Marc a apporté et
-              ce qu'il a pioché dans le catalogue de 10 188 recettes. Une origine absente
+              ce qu'il a pioché dans le catalogue. Une origine absente
               (recettes antérieures à la colonne) se DIT, elle ne se devine pas. */}
           <p className="mt-1 text-sm doux">
             {libelleOrigine(recipe.origine)}

@@ -280,6 +280,34 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   ET aux listes d'épicerie existantes, en automatique au déploiement. **965 réparations
   rejoignent un ingrédient déjà présent** : autant de lignes qui cessent de se dédoubler.
 
+- [x] ~~**`CAT-H` — le catalogue annonçait 18 recettes de trop, à un MODÈLE.**~~ **Livré le
+  15/09.** Deux chaînes disaient « catalogue de découverte de 10 188 recettes » alors que la
+  production en sert **10 170** depuis que `CAT-E` en a retiré 18 : le prompt système de
+  l'assistant et la description de l'outil MCP `batchchef_chercher_recettes`.
+
+  ⚠️ **Ce n'est pas une coquille, c'est l'endroit le plus dangereux où laisser un chiffre
+  rotter.** Ces deux chaînes ne sont lues par personne — elles partent à un modèle, qui peut
+  les répéter à Marc avec l'assurance d'un fait, sans que rien ne les confronte jamais à la
+  base. L'écran du catalogue, lui, affichait déjà un compte DÉRIVÉ (`count(*)`) : il n'a
+  jamais menti.
+
+  Correctif, deux réponses selon la nature du module :
+  - **Le prompt se DÉRIVE** : `promptSysteme(nombre)` (dans `protocole.ts`, le module PUR)
+    prend le compte en argument, et `repondre` le lit par `compterCatalogue()`. Un compte
+    indisponible rend `null` → « plusieurs milliers de recettes », jamais un nombre inventé.
+    Le `count` ne fait pas échouer la réponse : si la base est vraiment tombée, c'est le
+    premier appel d'outil qui le dira, bruyamment.
+  - **La déclaration MCP ne chiffre plus** : `lib/mcp/declarations.ts` est PUR par
+    conception (testable sans next-auth), donc il ne peut pas lire le vrai compte — la seule
+    réponse honnête y était de ne pas chiffrer.
+
+  Gardes, prouvées par mutation : le nombre du prompt SUIT son argument (`promptSysteme(7)`
+  doit dire 7 — un littéral ferait échouer le test), un compte `null` ne fabrique aucun
+  nombre, et aucune description d'outil MCP ne porte de compte de recettes.
+  ⚠️ `toLocaleString("fr-CA")` sépare les milliers par une **espace insécable** (U+00A0,
+  mesuré) : la première version de l'assertion, écrite avec une espace ordinaire, échouait —
+  la leçon des montants, repayée sur un compte.
+
 ## Livré (19/08)
 
 - [x] **`MCP-01` — serveur MCP distant** (`POST /api/mcp`), lecture ET écriture (décisions de

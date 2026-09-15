@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { decouperReponse, propositionsDe } from "../lib/assistant/protocole";
+import { decouperReponse, promptSysteme, propositionsDe } from "../lib/assistant/protocole";
 import { OUTILS } from "../lib/assistant/outils";
 
 const lire = (chemin: string) => readFileSync(resolve(process.cwd(), chemin), "utf8");
@@ -29,7 +29,8 @@ describe("le prompt et le parseur parlent du MÊME marqueur", () => {
     // un prompt qui enseigne « [semaine 2 : catalogue 9] » et un parseur qui attend autre
     // chose ne lèvent rien du tout — l'assistant répond bien, et aucun bouton n'apparaît
     // jamais. Le test prend le format écrit DANS le prompt et le fait parser pour de vrai.
-    const prompt = lire("lib/assistant/boucle.ts");
+    // ⚠️ On lit le prompt RENDU, pas son fichier : c'est exactement ce qui part au modèle.
+    const prompt = promptSysteme(10170);
     const gabarit = /\[semaine PLACE[^\]]*\]/.exec(prompt)?.[0];
     expect(gabarit, "le prompt doit montrer le gabarit du marqueur").toBeTruthy();
 
@@ -38,7 +39,7 @@ describe("le prompt et le parseur parlent du MÊME marqueur", () => {
   });
 
   it("le prompt dit que les places vont de 1 à 4, comme le parseur l'exige", () => {
-    const prompt = lire("lib/assistant/boucle.ts");
+    const prompt = promptSysteme(10170);
     expect(prompt).toContain("de 1 à 4");
     // Et la borne haute du parseur est bien 4 : au-delà, aucune carte.
     expect(propositionsDe("[semaine 4 ← catalogue #1]")).toHaveLength(1);
@@ -135,5 +136,33 @@ describe("les segments d'une réponse restent exhaustifs", () => {
       "proposition",
       "texte",
     ]);
+  });
+});
+
+describe("le prompt annonce la taille du catalogue SANS l'écrire en dur", () => {
+  // ⚠️ Le défaut réparé : « 10 188 recettes » était un LITTÉRAL du prompt, et la production
+  // en sert 10 170 depuis que CAT-E en a retiré 18. Ce nombre-là partait à un modèle, qui
+  // pouvait le répéter à Marc avec l'assurance d'un fait — c'est la classe « un chiffre au
+  // présent rote », appliquée à la seule surface où personne ne relit jamais.
+  // ⚠️ `toLocaleString("fr-CA")` sépare les milliers par une ESPACE INSÉCABLE (U+00A0,
+  // mesuré) : un attendu écrit avec une espace ordinaire ne matche rien et le test est
+  // vacueux. On normalise avant de comparer — la leçon est déjà payée ailleurs dans
+  // l'écosystème sur les montants.
+  const sansInsecable = (s: string) => s.replace(/[\u00a0\u202f]/g, " ");
+
+  it("le nombre SUIT son argument — un littéral ferait échouer ce test", () => {
+    expect(sansInsecable(promptSysteme(10170))).toContain("10 170 recettes");
+    expect(sansInsecable(promptSysteme(7))).toContain("7 recettes");
+    // La preuve de discrimination est là : un prompt qui porterait « 10 188 » en dur
+    // rendrait la même chaîne quel que soit l'argument.
+    expect(sansInsecable(promptSysteme(7))).not.toContain("10 170");
+    expect(sansInsecable(promptSysteme(10170))).not.toContain("10 188");
+  });
+
+  it("un compte indisponible ne s'invente pas", () => {
+    const prompt = promptSysteme(null);
+    expect(prompt).toContain("plusieurs milliers de recettes");
+    // Aucun nombre de recettes fabriqué quand on ne sait pas.
+    expect(prompt).not.toMatch(/\d[\d\u00a0\u202f ]*\s*recettes/);
   });
 });
