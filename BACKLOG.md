@@ -381,8 +381,17 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   invisible. Re-mesuré avec les portions RÉELLES : **17 788 lignes sur 73 542 chiffrées
   (24,2 %)**, pire écart absolu **0,20** (amandes en poudre, 125,2 → 125 sur 40 portions).
 
-- [ ] **Le doublon de la bibliothèque PERSO — RENVOYÉ À MARC, un clic suffit.** « Fusilli à
-  la crème champignons et poulet » figure deux fois (`mes-recettes` #1 et #8, identiques au
+- [x] ~~**Le doublon de la bibliothèque PERSO.**~~ **Réglé le 15/09 par Marc, en un clic.**
+  Re-mesuré après coup : la bibliothèque compte **treize** recettes et il ne reste **qu'un**
+  « Fusilli à la crème champignons et poulet ». ⚠️ **L'exemplaire conservé est le #8, pas le
+  #1** — c'est #1 qui est parti. Rien d'anormal : le bouton supprime la recette dont la fiche
+  est AFFICHÉE (`recipeId={recipe.id}`), et la liste ne montre pas les ids, seulement les
+  titres. Les deux étaient identiques au caractère près, donc le contenu conservé est le même
+  dans les deux cas ; seul l'id de survie change, et c'est celui-là qu'il faut citer désormais.
+  Aucun batch n'existait, donc aucune référence cassée.
+
+  L'entrée d'origine, et ce que la mesure en avait démenti : « Fusilli à
+  la crème champignons et poulet » figurait deux fois (`mes-recettes` #1 et #8, identiques au
   caractère près). `CAT-E` ne dédoublonne que le CATALOGUE : la bibliothèque perso n'a jamais
   été balayée. Re-mesuré le 14/09 avant d'écrire une ligne, et **deux affirmations de cette
   entrée étaient fausses** :
@@ -402,10 +411,11 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   trop lui-même plutôt que de mettre une suppression de SES recettes dans le script de build,
   qui tourne à chaque déploiement, ou d'ouvrir la suppression au serveur MCP.
 
-  ⚠️ **Lequel garder se lit sur la FICHE, pas d'ici** : la provenance (`lib/origine.ts`)
-  distingue « ajoutée par toi » d'une recette piochée au catalogue, et ni le MCP ni le seed
-  ne l'exposent. Si les deux exemplaires n'ont pas la même origine, ils ne sont pas
-  interchangeables.
+  ⚠️ **Ce qui reste vrai après coup** : lequel garder se lisait sur la FICHE, pas depuis une
+  session — la provenance (`lib/origine.ts`) distingue « ajoutée par toi » d'une recette
+  piochée au catalogue, et ni le serveur MCP ni le seed ne l'exposent. C'est pourquoi aucune
+  recommandation du type « garde le plus petit id » n'a été donnée : elle aurait eu l'air
+  informée sans l'être. Vaut pour tout futur doublon de la bibliothèque.
 
 - [x] ~~**`SEC-01` — une RCE non authentifiée était ouverte en production.**~~ **Fermée le
   14/09**, trouvée en lançant le gate d'un lot sans rapport. `npm audit --omit=dev` rendait
