@@ -32,6 +32,18 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
 Gate : `typecheck` · `lint` · `test` · `build`. **552 tests**, 38 fichiers (14/09/2026).
 
+## Le doublon de la bibliothèque perso (15/09/2026)
+
+Marc a supprimé lui-même l'exemplaire en trop de « Fusilli à la crème champignons et poulet »
+depuis la fiche. La bibliothèque compte **13 recettes** et n'a plus aucun doublon.
+⚠️ **L'exemplaire conservé est `mes-recettes #8`** — c'est #1 qui est parti : le bouton
+supprime la recette dont la fiche est AFFICHÉE, et la liste ne montre pas les ids. Les deux
+étaient identiques au caractère près, donc seul l'id à citer change.
+
+Aucun code n'a été écrit : le bouton « Supprimer » existait déjà. Les deux alternatives
+(une suppression dans le script de build, un outil MCP de suppression) ont été écartées par
+Marc et restent nommées au backlog.
+
 ## Ce qui vient d'être livré (14/09/2026)
 
 - **`ING-10` — le double arrondi.** « 49,98 g de farine », « 1,98 pièces de blanc d'oeuf »,
@@ -291,12 +303,25 @@ Le reliquat (`ING-07`) est documenté au backlog, classe par classe.
 
 ## Prochaine chose prévue
 
-**`SEM-03`** — changer une recette de la semaine en PARLANT à l'assistant, la moitié restante
-de la demande du 21/08. Le bouton « Remplacer » couvre le besoin de façon déterministe ; ce
-qui manque est un outil d'ÉCRITURE côté assistant. Et **`SEM-01`** (classer les recettes) pour
-enrichir la proposition — proposé, pas engagé.
+**Rien n'est engagé.** Le chantier SEMAINE est fini (`SEM-01`, `SEM-02`, `SEM-03`, `SEM-05`,
+livrés le 14/09) et `ING-10` avec. Ce qui reste ouvert au backlog n'est PAS une file de
+travail :
 
-Le MCP est branché et en service ; `ING-03`, `ING-04` et `ING-05` sont livrés.
+- `HUB-RENDU` — rien à faire ICI : c'est le lot 2 du hub. L'entrée existe pour que
+  « publié » ne se lise pas « affiché ».
+- `ING-09` — les 26 lignes irréductibles du catalogue (0,03 %), chacune mesurée et nommée.
+  **À rouvrir seulement si l'une gêne Marc en vrai**, pas parce qu'elle traîne.
+- Trois idées NON arbitrées (unité inconnue comptée en pièces, historique de ce qui est
+  mangé, budget confronté au réel) — à proposer avant de coder, jamais à prendre seul.
+
+⚠️ **Ce qui manque n'est pas du code, c'est de l'USAGE.** Le chantier SEMAINE a été livré en
+une journée et **aucune de ses quatre surfaces n'a servi en vrai** : la carte « Ta semaine »,
+le remplacement par le chat, le re-tirage complet, le prix hebdomadaire. Le premier vrai
+usage est le premier vrai test — et il dira ce que la mesure ne dit pas (les quatre recettes
+tirées sont-elles cuisinables ensemble ? le prix est-il crédible ? les étoiles
+correspondent-elles à l'effort ressenti ?).
+
+Le MCP est branché et en service ; `ING-03`, `ING-04`, `ING-05` et `ING-10` sont livrés.
 
 ⚠️ **L'assistant n'a jamais été essayé contre la vraie API** : cette session n'a pas de
 réseau vers Anthropic. Le protocole, les bornes et le classement sont testés ; la boucle
