@@ -410,8 +410,10 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   (24,2 %)**, pire écart absolu **0,20** (amandes en poudre, 125,2 → 125 sur 40 portions).
 
 - [x] ~~**Le doublon de la bibliothèque PERSO.**~~ **Réglé le 15/09 par Marc, en un clic.**
-  Re-mesuré après coup : la bibliothèque compte **treize** recettes et il ne reste **qu'un**
-  « Fusilli à la crème champignons et poulet ». ⚠️ **L'exemplaire conservé est le #8, pas le
+  Re-mesuré après coup : il ne reste **qu'un** « Fusilli à la crème champignons et poulet ».
+  ⚠️ Le COMPTE de recettes n'est pas figé ici : écrit « treize » à 13 h, il valait **quatorze**
+  au build de 13 h 36 — Marc venait d'ajouter `#16 Gratin végétarien`. Ce qui est stable, c'est
+  l'absence de doublon ; le compte se lit dans le log de build. ⚠️ **L'exemplaire conservé est le #8, pas le
   #1** — c'est #1 qui est parti. Rien d'anormal : le bouton supprime la recette dont la fiche
   est AFFICHÉE (`recipeId={recipe.id}`), et la liste ne montre pas les ids, seulement les
   titres. Les deux étaient identiques au caractère près, donc le contenu conservé est le même

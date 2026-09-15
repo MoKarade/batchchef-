@@ -1072,3 +1072,12 @@ de l'assistant parce qu'un `count(*)` a raté — la phrase du prompt n'en vaut 
 mesuré, pas supposé). Ma première assertion — `toContain("10 170 recettes")` avec une espace
 ordinaire — a échoué. C'est la leçon déjà payée sur les montants de FinanceAI, re-payée sur
 un compte : un attendu se compose avec le formateur, ou se normalise avant comparaison.
+
+⚠️⚠️ **Et elle a mordu dans l'heure, sur ma propre doc.** Le même jour, j'écrivais dans le
+`HANDOVER` et le `BACKLOG` que « la bibliothèque compte **treize** recettes » — mesuré,
+vrai à 13 h. Le build de 13 h 36 a imprimé `sur 14 recettes` : Marc venait d'en ajouter une
+(`#16 Gratin végétarien`). Deux heures après avoir écrit la leçon, j'avais posé le même
+défaut d'un cran plus bas — pas dans un prompt cette fois, mais dans le document qu'on lit
+EN PREMIER. Le correctif n'est pas de mettre « 14 » : c'est de ne plus écrire le compte du
+tout et de renvoyer au log de build. **Un chiffre qu'on corrige est un chiffre qu'il faudra
+re-corriger ; seul celui qu'on retire cesse de rotter.**

@@ -35,7 +35,10 @@ Gate : `typecheck` · `lint` · `test` · `build`. **552 tests**, 38 fichiers (1
 ## Le doublon de la bibliothèque perso (15/09/2026)
 
 Marc a supprimé lui-même l'exemplaire en trop de « Fusilli à la crème champignons et poulet »
-depuis la fiche. La bibliothèque compte **13 recettes** et n'a plus aucun doublon.
+depuis la fiche : **la bibliothèque n'a plus aucun doublon**.
+⚠️ Le COMPTE de recettes n'est pas écrit ici, et c'est délibéré — il bouge dès que Marc en
+ajoute une. Écrit « 13 » à 13 h, il valait 14 au build de 13 h 36 (`#16 Gratin végétarien`).
+Le compte se lit dans le log de build (`[ingr] bibliothèque : … sur N recettes`).
 ⚠️ **L'exemplaire conservé est `mes-recettes #8`** — c'est #1 qui est parti : le bouton
 supprime la recette dont la fiche est AFFICHÉE, et la liste ne montre pas les ids. Les deux
 étaient identiques au caractère près, donc seul l'id à citer change.
