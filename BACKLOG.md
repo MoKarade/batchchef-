@@ -27,8 +27,25 @@
   `validateSummary` jetait à l'émission et TOUT le summary basculait en `status: "error"`. La
   carte entière devenait illisible à cause de deux titres qui se ressemblent. Réglé par le
   numéro de position, unique par contrainte de base et utile à l'usage.
-- [ ] **`HUB-RENDU`** — le hub ne REND pas encore `details` ni `primary` (son lot 2). Rien à
-  faire dans ce dépôt : entrée gardée pour que « publié » ne se lise pas « affiché ».
+- [x] **`HUB-RENDU`** — **le hub les rend depuis le 15/09/2026** (son lot 2, PR Hubperso #57).
+  `primary` décide le gros chiffre de la carte et les sections `details` s'affichent dans
+  `/app/batchchef`. « Publié » se lit enfin « affiché ».
+- [x] **`HUB-BATCHS-30J`** — **Batchs (30 jours)** sur la carte. Demande de Marc du 15/09 :
+  « le nombre de batch pour ce dernier mois ». `activeBatches` dit ce qui est en cours et
+  `batches` le cumul de toujours ; ni l'un ni l'autre ne disait si la cuisine avait TOURNÉ.
+  ⚠️ **30 jours glissants, pas le mois civil.** Un compteur de mois civil retombe à zéro le
+  1er de chaque mois : le matin du 1er octobre, une cuisine qui a tourné tout septembre
+  afficherait « 0 batch ». Le libellé dit donc « 30 jours » — une fenêtre glissante annoncée
+  comme un mois civil serait le même mensonge que le « sur 7 j » que le hub affichait sur
+  quatre heures d'historique, corrigé chez lui le même jour.
+  ⚠️ **Mesuré par mutation, et ça a changé le correctif** : avec « 30 » écrit deux fois — dans
+  le SQL et dans le libellé — passer l'intervalle à 365 jours ne faisait tomber AUCUN test. La
+  carte aurait annoncé « 30 jours » en comptant une année. Les tests ne pouvaient pas le voir :
+  ils exercent `composeBatchchefSummary`, qui reçoit des compteurs déjà calculés, alors que le
+  SQL vit dans `buildBatchchefSummary` et demande une vraie base. Plutôt qu'un test qui aurait
+  exigé Postgres, la divergence est rendue INEXPRIMABLE — `FENETRE_BATCHS_JOURS` borne le SQL
+  (`make_interval`, paramétré) ET compose le libellé. Vérifié : changer la fenêtre de 30 à 60
+  reste VERT (c'est légitime), re-coder le libellé en dur devient ROUGE.
 
 
 ### Chantier SEMAINE (demandé par Marc le 21/08, cadré et ouvert le 14/09)

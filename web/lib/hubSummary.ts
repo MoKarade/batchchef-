@@ -30,11 +30,42 @@ export function publicUrl(): string {
   return raw.replace(/\/+$/, "");
 }
 
+/**
+ * Fenêtre du compteur d'activité, en jours. UNE SEULE source pour le CALCUL et pour le
+ * LIBELLÉ, et c'est tout l'intérêt.
+ *
+ * ⚠️ Mesuré par mutation le 15/09/2026 : avec « 30 » écrit deux fois — une fois dans le SQL,
+ * une fois dans le libellé — faire passer l'intervalle de 30 à 365 jours ne faisait tomber
+ * AUCUN test. La carte aurait annoncé « Batchs (30 jours) » en comptant une année. Les tests
+ * ne pouvaient pas le voir : ils exercent `composeBatchchefSummary`, qui reçoit des compteurs
+ * DÉJÀ calculés, alors que le SQL vit dans `buildBatchchefSummary` et demande une vraie base.
+ *
+ * Plutôt que d'ajouter un test qui aurait demandé Postgres, la divergence est rendue
+ * INEXPRIMABLE : les deux endroits lisent cette constante. C'est le même remède que le type
+ * `IssueReleve` du hub le même jour — on ne surveille pas une confusion, on l'empêche.
+ */
+export const FENETRE_BATCHS_JOURS = 30;
+
 /** Agrégats bruts nécessaires au summary (tous côté données, jamais inventés). */
 export interface BatchchefCounts {
   recipes: number;
   batches: number;
   activeBatches: number;
+  /**
+   * Batchs créés dans les 30 DERNIERS JOURS — demande de Marc (15/09/2026) : « le nombre de
+   * batch pour ce dernier mois ».
+   *
+   * ⚠️ TRENTE JOURS GLISSANTS, PAS LE MOIS CIVIL, et c'est un arbitrage assumé. Un compteur
+   * de mois civil retombe à ZÉRO le 1er de chaque mois : le matin du 1er octobre, une cuisine
+   * qui a tourné tout septembre afficherait « 0 batch ». Vrai au sens strict, faux au sens
+   * utile — ce chiffre existe pour dire « est-ce que ça tourne », pas pour clôturer une
+   * comptabilité.
+   *
+   * Le libellé publié dit donc « 30 jours » et non « ce mois-ci ». Une fenêtre glissante
+   * annoncée comme un mois civil serait le même mensonge que le « sur 7 j » que le hub
+   * affichait sur quatre heures d'historique — corrigé chez lui le jour même.
+   */
+  batchesLastMonth: number;
   toBuy: number;
   budgetRemaining: number;
   /** Batch actif le plus récent → lien direct « liste de courses » dans la carte du hub. */
@@ -181,6 +212,17 @@ export function composeBatchchefSummary(counts: BatchchefCounts, base = publicUr
       ...(enCourses ? {} : { primary: true as const }),
     },
     { label: "Budget restant (est.)", value: budgetRemaining, format: "currency" },
+    // Demande de Marc (15/09) : voir l'ACTIVITÉ récente, et non le seul instantané. « Batchs
+    // actifs » dit ce qui est en cours ; celui-ci dit si la cuisine a TOURNÉ. Un zéro ici à
+    // côté d'un total de quarante raconte quelque chose qu'aucune des autres lignes ne dit.
+    //
+    // ⚠️ « 30 jours » et non « ce mois-ci » : voir `batchesLastMonth`. La fenêtre est
+    // glissante, et le libellé le dit plutôt que de laisser croire à un mois civil.
+    {
+      label: `Batchs (${FENETRE_BATCHS_JOURS} jours)`,
+      value: counts.batchesLastMonth,
+      format: "number",
+    },
     { label: "Recettes", value: counts.recipes, format: "number" },
   ];
 
@@ -258,6 +300,16 @@ export async function buildBatchchefSummary(): Promise<HubSummary> {
     .select({ n: count() })
     .from(schema.batches)
     .where(inArray(schema.batches.status, [...ACTIVE]));
+  // 30 jours glissants, bornés par la BASE (`now()` évalué par Postgres) et non par l'horloge
+  // de l'instance : la fenêtre ne dépend donc ni du fuseau du serveur ni d'un décalage entre
+  // les deux. TOUS statuts confondus — un batch terminé a bel et bien été cuisiné ce mois-ci,
+  // et l'exclure répondrait à une autre question que celle posée.
+  const [batchesLastMonth] = await db
+    .select({ n: count() })
+    .from(schema.batches)
+    .where(
+      sql`${schema.batches.createdAt} >= now() - make_interval(days => ${FENETRE_BATCHS_JOURS})`,
+    );
   const [toBuy] = await db
     .select({ n: count() })
     .from(schema.shoppingItems)
@@ -317,6 +369,7 @@ export async function buildBatchchefSummary(): Promise<HubSummary> {
     recipes: recipes?.n ?? 0,
     batches: batches?.n ?? 0,
     activeBatches: activeBatches?.n ?? 0,
+    batchesLastMonth: batchesLastMonth?.n ?? 0,
     toBuy: toBuy?.n ?? 0,
     budgetRemaining: Number(budget?.sum ?? 0),
     activeBatchId: activeBatch?.id ?? null,
