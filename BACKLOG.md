@@ -8,6 +8,30 @@
 
 ## En cours / décidé, pas encore livré
 
+### Installable sur le téléphone (Marc, 18/09/2026 — Android)
+
+- [x] **La variante `maskable` n'existait pas : les DEUX icônes étaient `any maskable`.** Le
+  motif (une marmite) est à FOND PERDU, poignées comprises — sous le masque adaptatif d'Android
+  (zone sûre = cercle intérieur de 80 %), les poignées et les bords du couvercle se font
+  **rogner**. L'icône s'affiche quand même, simplement coupée, et rien ne le signale.
+  `icone-maskable-512.png` porte le MÊME motif réduit à 72 % et recentré sur le fond mesuré au
+  coin de l'image : aucune redessinée, seulement des marges. 18/09/2026.
+- [x] **`id: "/"` et `launch_handler: navigate-existing`.** Sans `id`, l'identité de
+  l'installation EST le `start_url` : le jour où il change, Android installe une SECONDE app.
+- [x] Garde : `web/tests/pwaManifeste.test.ts` (4 cas, 4 perturbations prouvées). Elle relit les
+  dimensions dans l'en-tête IHDR des PNG plutôt que de croire le champ `sizes` — une déclaration
+  n'est pas une mesure, et Chrome croit le fichier.
+- [ ] ⚠️ **À REGARDER au premier partage depuis Instagram, et c'est le seul risque de ce lot** :
+  `launch_handler` s'applique aussi aux lancements par `share_target`. Avant, le navigateur
+  choisissait (`auto`) ; désormais un partage RÉUTILISE la fenêtre ouverte et la fait naviguer
+  vers `/partage`. Si BatchChef est déjà ouverte sur un import en cours, ce partage-là prend sa
+  place. Le champ se retire en une ligne si le comportement déplaît — mesuré par Marc, pas d'ici.
+- [ ] **⏸️ La bascule « le lien du hub ouvre l'app installée » n'est pas vérifiable d'ici** :
+  elle dépend de la version de Chrome, de l'installation réelle et d'un réglage système.
+  Côté hub, le verrou était un `target="_blank"`, retiré là-bas.
+
+
+
 ### 🔴 `DEPLOI-MUET` — le projet Vercel ne crée plus de déploiement (constaté le 15/09, 20:16 Z)
 
 - [ ] **Comprendre pourquoi `batchchef-glu8` ne construit plus, et le remettre en marche.**
