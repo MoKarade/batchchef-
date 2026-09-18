@@ -367,6 +367,34 @@ le seed** : il n'y a rien à en tirer, et on ne le promet pas.
   mesuré) : la première version de l'assertion, écrite avec une espace ordinaire, échouait —
   la leçon des montants, repayée sur un compte.
 
+## Livré — audit de remédiation du 2026-09-18, lot L2 (chaîne de CI)
+
+- [x] **`AUDIT-L2A` — le `GITHUB_TOKEN` restait lisible tout le run.** `actions/checkout` v2+
+  l'écrit dans la config git du runner **pour tout le reste du run** : n'importe quelle étape
+  suivante, action tierce comprise, peut le lire. Les **2** étapes du dépôt portent désormais
+  `persist-credentials: false` — vérifié un par un plutôt que supposé : `ci.yml` est le seul
+  workflow, et il ne fait ni `git push`, ni `git commit`, ni appel `gh`. 18/09/2026.
+  ⚠️ **SonarQube n'a rien dit là-dessus** malgré ses 7 règles `githubactions:*` actives : c'est
+  Aikido qui l'a trouvé. Le silence d'un scanner n'est pas une absence de défaut.
+- [x] **`AUDIT-L2B` — les scripts d'installation des dépendances tournaient sur le runner.**
+  Les 2 `npm ci` passent en `--ignore-scripts`. **Mesuré avant d'être posé**, et la mesure qui
+  compte n'est pas l'install mais le gate complet : typecheck, tests et build verts,
+  `tests/dependances.test.ts` compris — c'est lui qui inspecte toutes les copies du lockfile,
+  donc lui qui aurait crié sur un arbre incomplet. 18/09/2026.
+  ⚠️ **Ce qu'il fallait vérifier, et qui n'était pas évident** : `@mokarade/hub-contract` est une
+  dépendance **git**, et son `dist/` n'existe que parce que son script `prepare` le construit à
+  l'installation — un drapeau qui coupe les scripts pouvait laisser un paquet sans `dist/`.
+  Mesuré cache npm VIDE compris : `dist/` est bien livré, npm construit une dépendance git au
+  moment de la RÉCUPÉRER et non au moment d'exécuter les scripts d'install. Confirmé une seconde
+  fois sur un vrai runner (Hubperso, même dépendance). À re-mesurer si npm change de majeure.
+- [x] **`AUDIT-L2C` — sans objet ici, mesuré** : aucun `npm install -g` de workflow à épingler,
+  aucune action tierce à épingler au SHA. Seules `actions/checkout` et `actions/setup-node`
+  sont employées. 18/09/2026.
+
+⚠️ **Recensement rejoué** après coup, ancré sur la FORME d'une étape (`uses: actions/checkout`)
+et non sur la mention : **2 étapes, 2 déclarations, 2 `--ignore-scripts`**. Un `grep` nu
+sur-compte, parce que le commentaire qui explique le correctif NOMME l'action.
+
 ## Livré (19/08)
 
 - [x] **`MCP-01` — serveur MCP distant** (`POST /api/mcp`), lecture ET écriture (décisions de
