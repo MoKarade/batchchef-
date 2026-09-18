@@ -43,6 +43,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # [CI-PERSIST-CREDS] `actions/checkout` v2+ écrit le GITHUB_TOKEN dans la config git du
+          # runner POUR TOUT LE RESTE DU RUN : n'importe quelle étape suivante, y compris une
+          # action tierce, peut le lire. Vérifié un par un : aucun workflow de ce dépôt ne fait
+          # de `git push`, de `git commit` ni d'appel `gh` — `ci.yml` est le seul workflow.
+          # Aucun n'a donc besoin du jeton persisté.
+          persist-credentials: false
 
       # La convention de compte-rendu est une COPIE synchronisée de
       # claude-config/conventions/COMPTE-RENDU.md — un CLAUDE.md ne charge rien hors de son
@@ -68,8 +75,26 @@ jobs:
       # `npm ci` et non `npm install` : le lockfile est committé et fait autorité.
       # C'est lui qui porte les planchers de version non négociables du CLAUDE.md
       # (drizzle-orm ≥ 0.45.2, overrides postcss et sharp).
+      #
+      # [CI-IGNORE-SCRIPTS] `--ignore-scripts` empêche les scripts d'installation des
+      # DÉPENDANCES de s'exécuter sur le runner — la surface par laquelle un paquet compromis
+      # lit les secrets du workflow. Mesuré ici avant d'être posé (18/09/2026, Node 22,
+      # npm 10.9.7), et la mesure qui compte n'est pas l'install mais le GATE COMPLET :
+      # typecheck, tests et build tous verts, `tests/dependances.test.ts` compris — c'est lui
+      # qui inspecte TOUTES les copies du lockfile, donc lui qui aurait crié si `--ignore-scripts`
+      # avait laissé un arbre incomplet.
+      #
+      # ⚠️ CE QU'IL FALLAIT VÉRIFIER, ET QUI N'ÉTAIT PAS ÉVIDENT. `@mokarade/hub-contract` est
+      # une dépendance GIT (`github:MoKarade/hub-contract#v1.3.0`) : une installation depuis git
+      # ne livre aucun `dist/`, c'est le script `prepare` du contrat qui le construit. Un drapeau
+      # qui coupe les scripts pouvait donc laisser un paquet SANS `dist/`, et `main`/`module`/
+      # `types` pointeraient dans le vide. Mesuré, cache npm VIDE compris : `dist/` est bien là
+      # — npm construit une dépendance git au moment de la RÉCUPÉRER, pas au moment d'exécuter
+      # les scripts d'installation. Confirmé une seconde fois sur un vrai runner (Hubperso,
+      # même dépendance, gate vert). C'est une mesure, pas une déduction : à re-mesurer si npm
+      # change de version majeure.
       - name: Dépendances
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Typecheck
         run: npm run typecheck
@@ -99,6 +124,10 @@ jobs:
     # l'habitude du rouge — c'est ainsi qu'une CI cesse d'être lue.
     steps:
       - uses: actions/checkout@v4
+        with:
+          # [CI-PERSIST-CREDS] Idem : ce job installe et interroge `npm audit`, il ne pousse
+          # rien. Le jeton n'a aucune raison de rester lisible pour la suite du run.
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -106,8 +135,10 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
+      # [CI-IGNORE-SCRIPTS] Idem — et ici le drapeau ne retire rien du tout : ce job
+      # n'exécute que `npm audit`, qui lit l'arbre de dépendances sans rien construire.
       - name: Dépendances
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       # `--omit=dev` → 0, la règle du CLAUDE.md. Les avis `moderate` restants sont
       # dev-only (chaîne esbuild → drizzle-kit, serveur de développement) : ils ne
