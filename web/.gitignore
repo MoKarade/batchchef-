@@ -4,3 +4,8 @@ node_modules/
 .env*.local
 next-env.d.ts
 *.tsbuildinfo
+# Portes qualité (Atelier) : sorties régénérées à chaque passage
+coverage/
+reports/
+.stryker-tmp/
+qualite/rapport.json

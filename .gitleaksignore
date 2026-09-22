@@ -1,0 +1,10 @@
+# Fuites DÉJÀ présentes dans l'historique git au 2026-09-22 (scan gitleaks complet).
+# Listées ici pour que la CI ne bloque que les NOUVELLES fuites.
+# Ignorer ≠ régler : une clé publiée se révoque chez le fournisseur ; réécrire l'historique
+# ne la « dé-publie » pas. Suivi et actions : dépôt privé de l'Atelier (docs/securite).
+69744a3f31913824eb69401f05797ec0f9a0a04b:docs/sessions/2026-04-24-reliability-overhaul.jsonl:generic-api-key:3084
+6638f8b442d4ab062170844cb5ea652899fb790e:docs/sessions/2026-04-24-reliability-overhaul.jsonl:generic-api-key:3084
+4dcd7869500df21a719bccb5497c72a265c1e973:docs/sessions/2026-04-24-reliability-overhaul.jsonl:generic-api-key:3084
+cbb17a185d8c487b05870106e07d424978a2e8c0:backend/tests/debug_maxi_network.py:generic-api-key:94
+2c0f90f6a6e04fe57eb60b1c8c9a715ce17c8829:backend/app/config.py:gcp-api-key:9
+2c0f90f6a6e04fe57eb60b1c8c9a715ce17c8829:backend/tests/debug_maxi_network.py:generic-api-key:94

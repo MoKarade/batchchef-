@@ -1,0 +1,36 @@
+{
+  "_doc": "Seuils du cliquet (portes qualité de l'Atelier). Valeurs figées le jour de la mise en place : l'existant est toléré, rien ne peut reculer. `npm run portes:maj` resserre un seuil quand le chiffre s'améliore ; le desserrer demande `--forcer` et une décision de Marc.",
+  "mis_a_jour": "2026-09-22",
+  "portes": {
+    "typecheck.erreurs": {
+      "max": 0
+    },
+    "lint.erreurs": {
+      "max": 0
+    },
+    "lint.avertissements": {
+      "max": 0
+    },
+    "tests.echecs": {
+      "max": 0
+    },
+    "couverture.lignes_lib": {
+      "min": 53
+    },
+    "couverture.lignes_global": {
+      "min": 29.5
+    },
+    "couverture.branches_global": {
+      "min": 92.5
+    },
+    "code_mort.problemes": {
+      "max": 17
+    },
+    "architecture.violations": {
+      "max": 0
+    },
+    "mutation.score": {
+      "min": 40.6
+    }
+  }
+}

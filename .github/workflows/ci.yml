@@ -147,6 +147,103 @@ jobs:
       - name: npm audit (production)
         run: npm audit --omit=dev
 
+  qualite:
+    # Portes qualité de l'Atelier. Principe du CLIQUET : web/qualite/seuils.json fige l'état au
+    # 22/09/2026 — l'existant est toléré, mais aucun chiffre ne peut reculer (lint, couverture,
+    # code mort, règles d'architecture). Quand un chiffre s'améliore, `npm run portes:maj`
+    # resserre le seuil ; il ne se desserre jamais sans décision explicite.
+    timeout-minutes: 15
+    name: Qualité (lint · couverture · code mort · architecture)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # [CI-PERSIST-CREDS] Aucune étape ne pousse ni n'appelle l'API : jeton inutile.
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      # [CI-IGNORE-SCRIPTS] Idem gate.
+      - name: Dépendances
+        run: npm ci --ignore-scripts
+      - name: Portes qualité (cliquet)
+        run: node qualite/portes.mjs
+      - name: Rapport
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-qualite
+          path: web/qualite/rapport.json
+          if-no-files-found: ignore
+
+  securite:
+    # Secrets dans TOUT l'historique (gitleaks) + analyse statique du code (Semgrep).
+    # Les fuites déjà présentes au 22/09/2026 sont listées dans .gitleaksignore — ignorées par
+    # la CI, mais PAS réglées : une clé publiée se révoque chez le fournisseur.
+    # Semgrep : 0 résultat au 22/09/2026 sur ces règles, donc bloquant d'emblée (--error).
+    timeout-minutes: 10
+    name: Sécurité (secrets · analyse statique)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks lit l'historique complet, pas seulement le dernier commit
+          persist-credentials: false
+      # Binaire officiel, version et empreinte figées : un outil de sécurité téléchargé sans
+      # vérification serait lui-même une surface d'attaque.
+      - name: Secrets (gitleaks, historique complet)
+        run: |
+          curl -sSfL -o gitleaks.tgz https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz
+          echo "a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb  gitleaks.tgz" | sha256sum -c -
+          tar xzf gitleaks.tgz gitleaks
+          ./gitleaks git . --no-banner --redact --gitleaks-ignore-path .gitleaksignore
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Analyse statique (Semgrep)
+        run: |
+          python -m pip install --quiet semgrep==1.177.0
+          semgrep scan --metrics off --error \
+            --config p/typescript --config p/react --config p/nextjs \
+            --config p/secrets --config p/owasp-top-ten web
+
+  mutation:
+    # Tests de mutation (Stryker) : Stryker modifie volontairement le code et vérifie que les
+    # tests le remarquent. Lent, donc hebdomadaire (même cron que l'audit) et à la demande.
+    # Le seuil (score minimal) vit dans web/qualite/seuils.json, comme les autres portes.
+    timeout-minutes: 120
+    name: Tests de mutation (hebdomadaire)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Dépendances
+        run: npm ci --ignore-scripts
+      - name: Stryker
+        run: npx stryker run --concurrency 4
+      - name: Seuil de mutation (cliquet)
+        run: node qualite/portes.mjs --seulement-mutation
+      - name: Rapport de mutation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-mutation
+          path: web/reports/mutation/
+          if-no-files-found: ignore
+
 # ── Note sur le cron ──────────────────────────────────────────────────────────
 # GitHub désactive les workflows planifiés d'un dépôt resté 60 jours sans activité et
 # le signale par courriel. Si l'audit hebdomadaire cesse d'apparaître, c'est là qu'il

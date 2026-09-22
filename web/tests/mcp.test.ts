@@ -154,7 +154,10 @@ describe("déclaration des outils", () => {
   });
 });
 
-describe("déclaration et exécution ne divergent pas", () => {
+// Sauté pendant les tests de mutation seulement (PORTE_MUTATION, posé par stryker.config.mjs) :
+// ce bloc lit le TEXTE de lib/mcp/outils.ts, que Stryker réécrit en l'instrumentant. Il reste
+// actif dans `npm test` et dans la CI.
+describe.skipIf(process.env.PORTE_MUTATION === "1")("déclaration et exécution ne divergent pas", () => {
   // La séparation des deux fichiers (déclarations pures d'un côté, I/O de l'autre) a un
   // coût : rien n'oblige plus le `switch` à connaître ce que la déclaration annonce. Un
   // outil annoncé sans branche répondrait « Outil inconnu » à Claude, qui l'aurait choisi

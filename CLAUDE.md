@@ -412,6 +412,11 @@ Les quelques avis `moderate` restants sont **dev-only** (chaîne `esbuild` → `
 serveur de développement) : ils ne touchent pas la production et `npm audit fix --force`
 proposerait de rétrograder Next en 9.x, ce qui casserait l'app.
 
+**Portes qualité (Atelier)** : `cd web && npm run portes` — lint, couverture, code mort, règles
+d'architecture, comparés aux seuils de `web/qualite/seuils.json`. Principe du cliquet : l'existant
+est toléré, aucun chiffre ne recule ; `npm run portes:maj` resserre un seuil amélioré (à committer).
+Mutation : `npm run mutation` (≈ 4 min), hebdomadaire en CI. Détail : `web/qualite/portes.mjs`.
+
 ⚠️ La branche par défaut du dépôt est **`master`**, pas `main`. Repartir de `master`.
 
 ⚠️ **Et `main` n'était PAS « une vieille branche abandonnée qui a divergé » — c'est ce que
