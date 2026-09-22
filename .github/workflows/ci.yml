@@ -199,7 +199,7 @@ jobs:
       # vérification serait lui-même une surface d'attaque.
       - name: Secrets (gitleaks, historique complet)
         run: |
-          curl -sSfL -o gitleaks.tgz https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz
+          curl --proto '=https' --tlsv1.2 -sSfL -o gitleaks.tgz https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz
           echo "a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb  gitleaks.tgz" | sha256sum -c -
           tar xzf gitleaks.tgz gitleaks
           ./gitleaks git . --no-banner --redact --gitleaks-ignore-path .gitleaksignore
@@ -208,7 +208,8 @@ jobs:
           python-version: "3.12"
       - name: Analyse statique (Semgrep)
         run: |
-          python -m pip install --quiet semgrep==1.177.0
+          # --only-binary : aucune compilation ni script d'installation, seulement des roues publiées.
+          python -m pip install --quiet --only-binary :all: semgrep==1.177.0
           semgrep scan --metrics off --error \
             --config p/typescript --config p/react --config p/nextjs \
             --config p/secrets --config p/owasp-top-ten web
@@ -233,7 +234,8 @@ jobs:
       - name: Dépendances
         run: npm ci --ignore-scripts
       - name: Stryker
-        run: npx stryker run --concurrency 4
+        # Le binaire du lockfile (npm run), jamais un `npx` qui pourrait télécharger à la volée.
+        run: npm run mutation -- --concurrency 4
       - name: Seuil de mutation (cliquet)
         run: node qualite/portes.mjs --seulement-mutation
       - name: Rapport de mutation

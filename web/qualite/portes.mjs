@@ -40,13 +40,13 @@ const mesures = {};
 const durees = {};
 
 function typecheck() {
-  const r = lancer("npx tsc --noEmit");
+  const r = lancer("npx --no-install tsc --noEmit");
   mesures["typecheck.erreurs"] = (r.sortie.match(/error TS\d+/g) || []).length + (r.code && !/error TS/.test(r.sortie) ? 1 : 0);
   durees.typecheck = r.secondes;
 }
 
 function lint() {
-  const r = lancer("npx eslint . -f json");
+  const r = lancer("npx --no-install eslint . -f json");
   const res = json(r.stdout);
   mesures["lint.erreurs"] = res.reduce((s, f) => s + f.errorCount, 0);
   mesures["lint.avertissements"] = res.reduce((s, f) => s + f.warningCount, 0);
@@ -54,7 +54,7 @@ function lint() {
 }
 
 function testsEtCouverture() {
-  const r = lancer("npx vitest run --coverage --reporter=json --outputFile=coverage/tests.json");
+  const r = lancer("npx --no-install vitest run --coverage --reporter=json --outputFile=coverage/tests.json");
   const tests = JSON.parse(readFileSync(join(WEB, "coverage", "tests.json"), "utf8"));
   mesures["tests.echecs"] = tests.numFailedTests + (tests.numRuntimeErrorTestSuites || 0) + (r.code && !tests.numFailedTests ? 1 : 0);
   mesures["tests.total"] = tests.numTotalTests;
@@ -73,7 +73,7 @@ function testsEtCouverture() {
 }
 
 function codeMort() {
-  const r = lancer("npx knip --reporter json");
+  const r = lancer("npx --no-install knip --reporter json");
   const res = json(r.stdout);
   let n = 0;
   for (const i of res.issues) for (const v of Object.values(i)) if (Array.isArray(v)) n += v.length;
@@ -82,7 +82,7 @@ function codeMort() {
 }
 
 function architecture() {
-  const r = lancer("npx depcruise app lib components scripts --output-type json");
+  const r = lancer("npx --no-install depcruise app lib components scripts --output-type json");
   const res = json(r.stdout);
   mesures["architecture.violations"] = res.summary.violations.filter((v) => v.rule.severity === "error").length;
   durees.architecture = r.secondes;
