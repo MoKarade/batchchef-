@@ -1,12 +1,14 @@
 #!/usr/bin/env node
-// Portes qualité de l'Atelier — BatchChef.
+// Portes qualité de l'Atelier — version commune à toutes les apps (source : dépôt atelier,
+// modeles/qualite/portes.mjs ; pilote : BatchChef, S1). Ce qui change d'une app à l'autre vit
+// dans qualite/seuils.json, bloc « config » — ce fichier-ci ne se modifie pas sur place.
 //
 // Lance chaque contrôle, mesure un chiffre, le compare au seuil de qualite/seuils.json.
 // Principe du CLIQUET : les seuils figent l'état au jour de la mise en place. L'existant est
 // toléré, mais rien ne peut reculer. Quand un chiffre s'améliore, `--maj` resserre le seuil —
 // jamais l'inverse (sauf `--forcer`, décision explicite de Marc).
 //
-//   node qualite/portes.mjs             → toutes les portes rapides (≈ 1 min)
+//   node qualite/portes.mjs             → toutes les portes rapides
 //   node qualite/portes.mjs --mutation  → + lit le dernier rapport de mutation (npm run mutation)
 //   node qualite/portes.mjs --seulement-mutation → juge uniquement le rapport de mutation (CI hebdo)
 //   node qualite/portes.mjs --maj       → resserre les seuils sur les chiffres améliorés
@@ -17,20 +19,31 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const WEB = join(dirname(fileURLToPath(import.meta.url)), "..");
-const SEUILS = join(WEB, "qualite", "seuils.json");
-const RAPPORT = join(WEB, "qualite", "rapport.json");
+const RACINE = join(dirname(fileURLToPath(import.meta.url)), "..");
+const SEUILS = join(RACINE, "qualite", "seuils.json");
+const RAPPORT = join(RACINE, "qualite", "rapport.json");
 const args = new Set(process.argv.slice(2));
+const seuils = JSON.parse(readFileSync(SEUILS, "utf8"));
+const config = seuils.config;
 
 function lancer(commande) {
   const debut = Date.now();
-  const r = spawnSync(commande, { cwd: WEB, shell: true, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+  const r = spawnSync(commande, { cwd: RACINE, shell: true, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
   return { code: r.status ?? 1, sortie: (r.stdout || "") + (r.stderr || ""), stdout: r.stdout || "", secondes: (Date.now() - debut) / 1000 };
 }
 
-function json(texte) {
-  const debut = texte.search(/[[{]/);
-  return JSON.parse(texte.slice(debut).replace(/^﻿/, ""));
+// Une sortie illisible (outil planté, sortie vide) est un échec NOMMÉ, avec la fin de ce que l'outil
+// a dit — jamais un « Unexpected end of JSON input » anonyme. Vécu le 23/09/2026 : eslint plantait
+// sous FlatCompat (JobAI #30, BatchChef #107) et la porte ne disait que « SyntaxError ».
+function json(r, quoi) {
+  const debut = r.stdout.search(/[[{]/);
+  try {
+    if (debut < 0) throw new Error("aucun JSON en sortie");
+    return JSON.parse(r.stdout.slice(debut).replace(/^\uFEFF/, ""));
+  } catch (e) {
+    const fin = r.sortie.trim().split("\n").slice(-15).join("\n");
+    throw new Error(`${quoi} : sortie illisible (${e.message}) — l'outil a sans doute planté. Fin de sa sortie :\n${fin}`);
+  }
 }
 
 const pct = (a, b) => (b ? Math.round((1000 * a) / b) / 10 : 100);
@@ -46,35 +59,41 @@ function typecheck() {
 }
 
 function lint() {
-  const r = lancer("npx --no-install eslint . -f json");
-  const res = json(r.stdout);
+  const r = lancer(`npx --no-install ${config.lint} -f json`);
+  const res = json(r, "lint (eslint)");
   mesures["lint.erreurs"] = res.reduce((s, f) => s + f.errorCount, 0);
   mesures["lint.avertissements"] = res.reduce((s, f) => s + f.warningCount, 0);
   durees.lint = r.secondes;
 }
 
 function testsEtCouverture() {
-  const r = lancer("npx --no-install vitest run --coverage --reporter=json --outputFile=coverage/tests.json");
-  const tests = JSON.parse(readFileSync(join(WEB, "coverage", "tests.json"), "utf8"));
+  const r = lancer(
+    // reportOnFailure : sans lui, UN test rouge supprime tout le rapport de couverture (défaut Vitest).
+    // vitest_args (config) : réglages propres à l'app, ex. un délai plus long sous instrumentation.
+    "npx --no-install vitest run --coverage --coverage.reporter=json-summary --coverage.reporter=text-summary " +
+      `--coverage.reportOnFailure=true --reporter=json --outputFile=coverage/tests.json ${config.vitest_args || ""}`,
+  );
+  const tests = JSON.parse(readFileSync(join(RACINE, "coverage", "tests.json"), "utf8"));
   mesures["tests.echecs"] = tests.numFailedTests + (tests.numRuntimeErrorTestSuites || 0) + (r.code && !tests.numFailedTests ? 1 : 0);
   mesures["tests.total"] = tests.numTotalTests;
-  const resume = JSON.parse(readFileSync(join(WEB, "coverage", "coverage-summary.json"), "utf8"));
+  const resume = JSON.parse(readFileSync(join(RACINE, "coverage", "coverage-summary.json"), "utf8"));
   mesures["couverture.lignes_global"] = resume.total.lines.pct;
   mesures["couverture.branches_global"] = resume.total.branches.pct;
-  // La logique métier vit dans lib/ : c'est la couverture qui compte le plus.
+  // Le cœur métier (config.coeur) est la couverture qui compte le plus.
+  const motif = new RegExp(config.coeur.motif);
   let couvertes = 0, total = 0;
   for (const [fichier, m] of Object.entries(resume)) {
-    if (fichier === "total" || !/[\\/]web[\\/]lib[\\/]/.test(fichier)) continue;
+    if (fichier === "total" || !motif.test(fichier)) continue;
     couvertes += m.lines.covered;
     total += m.lines.total;
   }
-  mesures["couverture.lignes_lib"] = pct(couvertes, total);
+  mesures["couverture.lignes_coeur"] = pct(couvertes, total);
   durees.tests = r.secondes;
 }
 
 function codeMort() {
   const r = lancer("npx --no-install knip --reporter json");
-  const res = json(r.stdout);
+  const res = json(r, "code mort (knip)");
   let n = 0;
   for (const i of res.issues) for (const v of Object.values(i)) if (Array.isArray(v)) n += v.length;
   mesures["code_mort.problemes"] = n;
@@ -82,14 +101,14 @@ function codeMort() {
 }
 
 function architecture() {
-  const r = lancer("npx --no-install depcruise app lib components scripts --output-type json");
-  const res = json(r.stdout);
+  const r = lancer(`npx --no-install depcruise ${config.archi.join(" ")} --output-type json`);
+  const res = json(r, "architecture (dependency-cruiser)");
   mesures["architecture.violations"] = res.summary.violations.filter((v) => v.rule.severity === "error").length;
   durees.architecture = r.secondes;
 }
 
 function mutation() {
-  const f = join(WEB, "reports", "mutation", "mutation.json");
+  const f = join(RACINE, "reports", "mutation", "mutation.json");
   if (!existsSync(f)) {
     console.log("  (pas de rapport de mutation : lancer `npm run mutation` d'abord)");
     return;
@@ -112,7 +131,7 @@ const LIBELLES = {
   "lint.erreurs": "Lint (erreurs)",
   "lint.avertissements": "Lint (avertissements)",
   "tests.echecs": "Tests en échec",
-  "couverture.lignes_lib": "Couverture lib/ (% lignes)",
+  "couverture.lignes_coeur": `Couverture ${config.coeur.libelle} (% lignes)`,
   "couverture.lignes_global": "Couverture globale (% lignes)",
   "couverture.branches_global": "Couverture globale (% branches)",
   "code_mort.problemes": "Code mort (exports/fichiers inutilisés)",
@@ -122,7 +141,6 @@ const LIBELLES = {
 const TOLERANCE = 0.2; // points de % : bruit de mesure de la couverture
 
 function main() {
-  const seuils = JSON.parse(readFileSync(SEUILS, "utf8"));
   const etapes = args.has("--seulement-mutation") ? [] : [typecheck, lint, testsEtCouverture, codeMort, architecture];
   for (const etape of etapes) {
     process.stdout.write(`… ${etape.name}\n`);
@@ -140,15 +158,15 @@ function main() {
     if (s && "max" in s) statut = v <= s.max ? "OK" : "RECUL";
     if (s && "min" in s) statut = v >= s.min - TOLERANCE ? "OK" : "RECUL";
     if (statut === "RECUL") recul = true;
-    const cible = s ? ("max" in s ? `≤ ${s.max}` : `≥ ${s.min}`) : "";
+    const cible = s ? ("max" in s ? `≤ ${s.max}` : `≥ ${s.min}`) : "(pas encore de seuil)";
     lignes.push({ cle, libelle, valeur: v, seuil: cible, statut });
   }
 
-  console.log("\nPortes qualité — BatchChef");
+  console.log(`\nPortes qualité — ${config.app}`);
   for (const l of lignes) console.log(`  ${l.statut.padEnd(5)} ${l.libelle.padEnd(42)} ${String(l.valeur).padStart(7)}   seuil ${l.seuil}`);
 
   const commit = lancer("git rev-parse --short HEAD").stdout.trim();
-  writeFileSync(RAPPORT, JSON.stringify({ app: "batchchef", date: new Date().toISOString(), commit, verdict: recul ? "RECUL" : "OK", portes: lignes, durees }, null, 2));
+  writeFileSync(RAPPORT, JSON.stringify({ app: config.app, date: new Date().toISOString(), commit, verdict: recul ? "RECUL" : "OK", portes: lignes, durees }, null, 2));
 
   if (args.has("--maj")) {
     let change = false;
