@@ -23,15 +23,15 @@
   },
   "//drizzle-orm": "Plancher 0.45.2 : en dessous, injection SQL par identifiants mal échappés (GHSA-gpj5-g38j-94v9, HIGH). Ne jamais redescendre. Une clé « // » ne se met qu'à la RACINE — npm refuse un nom de paquet invalide à l'intérieur de `dependencies`.",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.96.0",
+    "@anthropic-ai/sdk": "^0.127.0",
     "@mokarade/hub-contract": "github:MoKarade/hub-contract#v1.3.1",
     "@neondatabase/serverless": "^1.0.0",
     "@vercel/analytics": "^2.0.1",
     "drizzle-orm": "^0.45.2",
     "next": "^16.3.5",
     "next-auth": "^5.0.0-beta.31",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "zod": "^3.23.8"
   },
   "//overrides": "Failles HIGH dans des dépendances transitives que Next épingle lui-même : postcss (XSS + lecture de fichier arbitraire via sourceMappingURL), sharp (libvips) et nanoid (boucle infinie sur size zéro, GHSA-2v37-7h3g-55p8 — tiré par postcss). Next 15.5.21 embarque encore postcss 8.4.31 dans son propre node_modules. À retirer dès qu'une version de Next les remonte d'elle-même — vérifier avec `npm audit --omit=dev`.",
@@ -41,8 +41,8 @@
     "nanoid": "^3.3.17"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.3.0",
-    "@eslint/eslintrc": "^3.3.6",
+    "@electric-sql/pglite": "^0.5.8",
+    "@eslint/eslintrc": "^3.3.7",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@stryker-mutator/core": "^10.0.0",
     "@stryker-mutator/vitest-runner": "^10.0.0",
@@ -57,9 +57,9 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "^15.5.21",
     "knip": "^6.37.0",
-    "sql.js": "^1.14.1",
+    "sql.js": "^1.14.2",
     "tailwindcss": "^4.0.0",
-    "tsx": "^4.23.1",
+    "tsx": "^4.23.15",
     "typescript": "^5.8.0",
     "vitest": "^3.0.0"
   }
