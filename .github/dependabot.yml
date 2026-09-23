@@ -27,6 +27,10 @@ updates:
       # 23/09/2026 (JobAI #29) : typecheck rouge. À retirer avec TypeScript 7.1 + typescript-eslint compatible.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
+      # Contrat INTERNE, épinglé à la main sur un tag (outils/repin_hub_contract.py de l'Atelier) : pas à
+      # Dependabot. Il lisait mal le tag annoté v1.3.1 et proposait une RÉTROGRADATION v1.3.1 -> v1.3.0
+      # (sans dist/ : installation cassée) — vécu le 23/09/2026, BatchChef #114 et JobAI #34.
+      - dependency-name: "@mokarade/hub-contract"
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly, day: monday }
