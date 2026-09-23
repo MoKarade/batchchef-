@@ -42,7 +42,7 @@ jobs:
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # [CI-PERSIST-CREDS] `actions/checkout` v2+ écrit le GITHUB_TOKEN dans la config git du
           # runner POUR TOUT LE RESTE DU RUN : n'importe quelle étape suivante, y compris une
@@ -64,7 +64,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: echo "97e36acba8770c9614b6295773267b9690d07bc5bcd130b3bc0d03da996ab62b  docs/COMPTE-RENDU.md" | sha256sum -c -
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -123,13 +123,13 @@ jobs:
     # qu'un dépôt sain devienne « rouge » du jour au lendemain et qu'on prenne
     # l'habitude du rouge — c'est ainsi qu'une CI cesse d'être lue.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # [CI-PERSIST-CREDS] Idem : ce job installe et interroge `npm audit`, il ne pousse
           # rien. Le jeton n'a aucune raison de rester lisible pour la suite du run.
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -157,11 +157,11 @@ jobs:
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # [CI-PERSIST-CREDS] Aucune étape ne pousse ni n'appelle l'API : jeton inutile.
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -173,7 +173,7 @@ jobs:
         run: node qualite/portes.mjs
       - name: Rapport
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rapport-qualite
           path: web/qualite/rapport.json
@@ -191,7 +191,7 @@ jobs:
       run:
         working-directory: ${{ github.workspace }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # gitleaks lit l'historique complet, pas seulement le dernier commit
           persist-credentials: false
@@ -203,7 +203,7 @@ jobs:
           echo "a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb  gitleaks.tgz" | sha256sum -c -
           tar xzf gitleaks.tgz gitleaks
           ./gitleaks git . --no-banner --redact --gitleaks-ignore-path .gitleaksignore
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Analyse statique (Semgrep)
@@ -223,10 +223,10 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -240,7 +240,7 @@ jobs:
         run: node qualite/portes.mjs --seulement-mutation
       - name: Rapport de mutation
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rapport-mutation
           path: web/reports/mutation/
