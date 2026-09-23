@@ -233,7 +233,10 @@ describe("choisirQuatre", () => {
   });
 });
 
-describe("le CORPUS RÉEL — la proposition tient-elle sur les 10 188 recettes", () => {
+// Sauté pendant les tests de mutation seulement (vitest.mutation.config.ts pose PORTE_MUTATION) :
+// ~3 s en temps normal, plus de 2 min sous l'instrumentation de Stryker, et relancé pour chaque
+// mutant qu'il couvre. Il reste actif dans `npm test` et dans la CI.
+describe.skipIf(process.env.PORTE_MUTATION === "1")("le CORPUS RÉEL — la proposition tient-elle sur les 10 188 recettes", () => {
   const require_ = createRequire(import.meta.url);
 
   it("rend quatre recettes variées, avec au moins une courte, sur cinquante-deux semaines", async () => {

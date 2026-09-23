@@ -1,0 +1,8 @@
+# Fins de ligne LF partout, y compris sur une copie Windows.
+# Sans ça, git (core.autocrlf) convertit en CRLF au checkout sous Windows et des tests qui lisent
+# le texte source (ex. tests/theme.test.ts, qui cherche « {\n  :root {») échouent en local alors
+# que la CI (Linux) est verte. Constaté le 22/09/2026 en installant les portes qualité sur le PC de Marc.
+* text=auto eol=lf
+*.png binary
+*.db binary
+*.wasm binary
