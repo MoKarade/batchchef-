@@ -16,6 +16,11 @@ updates:
       mineures-et-correctifs:
         update-types: [minor, patch]
     ignore:
+      # @types/node suit la MAJEURE de Node déclarée (.nvmrc) : une majeure plus récente se change AVEC
+      # Node. Vécu le 23/09/2026 : #113 a fait passer les types en 26 sur un Node 24 (typecheck vert,
+      # mais il aurait laissé passer une API de Node 26 absente en production).
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
       # eslint 10 : eslint-plugin-react (embarqué par eslint-config-next) n'a AUCUNE version compatible —
       # dernière publication 7.37.5 (avril 2025), jsx-eslint/eslint-plugin-react#3977 ouverte. Mesuré le
       # 23/09/2026 (BatchChef #108) : lint en plantage (`Components.componentRule`). À retirer dès qu'une
