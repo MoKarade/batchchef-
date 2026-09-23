@@ -1,0 +1,27 @@
+# Fusion automatique (Atelier) : chaque PR du dépôt (Dependabot compris) est
+# fusionnée en squash dès que les contrôles obligatoires de la protection de
+# master sont verts (gate, qualité, sécurité, audit, SonarCloud).
+# Les PR venant d'un fork et les brouillons sont ignorés.
+name: Fusion automatique
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+permissions: {}
+
+jobs:
+  activer:
+    name: Activer la fusion automatique
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: gh pr merge --auto --squash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"
