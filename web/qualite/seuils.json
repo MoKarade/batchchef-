@@ -1,6 +1,6 @@
 {
   "_doc": "Seuils du cliquet (portes qualité de l'Atelier). Valeurs figées le jour de la mise en place : l'existant est toléré, rien ne peut reculer. `npm run portes:maj` resserre un seuil quand le chiffre s'améliore ; le desserrer demande `--forcer` et une décision de Marc.",
-  "mis_a_jour": "2026-09-23",
+  "mis_a_jour": "2026-09-24",
   "config": {
     "app": "batchchef",
     "lint": "eslint .",
@@ -30,13 +30,13 @@
       "max": 0
     },
     "couverture.lignes_coeur": {
-      "min": 53
+      "min": 50.3
     },
     "couverture.lignes_global": {
-      "min": 29.5
+      "min": 34.0
     },
     "couverture.branches_global": {
-      "min": 92.5
+      "min": 35.9
     },
     "code_mort.problemes": {
       "max": 17
@@ -47,5 +47,21 @@
     "mutation.score": {
       "min": 40.6
     }
-  }
+  },
+  "historique": [
+    {
+      "date": "2026-09-24",
+      "motif": "vitest 3 -> 5 : remappage V8 « AST-aware » (Vitest 4+), même code, autre mesure — décision de Marc",
+      "couverture_avant": {
+        "couverture.lignes_coeur": 53,
+        "couverture.lignes_global": 29.5,
+        "couverture.branches_global": 92.5
+      },
+      "couverture_apres": {
+        "couverture.lignes_coeur": 50.3,
+        "couverture.lignes_global": 34.0,
+        "couverture.branches_global": 35.9
+      }
+    }
+  ]
 }
