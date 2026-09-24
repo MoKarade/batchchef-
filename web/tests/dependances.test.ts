@@ -111,7 +111,17 @@ describe("planchers de sécurité", () => {
 
   it("la plage déclarée pour drizzle-orm ne permet pas de redescendre", () => {
     // Le lockfile peut être régénéré ; la plage de `package.json` est ce qui gouverne.
+    // On vérifie la BORNE BASSE de la plage, pas son texte exact : l'égalité stricte
+    // (« ^0.45.2 ») faisait rougir chaque montée de correctif — Dependabot #120, 0.45.2 → 0.45.3,
+    // plus sûre et pourtant refusée. Une plage large (>=, *, x, ||) reste refusée : elle
+    // pourrait redescendre.
     const deps = pkg.dependencies as Record<string, string>;
-    expect(deps["drizzle-orm"]).toBe("^0.45.2");
+    const plage = deps["drizzle-orm"] ?? "";
+    const m = /^[\^~]?(\d+\.\d+\.\d+)$/.exec(plage);
+    expect(m, `plage « ${plage} » non reconnue : seules ^x.y.z, ~x.y.z et x.y.z sont admises`).not.toBeNull();
+    expect(
+      comparerVersions(m?.[1] ?? "0.0.0", "0.45.2"),
+      `plage « ${plage} » : sa borne basse est sous le plancher 0.45.2`,
+    ).toBeGreaterThanOrEqual(0);
   });
 });
