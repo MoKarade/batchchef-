@@ -53,8 +53,11 @@ Nouveau projet Vercel → ce repo → **Root Directory = `web`** → colle les v
 d'env ci-dessus → Deploy. C'est tout (pas de worker, pas de base à héberger toi-même).
 
 **Migrations automatiques** : le script `vercel-build` (que Vercel utilise à la place de
-`build` s'il est présent) lance `db:migrate` avant `next build`, à CHAQUE déploiement
-(prod et previews). Rien à lancer à la main sur ta machine après un changement de schéma —
+`build` s'il est présent) lance `db:migrate`, puis `db:reparer-ingredients`, avant `next build`, à CHAQUE
+déploiement construit (prod et previews). Les branches `claude/*` ne sont pas construites
+(`vercel.json`), et `ignoreCommand` (`scripts/build-necessaire.sh`) saute les commits qui ne
+touchent que de la doc ou des tests. ⚠️ Une préversion écrit dans la base de PRODUCTION (voir
+`CLAUDE.md`, section « Une PRÉVERSION écrit dans la base de PRODUCTION »). Rien à lancer à la main sur ta machine après un changement de schéma —
 `git push` suffit. Idempotent : une migration déjà appliquée est ignorée (table de suivi
 Drizzle), donc plusieurs déploiements qui se chevauchent ne rejouent rien deux fois.
 
@@ -203,7 +206,7 @@ base seed committée (`web/data/batchchef.seed.db`), unités normalisées à l'i
 
 ```bash
 cd web
-DATABASE_URL='TON_URL_NEON' npm run db:migrate      # applique aussi la table catalogue (0001)
+DATABASE_URL='TON_URL_NEON' npm run db:migrate      # applique aussi la table catalogue (0001) et les suivantes (0000 à 0016)
 DATABASE_URL='TON_URL_NEON' npm run catalog:import   # importe les 10 188 recettes (~1-2 min)
 ```
 

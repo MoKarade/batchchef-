@@ -403,6 +403,11 @@ npm run dev        # http://localhost:3000
 npm run test       # vitest
 npm run typecheck  # tsc --noEmit
 npm run build      # build de production
+npm run lint       # eslint
+npm run portes     # portes qualité de l'Atelier (cliquet, web/qualite/seuils.json)
+npm run architecture  # règles d'architecture (dependency-cruiser)
+npm run code-mort  # knip
+npm run mutation   # Stryker
 ```
 
 ## 5. Vérifications avant commit
