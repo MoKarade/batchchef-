@@ -463,9 +463,12 @@ précédent. La vérification n'est donc pas « le déploiement a-t-il réussi ?
 ⚠️ **Et le rattrapage n'est PAS « Redeploy ».** Redeploy rejoue le commit du déploiement
 EXISTANT, pas le dernier commit de `master` : sur un commit qui n'a jamais été déployé, il
 n'y a rien à rejouer, et rejouer le voisin reconstruirait l'ancien code (leçon JobAI, même
-famille). Le seul déclencheur fiable est un NOUVEAU push sur `master`. Attention alors à
-l'`ignoreCommand` : un commit qui ne touche que `*.md` ou `web/tests/*` serait ignoré — le
-commit de rattrapage doit toucher un fichier hors exemptions.
+famille). Le seul déclencheur fiable est un NOUVEAU push sur `master` — et **n'importe
+lequel suffit, même de la doc seule** : `build-necessaire.sh` compare au dernier commit
+DÉPLOYÉ (`VERCEL_GIT_PREVIOUS_SHA`), pas au précédent, donc le diff couvre tout ce qui manque
+en production. Mesuré le 25/09 : un commit de doc (#125) a construit `READY` et rattrapé
+quatre merges restés sans déploiement. *(Cette ligne disait jusque-là qu'un commit doc-only
+« serait ignoré » : c'est vrai sans retard, faux après un trou — le cas même où on s'en sert.)*
 
 Corollaire : un merge qui ne change QUE de la doc n'a pas de déploiement à vérifier. Le dire
 plutôt que de laisser croire qu'on a vérifié.

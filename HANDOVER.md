@@ -11,12 +11,22 @@
 > Mesuré le 25/09/2026 à 13 h 44 Z (API Vercel, `git`, API GitHub), pas recopié. Tout ce qui
 > suit est DATÉ : un chiffre au présent rote, et ce document l'a déjà vécu.
 
-### ⚠️ La production est en retard sur `master`
+### ⚠️ La production ÉTAIT en retard sur `master` — rattrapée le 25/09 à 13 h 53 Z
 
 | | commit | quand |
 |---|---|---|
-| Pointe de `master` | `5474a1e` (#124) | 24/09, 17 h 11 Z |
-| **Ce que la production sert** | **`eb7bdc3` (#119)** | construit le 24/09, 11 h 07 Z |
+| Pointe de `master` avant ce rapport | `5474a1e` (#124) | 24/09, 17 h 11 Z |
+| Ce que la production servait à 13 h 44 Z | `eb7bdc3` (#119) | construit le 24/09, 11 h 07 Z |
+| **Ce qu'elle sert depuis** | **`5ad27ab` (#125) = `master`** | `READY` le 25/09 vers 13 h 53 Z |
+
+**Le rattrapage s'est fait tout seul, avec un commit de DOCUMENTATION** (#125, ce rapport).
+Attendu : un `CANCELED`. Observé : un build complet, `READY`. Raison : `build-necessaire.sh`
+ne compare pas au commit d'avant mais au **dernier commit DÉPLOYÉ**
+(`VERCEL_GIT_PREVIOUS_SHA`), et le diff `eb7bdc3..5ad27ab` portait les lockfiles des quatre
+merges muets. Conséquence utile : **un trou de `DEPLOI-MUET` se referme au push suivant sur
+`master`, quel qu'il soit.** Ce qui reste inconnu, c'est pourquoi le trou se creuse.
+
+Ce qui suit décrit le trou tel qu'il était mesuré avant le rattrapage.
 
 Entre les deux, cinq merges. `#121` ne touche que `web/tests/` : son déploiement `CANCELED`
 est le saut volontaire de `build-necessaire.sh` — sain. **Les quatre autres n'ont produit
