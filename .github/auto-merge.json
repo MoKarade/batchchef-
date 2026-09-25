@@ -1,0 +1,19 @@
+{
+  "branche_base": "master",
+  "controles_requis": [
+    "Gate (typecheck · tests · build)",
+    "Audit des dépendances de production",
+    "Qualité (lint · couverture · code mort · architecture)",
+    "Sécurité (secrets · analyse statique)"
+  ],
+  "controles_non_bloquants": [],
+  "chemins_interdits": [
+    "web/drizzle/**",
+    "web/lib/db/**",
+    "web/drizzle.config.*",
+    "**/.env*",
+    "**/*.pem"
+  ],
+  "chemins_label_validation": [],
+  "carence_dependabot_jours": 0
+}

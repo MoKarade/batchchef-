@@ -1,14 +1,24 @@
-# Fusion automatique (Atelier) : chaque PR du dépôt (Dependabot compris) est
-# fusionnée en squash dès que les contrôles obligatoires de la protection de
-# master sont verts (gate, qualité, sécurité, audit, SonarCloud).
-# Les PR venant d'un fork et les brouillons sont ignorés.
+# Fusion automatique (Atelier) : une PR du dépôt (Dependabot compris) est fusionnée en squash dès que les
+# contrôles obligatoires de la protection de master sont verts (gate, qualité, sécurité, audit, SonarCloud),
+# SAUF si elle touche un chemin sensible (hooks, .github, réglages, commit-gate, .claude, CODEOWNERS, modeles/,
+# migrations et schéma de base) : la décision est celle du modèle de l'Atelier (autoMerge.mjs, peutArmer,
+# liste chemins-interdits.json + .github/auto-merge.json). Les PR de fork et les brouillons ne s'arment pas.
+#
+# pull_request_target : ce workflow, le script et la liste des chemins sont lus sur MASTER, jamais dans la PR
+# (une PR ne peut pas s'auto-autoriser en modifiant la liste ou ce fichier). Le code de la PR n'est JAMAIS
+# récupéré ni exécuté ici : on ne lit que la liste de ses fichiers par l'API.
+# `synchronize` : à chaque poussée on réévalue, et une PR déjà armée qui touche un chemin sensible est désarmée.
 name: Fusion automatique
 
 on:
-  pull_request:
-    types: [opened, reopened, ready_for_review]
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, synchronize]
 
 permissions: {}
+
+concurrency:
+  group: fusion-auto-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   activer:
@@ -20,8 +30,14 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - name: gh pr merge --auto --squash
+      # Branche de BASE (défaut de pull_request_target) : jamais le code de la PR.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Armer ou désarmer selon la décision
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-        run: gh pr merge --auto --squash "$PR_URL"
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/scripts/auto-merge/armer.mjs
