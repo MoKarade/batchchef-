@@ -85,6 +85,11 @@
   - Les réglages du projet ont été modifiés vers 17 h 29 Z le 24/09 (`nodeVersion: 24.x`) —
     après le début du silence. `framework: null` et l'absence de domaine personnalisé dans
     l'API sont toujours là.
+  - **Rattrapé le 25/09 vers 13 h 53 Z, par un commit de DOC seule** (#125) : attendu
+    `CANCELED`, observé un build `READY` — la production sert `5ad27ab` = `master`. Le script
+    compare au dernier commit DÉPLOYÉ (`VERCEL_GIT_PREVIOUS_SHA`), pas au précédent : le diff
+    portait les lockfiles en retard. **Un trou se referme donc au push suivant, quel qu'il
+    soit.** L'item reste ouvert : la CAUSE des silences n'est toujours pas trouvée.
 
   ⚠️ **Pourquoi une entrée de backlog et pas juste un redéploiement.** Un Redeploy remet ce
   commit en ligne ; il n'explique pas pourquoi le suivant ne partira pas non plus. Tant que
