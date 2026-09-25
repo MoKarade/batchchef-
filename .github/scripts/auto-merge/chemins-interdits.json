@@ -20,21 +20,7 @@
     "**/auto-merge.json",
     "chemins-interdits.json",
     "**/chemins-interdits.json",
-    "cockpit/tests/lancer.ps1",
-    "cockpit/tests/test_workflows.py",
-    "cockpit/tests/test_hygiene.py",
-    "cockpit/garde_hook.py",
-    "cockpit/cockpit.py",
-    "cockpit/evenements.py",
-    "cockpit/flux_sse.py",
-    "cockpit/bureau.py",
-    ".gitattributes",
-    "cockpit/tests/test_hook.py",
-    "cockpit/tests/test_tache_ligne.py",
-    "cockpit/tests/test_securite_hook.py",
-    "cockpit/tests/test_activite.py",
-    "cockpit/tests/test_bureau.py",
-    "cockpit/tests/test_journal_rapports.py",
-    "cockpit/tests/test_local.py"
-  ]
+    ".gitattributes"
+  ],
+  "_note": "COPIE ADAPTÉE de atelier/modeles/auto-merge/chemins-interdits.json : les entrées cockpit/* (propres à l'Atelier) sont retirées ici, tout le reste est identique. À la re-synchronisation, recopier la liste de l'Atelier puis retirer de nouveau cockpit/*. Les chemins propres à BatchChef sont dans .github/auto-merge.json."
 }

@@ -5,6 +5,7 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 import { peutArmer } from "./autoMerge.mjs";
+import { scriptsBuildTouches } from "./scriptsBuild.mjs";
 
 const { GH_TOKEN, REPO, PR, SHA } = process.env;
 const gh = (args) => execFileSync("gh", args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
@@ -27,7 +28,8 @@ try {
   if (vue.state !== "OPEN") { resume("PR non ouverte : rien à faire."); process.exit(0); }
   const brut = gh(["api", "--paginate", `repos/${REPO}/pulls/${PR}/files`, "--jq", ".[] | {path: .filename, previous_filename: .previous_filename, status: .status, patch: .patch}"]);
   const fichiers = brut.split("\n").filter((l) => l !== "").map((l) => JSON.parse(l));
-  const decision = peutArmer({ ...vue, fichiers }, config);
+  const build = scriptsBuildTouches(fichiers);
+  const decision = build ? { armer: false, raison: build } : peutArmer({ ...vue, fichiers }, config);
   if (decision.armer) {
     gh(["pr", "merge", "--auto", "--squash", PR, "--repo", REPO]);
     resume(`Fusion automatique armée : ${decision.raison}.`);

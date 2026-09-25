@@ -14,6 +14,19 @@
     "**/.env*",
     "**/*.pem"
   ],
-  "chemins_label_validation": [],
+  "chemins_label_validation": [
+    "web/middleware.*",
+    "web/auth.ts",
+    "web/lib/authConfigured.ts",
+    "web/lib/authGuard.ts",
+    "web/lib/authorized.ts",
+    "web/app/api/auth/**",
+    "web/app/api/mcp/**",
+    "web/lib/mcp/oauth*",
+    "web/lib/accesHub.ts",
+    "web/vercel.json",
+    "web/next.config.*",
+    "web/scripts/**"
+  ],
   "carence_dependabot_jours": 0
 }
