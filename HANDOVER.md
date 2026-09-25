@@ -6,6 +6,95 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
+## État au 25/09/2026 — à lire en premier
+
+> Mesuré le 25/09/2026 à 13 h 44 Z (API Vercel, `git`, API GitHub), pas recopié. Tout ce qui
+> suit est DATÉ : un chiffre au présent rote, et ce document l'a déjà vécu.
+
+### ⚠️ La production est en retard sur `master`
+
+| | commit | quand |
+|---|---|---|
+| Pointe de `master` | `5474a1e` (#124) | 24/09, 17 h 11 Z |
+| **Ce que la production sert** | **`eb7bdc3` (#119)** | construit le 24/09, 11 h 07 Z |
+
+Entre les deux, cinq merges. `#121` ne touche que `web/tests/` : son déploiement `CANCELED`
+est le saut volontaire de `build-necessaire.sh` — sain. **Les quatre autres n'ont produit
+AUCUN déploiement, pas même un `CANCELED`** : `#120` (drizzle-orm 0.45.2 → 0.45.3 et
+drizzle-kit), `#123` (qs), `#122` (fast-uri), `#124` (hono, développement seulement).
+
+C'est `DEPLOI-MUET` (backlog) qui revient. L'impact d'aujourd'hui est faible — des correctifs
+de dépendances — mais le mécanisme est celui qui laisserait une FONCTIONNALITÉ mergée hors
+ligne sans que rien ne soit rouge nulle part. Ce qui est établi :
+
+- Le projet n'est **pas muet en continu** : entre le 15 et le 24/09, `#111`, `#115`, `#117`,
+  `#118` et `#119` ont bien été déployés `READY`.
+- Le silence commence **entre 15 h 38 Z** (`#121`, déploiement créé) **et 15 h 43 Z** (`#120`,
+  rien) le 24/09. À 17 h 09 Z, les préversions des branches Dependabot se créent encore — mais
+  les merges sur `master` de la minute suivante, non.
+- Ce n'est pas le type de fichier : `#119`, déployé, touchait `package.json` et le lockfile
+  comme `#120`, qui ne l'a pas été.
+- Les réglages du projet ont été modifiés le 24/09 vers 17 h 29 Z (il porte désormais
+  `nodeVersion: 24.x`) — APRÈS le début du silence, donc pas sa cause au premier ordre.
+  `framework: null` et l'absence de domaine personnalisé dans l'API sont toujours là.
+- **Cause non établie d'ici** : le tableau de bord Vercel et `*.hubperso.com` sont hors de
+  portée de la session.
+
+### Ce qui a changé depuis le 15/09 — 22 commits d'autres sessions et de Dependabot
+
+**Fonctionnalités**
+- `HUB-BATCHS-30J` (#99) — la carte du hub dit « Batchs (30 jours) » : l'activité sur trente
+  jours GLISSANTS, pas le mois civil (qui retomberait à zéro chaque 1er du mois).
+- `PWA-ANDROID` (#102) — une vraie icône `maskable` (la marmite n'est plus rognée par le masque
+  d'Android), `id: "/"` pour que l'installation ne se dédouble pas, `launch_handler`.
+
+**Sécurité**
+- #101 — le jeton GitHub n'est plus lisible pendant tout le run de CI, et `npm ci` tourne en
+  `--ignore-scripts`.
+- #103, #111 — gitleaks et SonarCloud en CI.
+
+**Plateforme** (tout a monté d'une majeure en deux jours)
+- Next **15.5.25 → 16.3.5** (#109), zod **3 → 4.6.5** (#115), Node **24** partout (`.nvmrc`,
+  Vercel `24.x`, #110), eslint-config-next 16 en flat config (#111), `@types/node` 24 (#117).
+- vitest monté en 5 (#118) puis **redescendu en ~4.1** (#119) : l'outil de mutation (Stryker)
+  ne sait pas encore piloter vitest 5 et rendait un score faux (5,2 % au lieu de 40,6 %).
+- Contrat du hub re-pinné sur **`v1.3.1`** (#110 — `dist/` commité, requis sous npm 11), et
+  Dependabot ne le déplace plus (#116).
+- Plancher `drizzle-orm ≥ 0.45.2` : le test vérifie désormais la BORNE BASSE de la plage, pas
+  son texte exact — il refusait une montée comme une descente (#121).
+
+**Processus**
+- **Fusion automatique** (#105, #110, `.github/workflows/fusion-auto.yml`) : toute PR non
+  brouillon — Dependabot compris — part en squash dès que les contrôles obligatoires de
+  `master` sont verts. Une PR en BROUILLON n'est jamais fusionnée.
+- **Portes qualité de l'Atelier** (#103, #117) : `npm run portes` compare lint, couverture,
+  code mort et architecture à `web/qualite/seuils.json` (cliquet : rien ne recule) ; mutation
+  hebdomadaire en CI. Mesures de départ (23/09) : 562 tests, mutation 40,6 %.
+
+### Ce que cette session a livré (14-15/09)
+
+| PR | lot | en une ligne |
+|---|---|---|
+| #86 | `SEM-02` · `SEC-01` | la semaine proposée (3 plats + 1 dessert) ; une RCE non authentifiée fermée en passant |
+| #87, #90 | `SEM-01` | le type de plat — sept familles estimées, corrigibles ; la couverture se COMPTE |
+| #91 | `SEM-05` | prix, temps et difficulté (1 à 5 étoiles, coupes = quintiles mesurés) |
+| #92 | `SEM-03` | changer la semaine en parlant à l'assistant ; re-tirer les quatre d'un coup |
+| #93 | `ING-10` | un seul arrondi, après la multiplication — 17 231 lignes réécrites au déploiement |
+| #94, #95 | doublon | le bouton existait ; Marc a supprimé l'exemplaire en trop (survivant : `#8`) |
+| #97 | `CAT-H` | le prompt et l'outil MCP n'annoncent plus 10 188 recettes quand on en sert 10 170 |
+| #96, #98 | docs | HANDOVER remis à l'état réel ; un compte qui avait roté dans l'heure, retiré |
+
+### Ce qui reste ouvert
+
+- 🔴 `DEPLOI-MUET` — ci-dessus. C'est la seule chose qui compte avant tout nouveau lot.
+- Deux points PWA que seul un vrai téléphone tranche (backlog) : un partage Instagram
+  RÉUTILISE désormais la fenêtre ouverte (`launch_handler`), et le lien du hub vers l'app
+  installée dépend de Chrome.
+- `ING-09` (26 lignes, 0,03 %) — à rouvrir seulement si l'une gêne en vrai.
+- Trois idées NON arbitrées — à proposer, jamais à prendre seul.
+- **Le chantier SEMAINE n'a jamais été vu servir d'ici** : aucune de ses surfaces n'a été
+  exercée par cette session contre la production. Le premier usage reste le premier test.
+
 ## Où en est l'app
 
 Le cycle en place et déployé : **importer une recette → composer un batch → faire
@@ -24,13 +113,16 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | **Semaine par l'assistant** | **Neuf (14/09)** — « mets-moi quelque chose avec du poulet à la place du troisième » : l'assistant lit ta semaine, propose, et un bouton dans le chat applique. Plus un « Propose-moi une autre semaine » sur la carte, derrière une confirmation |
 | **Prix, temps et difficulté** | **Neuf (14/09)** — la carte « Ta semaine » annonce le temps total et le prix estimé de l'épicerie ; chaque recette porte une note de difficulté en étoiles (1 à 5), partout où elle s'affiche |
 | **Type de plat** | **Neuf (14/09)** — sept familles déduites du titre et des ingrédients (91,4 % de couverture, 54/56 sur un échantillon jugé). Filtre dans le catalogue, étiquette « estimé » sur les fiches, correction manuelle qui survit au recalcul |
-| Widget hub | `GET /api/hub/summary`, contrat `@mokarade/hub-contract` |
+| Widget hub | `GET /api/hub/summary`, contrat `@mokarade/hub-contract` **v1.3.1** — la carte montre la semaine et « Batchs (30 jours) » (#99) |
+| Installable (Android) | PWA, icône `maskable` dédiée (#102) ; c'est l'app INSTALLÉE qui reçoit les vidéos partagées |
 | **Serveur MCP** | **Neuf (19/08)** — `POST /api/mcp`, 7 outils (4 lecture, 3 écriture). **BRANCHÉ ET VÉRIFIÉ EN USAGE RÉEL** le 19/08 : Marc a connecté le connecteur claude.ai (OAuth 2.1, ADR-0002), et les outils rendent ses vraies données. Claude Code reste possible par jeton direct. |
-| Accès | Google mono-adresse + interrogation du hub (`lib/accesHub.ts`) |
+| Accès | **Deux étages** : le propriétaire (`AUTHORIZED_EMAIL`, vérifié sans réseau), puis toute personne à qui le hub a donné l'accès (`lib/accesHub.ts` → `POST /api/acces`). Cette ligne disait « mono-adresse » — faux depuis l'étape 2 |
 | Analytics | `@vercel/analytics` posé. ⚠️ **Ne collecte rien tant que Web Analytics n'est pas activé dans le tableau de bord Vercel** — geste de Marc |
 
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
-Gate : `typecheck` · `lint` · `test` · `build`. **552 tests**, 38 fichiers (14/09/2026).
+Gate : `typecheck` · `lint` · `test` · `build`, plus les **portes qualité** (`npm run portes`).
+Node **24**, Next **16**, zod **4**. Le nombre de tests ne s'écrit pas ici — il se lit dans la CI
+(562 au 23/09, mesuré par #103).
 
 ## Le doublon de la bibliothèque perso (15/09/2026)
 
@@ -306,9 +398,14 @@ Le reliquat (`ING-07`) est documenté au backlog, classe par classe.
 
 ## Prochaine chose prévue
 
-**Rien n'est engagé.** Le chantier SEMAINE est fini (`SEM-01`, `SEM-02`, `SEM-03`, `SEM-05`,
-livrés le 14/09) et `ING-10` avec. Ce qui reste ouvert au backlog n'est PAS une file de
-travail :
+**Au 25/09 : `DEPLOI-MUET` d'abord** (voir « État au 25/09 »). Le rattrapage fiable n'est PAS
+un Redeploy (il rejoue le commit d'un déploiement EXISTANT — `CLAUDE.md` §6) : c'est un
+nouveau push sur `master` qui touche un fichier HORS exemptions, puis la vérification que son
+déploiement EXISTE. La cause, elle, se cherche dans le tableau de bord Vercel.
+
+Pour le reste, **rien n'est engagé.** Le chantier SEMAINE est fini (`SEM-01`, `SEM-02`,
+`SEM-03`, `SEM-05`, livrés le 14/09) et `ING-10` avec. Ce qui reste ouvert au backlog n'est
+PAS une file de travail :
 
 - `HUB-RENDU` — rien à faire ICI : c'est le lot 2 du hub. L'entrée existe pour que
   « publié » ne se lise pas « affiché ».
@@ -373,6 +470,9 @@ surprennent le plus :
 
 ## Ce qui demande un geste de Marc
 
+- **Tableau de bord Vercel → `batchchef-glu8`** : comprendre pourquoi des pushs sur `master`
+  ne créent aucun déploiement depuis le 24/09, 15 h 43 Z (`DEPLOI-MUET`). La session n'a accès
+  ni aux réglages Git du projet, ni à `*.hubperso.com`.
 - Activer **Web Analytics** dans le tableau de bord Vercel (sinon la dépendance ne mesure rien).
 - Le client MCP doit viser **`https://batchchef.hubperso.com/api/mcp`** — jamais une URL
   `*.vercel.app` : la protection Vercel du projet est en `all_except_custom_domains`, donc

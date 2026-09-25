@@ -2,7 +2,8 @@
 
 Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit dans `web/`.
 
-- **Next.js 15** (App Router, Server Components + Server Actions), **Vercel**.
+- **Next.js 16** (App Router, Server Components + Server Actions), **Vercel**, **Node 24**
+  (`.nvmrc` ; monté de 15 et 22 le 23/09, #109 et #110).
 - **Drizzle ORM** + **Neon** (Postgres serverless).
 - **Auth.js v5** (Google — BatchChef GARDE son fournisseur, contrairement à JobAI/CarAI),
   middleware fail-closed. **Qui entre : deux étages**, pas une mono-adresse.
@@ -14,7 +15,8 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   Le contrôle est **rejoué à chaque lecture** (`jwt`), pas seulement à la connexion : le
   cookie étant partagé entre les apps du hub, il pourrait venir d'ailleurs.
 - **LLM** (`@anthropic-ai/sdk`) pour le parse de recettes et l'estimation des prix.
-- **Tailwind v4**, **Zod**, **vitest**.
+- **Tailwind v4**, **Zod 4** (monté de 3 le 23/09, #115), **vitest ~4.1** — PAS 5 : l'outil de
+  mutation ne sait pas encore le piloter et rend un score faux (#119).
 
 > 📐 Structure de ce fichier et de `docs/` : [convention commune aux huit dépôts](https://github.com/MoKarade/claude-config/blob/main/conventions/STRUCTURE-DEPOT.md).
 
@@ -378,10 +380,12 @@ néons d'un supermarché.
 
 ## 3. Workflow git
 
-Branche `claude/<slug>` → commits en français → push → PR → **Claude merge lui-même**
-(squash sur `master`), sans demander. Le gate local + la CI sont les filets ; le merge n'est
-pas un point de décision de Marc. Corollaire : tout ce qui doit partir avec le lot (doc,
-tests, leçons) est committé AVANT le merge — une PR mergée ne se rattrape pas.
+Branche `claude/<slug>` → commits en français → push → PR. **Depuis le 23/09, la fusion est
+AUTOMATIQUE** (`.github/workflows/fusion-auto.yml`, #105/#110) : toute PR non brouillon —
+Dependabot compris — part en squash dès que les contrôles obligatoires de `master` sont verts.
+Une PR en **brouillon** n'est jamais fusionnée : c'est le seul frein. Corollaire : tout ce qui
+doit partir avec le lot (doc, tests, leçons) est committé AVANT d'ouvrir la PR hors brouillon
+— une PR légère peut partir en quelques minutes, et une PR mergée ne se rattrape pas.
 
 ⚠️ Après un squash-merge, GitHub supprime la branche : repartir de `master`
 (`git fetch origin master && git checkout -B <branche> origin/master`) avant la tâche
@@ -498,8 +502,9 @@ visible. Deux règles qui en découlent :
 ## 7. Intégration hub
 
 - BatchChef publie `GET /api/hub/summary` conforme à `@mokarade/hub-contract` — **pinné sur
-  le tag `v1.3.0`** depuis le 14/09/2026 — gardé par le jeton `x-hub-token`. Voir
-  `lib/hubSummary.ts`.
+  le tag `v1.3.1`** depuis le 23/09/2026 (#110 : son `dist/` est commité, ce qu'exige npm 11
+  sous Node 24 ; Dependabot ne le déplace plus, #116) — gardé par le jeton `x-hub-token`.
+  Voir `lib/hubSummary.ts`.
   ⚠️ Re-pinner n'est pas optionnel pour consommer un champ neuf : Zod STRIPPE les clés
   inconnues, donc sur un pin antérieur `validateSummary` retire `dataAsOf`, `details` et
   `primary` **en silence** — et les tests passent en n'affirmant plus rien sur eux.
