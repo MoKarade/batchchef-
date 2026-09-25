@@ -66,8 +66,25 @@
      réseau de la session refuse `*.hubperso.com` (403 au CONNECT), donc impossible de
      sonder ce qui est réellement servi.
 
-  **Rattrapage immédiat** : tableau de bord Vercel → `batchchef-glu8` → Deployments → « … »
-  → Redeploy sur `24eeccd`.
+  ~~**Rattrapage immédiat** : tableau de bord Vercel → `batchchef-glu8` → Deployments → « … »
+  → Redeploy sur `24eeccd`.~~ ⚠️ **Conseil faux, barré le 25/09** : un Redeploy rejoue le commit
+  d'un déploiement EXISTANT (`CLAUDE.md` §6) — `24eeccd` n'en avait aucun, il n'y avait rien à
+  rejouer. Le seul déclencheur fiable est un NOUVEAU push sur `master` qui touche un fichier
+  hors exemptions. (Sans objet aujourd'hui : `24eeccd` est en ligne depuis, par ses successeurs.)
+
+  **Re-mesuré le 25/09, 13 h 44 Z — le défaut est INTERMITTENT, pas guéri.**
+  - Entre le 15 et le 24/09, le projet a bien déployé `READY` : `#111`, `#115`, `#117`, `#118`,
+    `#119`.
+  - Puis, le 24/09, **quatre merges sur `master` n'ont produit AUCUN déploiement** (pas même un
+    `CANCELED`) : `#120` à 15 h 43 Z, `#123`, `#122` et `#124` entre 17 h 10 et 17 h 11 Z. Le
+    précédent, `#121` à 15 h 38 Z, a bien eu le sien (`CANCELED`, tests seuls : sain).
+  - **La production sert donc `eb7bdc3` (#119)** alors que `master` est à `5474a1e` (#124).
+  - Ce n'est pas le type de fichier : `#119` (déployé) et `#120` (muet) touchent tous deux
+    `package.json` et le lockfile. Ce n'est pas un blocage du compte entier : les préversions
+    des branches Dependabot se créent encore à 17 h 09 Z, une minute avant les merges muets.
+  - Les réglages du projet ont été modifiés vers 17 h 29 Z le 24/09 (`nodeVersion: 24.x`) —
+    après le début du silence. `framework: null` et l'absence de domaine personnalisé dans
+    l'API sont toujours là.
 
   ⚠️ **Pourquoi une entrée de backlog et pas juste un redéploiement.** Un Redeploy remet ce
   commit en ligne ; il n'explique pas pourquoi le suivant ne partira pas non plus. Tant que
