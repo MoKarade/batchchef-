@@ -30,7 +30,8 @@
     "web/scripts/vercel-build.*",
     "web/tests/vercelBuild.test.*",
     "web/tests/deploiement.test.ts",
-    "web/tests/blocageFusion.test.ts"
+    "web/tests/blocageFusion.test.ts",
+    "**/settings*.json"
   ],
   "carence_dependabot_jours": 0,
   "frein_fusions_par_heure": 6

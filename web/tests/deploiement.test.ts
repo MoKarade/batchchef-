@@ -111,6 +111,16 @@ describe("réparation des ingrédients — la passe reste branchée au build", (
     scripts: Record<string, string>;
   };
 
+  // ÉGALITÉ STRICTE (exigence pole-securite) : ce fichier est protégé (attestation) ; tout changement de ces trois
+  // scripts, un `&& <commande>` ajouté compris, casse ce test. Un changement voulu met à jour la valeur ICI, dans la
+  // même PR (donc sous attestation). Ex. : la PR de la garde de préversion (#129) change vercel-build en
+  // `node scripts/vercel-build.mjs` et doit mettre à jour cette valeur.
+  it("les scripts de déploiement sont EXACTEMENT ceux attendus", () => {
+    expect(pkg.scripts["vercel-build"]).toEqual("npm run db:migrate && npm run db:reparer-ingredients && next build");
+    expect(pkg.scripts["db:migrate"]).toEqual("drizzle-kit migrate");
+    expect(pkg.scripts["db:reparer-ingredients"]).toEqual("tsx scripts/reparer-ingredients.ts");
+  });
+
   it("`vercel-build` lance la réparation, et AVANT le build", () => {
     const chaine = pkg.scripts["vercel-build"] ?? "";
     expect(chaine).toContain("db:reparer-ingredients");
