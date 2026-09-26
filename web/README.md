@@ -53,10 +53,10 @@ Nouveau projet Vercel → ce repo → **Root Directory = `web`** → colle les v
 d'env ci-dessus → Deploy. C'est tout (pas de worker, pas de base à héberger toi-même).
 
 **Migrations automatiques** : le script `vercel-build` (que Vercel utilise à la place de
-`build` s'il est présent) lance `db:migrate`, puis `db:reparer-ingredients`, avant `next build`, à CHAQUE
-déploiement construit (prod et previews). Les branches `claude/*` ne sont pas construites
+`build` s'il est présent) lance `scripts/vercel-build.mjs` : `db:migrate`, puis `db:reparer-ingredients`, avant `next build`,
+UNIQUEMENT quand `VERCEL_ENV=production` ; une préversion (ou variable absente) les saute et ne fait que `next build`. Les branches `claude/*` ne sont pas construites
 (`vercel.json`), et `ignoreCommand` (`scripts/build-necessaire.sh`) saute les commits qui ne
-touchent que de la doc ou des tests. ⚠️ Une préversion écrit dans la base de PRODUCTION (voir
+touchent que de la doc ou des tests. ⚠️ Garde en place, mais le runtime d'une préversion garde `DATABASE_URL` (la base de PRODUCTION) tant qu'une branche Neon dédiée n'est pas configurée (voir
 `CLAUDE.md`, section « Une PRÉVERSION écrit dans la base de PRODUCTION »). Rien à lancer à la main sur ta machine après un changement de schéma —
 `git push` suffit. Idempotent : une migration déjà appliquée est ignorée (table de suivi
 Drizzle), donc plusieurs déploiements qui se chevauchent ne rejouent rien deux fois.

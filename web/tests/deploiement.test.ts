@@ -10,6 +10,7 @@
 import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { etapesDeBuild } from "../scripts/vercel-build.mjs";
 import { resolve } from "node:path";
 
 const vercel = JSON.parse(readFileSync(resolve(process.cwd(), "vercel.json"), "utf8")) as {
@@ -100,13 +101,14 @@ describe("réparation des ingrédients — la passe reste branchée au build", (
     scripts: Record<string, string>;
   };
 
-  it("`vercel-build` lance la réparation, et AVANT le build", () => {
-    const chaine = pkg.scripts["vercel-build"] ?? "";
-    expect(chaine).toContain("db:reparer-ingredients");
+  it("`vercel-build` passe par la garde, qui lance la réparation AVANT le build (production seulement)", () => {
+    expect(pkg.scripts["vercel-build"] ?? "").toContain("scripts/vercel-build.mjs");
+    const noms = etapesDeBuild({ VERCEL_ENV: "production" }).etapes.map((e) => e.nom);
+    expect(noms).toContain("db:reparer-ingredients");
     // L'ordre compte : réparer après le build laisserait le déploiement servir l'ancien état.
-    expect(chaine.indexOf("db:reparer-ingredients")).toBeLessThan(chaine.indexOf("next build"));
+    expect(noms.indexOf("db:reparer-ingredients")).toBeLessThan(noms.indexOf("build"));
     // Et les migrations d'abord : la réparation écrit dans des tables qu'elles créent.
-    expect(chaine.indexOf("db:migrate")).toBeLessThan(chaine.indexOf("db:reparer-ingredients"));
+    expect(noms.indexOf("db:migrate")).toBeLessThan(noms.indexOf("db:reparer-ingredients"));
   });
 
   it("le script visé existe vraiment", () => {
