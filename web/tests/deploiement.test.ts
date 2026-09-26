@@ -14,9 +14,19 @@ import { resolve } from "node:path";
 
 const vercel = JSON.parse(readFileSync(resolve(process.cwd(), "vercel.json"), "utf8")) as {
   ignoreCommand?: string;
+  git?: { deploymentEnabled?: Record<string, boolean> };
 };
 
 describe("garde-fou de déploiement Vercel", () => {
+  it("aucune préversion pour les branches des agents et de Dependabot (base Neon unique)", () => {
+    // Une préversion construite exécute le build avec l'accès à la base : les branches automatiques
+    // (claude/*, agence/*, dependabot/*) ne doivent PAS en produire. Leurs contrôles vivent dans GitHub Actions.
+    const actif = vercel.git?.deploymentEnabled ?? {};
+    for (const motif of ["claude/*", "agence/*", "dependabot/*"]) {
+      expect(actif[motif], motif).toBe(false);
+    }
+  });
+
   it("vercel.json délègue la décision de build à un script", () => {
     expect(vercel.ignoreCommand).toBeTruthy();
   });
