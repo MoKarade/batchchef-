@@ -838,7 +838,7 @@ se tromper de population.
 
 ⚠️ **Un chiffre faux dans un log a l'exacte apparence d'une mesure**, et celui-ci
 contredisait la doc de sa propre PR sans que rien ne rougisse. Il n'a été vu que parce que
-les logs du déploiement ont été lus après le merge — la vérification que le `CLAUDE.md` §6
+les logs du déploiement ont été lus après le merge — la vérification que le `docs/claude/05-deploiement.md` (ancien §6 du `CLAUDE.md`)
 impose pour de tout autres raisons. C'est la même famille que « no fake data », appliquée à
 l'observabilité : un nombre qu'on ne sait pas justifier ne se publie pas, même dans un log.
 
