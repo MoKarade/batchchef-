@@ -140,7 +140,7 @@ function toPreview(
  * de validation, seul ce que Marc confirme entre en base.
  *
  * Le fichier vidéo lui-même n'arrive jamais ici : seules les images réduites transitent.
- * L'app ne va RIEN chercher chez Instagram (pas de scraping — cf. CLAUDE.md) : c'est Marc qui
+ * L'app ne va RIEN chercher chez Instagram (pas de scraping — cf. docs/claude/01-principes.md) : c'est Marc qui
  * fournit le contenu auquel il a accès, et le lien ne sert que de source affichée.
  */
 export async function parseRecipeFromVideo(input: {

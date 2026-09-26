@@ -57,7 +57,7 @@ d'env ci-dessus → Deploy. C'est tout (pas de worker, pas de base à héberger 
 déploiement construit (prod et previews). Les branches `claude/*` ne sont pas construites
 (`vercel.json`), et `ignoreCommand` (`scripts/build-necessaire.sh`) saute les commits qui ne
 touchent que de la doc ou des tests. ⚠️ Une préversion écrit dans la base de PRODUCTION (voir
-`CLAUDE.md`, section « Une PRÉVERSION écrit dans la base de PRODUCTION »). Rien à lancer à la main sur ta machine après un changement de schéma —
+`docs/claude/05-deploiement.md`, section « Une PRÉVERSION écrit dans la base de PRODUCTION »). Rien à lancer à la main sur ta machine après un changement de schéma —
 `git push` suffit. Idempotent : une migration déjà appliquée est ignorée (table de suivi
 Drizzle), donc plusieurs déploiements qui se chevauchent ne rejouent rien deux fois.
 
