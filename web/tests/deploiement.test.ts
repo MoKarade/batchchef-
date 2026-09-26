@@ -22,7 +22,8 @@ describe("garde-fou de déploiement Vercel", () => {
     // Une préversion construite exécute le build avec l'accès à la base : les branches automatiques
     // (claude/*, agence/*, dependabot/*) ne doivent PAS en produire. Leurs contrôles vivent dans GitHub Actions.
     const actif = vercel.git?.deploymentEnabled ?? {};
-    for (const motif of ["claude/*", "agence/*", "dependabot/*"]) {
+    // Les branches des agents sont IMBRIQUÉES (agence/<session>/<sujet>) : la forme `**` est exigée en plus de `*`.
+    for (const motif of ["claude/*", "claude/**", "agence/*", "agence/**", "dependabot/*", "dependabot/**"]) {
       expect(actif[motif], motif).toBe(false);
     }
   });

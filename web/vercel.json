@@ -3,8 +3,11 @@
   "git": {
     "deploymentEnabled": {
       "claude/*": false,
+      "claude/**": false,
       "agence/*": false,
-      "dependabot/*": false
+      "agence/**": false,
+      "dependabot/*": false,
+      "dependabot/**": false
     }
   },
   "framework": "nextjs",
