@@ -208,7 +208,7 @@ for i, (n, s) in enumerate(etapes):
     li += '<li%s data-fait="%s"><span class="st">Étape %d</span>%s%s</li>' % (cur, 'oui' if s == 'oui' else 'non', i + 1, n, suf)
 batch = head('Batch', 'batch', ETATS4) + '''
   <header class="entete">
-    <div><p class="surtitre">Batchs</p><h1>Nom du batch</h1><p class="doux" data-pour="normal erreur"><span class="pastille repere">Cuisine</span> <span class="num">n recettes</span></p></div>
+    <div><p class="surtitre">Batchs</p><h1>Nom du batch</h1><p class="doux" data-pour="normal erreur"><span class="pastille statut">Étape : Cuisine</span> <span class="num">n recettes</span></p></div>
     <div class="ligne" data-pour="normal erreur"><a class="bouton bouton-second" href="courses.html">Liste d’épicerie</a><button class="bouton bouton-second" type="button">Exporter les tâches</button><button class="bouton bouton-principal" type="button">Terminer le batch</button></div>
   </header>
 ''' + bandeau('erreur', IC_ERR, 'Le changement d’étape n’a pas été enregistré.', 'Le batch reste à l’étape « Cuisine ».', BTN_RETRY, 'erreur', 'alert') + '''  <div class="pile" data-pour="normal erreur" style="margin-top:16px">
