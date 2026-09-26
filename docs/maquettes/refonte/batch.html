@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BatchChef — Batch (maquette)</title>
+<link rel="stylesheet" href="refonte.css">
+</head>
+<body data-page="batch" data-etats="normal,vide,chargement,erreur">
+<main class="principal">
+
+  <header class="entete">
+    <div><p class="surtitre">Batchs</p><h1>Nom du batch</h1><p class="doux" data-pour="normal erreur"><span class="pastille repere">Cuisine</span> <span class="num">n recettes</span></p></div>
+    <div class="ligne" data-pour="normal erreur"><a class="bouton bouton-second" href="courses.html">Liste d’épicerie</a><button class="bouton bouton-second" type="button">Exporter les tâches</button><button class="bouton bouton-principal" type="button">Terminer le batch</button></div>
+  </header>
+  <div class="bandeau erreur" role="alert" data-pour="erreur"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg><div><strong>Le changement d’étape n’a pas été enregistré.</strong><span> Le batch reste à l’étape « Cuisine ».</span><div class="actions"><button class="bouton bouton-second" type="button">Réessayer</button></div></div></div>
+  <div class="pile" data-pour="normal erreur" style="margin-top:16px">
+    <ol class="etapes" aria-label="Avancement du batch"><li data-fait="oui"><span class="st">Étape 1</span>Planifié (faite)</li><li data-fait="oui"><span class="st">Étape 2</span>Courses (faite)</li><li aria-current="step" data-fait="non"><span class="st">Étape 3</span>Cuisine (en cours)</li><li data-fait="non"><span class="st">Étape 4</span>Terminé</li></ol>
+    <section class="carte" aria-labelledby="t"><h2 id="t" style="padding:16px 16px 4px">Tâches de cuisine</h2><ul style="list-style:none;margin:0;padding:0">
+      <li class="article" data-coche="oui"><span class="case" role="checkbox" aria-checked="true" tabindex="0" aria-label="Tâche 1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><span class="nom">Tâche 1</span><span class="qte">n min</span></li>
+      <li class="article" data-coche="non"><span class="case" role="checkbox" aria-checked="false" tabindex="0" aria-label="Tâche 2"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><span class="nom">Tâche 2</span><span class="qte">n min</span></li>
+      <li class="article" data-coche="non"><span class="case" role="checkbox" aria-checked="false" tabindex="0" aria-label="Tâche 3"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><span class="nom">Tâche 3</span><span class="qte">n min</span></li>
+    </ul></section>
+    <section aria-labelledby="r"><h2 id="r" style="margin-bottom:12px">Recettes du batch</h2><div class="grille g3">
+    <article class="carte carte-recette">
+      <a class="plein" href="#">
+        <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+        <div class="carte-corps">
+          <h3>Recette du batch 1</h3>
+          <div class="meta"><span class="pastille repere">Plat principal</span><span class="num">Préparation n min</span><span class="num">Cuisson n min</span></div>
+        </div>
+      </a>
+    </article>
+    <article class="carte carte-recette">
+      <a class="plein" href="#">
+        <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+        <div class="carte-corps">
+          <h3>Recette du batch 2</h3>
+          <div class="meta"><span class="pastille repere">Soupe</span><span class="num">Préparation n min</span><span class="num">Cuisson n min</span></div>
+        </div>
+      </a>
+    </article>
+    <article class="carte carte-recette">
+      <a class="plein" href="#">
+        <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+        <div class="carte-corps">
+          <h3>Recette du batch 3</h3>
+          <div class="meta"><span class="pastille repere">Dessert</span><span class="num">Préparation n min</span><span class="num">Cuisson n min</span></div>
+        </div>
+      </a>
+    </article>
+    </div></section>
+  </div>
+  <div class="pile" data-pour="chargement" role="status" aria-label="Chargement du batch"><div class="carte" aria-hidden="true" style="padding:16px;display:grid;gap:14px"><div class="squelette" style="height:44px"></div><div class="squelette" style="height:28px"></div><div class="squelette" style="height:28px"></div></div></div>
+  <div class="vide" data-pour="vide">
+    <h2>Aucun batch pour l’instant</h2>
+    <p>Un batch regroupe les recettes à cuisiner ensemble, avec leur liste d’épicerie et leurs tâches.</p>
+    <a class="bouton bouton-principal" href="#">Créer un batch</a>
+  </div>
+</main>
+<script src="refonte.js"></script>
+</body>
+</html>

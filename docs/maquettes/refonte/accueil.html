@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BatchChef — Ta semaine (maquette)</title>
+<link rel="stylesheet" href="refonte.css">
+</head>
+<body data-page="accueil" data-etats="normal,vide,chargement,erreur,alerte,confirmation">
+<main class="principal">
+
+  <header class="entete">
+    <div>
+      <p class="surtitre">Accueil</p>
+      <h1>Ta semaine</h1>
+      <p class="doux" data-pour="normal alerte confirmation">Quatre recettes proposées. Change-en une, ou crée le batch quand la semaine te convient.</p>
+      <p class="doux" data-pour="vide chargement erreur">Aucune semaine en cours.</p>
+    </div>
+    <div class="ligne" data-pour="normal alerte">
+      <button class="bouton bouton-second" type="button">Régénérer la semaine</button>
+      <button class="bouton bouton-principal" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Créer le batch</button>
+    </div>
+  </header>
+
+  <div class="bandeau erreur" role="alert" data-pour="erreur"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg><div><strong>La semaine n’a pas pu être préparée.</strong><span> Le service de suggestion ne répond pas. Rien n’a été modifié.</span><div class="actions"><button class="bouton bouton-second" type="button">Réessayer</button></div></div></div>
+  <div class="bandeau alerte" role="status" data-pour="alerte"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/></svg><div><strong>Prix non estimé.</strong><span> Le calcul du prix a échoué : le total n’est pas affiché plutôt que deviné.</span></div></div>
+  <div class="bandeau alerte" role="alertdialog" data-pour="confirmation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/></svg><div><strong>Régénérer remplace les quatre recettes.</strong><span> La proposition actuelle n’est pas conservée. Cette action ne peut pas être annulée.</span><div class="actions"><button class="bouton bouton-principal" type="button">Oui, régénérer</button> <button class="bouton bouton-second" type="button">Garder cette semaine</button></div></div></div>
+
+  <section aria-label="Résumé de la semaine" class="tuiles" data-pour="normal alerte confirmation" style="margin-top:16px">
+    <div class="tuile"><div class="lib">Temps total</div><div class="val">n h n min</div><div class="doux petit">préparation + cuisson</div></div>
+    <div class="tuile"><div class="lib">Prix estimé</div><div class="val" data-pour="normal confirmation">≈ n $</div><div class="val" data-pour="alerte">Non estimé</div><div class="petit"><span class="pastille alerte" data-pour="normal confirmation">Estimation, pas un relevé</span><span class="pastille alerte" data-pour="alerte">Calcul indisponible</span></div></div>
+    <div class="tuile"><div class="lib">Sans durée connue</div><div class="val">n</div><div class="doux petit">recettes dont la source ne dit rien</div></div>
+  </section>
+
+  <div class="grille g4" role="list" aria-label="Recettes de la semaine" data-pour="normal alerte confirmation" style="margin-top:16px">
+    <article role="listitem" class="carte carte-recette">
+      <a class="plein" href="#">
+        <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+        <div class="carte-corps">
+          <h3>Recette proposée 1</h3>
+          <div class="meta"><span class="pastille repere">Plat principal</span><span class="num">Préparation n min</span><span class="num">Cuisson n min</span></div>
+        </div>
+      </a>
+    </article>
+    <article role="listitem" class="carte carte-recette">
+      <a class="plein" href="#">
+        <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+        <div class="carte-corps">
+          <h3>Recette proposée 2</h3>
+          <div class="meta"><span class="pastille repere">Soupe</span><span class="num">Préparation n min</span><span class="num">Cuisson n min</span></div>
+        </div>
+      </a>
+    </article>
+    <article role="listitem" class="carte carte-recette">
+      <a class="plein" href="#">
+        <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+        <div class="carte-corps">
+          <h3>Recette proposée 3</h3>
+          <div class="meta"><span class="pastille repere">Accompagnement</span><span class="num">Préparation n min</span><span class="num">Cuisson n min</span></div>
+        </div>
+      </a>
+    </article>
+    <article role="listitem" class="carte carte-recette">
+      <a class="plein" href="#">
+        <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+        <div class="carte-corps">
+          <h3>Recette proposée 4</h3>
+          <div class="meta"><span class="pastille repere">Salade</span><span class="num">Préparation n min</span><span class="num">Cuisson n min</span></div>
+        </div>
+      </a>
+    </article>
+  </div>
+
+  <div class="vide" data-pour="vide">
+    <h2>Pas encore de semaine proposée</h2>
+    <p>BatchChef propose quatre recettes à partir de ta bibliothèque. Tu pourras en changer avant de créer le batch.</p>
+    <button class="bouton bouton-principal" type="button">Proposer une semaine</button>
+  </div>
+
+  <p class="doux" data-pour="chargement" role="status" style="margin:16px 0">Préparation de la semaine en cours…</p>
+  <div class="grille g4" data-pour="chargement">
+    <div class="carte" aria-hidden="true"><div class="squelette" style="aspect-ratio:16/10;border-radius:15px 15px 0 0"></div><div class="carte-corps"><div class="squelette" style="height:20px;width:70%"></div><div class="squelette" style="height:14px;width:45%;margin-top:12px"></div></div></div>
+    <div class="carte" aria-hidden="true"><div class="squelette" style="aspect-ratio:16/10;border-radius:15px 15px 0 0"></div><div class="carte-corps"><div class="squelette" style="height:20px;width:70%"></div><div class="squelette" style="height:14px;width:45%;margin-top:12px"></div></div></div>
+    <div class="carte" aria-hidden="true"><div class="squelette" style="aspect-ratio:16/10;border-radius:15px 15px 0 0"></div><div class="carte-corps"><div class="squelette" style="height:20px;width:70%"></div><div class="squelette" style="height:14px;width:45%;margin-top:12px"></div></div></div>
+    <div class="carte" aria-hidden="true"><div class="squelette" style="aspect-ratio:16/10;border-radius:15px 15px 0 0"></div><div class="carte-corps"><div class="squelette" style="height:20px;width:70%"></div><div class="squelette" style="height:14px;width:45%;margin-top:12px"></div></div></div>
+  </div>
+
+  <section class="section" data-pour="normal alerte confirmation vide">
+    <h2>Recettes récentes</h2>
+    <p class="doux" data-pour="vide" style="margin-bottom:12px">Aucune recette pour l’instant. Importe-en une depuis un lien ou une vidéo.</p>
+    <div class="grille g3" data-pour="normal alerte confirmation">
+    <article class="carte carte-recette">
+      <a class="plein" href="#">
+        <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+        <div class="carte-corps">
+          <h3>Recette récente 1</h3>
+          <div class="meta"><span class="pastille repere">Dessert</span><span class="num">Préparation n min</span><span class="num">Cuisson n min</span></div>
+        </div>
+      </a>
+    </article>
+    <article class="carte carte-recette">
+      <a class="plein" href="#">
+        <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+        <div class="carte-corps">
+          <h3>Recette récente 2</h3>
+          <div class="meta"><span class="pastille repere">Sauce et condiment</span><span class="num">Préparation n min</span><span class="num">Cuisson n min</span></div>
+        </div>
+      </a>
+    </article>
+    <article class="carte carte-recette">
+      <a class="plein" href="#">
+        <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+        <div class="carte-corps">
+          <h3>Recette récente 3</h3>
+          <div class="meta"><span class="pastille repere">Entrée et apéro</span><span class="num">Préparation n min</span><span class="num">Cuisson n min</span></div>
+        </div>
+      </a>
+    </article>
+    </div>
+  </section>
+</main>
+<script src="refonte.js"></script>
+</body>
+</html>

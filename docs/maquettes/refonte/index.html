@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BatchChef — refonte visuelle (maquettes)</title>
+<link rel="stylesheet" href="refonte.css">
+<style>
+  .sw { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .sw div { border: 1px solid var(--bordure); border-radius: 12px; overflow: hidden; background: var(--surface); font-size: .8125rem; }
+  .sw i { display: block; height: 44px; }
+  .sw span { display: block; padding: 6px 10px; }
+  .sw code { color: var(--texte-doux); }
+  table { border-collapse: collapse; width: 100%; font-size: .9375rem; }
+  th, td { text-align: left; padding: 8px 10px; border-top: 1px solid var(--bordure); vertical-align: top; }
+  td.prop { color: var(--repere); font-weight: 700; }
+  .liens a { margin-right: 10px; }
+</style>
+</head>
+<body>
+<main class="principal" style="max-width:1000px">
+  <header class="entete">
+    <div><p class="surtitre">Maquettes — validation de Marc requise</p><h1>BatchChef : refonte visuelle</h1>
+    <p class="doux">Thème sombre seul (décision de Marc, 26/09), style de la référence FinanceAI, identité « app de cuisine » conservée. HTML statique, aucun code d’app. Les « n » sont des emplacements : aucune donnée réelle.</p></div>
+  </header>
+
+  <section class="section"><h2>Écrans (états : ajoute <code>?etat=vide|chargement|erreur|alerte|confirmation</code>)</h2>
+  <div class="grille g3" style="margin-top:12px">
+    <a class="carte carte-corps" href="accueil.html"><h3>Accueil / Ta semaine</h3><p class="doux petit">normal, vide, chargement, erreur, prix non estimé, confirmation de régénération</p></a>
+    <a class="carte carte-corps" href="recettes.html"><h3>Recettes</h3><p class="doux petit">normal, vide, chargement, erreur</p></a>
+    <a class="carte carte-corps" href="catalogue.html"><h3>Catalogue</h3><p class="doux petit">normal, ajout confirmé, vide (aucun résultat), chargement, erreur</p></a>
+    <a class="carte carte-corps" href="courses.html"><h3>Courses</h3><p class="doux petit">normal, prix estimés, vide, chargement, échec d’enregistrement</p></a>
+    <a class="carte carte-corps" href="assistant.html"><h3>Assistant</h3><p class="doux petit">normal, vide, réponse en cours, erreur</p></a>
+    <a class="carte carte-corps" href="batch.html"><h3>Batch</h3><p class="doux petit">normal, vide, chargement, échec de changement d’étape</p></a>
+  </div>
+  <p class="doux petit" style="margin-top:12px">Largeurs à vérifier : 360 (barre du bas), 768 (rail d’icônes), 1440 (barre latérale). Captures dans <code>captures/</code>.</p>
+  </section>
+
+  <section class="section"><h2>Jetons proposés pour app/globals.css</h2>
+  <div class="sw" style="margin-top:12px" id="sw"></div>
+  <p class="doux petit" style="margin-top:12px">Contrastes mesurés par <code>node contrastes.mjs</code> (20 couples, tous ≥ seuil : 4,5:1 texte, 3:1 contours et focus).</p>
+  </section>
+
+  <section class="section"><h2>Accent secondaire proposé : « terracotta » <span class="pastille repere">repère</span></h2>
+  <p style="margin-top:8px">Un orange-saumon doux (<code>--repere</code>) qui garde la chaleur de BatchChef sans toucher à l’action principale (argent, comme les autres apps). Il sert à se repérer : entrée active de la navigation, surtitres, pastilles de type de plat, étape en cours. Jamais pour un état (succès, alerte, erreur) ni pour un bouton.</p>
+  <p class="doux" style="margin-top:8px">Écarté : le violet de FinanceAI (pas de chaleur, confusion entre apps) ; l’ambre (se confond avec l’alerte). Risque connu : le terracotta reste proche du jaune d’alerte ; les états portent donc toujours un titre, une icône et un fond propre.</p>
+  </section>
+
+  <section class="section"><h2>Ce qui change, et pourquoi</h2>
+  <table>
+    <tr><th>Élément</th><th>Aujourd’hui</th><th>Refonte</th></tr>
+    <tr><td>Thème</td><td>clair + sombre automatiques</td><td>sombre seul (décision de Marc)</td></tr>
+    <tr><td>Cartes</td><td>ombre légère</td><td>à plat, bordure fine (référence)</td></tr>
+    <tr><td>Action principale</td><td>orange <code>--accent</code></td><td>argent <code>--accent</code> (commun aux apps) ; l’orange passe en <code>--repere</code>, discret</td></tr>
+    <tr><td>Contour des champs</td><td>même gris que les cartes (trop faible)</td><td>nouveau <code>--bordure-champ</code>, ≥ 3:1</td></tr>
+    <tr><td>Navigation</td><td>barre du bas</td><td>barre du bas (360) / rail (768) / latérale (1440) ; actif = couleur + trait + gras</td></tr>
+    <tr><td>Chiffres</td><td>—</td><td>tabulaires (temps, quantités, prix)</td></tr>
+    <tr><td>Polices</td><td>piles système</td><td>inchangé : aucune police téléchargée (la référence prévoit Outfit : non retenu, règle BatchChef)</td></tr>
+  </table></section>
+
+  <section class="section"><h2>À valider par Marc</h2>
+  <ol>
+    <li><b>Action principale en argent</b> (Recommandé, cohérence entre apps) ou garder l’orange comme bouton principal et passer le repère en autre teinte.</li>
+    <li><b>Accent secondaire terracotta</b> (Recommandé) ou une autre teinte.</li>
+    <li><b>Ajouts au vocabulaire</b> : <code>.pastille</code>, <code>.onglets</code>, <code>.squelette</code>, <code>.vide</code>, <code>.bandeau</code> (les classes existantes sont conservées).</li>
+  </ol></section>
+</main>
+<script>
+  var jetons = ["fond","surface","surface-douce","bordure","bordure-champ","texte","texte-doux","accent","accent-fonce","repere","repere-doux","succes-fond","succes-texte","alerte-fond","alerte-texte","erreur-fond","erreur-texte"];
+  var cs = getComputedStyle(document.documentElement), h = "";
+  jetons.forEach(function (j) { var v = cs.getPropertyValue("--" + j).trim(); h += '<div><i style="background:var(--' + j + ')"></i><span>--' + j + '<br><code>' + v + "</code></span></div>"; });
+  document.getElementById("sw").innerHTML = h;
+</script>
+</body>
+</html>
