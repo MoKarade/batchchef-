@@ -41,9 +41,19 @@ plutôt que de laisser croire qu'on a vérifié.
 
 ### ⚠️ Une PRÉVERSION écrit dans la base de PRODUCTION
 
-Il n'y a qu'une base Neon, et `vercel-build` fait `db:migrate` (puis `db:reparer-ingredients`)
+✅ **GARDE EN PLACE (25/09/2026).** `vercel-build` lance `node scripts/vercel-build.mjs` : `db:migrate` et
+`db:reparer-ingredients` ne tournent QUE si `VERCEL_ENV` vaut exactement `production` ; en préversion (ou
+variable absente, vide, inconnue : échec fermé) le script les saute, journalise « préversion : migrations et
+réparation sautées » et lance seulement `next build`. Logique pure et testée : `web/tests/vercelBuild.test.ts`.
+**Échec volontaire** : sur Vercel (`VERCEL=1`), si `VERCEL_ENV` est absente ou vide (réglage « Automatically expose System Environment Variables » désactivé), le build échoue (code 1, message clair) : sans cela la production ne migrerait plus, sans erreur. Hors Vercel (poste local, `VERCEL` absent) : build seul, inchangé.
+**Risque restant** : le RUNTIME d'une préversion garde `DATABASE_URL`, donc une préversion qui s'exécute lit
+et écrit dans la base de production tant que Marc n'a pas configuré une branche Neon dédiée aux
+préversions. Une migration reste donc appliquée seulement au build de production (au merge) : la
+description ci-dessous est l'ancien comportement, gardée pour comprendre le risque si la garde était retirée.
+
+Avant la garde : il n'y a qu'une base Neon, et `vercel-build` faisait `db:migrate` (puis `db:reparer-ingredients`)
 **avant** `next build`. Or Vercel construit aussi chaque préversion. Donc **une migration ou un
-script de données s'applique à la production dès le premier build de la PR — avant tout merge,
+script de données s'appliquait à la production dès le premier build de la PR — avant tout merge,
 avant toute revue.**
 
 ⚠️ **PLUS VRAI DES BRANCHES `claude/*` depuis le 14/09.** `web/vercel.json` porte
@@ -61,9 +71,9 @@ distingue pas.
 Ce n'est pas nouveau (`db:migrate` y était depuis toujours) ; c'est simplement rarement
 visible. Deux règles qui en découlent :
 
-1. **« On essaiera d'abord sur une branche » est FAUX ici.** Une migration destructive
-   (suppression de colonne, réécriture de données) touche la production au premier push.
-   Faire valider par Marc AVANT de pousser, pas avant de merger.
+1. **« On essaiera d'abord sur une branche » reste FAUX ici.** La garde empêche la migration au build d'une préversion, mais une migration destructive
+   (suppression de colonne, réécriture de données) touche la production au MERGE, et le runtime d'une préversion lit déjà la base de production.
+   Faire valider par Marc AVANT de pousser, pas seulement avant de merger.
 2. Un script de données dans `vercel-build` doit être **idempotent**, **non destructif**, et
    **tracer ce qu'il a fait** — sinon on ne peut même pas savoir, après coup, ce qu'une
    préversion a modifié.
