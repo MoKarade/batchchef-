@@ -1,5 +1,5 @@
 // Verrou du socle visuel : les couleurs vivent dans `app/globals.css`, en variables, et
-// NULLE PART ailleurs (CLAUDE.md, « Direction visuelle »).
+// NULLE PART ailleurs (docs/claude/02-conventions.md, « Direction visuelle »).
 //
 // Pourquoi ce fichier existe — incident du 2026-08-14, signalé par Marc : « le texte est
 // blanc sur blanc parfois alors que ça doit pas, c'est illisible ». Ma passe de refonte
@@ -14,7 +14,7 @@
 // ⚠️ Ne pas s'alarmer en lisant le CSS servi : il contient des règles `.bg-white` et
 // `.dark\:bg-stone-900` que PLUS AUCUN balisage n'utilise. Tailwind v4 balaie tout le dépôt,
 // commentaires et Markdown compris — les deux noms ci-dessus sont générés par la PROSE qui
-// raconte le bug (ce fichier, et la leçon de CLAUDE.md). Cousin du garde de JobAI qui
+// raconte le bug (ce fichier, et la leçon de docs/claude/02-conventions.md). Cousin du garde de JobAI qui
 // bloquait sur la chaîne prouvant qu'il détectait quelque chose : il détectait le détecteur.
 // Inerte (quelques dizaines d'octets), et la vérification qui tranche reste le balisage —
 // le HTML servi, jamais la présence d'une règle dans la feuille.

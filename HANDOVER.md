@@ -409,7 +409,7 @@ Le reliquat (`ING-07`) est documenté au backlog, classe par classe.
 ## Prochaine chose prévue
 
 **Au 25/09 : `DEPLOI-MUET` d'abord** (voir « État au 25/09 »). Le rattrapage fiable n'est PAS
-un Redeploy (il rejoue le commit d'un déploiement EXISTANT — `CLAUDE.md` §6) : c'est un
+un Redeploy (il rejoue le commit d'un déploiement EXISTANT — `docs/claude/05-deploiement.md`, ancien §6 du `CLAUDE.md`) : c'est un
 nouveau push sur `master` qui touche un fichier HORS exemptions, puis la vérification que son
 déploiement EXISTE. La cause, elle, se cherche dans le tableau de bord Vercel.
 

@@ -1,5 +1,5 @@
 // Règles d'architecture de BatchChef (porte qualité de l'Atelier).
-// But : que la structure décrite dans le CLAUDE.md (§2) reste VRAIE à mesure que le code grandit.
+// But : que la structure décrite dans docs/claude/02-conventions.md (ancien §2 du CLAUDE.md) reste VRAIE à mesure que le code grandit.
 // Violations déjà présentes au 2026-09-22 : figées dans .dependency-cruiser-known-violations.json
 // (cliquet : l'existant est toléré, toute NOUVELLE violation fait échouer la porte).
 /** @type {import('dependency-cruiser').IConfiguration} */
