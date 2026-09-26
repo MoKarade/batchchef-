@@ -13,7 +13,10 @@
 // Le réseau sortant de Vercel n'atteint pas de service interne exploitable ; la garde retire
 // la classe d'attaque triviale, pas la théorique.
 
-import { lookup } from "node:dns/promises";
+import { type LookupAddress } from "node:dns";
+import { lookup as lookupPromesse } from "node:dns/promises";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 
 export const MAX_REDIRECTIONS = 5;
@@ -52,27 +55,39 @@ export function ipNonPublique(brut: string): boolean {
   const v = isIP(ip);
   if (v === 4) return ipv4NonPublique(ip);
   if (v !== 6) return true;
-  if (ip === "::" || ip === "::1") return true;
-  // IPv4 mappée (::ffff:a.b.c.d ou ::ffff:xxxx:xxxx) : on juge l'IPv4 contenue.
-  const mappee = ip.match(/^::ffff:(?:(\d+\.\d+\.\d+\.\d+)|([0-9a-f]{1,4}):([0-9a-f]{1,4}))$/);
-  if (mappee) {
-    if (mappee[1]) return ipv4NonPublique(mappee[1]);
-    const h = parseInt(mappee[2]!, 16);
-    const l = parseInt(mappee[3]!, 16);
-    return ipv4NonPublique(`${h >> 8}.${h & 255}.${l >> 8}.${l & 255}`);
+  const h = hextets(ip);
+  if (!h) return true;
+  // LISTE BLANCHE : seul 2000::/3 (unicast global) passe ; tout le reste est refusé
+  // (::1, ::, ULA, lien-local, mappées ::ffff:, compatibles ::a.b.c.d, NAT64 64:ff9b::/96…).
+  if (h[0]! < 0x2000 || h[0]! > 0x3fff) return true;
+  if (h[0] === 0x2001 && (h[1] === 0 || h[1] === 0x0db8)) return true; // Teredo, documentation
+  if (h[0] === 0x2002) return true; // 6to4
+  return false;
+}
+
+/** Développe une IPv6 en 8 groupes de 16 bits (null si illisible). */
+function hextets(ip: string): number[] | null {
+  let texte = ip.split("%")[0]!;
+  const v4 = texte.match(/(\d+\.\d+\.\d+\.\d+)$/);
+  if (v4) {
+    const o = v4[1]!.split(".").map(Number);
+    if (o.some((n) => n > 255)) return null;
+    texte = texte.slice(0, -v4[1]!.length) + ((o[0]! << 8) | o[1]!).toString(16) + ":" + ((o[2]! << 8) | o[3]!).toString(16);
   }
-  const premier = parseInt(ip.split(":")[0] || "0", 16);
-  return (
-    (premier & 0xfe00) === 0xfc00 || // ULA fc00::/7
-    (premier & 0xffc0) === 0xfe80 || // lien-local fe80::/10
-    (premier & 0xff00) === 0xff00 // multicast
-  );
+  const [gauche, droite, ...reste] = texte.split("::");
+  if (reste.length > 0) return null;
+  const g = gauche ? gauche.split(":") : [];
+  const d = droite === undefined ? [] : droite ? droite.split(":") : [];
+  const manque = 8 - g.length - d.length;
+  if (droite === undefined ? manque !== 0 : manque < 1) return null;
+  const tous = [...g, ...Array(droite === undefined ? 0 : manque).fill("0"), ...d].map((x) => parseInt(x, 16));
+  return tous.length === 8 && tous.every((n) => Number.isInteger(n) && n >= 0 && n <= 0xffff) ? tous : null;
 }
 
 export type Resolveur = (hote: string) => Promise<string[]>;
 
 const resolveurDns: Resolveur = async (hote) =>
-  (await lookup(hote, { all: true })).map((r) => r.address);
+  (await lookupPromesse(hote, { all: true })).map((r) => r.address);
 
 /** Valide une URL à télécharger ; rend l'URL normalisée ou jette `UrlRefusee`. */
 export async function verifierUrlPublique(
@@ -87,6 +102,8 @@ export async function verifierUrlPublique(
   }
   if (u.protocol !== "https:" && u.protocol !== "http:") throw new UrlRefusee("URL http(s) uniquement.");
   if (u.username || u.password) throw new UrlRefusee("URL avec identifiants refusée.");
+  // `URL` retire le port par défaut : « » = 80/443 ; tout autre port (22, 6379…) est refusé.
+  if (u.port !== "" && u.port !== "80" && u.port !== "443") throw new UrlRefusee("Port refusé (80 et 443 seulement).");
 
   const hote = u.hostname.toLowerCase().replace(/\.$/, "");
   if (
@@ -115,53 +132,114 @@ export async function verifierUrlPublique(
   return u;
 }
 
+type CallbackLookup = (
+  err: NodeJS.ErrnoException | null,
+  adresse: string | LookupAddress[],
+  famille?: number,
+) => void;
+
+/**
+ * `lookup` de connexion : c'est LUI que la socket appelle, donc l'adresse vérifiée est
+ * exactement celle à laquelle on se connecte (pas de seconde résolution → pas de DNS
+ * rebinding). Toute adresse non publique fait échouer la connexion.
+ */
+export function lookupPublic(resoudre: Resolveur = resolveurDns) {
+  return (hote: string, options: { all?: boolean }, rappel: CallbackLookup): void => {
+    resoudre(hote).then(
+      (adresses) => {
+        if (adresses.length === 0 || adresses.some(ipNonPublique)) {
+          rappel(new UrlRefusee("Adresse privée refusée."), "", 0);
+          return;
+        }
+        const av = adresses.map((address) => ({ address, family: isIP(address) }));
+        if (options?.all) rappel(null, av);
+        else rappel(null, av[0]!.address, av[0]!.family);
+      },
+      (err: unknown) => rappel(err as NodeJS.ErrnoException, "", 0),
+    );
+  };
+}
+
+export interface ReponseBrute {
+  status: number;
+  location: string | null;
+  corps: AsyncIterable<Uint8Array>;
+  fermer: () => void;
+}
+
+export type Transport = (
+  url: URL,
+  opts: { lookup: ReturnType<typeof lookupPublic>; userAgent?: string },
+) => Promise<ReponseBrute>;
+
+/** Transport réel : http(s).request avec notre `lookup` (aucune redirection automatique). */
+const transportNode: Transport = (url, opts) =>
+  new Promise((resolve, reject) => {
+    const requeter = url.protocol === "https:" ? httpsRequest : httpRequest;
+    const req = requeter(
+      url,
+      {
+        method: "GET",
+        lookup: opts.lookup as never,
+        headers: opts.userAgent ? { "user-agent": opts.userAgent } : {},
+        signal: AbortSignal.timeout(DELAI_MS),
+      },
+      (res) => {
+        const loc = res.headers.location;
+        resolve({
+          status: res.statusCode ?? 0,
+          location: typeof loc === "string" ? loc : null,
+          corps: res,
+          fermer: () => res.destroy(),
+        });
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
+
 /** Lit un corps en s'arrêtant à `max` octets (jamais toute la réponse en mémoire). */
-async function lireBorne(reponse: Response, max: number): Promise<string> {
-  const lecteur = reponse.body?.getReader();
-  if (!lecteur) return "";
-  const morceaux: Uint8Array[] = [];
-  let total = 0;
-  while (total < max) {
-    const { done, value } = await lecteur.read();
-    if (done) break;
-    morceaux.push(value);
-    total += value.byteLength;
-  }
-  void lecteur.cancel().catch(() => undefined);
-  const tout = new Uint8Array(Math.min(total, max));
+async function lireBorne(reponse: ReponseBrute, max: number): Promise<string> {
+  const tout = new Uint8Array(max);
   let pos = 0;
-  for (const m of morceaux) {
-    const part = m.subarray(0, tout.length - pos);
+  for await (const morceau of reponse.corps) {
+    const part = morceau.subarray(0, max - pos);
     tout.set(part, pos);
     pos += part.length;
-    if (pos >= tout.length) break;
+    if (pos >= max) break;
   }
-  return new TextDecoder().decode(tout);
+  reponse.fermer();
+  return new TextDecoder().decode(tout.subarray(0, pos));
 }
 
 /**
- * Télécharge une page publique : redirections suivies à la main et re-vérifiées, corps borné.
- * `fetcher` et `resoudre` sont injectables (tests : aucun réseau).
+ * Télécharge une page publique : redirections suivies à la main et revérifiées (pas de
+ * https → http), adresse vérifiée AU MOMENT DE LA CONNEXION, corps borné.
+ * `transport` et `resoudre` sont injectables (tests : aucun réseau).
  */
 export async function telechargerPagePublique(
   url: string,
-  options: { fetcher?: typeof fetch; resoudre?: Resolveur; userAgent?: string } = {},
+  options: { transport?: Transport; resoudre?: Resolveur; userAgent?: string } = {},
 ): Promise<{ ok: boolean; status: number; texte: string }> {
-  const fetcher = options.fetcher ?? fetch;
+  const transport = options.transport ?? transportNode;
+  const lookup = lookupPublic(options.resoudre);
   let courante = await verifierUrlPublique(url, options.resoudre);
   for (let saut = 0; saut <= MAX_REDIRECTIONS; saut++) {
-    const reponse = await fetcher(courante, {
-      redirect: "manual",
-      headers: options.userAgent ? { "user-agent": options.userAgent } : undefined,
-      signal: AbortSignal.timeout(DELAI_MS),
-    });
+    const reponse = await transport(courante, { lookup, userAgent: options.userAgent });
     if (reponse.status >= 300 && reponse.status < 400) {
-      const cible = reponse.headers.get("location");
-      if (!cible) throw new UrlRefusee("Redirection sans destination.");
-      courante = await verifierUrlPublique(new URL(cible, courante).toString(), options.resoudre);
+      reponse.fermer();
+      if (!reponse.location) throw new UrlRefusee("Redirection sans destination.");
+      const suivante = await verifierUrlPublique(new URL(reponse.location, courante).toString(), options.resoudre);
+      if (courante.protocol === "https:" && suivante.protocol === "http:") {
+        throw new UrlRefusee("Redirection https vers http refusée.");
+      }
+      courante = suivante;
       continue;
     }
-    if (!reponse.ok) return { ok: false, status: reponse.status, texte: "" };
+    if (reponse.status < 200 || reponse.status >= 300) {
+      reponse.fermer();
+      return { ok: false, status: reponse.status, texte: "" };
+    }
     return { ok: true, status: reponse.status, texte: await lireBorne(reponse, MAX_OCTETS_PAGE) };
   }
   throw new UrlRefusee("Trop de redirections.");
