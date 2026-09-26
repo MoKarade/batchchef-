@@ -484,6 +484,7 @@ plutôt que de laisser croire qu'on a vérifié.
 `db:reparer-ingredients` ne tournent QUE si `VERCEL_ENV` vaut exactement `production` ; en préversion (ou
 variable absente, vide, inconnue : échec fermé) le script les saute, journalise « préversion : migrations et
 réparation sautées » et lance seulement `next build`. Logique pure et testée : `web/tests/vercelBuild.test.ts`.
+**Échec volontaire** : sur Vercel (`VERCEL=1`), si `VERCEL_ENV` est absente ou vide (réglage « Automatically expose System Environment Variables » désactivé), le build échoue (code 1, message clair) : sans cela la production ne migrerait plus, sans erreur. Hors Vercel (poste local, `VERCEL` absent) : build seul, inchangé.
 **Risque restant** : le RUNTIME d'une préversion garde `DATABASE_URL`, donc une préversion qui s'exécute lit
 et écrit dans la base de production tant que Marc n'a pas configuré une branche Neon dédiée aux
 préversions. Une migration reste donc appliquée seulement au build de production (au merge) : la

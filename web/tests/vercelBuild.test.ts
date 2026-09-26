@@ -37,6 +37,37 @@ describe("etapesDeBuild", () => {
   });
 });
 
+describe("sur Vercel (VERCEL=1) sans VERCEL_ENV : le build échoue", () => {
+  it.each([undefined, "", "  "])("VERCEL=1 et VERCEL_ENV=%j : erreur claire, aucune étape", (v) => {
+    const plan = etapesDeBuild({ VERCEL: "1", VERCEL_ENV: v });
+    expect(plan.etapes).toEqual([]);
+    expect(plan.erreur).toMatch(/VERCEL_ENV absente sur Vercel/);
+    expect(plan.erreur).toMatch(/variables système/);
+  });
+
+  it("VERCEL=1 + preview : saute la base, pas d'erreur", () => {
+    const plan = etapesDeBuild({ VERCEL: "1", VERCEL_ENV: "preview" });
+    expect(plan.erreur).toBeUndefined();
+    expect(plan.etapes.map((e) => e.nom)).toEqual(["build"]);
+  });
+
+  it("VERCEL=1 + production : migre, répare, construit", () => {
+    const plan = etapesDeBuild({ VERCEL: "1", VERCEL_ENV: "production" });
+    expect(plan.erreur).toBeUndefined();
+    expect(plan.etapes.map((e) => e.nom)).toEqual(["db:migrate", "db:reparer-ingredients", "build"]);
+  });
+
+  it("VERCEL absent (poste local) : build seul, sans erreur", () => {
+    const plan = etapesDeBuild({});
+    expect(plan.erreur).toBeUndefined();
+    expect(plan.etapes.map((e) => e.nom)).toEqual(["build"]);
+  });
+
+  it("VERCEL d'une autre valeur que « 1 » : traité comme local (comportement inchangé)", () => {
+    expect(etapesDeBuild({ VERCEL: "0" }).erreur).toBeUndefined();
+  });
+});
+
 describe("lien avec package.json", () => {
   const pkg = JSON.parse(readFileSync(resolve(process.cwd(), "package.json"), "utf8")) as { scripts: Record<string, string> };
 
