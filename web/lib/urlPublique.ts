@@ -173,7 +173,7 @@ export type Transport = (
 ) => Promise<ReponseBrute>;
 
 /** Transport réel : http(s).request avec notre `lookup` (aucune redirection automatique). */
-const transportNode: Transport = (url, opts) =>
+export const transportNode: Transport = (url, opts) =>
   new Promise((resolve, reject) => {
     const requeter = url.protocol === "https:" ? httpsRequest : httpRequest;
     const req = requeter(

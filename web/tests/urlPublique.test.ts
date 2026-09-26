@@ -1,6 +1,8 @@
 // Garde SSRF de l'import par URL : aucune requête réseau réelle (résolveur et transport injectés).
 
-import { describe, expect, it, vi } from "vitest";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MAX_OCTETS_PAGE,
   MAX_REDIRECTIONS,
@@ -8,6 +10,7 @@ import {
   ipNonPublique,
   lookupPublic,
   telechargerPagePublique,
+  transportNode,
   verifierUrlPublique,
   type ReponseBrute,
   type Transport,
@@ -258,5 +261,68 @@ describe("telechargerPagePublique", () => {
       });
     const r = await telechargerPagePublique("https://exemple.com/", { transport, resoudre: publique });
     expect(r.texte).toBe("via 93.184.216.34");
+  });
+});
+
+// ── Intégration sur le VRAI transport (http.request + lookup) ─────────────────────────────
+// Un serveur local (127.0.0.1, port éphémère) sert de cible. Il n'est joignable que parce que
+// le TEST le décide (crochet de test explicite ci-dessous) : la production, elle, passe par
+// `lookupPublic`, qui refuse 127.0.0.1.
+describe("transport réel", () => {
+  let serveur: Server | null = null;
+  const requetes: string[] = [];
+
+  async function demarrer(): Promise<number> {
+    requetes.length = 0;
+    serveur = createServer((req, res) => {
+      requetes.push(req.url ?? "");
+      res.end("page locale");
+    });
+    await new Promise<void>((ok) => serveur!.listen(0, "127.0.0.1", ok));
+    return (serveur.address() as AddressInfo).port;
+  }
+
+  afterEach(async () => {
+    const s = serveur;
+    serveur = null;
+    if (s) await new Promise<void>((ok) => s.close(() => ok()));
+  });
+
+  /** Le port de l'URL (80/443 exigés par la garde) est remplacé par celui du serveur de test. */
+  const versServeur =
+    (port: number, lookupTest?: Parameters<Transport>[1]["lookup"]): Transport =>
+    (url, opts) =>
+      transportNode(new URL(`http://${url.hostname}:${port}${url.pathname}`), {
+        ...opts,
+        lookup: lookupTest ?? opts.lookup,
+      });
+
+  it("DNS rebinding : public à la validation, 127.0.0.1 à la connexion → UrlRefusee, le serveur ne reçoit RIEN", async () => {
+    const port = await demarrer();
+    let appels = 0;
+    const resoudre = async () => (++appels === 1 ? ["93.184.216.34"] : ["127.0.0.1"]);
+    await expect(
+      telechargerPagePublique("http://rebind.exemple.com/secret", {
+        transport: versServeur(port), // lookupPublic (celui de la production) reste actif
+        resoudre,
+      }),
+    ).rejects.toBeInstanceOf(UrlRefusee);
+    expect(appels).toBe(2);
+    expect(requetes).toEqual([]);
+  });
+
+  it("cas nominal : une page servie par le serveur local est lue (crochet de test explicite)", async () => {
+    const port = await demarrer();
+    // Crochet de TEST : autorise 127.0.0.1 pour joindre le serveur local. Jamais en production.
+    const lookupTest = ((_h: string, o: { all?: boolean }, rappel: (...a: unknown[]) => void) =>
+      o?.all ? rappel(null, [{ address: "127.0.0.1", family: 4 }]) : rappel(null, "127.0.0.1", 4)) as unknown as Parameters<
+      Transport
+    >[1]["lookup"];
+    const r = await telechargerPagePublique("http://page.exemple.com/recette", {
+      transport: versServeur(port, lookupTest),
+      resoudre: publique,
+    });
+    expect(r).toEqual({ ok: true, status: 200, texte: "page locale" });
+    expect(requetes).toEqual(["/recette"]);
   });
 });
