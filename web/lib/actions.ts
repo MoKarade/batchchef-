@@ -14,6 +14,7 @@ import { repondre } from "@/lib/assistant/boucle";
 import { validerMessage, type Message } from "@/lib/assistant/protocole";
 import { formatQty } from "@/lib/aggregate";
 import { upsertTaskList } from "@/lib/googleTasks";
+import { telechargerPagePublique } from "@/lib/urlPublique";
 import { splitNewCatalogRecipes } from "@/lib/catalogSelect";
 import { MAX_TRANSCRIPT_CHARS } from "@/lib/transcription";
 import { estOrigine, formatDateAjout, type OrigineRecette } from "@/lib/origine";
@@ -95,13 +96,13 @@ export async function parseRecipePreview(
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
       return { ok: false, error: "URL http(s) uniquement." };
     }
-    const page = await fetch(url, {
-      headers: { "user-agent": "Mozilla/5.0 (BatchChef; +recette perso)" },
-      signal: AbortSignal.timeout(15000),
+    // Garde SSRF : hôtes internes/privés refusés, redirections revérifiées, corps borné.
+    const page = await telechargerPagePublique(url, {
+      userAgent: "Mozilla/5.0 (BatchChef; +recette perso)",
     });
     if (!page.ok) return { ok: false, error: `Page injoignable (HTTP ${page.status}).` };
 
-    const text = htmlToText(await page.text());
+    const text = htmlToText(page.texte);
     const draft = await parseRecipeFromPage(text);
     const recipe = await verifyParsedRecipe(text, draft); // analyse plus poussée avant validation
 
