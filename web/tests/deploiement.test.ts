@@ -112,6 +112,16 @@ describe("réparation des ingrédients — la passe reste branchée au build", (
     scripts: Record<string, string>;
   };
 
+  // ÉGALITÉ STRICTE (exigence pole-securite) : ce fichier est protégé (attestation) ; tout changement de ces trois
+  // scripts, un `&& <commande>` ajouté compris, casse ce test. Un changement voulu met à jour la valeur ICI, dans la
+  // même PR (donc sous attestation). Depuis #129, `vercel-build` passe par la garde `scripts/vercel-build.mjs`
+  // (migrations et réparation seulement en production, voir `etapesDeBuild`) au lieu d'enchaîner les commandes.
+  it("les scripts de déploiement sont EXACTEMENT ceux attendus", () => {
+    expect(pkg.scripts["vercel-build"]).toEqual("node scripts/vercel-build.mjs");
+    expect(pkg.scripts["db:migrate"]).toEqual("drizzle-kit migrate");
+    expect(pkg.scripts["db:reparer-ingredients"]).toEqual("tsx scripts/reparer-ingredients.ts");
+  });
+
   it("`vercel-build` passe par la garde, qui lance la réparation AVANT le build (production seulement)", () => {
     expect(pkg.scripts["vercel-build"] ?? "").toContain("scripts/vercel-build.mjs");
     const noms = etapesDeBuild({ VERCEL_ENV: "production" }).etapes.map((e) => e.nom);

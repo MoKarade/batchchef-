@@ -1,0 +1,27 @@
+{
+  "_doc": "BASE GÉNÉRIQUE des chemins jamais auto-fusionnés (motifs glob : ** traverse les dossiers, * et ? non), copiée telle quelle dans les dépôts d'apps. Volontairement ÉTROITE (retour pole-architecture après FinanceAI#1073) : « hooks/ » et « components/settings/ » sont de l'UI chez une app, pas de la sécurité ; seuls scripts/hooks/**, .github/**, .claude/**, settings.json et commit-gate* sont protégés. Ne contient AUCUN chemin propre à l'Atelier (hooks/**, settings*, cockpit/*, tunnel…) : ceux-là sont dans chemins-interdits-atelier.json, qui n'est PAS copié. Un dépôt peut AJOUTER des chemins (chemins_interdits de son auto-merge.json), jamais en retirer. Une PR qui en touche un : pas d'auto-fusion, label validation-marc. Lue aussi par les agents git (ne jamais armer l'auto-fusion sur une PR de la liste).",
+  "chemins": [
+    "**/scripts/hooks/**",
+    ".github/**",
+    "**/settings.json",
+    ".claude/settings*",
+    "**/commit-gate*",
+    "**/commit-gate*/**",
+    "**/analyseCommande*",
+    ".claude/**",
+    "CLAUDE.md",
+    "**/CLAUDE.md",
+    "AGENTS.md",
+    "**/AGENTS.md",
+    ".husky/**",
+    "CODEOWNERS",
+    "**/CODEOWNERS",
+    ".github/CODEOWNERS",
+    "modeles/**",
+    "auto-merge.json",
+    "**/auto-merge.json",
+    ".gitattributes",
+    "chemins-interdits*.json",
+    "**/chemins-interdits*.json"
+  ]
+}

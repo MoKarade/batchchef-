@@ -1,0 +1,100 @@
+# GABARIT — auto-merge ÉVÉNEMENTIEL d'un dépôt d'app (étape 2 de la structure commune). À copier dans .github/workflows/auto-merge.yml, avec le kit
+# modeles/auto-merge/ (fusionner.mjs, autoMerge.mjs, chemins-interdits-base.json…, voir LISEZMOI.md) et .github/auto-merge.json.
+# TOUTE la décision et la fusion sont dans modeles/auto-merge/fusionner.mjs (testé) : contrôle requis identifié PAR APPLICATION (appId), chemins interdits,
+# attestation de pole-securite, revues, frein horaire, et `gh pr merge --squash --match-head-commit <SHA>` (une PR modifiée entre la décision et la fusion n'est pas fusionnée).
+# Ce fichier ne fait que déclencher et passer des variables d'environnement.
+#
+# Déclencheurs À GARDER (test statique cockpit/tests/test_gabarits.py, avec mutations : il échoue si l'un disparaît) :
+#  - workflow_run (fin de « ci »)                  : lu sur la branche PAR DÉFAUT, jamais sur celle de la PR ;
+#  - status, filtré sur state == success           : Vercel publie un STATUT de commit, pas un workflow ;
+#  - check_run, jamais ceux de github-actions      : les checks d'autres applications ; ceux d'Actions passent par workflow_run ;
+#  - pull_request_target: ready_for_review         : une PR sortie du brouillon après sa CI ne verrait plus d'événement. AUCUN code de PR n'est récupéré ni exécuté :
+#                                                    le seul checkout est celui de la branche par défaut ;
+#  - workflow_dispatch avec l'entrée `pr`          : attestation de pole-securite (numéro validé par fusionner.mjs), sur la branche par défaut seulement ;
+#  - cron toutes les 6 h                           : filet de rattrapage (workflow_run ne se rejoue jamais), SORTIE IMMÉDIATE s'il n'y a aucune PR ouverte.
+# JAMAIS pull_request_review (il exécuterait la version du workflow venant de la PR). Jamais de `gh pr ready` : le brouillon est le frein.
+# Permissions : `{}` au niveau global ; l'écriture est donnée au SEUL job (grille A4 du gabarit d'armement). Aucun secret : seul github.token.
+# Runner : GitHub-hosted par défaut ; variable de dépôt AUTOMERGE_RUNNER (JSON) pour un auto-hébergé, accepté SEULEMENT sur un dépôt PRIVÉ.
+# Arrêt d'urgence : variable de dépôt AUTOMERGE_OFF (=1 : aucune fusion). Adapter : `workflows: [CI]` (nom du workflow de CI), la version de Node.
+name: auto-merge
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  status:
+  check_run:
+    types: [completed]
+  pull_request_target:
+    types: [ready_for_review]
+  # Rattrapage : toutes les 6 heures (GitHub espace de toute façon les crons planifiés sous charge).
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Numéro de la PR à réévaluer (attestation de pole-securite ; vide = toutes les PR ouvertes)"
+        required: false
+        type: string
+
+permissions: {}
+
+# Un run à la fois par PR : deux événements qui arrivent ensemble ne fusionnent pas deux fois.
+concurrency:
+  group: auto-merge-${{ github.event.workflow_run.head_branch || github.event.pull_request.head.ref || github.event.check_run.check_suite.head_branch || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  fusionner:
+    # Pas de fork : le run doit venir d'une PR du dépôt LUI-MÊME (fusionner.mjs revérifie isCrossRepository). Lancement manuel : branche par défaut seulement.
+    # Runner auto-hébergé : dépôt privé seulement.
+    if: >
+      (github.event.repository.private == true || !contains(vars.AUTOMERGE_RUNNER, 'self-hosted')) &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) ||
+       (github.event_name == 'status' && github.event.state == 'success') ||
+       (github.event_name == 'check_run' && github.event.check_run.app.slug != 'github-actions') ||
+       (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository) ||
+       (github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ${{ fromJSON(vars.AUTOMERGE_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      # INDISPENSABLES à la lecture de statusCheckRollup (« Resource not accessible by integration » sans elles : incidents du 21/08 et du 14/09).
+      actions: read
+      checks: read
+      statuses: read
+    steps:
+      # SORTIE IMMÉDIATE : sans PR ouverte il n'y a rien à examiner, on ne paie ni checkout ni Node. Un échec de cette lecture NE sort PAS : on continue par prudence.
+      - name: Y a-t-il une PR ouverte ?
+        id: ouvertes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          n="$(gh pr list --repo "$REPO" --state open --limit 1 --json number --jq 'length' 2>/dev/null || echo inconnu)"
+          echo "nombre=$n" >> "$GITHUB_OUTPUT"
+          [ "$n" = "0" ] && echo "Aucune PR ouverte : sortie immédiate."
+          exit 0
+      # Le module de décision et la configuration sont lus sur la branche PAR DÉFAUT (jamais sur la PR).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.ouvertes.outputs.nombre != '0'
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        if: steps.ouvertes.outputs.nombre != '0'
+        with:
+          node-version: "24"
+      - name: Décider, puis fusionner
+        if: steps.ouvertes.outputs.nombre != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCHE: ${{ github.event.workflow_run.head_branch || github.event.pull_request.head.ref || github.event.check_run.check_suite.head_branch }}
+          SHA_EVENT: ${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha || github.event.check_run.head_sha }}
+          NUMERO: ${{ inputs.pr }}
+          AUTOMERGE_OFF: ${{ vars.AUTOMERGE_OFF }}
+        run: node modeles/auto-merge/fusionner.mjs

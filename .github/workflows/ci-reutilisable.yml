@@ -1,0 +1,111 @@
+# GABARIT — CI réutilisable (workflow_call). À copier dans .github/workflows/ci-reutilisable.yml d'un dépôt, avec .github/ci/voie-rapide.mjs, puis
+# l'appeler depuis ci.yml (voir gabarit-appelant.yml et LISEZMOI.md). Ce fichier ne contient NI déclencheur de PR NI concurrency : ils vivent chez
+# l'appelant (un groupe de concurrency identique dans l'appelant et l'appelé s'annulerait lui-même).
+#
+# Nom du check REQUIS (protection de branche / auto-merge.json `controles_requis`) : « <id du job appelant> / portes », soit « ci / portes »
+# avec le gabarit-appelant.yml tel quel. Ne JAMAIS renommer le job `portes` ni l'id `ci` sans mettre à jour le check requis.
+# Ce check n'a JAMAIS de `paths:` : filtré, il ne tournerait pas et la PR resterait bloquée. Pour économiser des minutes on utilise la VOIE RAPIDE
+# (ci-dessous : le job tourne toujours, il saute seulement les étapes lourdes), l'ignoreCommand Vercel et la concurrency, jamais un filtre de chemins.
+#
+# Deux jobs exclusifs : `portes` (PR et push : typecheck, lint, tests, build) ; `lourds` (planifié ou manuel : mutation, E2E, audit).
+name: ci-reutilisable
+
+on:
+  workflow_call:
+    inputs:
+      commande-portes:
+        description: "Commande des portes rapides (celle du CLAUDE.md : npm run portes)"
+        type: string
+        default: "npm run portes"
+      commande-lourds:
+        description: "Commande des contrôles lourds (mutation, E2E) ; vide = aucun"
+        type: string
+        default: ""
+      commande-docs:
+        description: "Contrôles de documentation légers, toujours exécutés (même en voie rapide)"
+        type: string
+        default: "[ ! -f CLAUDE.md ] || node .github/ci/verifier-longueur.mjs CLAUDE.md; s1=$?; [ ! -d docs ] || node .github/ci/generer-index.mjs --verifier; s2=$?; [ $s1 -eq 0 ] && [ $s2 -eq 0 ]"
+      docs-lues-par-les-tests:
+        description: "Documents LUS par des tests (un par ligne ou séparés par des virgules ; dossier = terminé par /) : jamais « docs », ils déclenchent tout. Littéral de l'appelant, jamais issu d'une PR."
+        type: string
+        default: ""
+      fichier-version-node:
+        description: "Fichier qui fixe la version de Node (.nvmrc)"
+        type: string
+        default: ".nvmrc"
+      lourds:
+        description: "true = exécuter `lourds` au lieu de `portes` (appel planifié ou manuel)"
+        type: boolean
+        default: false
+      runner:
+        description: "Étiquette du runner (JSON) ; GitHub-hosted par défaut"
+        type: string
+        default: '"ubuntu-latest"'
+
+permissions:
+  contents: read
+
+jobs:
+  # Le nom `portes` est le CONTRAT du check requis : ne pas le changer.
+  portes:
+    name: portes
+    # runner auto-hébergé : dépôt PRIVÉ seulement (jamais de code de PR sur un runner auto-hébergé d'un dépôt public), comme le gabarit d'armement
+    if: ${{ !inputs.lourds && (github.event.repository.private == true || !contains(inputs.runner, 'self-hosted')) }}
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    # Plafond : sans lui un job figé tourne six heures avant d'échouer.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Historique complet : la voie rapide compare la PR à sa base (git diff). Sans lui, base introuvable = tout s'exécute.
+          fetch-depth: 0
+          persist-credentials: false
+      # VOIE RAPIDE (pas de `paths:`, le job tourne TOUJOURS) : PR de documentation seule => les étapes lourdes ci-dessous sont sautées et le
+      # job réussit en moins d'une minute. Échec fermé : doute = tout s'exécute. Workflow, package.json, lockfile et config ne sont jamais « docs ».
+      # La ligne « Voie rapide : … » est écrite dans le résumé du job.
+      - name: Voie rapide (PR de documentation seule ?)
+        id: voie
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          DOCS_LUES_PAR_LES_TESTS: ${{ inputs.docs-lues-par-les-tests }}
+        run: node .github/ci/voie-rapide.mjs
+      # DOCUMENTATION LÉGÈRE : tourne TOUJOURS, même sur la voie rapide (quelques secondes, Node préinstallé sur le runner) : une PR de docs seule qui regonfle
+      # CLAUDE.md (plafond 60 lignes / 10 Ko) ou périme docs/INDEX.md échoue ici. Seuls install, tests applicatifs et build sont sautés.
+      - name: Documentation légère
+        env:
+          COMMANDE: ${{ inputs.commande-docs }}
+        run: bash -c "$COMMANDE"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        if: steps.voie.outputs.rapide != 'true'
+        with:
+          node-version-file: ${{ inputs.fichier-version-node }}
+          cache: npm
+      # `npm ci` et non `npm install` : le lockfile fait autorité.
+      - name: Dépendances
+        if: steps.voie.outputs.rapide != 'true'
+        run: npm ci
+      - name: Portes
+        if: steps.voie.outputs.rapide != 'true'
+        env:
+          COMMANDE: ${{ inputs.commande-portes }}
+        run: bash -c "$COMMANDE"
+
+  lourds:
+    name: lourds
+    if: ${{ inputs.lourds && inputs.commande-lourds != '' && (github.event.repository.private == true || !contains(inputs.runner, 'self-hosted')) }}
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: ${{ inputs.fichier-version-node }}
+          cache: npm
+      - name: Dépendances
+        run: npm ci
+      - name: Contrôles lourds (mutation, E2E)
+        env:
+          COMMANDE: ${{ inputs.commande-lourds }}
+        run: bash -c "$COMMANDE"
