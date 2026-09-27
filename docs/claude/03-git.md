@@ -5,8 +5,11 @@
 ## 3. Workflow git
 
 Branche `claude/<slug>` → commits en français → push → PR. **Depuis le 23/09, la fusion est
-AUTOMATIQUE** (`.github/workflows/fusion-auto.yml`, #105/#110) : toute PR non brouillon —
-Dependabot compris — part en squash dès que les contrôles obligatoires de `master` sont verts.
+AUTOMATIQUE** (`.github/workflows/armement-auto-merge.yml` + `auto-merge.yml`, kit de l'Atelier, copies
+exactes listées dans `COPIES.md`) : toute PR non brouillon — Dependabot compris — part en squash dès que
+les contrôles obligatoires de `master` sont verts, SAUF si elle touche un chemin sensible
+(`.github/auto-merge.json`, `modeles/auto-merge/chemins-interdits-base.json`) : migrations et schéma
+(`web/drizzle/**`, `web/lib/db/**`) = Marc ; le reste = attestation de pole-securite.
 Une PR en **brouillon** n'est jamais fusionnée : c'est le seul frein. Corollaire : tout ce qui
 doit partir avec le lot (doc, tests, leçons) est committé AVANT d'ouvrir la PR hors brouillon
 — une PR légère peut partir en quelques minutes, et une PR mergée ne se rattrape pas.

@@ -74,9 +74,10 @@ ligne sans que rien ne soit rouge nulle part. Ce qui est établi :
   son texte exact — il refusait une montée comme une descente (#121).
 
 **Processus**
-- **Fusion automatique** (#105, #110, `.github/workflows/fusion-auto.yml`) : toute PR non
-  brouillon — Dependabot compris — part en squash dès que les contrôles obligatoires de
-  `master` sont verts. Une PR en BROUILLON n'est jamais fusionnée.
+- **Fusion automatique** (#105, #110, puis kit de l'Atelier : `armement-auto-merge.yml`,
+  `auto-merge.yml`, `COPIES.md`) : toute PR non brouillon — Dependabot compris — part en squash dès
+  que les contrôles obligatoires de `master` sont verts, sauf chemins sensibles (voir
+  `.github/auto-merge.json`). Une PR en BROUILLON n'est jamais fusionnée.
 - **Portes qualité de l'Atelier** (#103, #117) : `npm run portes` compare lint, couverture,
   code mort et architecture à `web/qualite/seuils.json` (cliquet : rien ne recule) ; mutation
   hebdomadaire en CI. Mesures de départ (23/09) : 562 tests, mutation 40,6 %.

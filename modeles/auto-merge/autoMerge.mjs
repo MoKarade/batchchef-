@@ -7,11 +7,12 @@
 // Un merge de trop est irréversible et part en production ; un merge raté se rattrape d'un clic.
 //
 // Ce que la configuration (auto-merge.json, lue sur main) peut faire : durcir (contrôles requis, chemins interdits, carence).
-// Ce qu'elle ne peut PAS faire : retirer un chemin de chemins-interdits.json — le module ne les lit pas dans la configuration.
+// Ce qu'elle ne peut PAS faire : retirer un chemin de chemins-interdits-*.json — le module ne les lit pas dans la configuration.
 
 /** Label qui retient une PR déjà sortie du brouillon. */
 export const LABEL_FREIN = "do-not-merge";
-/** Label de validation humaine : présent = la fusion attend Marc. Posé (via `etiqueter`) sur les chemins sensibles. */
+/** Label de validation humaine : INFORMATIF depuis l'attestation de pole-securite (il ne bloque plus ; ce qui débloque un chemin sensible est `attestationValide`).
+ *  Posé (via `etiqueter`) sur les PR sensibles sans attestation, pour les rendre visibles. */
 export const LABEL_VALIDATION = "validation-marc";
 /** Auteur (et seul acteur admis) d'une PR Dependabot. Égalité stricte : « dependabot-fake » n'est pas Dependabot. */
 export const DEPENDABOT = "dependabot[bot]";
@@ -20,17 +21,30 @@ export const DEPENDABOT = "dependabot[bot]";
 export const APP_GITHUB_ACTIONS = 15368;
 
 /**
- * Chemins JAMAIS auto-fusionnés : SOURCE UNIQUE = chemins-interdits.json (import statique, aucune I/O au runtime). La configuration du
- * dépôt peut en AJOUTER (chemins_interdits), jamais en retirer : ce module ne les lit pas dans la configuration. Liste illisible = le
- * module ne se charge pas (échec fermé : aucune fusion). Lue aussi par les agents git : jamais d'auto-fusion armée sur une PR de la liste.
+ * Chemins JAMAIS auto-fusionnés : chemins-interdits-base.json (générique, copié dans les apps) + chemins-interdits-atelier.json (SURCOUCHE de
+ * l'Atelier : cockpit/*, tunnel ; absente des copies destinées aux apps, qui n'héritent d'aucun chemin cockpit/*). Imports JSON statiques,
+ * aucune lecture de fichier au moment de la décision. La configuration du dépôt peut en AJOUTER (chemins_interdits), jamais en retirer :
+ * ce module ne les lit pas dans la configuration. Base ou surcouche illisible = le module ne se charge pas (échec fermé : aucune fusion) ;
+ * seule l'ABSENCE de la surcouche est normale (copie d'app). Lue aussi par les agents git : jamais d'auto-fusion armée sur une PR de la liste.
  */
-import listeInterdite from "./chemins-interdits.json" with { type: "json" };
+import listeBase from "./chemins-interdits-base.json" with { type: "json" };
 
-if (!listeInterdite || !Array.isArray(listeInterdite.chemins) || listeInterdite.chemins.length === 0 ||
-    !listeInterdite.chemins.every((c) => typeof c === "string" && c.trim() !== "")) {
-  throw new Error("chemins-interdits.json illisible : la fusion automatique ne se charge pas");
+const listeValide = (l) => l && Array.isArray(l.chemins) && l.chemins.length > 0 && l.chemins.every((c) => typeof c === "string" && c.trim() !== "");
+if (!listeValide(listeBase)) throw new Error("chemins-interdits-base.json illisible : la fusion automatique ne se charge pas");
+
+let listeSurcouche = null;
+try {
+  listeSurcouche = (await import("./chemins-interdits-atelier.json", { with: { type: "json" } })).default;
+} catch (e) {
+  if (e && e.code !== "ERR_MODULE_NOT_FOUND") throw e;      // fichier présent mais illisible : échec fermé ; absent : copie d'app, base seule
 }
-export const CHEMINS_INTERDITS = Object.freeze([...listeInterdite.chemins]);
+if (listeSurcouche !== null && !listeValide(listeSurcouche)) throw new Error("chemins-interdits-atelier.json illisible : la fusion automatique ne se charge pas");
+
+/** Base générique seule (ce que reçoit une app). */
+export const CHEMINS_BASE = Object.freeze([...listeBase.chemins]);
+/** Surcouche du dépôt courant (vide dans une app). */
+export const CHEMINS_SURCOUCHE = Object.freeze(listeSurcouche ? [...listeSurcouche.chemins] : []);
+export const CHEMINS_INTERDITS = Object.freeze([...CHEMINS_BASE, ...CHEMINS_SURCOUCHE]);
 /** Ancien nom, conservé pour les appelants et les tests. */
 export const REGLES_FIXES = CHEMINS_INTERDITS;
 
@@ -38,6 +52,12 @@ const CONCLUSIONS_OK = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
 /** CLEAN : tout vert et à jour. HAS_HOOKS : idem avec hooks. UNKNOWN (calcul asynchrone) et BEHIND (base périmée) refusent. */
 const ETATS_OK = new Set(["CLEAN", "HAS_HOOKS"]);
 const SHA = /^[0-9a-f]{40}$/;
+/** Chemins JAMAIS attestables (secrets, clés) : aucune attestation, aucune configuration d'app ne les lève. Motifs sur chemins normalisés (minuscules). */
+export const JAMAIS_ATTESTABLES = Object.freeze(["**/.env*", "**/*.pem", "**/secrets/**", "**/jeton*", "**/*.key"]);
+/** Login GitHub valide (lettres, chiffres, tirets ; 1 à 39 caractères) : nom du compte dédié de pole-securite, comparé EXACTEMENT (casse comprise). */
+const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?(?:\[bot\])?$/;
+/** Login d'une GitHub App (« <slug>[bot] ») : l'attestation par l'App exige alors l'identifiant numérique du compte bot ET le type « Bot » sur les revues. */
+const estLoginBot = (login) => typeof login === "string" && login.endsWith("[bot]");
 /** L'API GitHub plafonne la liste des fichiers d'une PR : au-delà on ne sait pas tout, donc on refuse. */
 const FICHIERS_MAX = 3000;
 const JOUR_MS = 86_400_000;
@@ -49,7 +69,6 @@ const refus = (raison, extra = {}) => ({ merger: false, raison, etiqueter: [], .
 /** Chemin normalisé pour la comparaison, ou null s'il est douteux (absolu, « .. », vide, octet de contrôle). */
 export function normaliser(chemin) {
   if (typeof chemin !== "string") return null;
-  // eslint-disable-next-line no-control-regex
   if (chemin === "" || /[\u0000-\u001f\u007f]/.test(chemin)) return null;
   let c = chemin.replace(/\\/g, "/");
   while (c.startsWith("./")) c = c.slice(2);
@@ -119,6 +138,14 @@ export function validerConfig(config) {
       erreurs.push("regles_test_associe : liste de {code, test} (motifs)");
     }
   }
+  if (config.securite_login !== undefined && (typeof config.securite_login !== "string" || (config.securite_login !== "" && !LOGIN.test(config.securite_login)))) {
+    erreurs.push("securite_login : login GitHub du compte dédié ou d'une App « <slug>[bot] » (texte, vide = aucune attestation possible)");
+  }
+  if (typeof config.securite_login === "string" && estLoginBot(config.securite_login) && config.securite_user_id === undefined) {
+    erreurs.push("securite_user_id : obligatoire quand securite_login est une App (« [bot] ») : identifiant numérique du compte bot");
+  }
+  if (config.chemins_attestables !== undefined && !listeDeTextes(config.chemins_attestables)) erreurs.push("chemins_attestables : liste de motifs (chemins de l'app que l'attestation peut lever)");
+  if (config.securite_user_id !== undefined && (!Number.isInteger(config.securite_user_id) || config.securite_user_id <= 0)) erreurs.push("securite_user_id : entier positif (identifiant numérique du compte dédié)");
   if (config.branche_base !== undefined && (typeof config.branche_base !== "string" || config.branche_base === "")) erreurs.push("branche_base : texte");
   if (erreurs.length === 0) {
     const requis = new Set(config.controles_requis);
@@ -227,6 +254,76 @@ function testAssocieManquant(fichiers, regles) {
   return null;
 }
 
+// ── attestation de pole-securite (docs/specs/attestation-revue.md) ─────────────────────────────────────────────
+
+/**
+ * Le compte dédié `login` a-t-il APPROUVÉ le SHA EXACT `sha` ? Fonction pure, échec fermé : tout ce qui n'est pas clairement « oui » est « non ».
+ * On garde les revues du compte (`user.login` égal EXACTEMENT : pas de casse, de préfixe ni de suffixe tolérés), on prend la DERNIÈRE (`submitted_at`) ;
+ * valide seulement si `state === "APPROVED"` ET `commit_id === sha`. DISMISSED, CHANGES_REQUESTED, COMMENTED, autre SHA, autre compte, liste illisible,
+ * revue du compte sans date lisible, login ou SHA invalide = pas d'attestation. Les revues PENDING (jamais soumises) sont ignorées.
+ * @param {unknown} reviews  revues de la PR : [{user: {login, id, type}, state, commit_id, submitted_at}]
+ * Quand `userId` (securite_user_id) est configuré, une revue ne compte que si `user.id` est ce nombre : un login renommé puis réattribué à un autre compte ne trompe pas le garde.
+ * GitHub App (login « <slug>[bot] ») : `userId` est OBLIGATOIRE (sans lui : pas d'attestation) et la revue doit porter `user.type === "Bot"` ; un login humain n'est jamais accepté à sa place
+ * (comparaison exacte : « atelier-securite-marc » n'est pas « atelier-securite-marc[bot] », ni l'inverse).
+ * @param {{login?: string, sha?: string, userId?: number}} cible  compte attendu (securite_login, lu sur la branche de base), SHA actuel de la PR, identifiant numérique (option)
+ */
+export function attestationValide(reviews, cible) {
+  const { login, sha, userId } = cible && typeof cible === "object" ? cible : {};
+  if (userId !== undefined && (!Number.isInteger(userId) || userId <= 0)) return false;
+  if (typeof login !== "string" || !LOGIN.test(login)) return false;
+  const bot = estLoginBot(login);
+  if (bot && userId === undefined) return false;                                    // App : l'identifiant numérique du compte bot est exigé
+  if (typeof sha !== "string" || !SHA.test(sha)) return false;
+  if (!Array.isArray(reviews)) return false;
+  let derniere = null, instant = -Infinity;
+  for (const r of reviews) {
+    if (!r || typeof r !== "object") return false;                                  // une entrée illisible : on ne sait pas ce qu'elle cache
+    const auteur = r.user && typeof r.user === "object" ? r.user.login : undefined;
+    if (auteur !== login) continue;
+    if (userId !== undefined && r.user.id !== userId) continue;                        // même login, autre compte (renommage puis réattribution) : ignoré
+    if (bot ? r.user.type !== "Bot" : r.user.type !== undefined && r.user.type !== "User") continue;   // App : type « Bot » exigé ; login humain : jamais un compte Bot
+    if (r.state === "PENDING") continue;
+    const t = typeof r.submitted_at === "string" ? Date.parse(r.submitted_at) : NaN;
+    if (!Number.isFinite(t)) return false;
+    if (t >= instant) { derniere = r; instant = t; }                                 // égalité : la plus tardive de la liste
+  }
+  return derniere !== null && derniere.state === "APPROVED" && derniere.commit_id === sha;
+}
+
+/**
+ * Code de raison d'une décision (ou d'un refus d'armement) : UN élément de la liste fermée CODES_RAISON (codes-raison.mjs), écrit en sortie du job
+ * (`code_pr_<numéro>`). Le `motif` posé par la décision prime ; `frein_horaire` vient du `code` existant (alerte) ; sinon on lit la raison. Tout ce qui
+ * reste (fork, autre branche de base, fichier interdit, liste douteuse, configuration, arrêt d'urgence…) est « hors_perimetre » : l'auto-merge n'a pas à s'en occuper.
+ * N'ajoute AUCUN champ à la décision : le `code` existant déclenche des alertes (fusionner.mjs `signaler`), ce code-ci est de l'information.
+ */
+export function codeRaison(d) {
+  if (!d || typeof d !== "object") return "hors_perimetre";
+  if (d.merger === true || d.armer === true) return "merge_ok";
+  if (d.motif) return d.motif;
+  if (d.code === "frein_horaire") return "frein_horaire";
+  const r = String(d.raison || "");
+  if (r.startsWith("attestation de pole-securite requise")) return "attestation_requise";
+  if (r === "brouillon" || r.startsWith("brouillon")) return "brouillon";
+  if (r === `label ${LABEL_FREIN}`) return "do_not_merge";
+  if (r.startsWith("le SHA de la PR a changé")) return "sha_change";
+  if (r.startsWith("état de fusion")) return "etat_fusion";
+  if (r.startsWith("aucun check") || r.startsWith("contrôle requis absent")) return "controle_en_cours";
+  return "hors_perimetre";
+}
+
+/**
+ * Un refus « attestable » (chemin interdit ou sensible, test affaibli, test associé manquant) est LEVÉ par une attestation valide sur le SHA actuel ;
+ * sans elle il reste un refus, avec une raison qui le dit. Les autres refus (liste douteuse, brouillon…) ne sont jamais attestables.
+ */
+function avecAttestation(fautif, pr, config) {
+  if (!fautif) return null;
+  const { attestable, ...refusSimple } = fautif;
+  if (!attestable) return refusSimple;
+  const sha = typeof pr.headRefOid === "string" ? pr.headRefOid : "";
+  if (attestationValide(pr.reviews, { login: config.securite_login, sha, userId: config.securite_user_id })) return null;
+  return { ...refusSimple, raison: `attestation de pole-securite requise pour ${SHA.test(sha) ? sha.slice(0, 7) : "SHA inconnu"} (${fautif.raison})` };
+}
+
 /** Refus (objet) si la liste des fichiers est douteuse ou touche un chemin interdit / sensible ; sinon null. */
 function examinerFichiers(pr, config) {
   if (!Array.isArray(pr.fichiers)) return refus("liste des fichiers illisible");
@@ -234,17 +331,27 @@ function examinerFichiers(pr, config) {
   if (pr.fichiers.length >= FICHIERS_MAX) return refus("liste des fichiers peut-être tronquée");
   const touches = chemins(pr.fichiers);
   if (touches === null) return refus("chemin de fichier douteux");
+  // TOUTES les catégories sont évaluées (jamais « le premier refus gagne ») : un refus NON attestable l'emporte, où qu'il se trouve ; une attestation ne lève que
+  // ce qui est attestable. Non attestables : chemins_interdits de l'app (secrets, migrations… sauf ceux qu'elle déclare dans `chemins_attestables`, choix explicite relu
+  // par pole-securite) et JAMAIS_ATTESTABLES (secrets, clés : toujours refusés, même si l'app les déclare attestables).
+  const attestables = config.chemins_attestables || [];
+  for (const c of touches) {
+    const app = correspond(c, config.chemins_interdits);
+    if (app && !correspond(c, attestables)) return refus(`chemin interdit par auto-merge.json : ${c}`);
+    if (correspond(c, JAMAIS_ATTESTABLES)) return refus(`chemin jamais attestable (secret, clé) : ${c}`);
+  }
+  const attestable = [];
   const fixe = touches.find((c) => correspond(c, CHEMINS_INTERDITS));
-  if (fixe) return refus(`fichier sensible ${fixe} : jamais auto-fusionné, validation de Marc requise (chemins-interdits.json)`, { etiqueter: [LABEL_VALIDATION] });
-  const interdit = touches.find((c) => correspond(c, config.chemins_interdits));
-  if (interdit) return refus(`chemin interdit par auto-merge.json : ${interdit}`);
+  if (fixe) attestable.push(refus(`fichier sensible ${fixe} : jamais auto-fusionné, validation de Marc requise (chemins-interdits-*.json)`, { etiqueter: [LABEL_VALIDATION], attestable: true }));
+  const interditLeve = touches.find((c) => correspond(c, config.chemins_interdits));       // interdit de l'app déclaré attestable (chemins_attestables)
+  if (interditLeve) attestable.push(refus(`chemin interdit par auto-merge.json : ${interditLeve}`, { attestable: true }));
   const sensible = touches.find((c) => correspond(c, config.chemins_label_validation));
-  if (sensible) return refus(`chemin sensible (${sensible}) : validation de Marc requise`, { etiqueter: [LABEL_VALIDATION] });
+  if (sensible) attestable.push(refus(`chemin sensible (${sensible}) : validation de Marc requise`, { etiqueter: [LABEL_VALIDATION], attestable: true }));
   const faible = testAffaibli(pr.fichiers);
-  if (faible) return refus(faible, { etiqueter: [LABEL_VALIDATION], code: "test_affaibli" });
+  if (faible) attestable.push(refus(faible, { etiqueter: [LABEL_VALIDATION], code: "test_affaibli", attestable: true }));
   const associe = testAssocieManquant(pr.fichiers, config.regles_test_associe || []);
-  if (associe) return refus(associe, { etiqueter: [LABEL_VALIDATION], code: "test_associe_manquant" });
-  return null;
+  if (associe) attestable.push(refus(associe, { etiqueter: [LABEL_VALIDATION], code: "test_associe_manquant", attestable: true }));
+  return attestable[0] ?? null;
 }
 
 /**
@@ -267,8 +374,8 @@ export function peutArmer(pr, config) {
   if (labels === null) return non("labels illisibles");
   const noms = new Set(labels.map((l) => l && l.name));
   if (noms.has(LABEL_FREIN)) return non(`label ${LABEL_FREIN}`);
-  if (noms.has(LABEL_VALIDATION)) return non(`label ${LABEL_VALIDATION} : la fusion attend Marc`);
-  const fautif = examinerFichiers(pr, config);
+  // `validation-marc` est INFORMATIF : il ne bloque plus (seule l'attestation de pole-securite lève un chemin sensible ; `do-not-merge` reste le frein)
+  const fautif = avecAttestation(examinerFichiers(pr, config), pr, config);
   if (fautif) return non(fautif.raison, fautif.etiqueter, fautif.code);
   return { armer: true, raison: "aucun obstacle à l'armement", etiqueter: [] };
 }
@@ -316,7 +423,7 @@ export function decision(pr, config, contexte = {}) {
   if (labels === null) return refus("labels illisibles");
   const noms = new Set(labels.map((l) => l && l.name));
   if (noms.has(LABEL_FREIN)) return refus(`label ${LABEL_FREIN}`);
-  if (noms.has(LABEL_VALIDATION)) return refus(`label ${LABEL_VALIDATION} : la fusion attend Marc`);
+  // `validation-marc` est INFORMATIF (voir peutArmer) : le blocage vient de l'absence d'attestation, pas du label.
 
   // 3. auteur / Dependabot (vérifié par l'ACTEUR du dernier push, avec carence)
   if (typeof pr.auteur !== "string" || pr.auteur === "") return refus("auteur inconnu");
@@ -331,7 +438,7 @@ export function decision(pr, config, contexte = {}) {
   }
 
   // 4. fichiers : chemins interdits (source unique) + interdits de l'app ; chemins sensibles → validation de Marc
-  const fautif = examinerFichiers(pr, config);
+  const fautif = avecAttestation(examinerFichiers(pr, config), pr, config);
   if (fautif) return fautif;
 
   // 4b. frein horaire : trop de fusions automatiques dans l'heure = la suite attend Marc (compte inconnu = refus)
@@ -356,7 +463,7 @@ export function decision(pr, config, contexte = {}) {
     const nom = nomDuCheck(c);
     if (nonBloquants.has(nom)) continue;         // déclaré non bloquant : ni preuve, ni obstacle (ex. revue d'agent lente ou en course)
     const { v, detail } = verdictCheck(c);
-    if (v === "attente" || v === "rouge") return refus(`${nom} : ${detail}`);
+    if (v === "attente" || v === "rouge") return refus(`${nom} : ${detail}`, { motif: v === "rouge" ? "controle_rouge" : "controle_en_cours" });
     if (v === "vert") {
       preuve = true;
       if (requis.has(nom) && c.appId === appIdRequis) requis.set(nom, true);   // vert ET publié par GitHub Actions (appId absent = non)
