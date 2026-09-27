@@ -10,6 +10,7 @@
 import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { etapesDeBuild } from "../scripts/vercel-build.mjs";
 import { resolve } from "node:path";
 
 const vercel = JSON.parse(readFileSync(resolve(process.cwd(), "vercel.json"), "utf8")) as {
@@ -113,21 +114,22 @@ describe("réparation des ingrédients — la passe reste branchée au build", (
 
   // ÉGALITÉ STRICTE (exigence pole-securite) : ce fichier est protégé (attestation) ; tout changement de ces trois
   // scripts, un `&& <commande>` ajouté compris, casse ce test. Un changement voulu met à jour la valeur ICI, dans la
-  // même PR (donc sous attestation). Ex. : la PR de la garde de préversion (#129) change vercel-build en
-  // `node scripts/vercel-build.mjs` et doit mettre à jour cette valeur.
+  // même PR (donc sous attestation). Depuis #129, `vercel-build` passe par la garde `scripts/vercel-build.mjs`
+  // (migrations et réparation seulement en production, voir `etapesDeBuild`) au lieu d'enchaîner les commandes.
   it("les scripts de déploiement sont EXACTEMENT ceux attendus", () => {
-    expect(pkg.scripts["vercel-build"]).toEqual("npm run db:migrate && npm run db:reparer-ingredients && next build");
+    expect(pkg.scripts["vercel-build"]).toEqual("node scripts/vercel-build.mjs");
     expect(pkg.scripts["db:migrate"]).toEqual("drizzle-kit migrate");
     expect(pkg.scripts["db:reparer-ingredients"]).toEqual("tsx scripts/reparer-ingredients.ts");
   });
 
-  it("`vercel-build` lance la réparation, et AVANT le build", () => {
-    const chaine = pkg.scripts["vercel-build"] ?? "";
-    expect(chaine).toContain("db:reparer-ingredients");
+  it("`vercel-build` passe par la garde, qui lance la réparation AVANT le build (production seulement)", () => {
+    expect(pkg.scripts["vercel-build"] ?? "").toContain("scripts/vercel-build.mjs");
+    const noms = etapesDeBuild({ VERCEL_ENV: "production" }).etapes.map((e) => e.nom);
+    expect(noms).toContain("db:reparer-ingredients");
     // L'ordre compte : réparer après le build laisserait le déploiement servir l'ancien état.
-    expect(chaine.indexOf("db:reparer-ingredients")).toBeLessThan(chaine.indexOf("next build"));
+    expect(noms.indexOf("db:reparer-ingredients")).toBeLessThan(noms.indexOf("build"));
     // Et les migrations d'abord : la réparation écrit dans des tables qu'elles créent.
-    expect(chaine.indexOf("db:migrate")).toBeLessThan(chaine.indexOf("db:reparer-ingredients"));
+    expect(noms.indexOf("db:migrate")).toBeLessThan(noms.indexOf("db:reparer-ingredients"));
   });
 
   it("le script visé existe vraiment", () => {
