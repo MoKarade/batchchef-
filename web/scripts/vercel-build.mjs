@@ -5,6 +5,8 @@
 // « production ». (Sur Vercel, VERCEL_ENV absente = build en ERREUR, voir plus bas.) « preview », « development », absente, vide ou inconnue : on saute les deux et on lance seulement le build.
 // Fonctionne sous Windows et Linux (Vercel = Linux) : aucune syntaxe shell, seulement `npm run <script>`.
 import { spawnSync } from "node:child_process";
+import { statSync } from "node:fs";
+import { delimiter } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const MIGRATION = { nom: "db:migrate", args: ["run", "db:migrate"] };
@@ -32,6 +34,29 @@ export function etapesDeBuild(env) {
   return { etapes: [BUILD], message: "préversion : migrations et réparation sautées" };
 }
 
+/**
+ * Filtre le `PATH` pour ne garder que des dossiers FIXES et NON INSCRIPTIBLES par un autre que leur
+ * propriétaire (SonarCloud S4036 : `npm` est résolu par recherche dans `PATH` ; un dossier du `PATH`
+ * modifiable par n'importe qui permettrait d'y glisser un faux `npm` exécuté à la place du vrai).
+ * Windows n'a pas ces bits Unix (le nettoyage n'y a pas de sens) : le `PATH` y passe inchangé.
+ * @param {string | undefined} cheminBrut
+ * @returns {string}
+ */
+export function cheminSecurise(cheminBrut) {
+  if (process.platform === "win32") return cheminBrut ?? "";
+  const dossiers = (cheminBrut ?? "").split(delimiter).filter(Boolean);
+  const surs = dossiers.filter((dossier) => {
+    try {
+      const infos = statSync(dossier);
+      // bits d'écriture groupe (0o020) ou autres (0o002) : refusé.
+      return infos.isDirectory() && (infos.mode & 0o022) === 0;
+    } catch {
+      return false; // dossier absent ou illisible : ne pas y chercher npm.
+    }
+  });
+  return surs.join(delimiter);
+}
+
 function lancer() {
   const plan = etapesDeBuild(process.env);
   if (plan.erreur) {
@@ -39,10 +64,11 @@ function lancer() {
     process.exit(1);
   }
   console.log(`[vercel-build] ${plan.message}`);
+  const env = { ...process.env, PATH: cheminSecurise(process.env.PATH) };
   for (const etape of plan.etapes) {
     console.log(`[vercel-build] npm ${etape.args.join(" ")}`);
-    // shell : `npm` est `npm.cmd` sous Windows ; les arguments sont des constantes ci-dessus.
-    const r = spawnSync("npm", etape.args, { stdio: "inherit", shell: true });
+    // shell : `npm` est `npm.cmd` sous Windows ; les arguments sont des constantes ci-dessus ; PATH nettoyé ci-dessus.
+    const r = spawnSync("npm", etape.args, { stdio: "inherit", shell: true, env });
     if (r.status !== 0) {
       console.error(`[vercel-build] échec de « ${etape.nom} » : build arrêté`);
       process.exit(r.status ?? 1);
