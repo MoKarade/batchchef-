@@ -78,7 +78,7 @@ describe("chemins BatchChef qui portent la sécurité : attestation requise", ()
     "web/tests/vercelBuild.test.ts",
     "web/tests/deploiement.test.ts",
     "web/tests/blocageFusion.test.ts",
-  ])("%s ne s'arme pas (aucun securite_login configuré)", (chemin) => {
+  ])("%s ne s'arme pas SANS attestation de pole-securite", (chemin) => {
     expect(peutArmer(pr([chemin]), config).armer).toBe(false);
   });
 
@@ -88,8 +88,9 @@ describe("chemins BatchChef qui portent la sécurité : attestation requise", ()
     for (const m of motifs.filter((x) => x.endsWith("/**"))) expect(existsSync(new URL(m.slice(0, -3), racine)), m).toBe(true);
   });
 
-  it("aucun securite_login n'est encore configuré (la PR de pole-securite l'ajoute)", () => {
-    expect(config.securite_login).toBeUndefined();
+  it("securite_login est configuré via une GitHub App (login en [bot] ET identifiant numérique obligatoire)", () => {
+    expect(config.securite_login).toMatch(/^[A-Za-z0-9-]+\[bot\]$/);
+    expect(Number.isInteger(config.securite_user_id) && config.securite_user_id > 0).toBe(true);
   });
 });
 
