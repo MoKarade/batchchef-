@@ -1,11 +1,10 @@
 // Garde de `vercel-build` : les migrations et la réparation ne touchent la base (UNE seule, celle de la production)
 // que sur un build de PRODUCTION. Échec fermé : variable absente ou inconnue = on ne touche pas la base.
-import { mkdtempSync, chmodSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve, delimiter } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { etapesDeBuild, cheminSecurise } from "../scripts/vercel-build.mjs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+import { etapesDeBuild } from "../scripts/vercel-build.mjs";
 
 const NOMS = (env: Record<string, string | undefined>) => etapesDeBuild(env).etapes.map((e) => e.nom);
 
@@ -85,43 +84,29 @@ describe("lien avec package.json", () => {
   });
 });
 
-describe("cheminSecurise (SonarCloud S4036 : PATH ne doit chercher npm que dans des dossiers fixes, non inscriptibles)", () => {
-  const dossiersACreer: string[] = [];
-  afterEach(() => {
-    for (const d of dossiersACreer.splice(0)) rmSync(d, { recursive: true, force: true });
+describe("lancer() en sous-processus (SonarCloud S4036 : jamais de shell ni de recherche de npm dans PATH)", () => {
+  it("le fichier n'invoque plus jamais npm via un shell (grep de source, verrou anti-régression)", () => {
+    const source = readFileSync(resolve(process.cwd(), "scripts/vercel-build.mjs"), "utf8");
+    expect(source).not.toContain("shell: true");
+    expect(source).not.toMatch(/spawnSync\(\s*["']npm["']/);
   });
 
-  it("Windows : PATH inchangé (pas de bits Unix à vérifier)", () => {
-    const original = Object.getOwnPropertyDescriptor(process, "platform")!;
-    Object.defineProperty(process, "platform", { value: "win32" });
+  it("npm_execpath absent : échec fermé, message clair, AUCUNE tentative de build (jamais de recherche dans PATH)", () => {
+    const script = resolve(process.cwd(), "scripts/vercel-build.mjs");
+    const env = { ...process.env, VERCEL_ENV: "preview" };
+    // Windows lit `process.env` sans distinguer la casse ; `npx` pose ici `NPM_EXECPATH` (majuscules) :
+    // retirer la casse exacte ne suffirait pas, il faut retirer TOUTE variante de casse du nom.
+    for (const cle of Object.keys(env)) if (cle.toLowerCase() === "npm_execpath") delete (env as Record<string, string | undefined>)[cle];
+    let sortie = "";
+    let code = 0;
     try {
-      expect(cheminSecurise(`C:\\a${delimiter}C:\\b`)).toBe(`C:\\a${delimiter}C:\\b`);
-    } finally {
-      Object.defineProperty(process, "platform", original);
+      execFileSync(process.execPath, [script], { env, stdio: "pipe", encoding: "utf8" });
+    } catch (e) {
+      const err = e as { status: number | null; stderr: string };
+      code = err.status ?? 1;
+      sortie = err.stderr;
     }
-  });
-
-  it("PATH vide ou absent : chaîne vide, sans lever", () => {
-    if (process.platform === "win32") return; // la branche Windows ne filtre rien ; rien à éprouver ici
-    expect(cheminSecurise(undefined)).toBe("");
-    expect(cheminSecurise("")).toBe("");
-  });
-
-  it("un dossier absent du disque est retiré (jamais d'exception)", () => {
-    if (process.platform === "win32") return;
-    expect(cheminSecurise("/un/dossier/qui/n/existe/pas")).toBe("");
-  });
-
-  it("un dossier non inscriptible par le groupe ou par tous est gardé ; un dossier inscriptible est retiré", () => {
-    if (process.platform === "win32") return; // pertinent seulement sur POSIX (Vercel = Linux)
-    const sur = mkdtempSync(join(tmpdir(), "batchchef-path-sur-"));
-    chmodSync(sur, 0o755); // rwxr-xr-x : personne d'autre que le propriétaire ne peut y écrire
-    const dangereux = mkdtempSync(join(tmpdir(), "batchchef-path-danger-"));
-    chmodSync(dangereux, 0o777); // rwxrwxrwx : n'importe qui pourrait y glisser un faux `npm`
-    dossiersACreer.push(sur, dangereux);
-
-    const resultat = cheminSecurise([sur, dangereux].join(delimiter));
-
-    expect(resultat.split(delimiter)).toEqual([sur]);
+    expect(code).not.toBe(0);
+    expect(sortie).toMatch(/npm_execpath absent/);
   });
 });
