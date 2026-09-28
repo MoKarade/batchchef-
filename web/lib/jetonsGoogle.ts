@@ -8,6 +8,12 @@
 // jeton. Si le hub minte un jeton sans portée Google, BatchChef se retrouve connecté
 // mais incapable d'écrire dans Google Tasks.
 //
+// Depuis l'ADR-0001 de JobAI et de CarAI (14/08/2026), seuls Hubperso et BatchChef gardent
+// GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET en variable d'env : JobAI et CarAI ne font plus la
+// poignée de main OAuth eux-mêmes, ils lisent le cookie de session déjà posé par le hub
+// (signé AUTH_SECRET, partagé). Le client Google Cloud reste unique pour les quatre apps ;
+// sa gestion active (échange de code, refresh) n'est plus portée que par Hubperso et BatchChef.
+//
 // La décision de Marc (13/08/2026) : accès complets partout, aucune reconnexion. Les
 // quatre apps demandent donc les MÊMES portées et capturent les MÊMES jetons, pour que
 // n'importe quelle connexion produise un jeton complet et utilisable par toutes.
