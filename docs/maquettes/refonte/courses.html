@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BatchChef — Liste d’épicerie (maquette)</title>
+<link rel="stylesheet" href="refonte.css">
+</head>
+<body data-page="courses" data-etats="normal,vide,chargement,erreur,alerte">
+<main class="principal">
+
+  <header class="entete">
+    <div><p class="surtitre">Batch</p><h1>Liste d’épicerie</h1><p class="doux num" data-pour="normal erreur alerte">n articles cochés sur n</p></div>
+    <div class="ligne" data-pour="normal erreur alerte"><button class="bouton bouton-second" type="button">Partager la liste</button><button class="bouton bouton-principal" type="button">Passer à « Cuisine »</button></div>
+  </header>
+  <div class="bandeau erreur" role="alert" data-pour="erreur"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg><div><strong>Cette case n’a pas été enregistrée.</strong><span> Elle est décochée à nouveau pour rester fidèle à ce qui est sauvegardé.</span><div class="actions"><button class="bouton bouton-second" type="button">Réessayer</button></div></div></div>
+  <div class="bandeau alerte" role="status" data-pour="alerte"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/></svg><div><strong>Les prix sont des estimations.</strong><span> Ils ne viennent pas d’un relevé de magasin.</span></div></div>
+  <div class="pile" data-pour="normal erreur alerte" style="margin-top:16px">
+    <section class="carte" aria-labelledby="g1"><h3 id="g1" style="padding:14px 16px 6px"><span class="surtitre">Groupe d’articles 1</span></h3><ul style="list-style:none;margin:0;padding:0">
+      <li class="article" data-coche="oui"><span class="case" role="checkbox" aria-checked="true" tabindex="0" aria-label="Article 1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><span class="nom">Article 1</span><span class="qte">n unité</span></li>
+      <li class="article" data-coche="oui"><span class="case" role="checkbox" aria-checked="true" tabindex="0" aria-label="Article 2"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><span class="nom">Article 2</span><span class="qte">n unité</span></li>
+      <li class="article" data-coche="non"><span class="case" role="checkbox" aria-checked="false" tabindex="0" aria-label="Article 3"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><span class="nom">Article 3</span><span class="qte">n unité</span></li>
+    </ul></section>
+    <section class="carte" aria-labelledby="g2"><h3 id="g2" style="padding:14px 16px 6px"><span class="surtitre">Groupe d’articles 2</span></h3><ul style="list-style:none;margin:0;padding:0">
+      <li class="article" data-coche="non"><span class="case" role="checkbox" aria-checked="false" tabindex="0" aria-label="Article 4"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><span class="nom">Article 4</span><span class="qte">n unité</span></li>
+      <li class="article" data-coche="non"><span class="case" role="checkbox" aria-checked="false" tabindex="0" aria-label="Article 5"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><span class="nom">Article 5</span><span class="qte">n unité</span></li>
+    </ul></section>
+  </div>
+  <div class="pile" data-pour="chargement" role="status" aria-label="Chargement de la liste"><div class="carte" aria-hidden="true" style="padding:16px;display:grid;gap:14px"><div class="squelette" style="height:20px;width:40%"></div><div class="squelette" style="height:28px"></div><div class="squelette" style="height:28px"></div><div class="squelette" style="height:28px"></div></div></div>
+  <div class="vide" data-pour="vide">
+    <h2>Aucun article à acheter</h2>
+    <p>La liste se remplit à partir des recettes du batch. Ajoute une recette au batch pour la générer.</p>
+    <a class="bouton bouton-principal" href="batch.html">Retour au batch</a>
+  </div>
+</main>
+<script src="refonte.js"></script>
+</body>
+</html>

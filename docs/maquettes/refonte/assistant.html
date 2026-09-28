@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BatchChef — Assistant (maquette)</title>
+<link rel="stylesheet" href="refonte.css">
+</head>
+<body data-page="assistant" data-etats="normal,vide,chargement,erreur">
+<main class="principal">
+
+  <header class="entete"><div><p class="surtitre">Cuisine</p><h1>Assistant</h1><p class="doux">Pose une question sur tes recettes, ta semaine ou ta liste.</p></div></header>
+  <div class="fil" data-pour="normal chargement erreur" aria-live="polite">
+    <div class="msg moi"><div class="qui">Toi</div>Exemple de question posée à l’assistant.</div>
+    <div class="msg"><div class="qui">Assistant</div><span data-pour="normal">Exemple de réponse de l’assistant, avec le détail demandé.</span><span data-pour="chargement" role="status">L’assistant rédige sa réponse…</span><span data-pour="erreur">Réponse interrompue.</span></div>
+  </div>
+  <div class="bandeau erreur" role="alert" data-pour="erreur"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg><div><strong>La réponse n’a pas pu être générée.</strong><span> Ta question est conservée dans le champ.</span><div class="actions"><button class="bouton bouton-second" type="button">Réessayer</button></div></div></div>
+  <div class="vide" data-pour="vide">
+    <h2>Commence une conversation</h2>
+    <p>L’assistant connaît tes recettes et ta semaine. Choisis une suggestion ou écris ta question.</p>
+    <div class="ligne" style="justify-content:center"><button class="bouton bouton-second" type="button">Suggestion de question 1</button><button class="bouton bouton-second" type="button">Suggestion de question 2</button></div>
+  </div>
+  <form class="saisie" onsubmit="return false">
+    <label class="etiquette" for="m">Ta question</label>
+    <div class="ligne" style="flex-wrap:nowrap"><input id="m" class="champ" type="text" placeholder="Écris ici"><button class="bouton bouton-principal" type="submit">Envoyer</button></div>
+  </form>
+</main>
+<script src="refonte.js"></script>
+</body>
+</html>

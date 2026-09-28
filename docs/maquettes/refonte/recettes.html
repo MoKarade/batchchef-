@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BatchChef — Mes recettes (maquette)</title>
+<link rel="stylesheet" href="refonte.css">
+</head>
+<body data-page="recettes" data-etats="normal,vide,chargement,erreur">
+<main class="principal">
+
+  <header class="entete">
+    <div><p class="surtitre">Bibliothèque</p><h1>Mes recettes</h1></div>
+    <button class="bouton bouton-principal" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Importer une recette</button>
+  </header>
+  <div class="pile" style="margin-bottom:24px">
+    <div class="ligne"><div class="champ-large"><label class="etiquette" for="q">Rechercher</label><input id="q" class="champ" type="search" placeholder="Titre ou ingrédient"></div></div>
+    <div class="onglets" role="radiogroup" aria-label="Filtrer par type"><button type="button" role="radio" aria-checked="true">Tous</button><button type="button" role="radio" aria-checked="false">Plat principal</button><button type="button" role="radio" aria-checked="false">Entrée et apéro</button><button type="button" role="radio" aria-checked="false">Accompagnement</button><button type="button" role="radio" aria-checked="false">Soupe</button><button type="button" role="radio" aria-checked="false">Salade</button><button type="button" role="radio" aria-checked="false">Dessert</button><button type="button" role="radio" aria-checked="false">Sauce et condiment</button></div>
+  </div>
+  <div class="bandeau erreur" role="alert" data-pour="erreur"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg><div><strong>Les recettes n’ont pas pu être chargées.</strong><span> Vérifie ta connexion. Tes recettes ne sont pas perdues.</span><div class="actions"><button class="bouton bouton-second" type="button">Réessayer</button></div></div></div>
+  <div class="grille g3" data-pour="normal">
+    <article class="carte carte-recette">
+      <a class="plein" href="#">
+        <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+        <div class="carte-corps">
+          <h3>Recette 1</h3>
+          <div class="meta"><span class="pastille repere">Plat principal</span><span class="num">Préparation n min</span><span class="num">Cuisson n min</span></div>
+        </div>
+      </a>
+    </article>
+    <article class="carte carte-recette">
+      <a class="plein" href="#">
+        <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+        <div class="carte-corps">
+          <h3>Recette 2</h3>
+          <div class="meta"><span class="pastille repere">Soupe</span><span class="num">Préparation n min</span><span class="num">Cuisson n min</span></div>
+        </div>
+      </a>
+    </article>
+    <article class="carte carte-recette">
+      <a class="plein" href="#">
+        <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+        <div class="carte-corps">
+          <h3>Recette 3</h3>
+          <div class="meta"><span class="pastille repere">Dessert</span><span class="num">Préparation n min</span><span class="num">Cuisson n min</span></div>
+        </div>
+      </a>
+    </article>
+    <article class="carte carte-recette">
+      <a class="plein" href="#">
+        <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+        <div class="carte-corps">
+          <h3>Recette 4</h3>
+          <div class="meta"><span class="pastille repere">Salade</span><span class="num">Préparation n min</span><span class="num">Cuisson n min</span></div>
+        </div>
+      </a>
+    </article>
+    <article class="carte carte-recette">
+      <a class="plein" href="#">
+        <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+        <div class="carte-corps">
+          <h3>Recette 5</h3>
+          <div class="meta"><span class="pastille repere">Accompagnement</span><span class="num">Préparation n min</span><span class="num">Cuisson n min</span></div>
+        </div>
+      </a>
+    </article>
+    <article class="carte carte-recette">
+      <a class="plein" href="#">
+        <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+        <div class="carte-corps">
+          <h3>Recette 6</h3>
+          <div class="meta"><span class="pastille repere">Sauce et condiment</span><span class="num">Préparation n min</span><span class="num">Cuisson n min</span></div>
+        </div>
+      </a>
+    </article>
+  </div>
+  <div class="grille g3" data-pour="chargement" role="status" aria-label="Chargement des recettes">
+    <div class="carte" aria-hidden="true"><div class="squelette" style="aspect-ratio:16/10;border-radius:15px 15px 0 0"></div><div class="carte-corps"><div class="squelette" style="height:20px;width:70%"></div><div class="squelette" style="height:14px;width:45%;margin-top:12px"></div></div></div>
+    <div class="carte" aria-hidden="true"><div class="squelette" style="aspect-ratio:16/10;border-radius:15px 15px 0 0"></div><div class="carte-corps"><div class="squelette" style="height:20px;width:70%"></div><div class="squelette" style="height:14px;width:45%;margin-top:12px"></div></div></div>
+    <div class="carte" aria-hidden="true"><div class="squelette" style="aspect-ratio:16/10;border-radius:15px 15px 0 0"></div><div class="carte-corps"><div class="squelette" style="height:20px;width:70%"></div><div class="squelette" style="height:14px;width:45%;margin-top:12px"></div></div></div>
+    <div class="carte" aria-hidden="true"><div class="squelette" style="aspect-ratio:16/10;border-radius:15px 15px 0 0"></div><div class="carte-corps"><div class="squelette" style="height:20px;width:70%"></div><div class="squelette" style="height:14px;width:45%;margin-top:12px"></div></div></div>
+    <div class="carte" aria-hidden="true"><div class="squelette" style="aspect-ratio:16/10;border-radius:15px 15px 0 0"></div><div class="carte-corps"><div class="squelette" style="height:20px;width:70%"></div><div class="squelette" style="height:14px;width:45%;margin-top:12px"></div></div></div>
+    <div class="carte" aria-hidden="true"><div class="squelette" style="aspect-ratio:16/10;border-radius:15px 15px 0 0"></div><div class="carte-corps"><div class="squelette" style="height:20px;width:70%"></div><div class="squelette" style="height:14px;width:45%;margin-top:12px"></div></div></div>
+  </div>
+  <div class="vide" data-pour="vide">
+    <h2>Aucune recette dans ta bibliothèque</h2>
+    <p>Importe une recette depuis un lien ou une vidéo, ou ajoute-en une depuis le catalogue.</p>
+    <div class="ligne" style="justify-content:center"><button class="bouton bouton-principal" type="button">Importer une recette</button><a class="bouton bouton-second" href="catalogue.html">Ouvrir le catalogue</a></div>
+  </div>
+</main>
+<script src="refonte.js"></script>
+</body>
+</html>

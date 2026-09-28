@@ -1,0 +1,189 @@
+/* BatchChef — refonte visuelle, MAQUETTE (aucun code d'app).
+   Les jetons ci-dessous sont ceux qui iraient dans app/globals.css : couleurs UNIQUEMENT en
+   variables, vocabulaire .carte .bouton .champ .doux .succes .alerte .erreur conservé.
+   Ajouts proposés (à valider) : --repere*, --bordure-champ, .pastille, .onglets, .squelette, .vide.
+   Polices : piles système seulement (aucune police téléchargée). Aucune ombre : bordure fine. */
+
+/* THÈME SOMBRE SEUL (décision de Marc, 26/09) : pas de prefers-color-scheme: light, pas de bascule. */
+:root {
+  color-scheme: dark;
+  --fond: #07090d;
+  --surface: #0e1014;
+  --surface-douce: #15181e;
+  --bordure: #262a33;
+  --bordure-champ: #6f7b8e;      /* NOUVEAU : contour de champ/case >= 3:1 sur surface (WCAG 1.4.11) */
+  --texte: #f8fafc;
+  --texte-doux: #94a3b8;
+
+  --accent: #e6eaf2;             /* argent commun : action principale, et rien d'autre */
+  --accent-fonce: #c3cad8;       /* survol */
+  --accent-doux: #15181e;
+  --sur-accent: #07090d;
+
+  --repere: #f0906a;             /* NOUVEAU : accent secondaire « terracotta », repère seulement, jamais un état */
+  --repere-doux: #2a1b14;
+
+  --succes-fond: #0f2a24;  --succes-texte: #6ee7b7;
+  --alerte-fond: #2c2410;  --alerte-texte: #fbbf24;
+  --erreur-fond: #331618;  --erreur-texte: #f87171;
+
+  --rayon: 16px;
+  --police-titre: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --police-texte: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --police-chiffres: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--fond); color: var(--texte); font: 400 16px/1.5 var(--police-texte); -webkit-font-smoothing: antialiased; }
+h1, h2, h3 { font-family: var(--police-titre); font-weight: 700; letter-spacing: -0.01em; margin: 0; line-height: 1.2; }
+h1 { font-size: 1.75rem; }
+h2 { font-size: 1.25rem; }
+h3 { font-size: 1.0625rem; }
+p { margin: 0; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.num { font-variant-numeric: tabular-nums; }
+.surtitre { font-family: var(--police-texte); font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--repere); }
+.doux { color: var(--texte-doux); }
+.petit { font-size: .875rem; }
+
+/* ---- Coque : barre du bas (<768), rail (768-1023), barre latérale (>=1024) ---- */
+.coque { min-height: 100vh; display: flex; flex-direction: column; }
+.nav { position: fixed; z-index: 5; left: 0; right: 0; bottom: 0; display: flex; background: var(--surface); border-top: 1px solid var(--bordure); padding-bottom: env(safe-area-inset-bottom); }
+.nav-marque { display: none; }
+.nav a { flex: 1; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: .75rem; font-weight: 500; text-decoration: none; color: var(--texte-doux); position: relative; }
+.nav a svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+/* Actif : couleur repère + trait + gras. Jamais la couleur seule. */
+.nav a[aria-current="page"] { color: var(--repere); font-weight: 700; }
+.nav a[aria-current="page"]::before { content: ""; position: absolute; top: 0; left: 25%; right: 25%; height: 3px; background: var(--repere); border-radius: 0 0 3px 3px; }
+.principal { flex: 1; padding: 20px 16px 96px; width: 100%; max-width: 1120px; margin: 0 auto; }
+@media (min-width: 768px) {
+  .coque { flex-direction: row; }
+  .nav { position: sticky; top: 0; bottom: auto; left: auto; right: auto; height: 100vh; width: 88px; flex-direction: column; justify-content: flex-start; gap: 4px; padding: 16px 8px; border-top: 0; border-right: 1px solid var(--bordure); }
+  .nav-marque { display: block; font-family: var(--police-titre); font-weight: 700; font-size: .8125rem; text-align: center; padding: 4px 0 16px; color: var(--texte); }
+  .nav a { flex: none; border-radius: 12px; min-height: 60px; }
+  .nav a[aria-current="page"] { background: var(--repere-doux); }
+  .nav a[aria-current="page"]::before { top: 12px; bottom: 12px; left: 0; right: auto; width: 3px; height: auto; border-radius: 0 3px 3px 0; }
+  .principal { padding: 32px 32px 48px; }
+}
+@media (min-width: 1024px) {
+  .nav { width: 232px; padding: 20px 12px; }
+  .nav-marque { font-size: 1.25rem; text-align: left; padding: 4px 12px 20px; }
+  .nav a { flex-direction: row; justify-content: flex-start; gap: 12px; padding: 0 12px; font-size: .9375rem; min-height: 48px; }
+  .principal { padding: 40px 48px 64px; }
+}
+
+/* ---- Éléments de page ---- */
+.entete { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 16px; margin-bottom: 24px; }
+.entete p { margin-top: 4px; }
+.pile { display: grid; gap: 16px; }
+.grille { display: grid; gap: 16px; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .grille { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .grille.g3 { grid-template-columns: repeat(3, 1fr); } .grille.g4 { grid-template-columns: repeat(4, 1fr); } }
+.section { margin-top: 40px; }
+.section > h2 { margin-bottom: 12px; }
+
+.carte { background: var(--surface); border: 1px solid var(--bordure); border-radius: var(--rayon); }
+.carte-corps { padding: 16px 20px; }
+.carte a.plein { text-decoration: none; display: block; }
+.carte:hover { border-color: var(--bordure-champ); }
+.carte-recette .photo { aspect-ratio: 2/1; border-radius: calc(var(--rayon) - 1px) calc(var(--rayon) - 1px) 0 0; background: repeating-linear-gradient(135deg, var(--surface-douce) 0 10px, var(--bordure) 10px 11px); display: grid; place-items: center; color: var(--texte-doux); font-size: .8125rem; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 10px; font-size: .875rem; color: var(--texte-doux); }
+
+.tuiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.tuile { background: var(--surface-douce); border-radius: 14px; padding: 14px 16px; }
+.tuile .lib { font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--texte-doux); }
+.tuile .val { font-size: 1.5rem; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+/* ---- Boutons, champs, pastilles ---- */
+.bouton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 18px; border-radius: 12px; border: 1px solid transparent; font: 600 .9375rem/1.2 var(--police-texte); cursor: pointer; text-decoration: none; transition: background-color 120ms ease, border-color 120ms ease; }
+.bouton svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.bouton-principal { background: var(--accent); color: var(--sur-accent); }
+.bouton-principal:hover { background: var(--accent-fonce); }
+.bouton-second { background: var(--surface); color: var(--texte); border-color: var(--bordure-champ); }
+.bouton-second:hover { background: var(--surface-douce); }
+.bouton-danger { background: transparent; color: var(--erreur-texte); border-color: var(--erreur-texte); }
+.bouton[disabled] { opacity: .5; cursor: not-allowed; }
+.champ { width: 100%; min-height: 44px; padding: 10px 12px; background: var(--surface); color: var(--texte); border: 1px solid var(--bordure-champ); border-radius: 12px; font: 400 1rem/1.4 var(--police-texte); }
+.champ::placeholder { color: var(--texte-doux); }
+.champ:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+label.etiquette { display: block; font-size: .875rem; font-weight: 600; margin-bottom: 6px; }
+.ligne { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.ligne > .champ-large { flex: 1 1 240px; }
+
+/* Pastille : fond sémantique + LIBELLÉ TEXTE (+ symbole). Jamais la couleur seule. */
+.pastille { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; padding: 2px 10px; border-radius: 9999px; font-size: .8125rem; font-weight: 600; background: var(--surface-douce); color: var(--texte); }
+.pastille.statut { background: var(--surface-douce); color: var(--texte); border: 1px solid var(--accent); }
+.pastille.repere { background: var(--repere-doux); color: var(--repere); }
+.pastille.succes { background: var(--succes-fond); color: var(--succes-texte); }
+.pastille.alerte { background: var(--alerte-fond); color: var(--alerte-texte); }
+.pastille.erreur { background: var(--erreur-fond); color: var(--erreur-texte); }
+
+/* Onglets « pilule » (filtre de type) : radiogroup, 44 px de haut. */
+.onglets { display: flex; flex-wrap: wrap; gap: 8px; }
+.onglets button { min-height: 44px; padding: 0 16px; border-radius: 9999px; border: 1px solid var(--bordure-champ); background: var(--surface); color: var(--texte); font: 500 .9375rem var(--police-texte); cursor: pointer; }
+.onglets button[aria-checked="true"] { background: var(--texte); color: var(--fond); border-color: var(--texte); font-weight: 700; }
+
+/* Bandeaux d'état : icône + titre + texte ; fond sémantique. */
+.bandeau { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 14px; border: 1px solid currentColor; }
+.bandeau svg { flex: none; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; margin-top: 1px; }
+.bandeau strong { display: block; }
+.bandeau .actions { margin-top: 10px; }
+.succes { background: var(--succes-fond); color: var(--succes-texte); }
+.alerte { background: var(--alerte-fond); color: var(--alerte-texte); }
+.erreur { background: var(--erreur-fond); color: var(--erreur-texte); }
+.texte-erreur { color: var(--erreur-texte); }
+.texte-succes { color: var(--succes-texte); }
+.bandeau .bouton-second { color: var(--texte); }
+
+/* État vide : texte clair + UNE action. */
+.vide { text-align: center; padding: 40px 20px; border: 1px dashed var(--bordure-champ); border-radius: var(--rayon); }
+.vide h2 { margin-bottom: 6px; }
+.vide p { max-width: 44ch; margin: 0 auto 16px; color: var(--texte-doux); }
+
+/* Chargement : squelettes fixes (aucune animation obligatoire) + texte annoncé. */
+.squelette { background: var(--surface-douce); border-radius: 8px; min-height: 14px; }
+@media (prefers-reduced-motion: no-preference) { .squelette { animation: pouls 1.4s ease-in-out infinite; } }
+@keyframes pouls { 50% { opacity: .55; } }
+
+/* Cases à cocher des courses : 44 px, coché = coche + barré (pas la couleur seule). */
+.article { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 4px 16px; border-top: 1px solid var(--bordure); }
+.article:first-child { border-top: 0; }
+.case { flex: none; width: 28px; height: 28px; border: 2px solid var(--bordure-champ); border-radius: 8px; display: grid; place-items: center; background: var(--surface); }
+.article[data-coche="oui"] .case { background: var(--texte); border-color: var(--texte); color: var(--fond); }
+.article[data-coche="oui"] .nom { text-decoration: line-through; color: var(--texte-doux); }
+.article .nom { flex: 1; }
+.article .qte { font-variant-numeric: tabular-nums; color: var(--texte-doux); white-space: nowrap; }
+.case svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.article:not([data-coche="oui"]) .case svg { display: none; }
+
+/* Étapes du batch : planifié > courses > cuisine > terminé. */
+.etapes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; list-style: none; margin: 0; padding: 0; }
+.etapes li { padding: 10px 8px; border-radius: 12px; border: 1px solid var(--bordure); text-align: center; font-size: .875rem; color: var(--texte-doux); }
+.etapes li[aria-current="step"] { border: 2px solid var(--accent); color: var(--texte); font-weight: 700; background: var(--surface-douce); }
+.etapes li[data-fait="oui"] { color: var(--texte); }
+.etapes li .st { display: block; font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; }
+
+/* Assistant */
+.fil { display: grid; gap: 12px; }
+.msg { max-width: 640px; padding: 12px 16px; border-radius: 16px; border: 1px solid var(--bordure); background: var(--surface); }
+.msg .qui { font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--texte-doux); margin-bottom: 4px; }
+.msg.moi { justify-self: end; background: var(--surface-douce); }
+.saisie { position: sticky; bottom: 76px; background: var(--fond); padding-top: 12px; }
+@media (min-width: 768px) { .saisie { bottom: 0; } }
+
+/* ---- États : un seul bloc visible selon <html data-etat> ---- */
+html[data-etat="normal"] [data-pour]:not([data-pour~="normal"]) { display: none; }
+html[data-etat="vide"] [data-pour]:not([data-pour~="vide"]) { display: none; }
+html[data-etat="chargement"] [data-pour]:not([data-pour~="chargement"]) { display: none; }
+html[data-etat="erreur"] [data-pour]:not([data-pour~="erreur"]) { display: none; }
+html[data-etat="alerte"] [data-pour]:not([data-pour~="alerte"]) { display: none; }
+html[data-etat="confirmation"] [data-pour]:not([data-pour~="confirmation"]) { display: none; }
+
+/* ---- Barre de maquette (hors produit) ---- */
+.maquette { position: sticky; top: 0; z-index: 10; background: #111; color: #eee; font: 12px/1.4 ui-monospace, Consolas, monospace; padding: 6px 12px; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+.maquette a { color: #ffd; text-decoration: underline; padding: 6px 2px; }
+.maquette b { color: #fff; }
+html[data-capture="1"] .maquette { display: none; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

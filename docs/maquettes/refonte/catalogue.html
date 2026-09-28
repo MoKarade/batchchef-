@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BatchChef — Catalogue (maquette)</title>
+<link rel="stylesheet" href="refonte.css">
+</head>
+<body data-page="catalogue" data-etats="normal,vide,chargement,erreur,alerte">
+<main class="principal">
+
+  <header class="entete">
+    <div><p class="surtitre">Découverte</p><h1>Catalogue de découverte</h1><p class="doux">Des recettes à explorer. Rien n’est ajouté à ta bibliothèque sans ton geste.</p></div>
+  </header>
+  <div class="pile" style="margin-bottom:24px">
+    <div class="ligne"><div class="champ-large"><label class="etiquette" for="q">Rechercher</label><input id="q" class="champ" type="search" placeholder="Titre ou ingrédient"></div></div>
+    <div class="onglets" role="radiogroup" aria-label="Filtrer par type"><button type="button" role="radio" aria-checked="true">Tous</button><button type="button" role="radio" aria-checked="false">Plat principal</button><button type="button" role="radio" aria-checked="false">Entrée et apéro</button><button type="button" role="radio" aria-checked="false">Accompagnement</button><button type="button" role="radio" aria-checked="false">Soupe</button><button type="button" role="radio" aria-checked="false">Salade</button><button type="button" role="radio" aria-checked="false">Dessert</button><button type="button" role="radio" aria-checked="false">Sauce et condiment</button></div>
+  </div>
+  <div class="bandeau erreur" role="alert" data-pour="erreur"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg><div><strong>Le catalogue n’a pas pu être chargé.</strong><span> Réessaie dans un moment.</span><div class="actions"><button class="bouton bouton-second" type="button">Réessayer</button></div></div></div>
+  <div class="bandeau succes" role="status" data-pour="alerte"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></svg><div><strong>Recette ajoutée à ta bibliothèque.</strong><span> Tu la retrouves dans « Mes recettes ».</span></div></div>
+  <div class="grille g3" data-pour="normal alerte" style="margin-top:16px">
+    <article class="carte carte-recette">
+      <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+      <div class="carte-corps">
+        <h3>Recette du catalogue 1</h3>
+        <div class="meta"><span class="pastille repere">Plat principal</span><span class="num">n min au total</span></div>
+        <div class="ligne" style="margin-top:14px"><button class="bouton bouton-second" type="button">Ajouter à ma bibliothèque</button></div>
+      </div>
+    </article>
+    <article class="carte carte-recette">
+      <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+      <div class="carte-corps">
+        <h3>Recette du catalogue 2</h3>
+        <div class="meta"><span class="pastille repere">Soupe</span><span class="num">n min au total</span></div>
+        <div class="ligne" style="margin-top:14px"><button class="bouton bouton-second" type="button">Ajouter à ma bibliothèque</button></div>
+      </div>
+    </article>
+    <article class="carte carte-recette">
+      <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+      <div class="carte-corps">
+        <h3>Recette du catalogue 3</h3>
+        <div class="meta"><span class="pastille repere">Dessert</span><span class="num">n min au total</span></div>
+        <div class="ligne" style="margin-top:14px"><button class="bouton bouton-second" type="button">Ajouter à ma bibliothèque</button></div>
+      </div>
+    </article>
+    <article class="carte carte-recette">
+      <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+      <div class="carte-corps">
+        <h3>Recette du catalogue 4</h3>
+        <div class="meta"><span class="pastille repere">Salade</span><span class="num">n min au total</span></div>
+        <div class="ligne" style="margin-top:14px"><button class="bouton bouton-second" type="button">Ajouter à ma bibliothèque</button></div>
+      </div>
+    </article>
+    <article class="carte carte-recette">
+      <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+      <div class="carte-corps">
+        <h3>Recette du catalogue 5</h3>
+        <div class="meta"><span class="pastille repere">Entrée et apéro</span><span class="num">n min au total</span></div>
+        <div class="ligne" style="margin-top:14px"><button class="bouton bouton-second" type="button">Ajouter à ma bibliothèque</button></div>
+      </div>
+    </article>
+    <article class="carte carte-recette">
+      <div class="photo" role="img" aria-label="Emplacement de la photo">Photo</div>
+      <div class="carte-corps">
+        <h3>Recette du catalogue 6</h3>
+        <div class="meta"><span class="pastille repere">Accompagnement</span><span class="num">n min au total</span></div>
+        <div class="ligne" style="margin-top:14px"><button class="bouton bouton-second" type="button">Ajouter à ma bibliothèque</button></div>
+      </div>
+    </article>
+  </div>
+  <div class="grille g3" data-pour="chargement" role="status" aria-label="Chargement du catalogue">
+    <div class="carte" aria-hidden="true"><div class="squelette" style="aspect-ratio:16/10;border-radius:15px 15px 0 0"></div><div class="carte-corps"><div class="squelette" style="height:20px;width:70%"></div><div class="squelette" style="height:14px;width:45%;margin-top:12px"></div></div></div>
+    <div class="carte" aria-hidden="true"><div class="squelette" style="aspect-ratio:16/10;border-radius:15px 15px 0 0"></div><div class="carte-corps"><div class="squelette" style="height:20px;width:70%"></div><div class="squelette" style="height:14px;width:45%;margin-top:12px"></div></div></div>
+    <div class="carte" aria-hidden="true"><div class="squelette" style="aspect-ratio:16/10;border-radius:15px 15px 0 0"></div><div class="carte-corps"><div class="squelette" style="height:20px;width:70%"></div><div class="squelette" style="height:14px;width:45%;margin-top:12px"></div></div></div>
+    <div class="carte" aria-hidden="true"><div class="squelette" style="aspect-ratio:16/10;border-radius:15px 15px 0 0"></div><div class="carte-corps"><div class="squelette" style="height:20px;width:70%"></div><div class="squelette" style="height:14px;width:45%;margin-top:12px"></div></div></div>
+    <div class="carte" aria-hidden="true"><div class="squelette" style="aspect-ratio:16/10;border-radius:15px 15px 0 0"></div><div class="carte-corps"><div class="squelette" style="height:20px;width:70%"></div><div class="squelette" style="height:14px;width:45%;margin-top:12px"></div></div></div>
+    <div class="carte" aria-hidden="true"><div class="squelette" style="aspect-ratio:16/10;border-radius:15px 15px 0 0"></div><div class="carte-corps"><div class="squelette" style="height:20px;width:70%"></div><div class="squelette" style="height:14px;width:45%;margin-top:12px"></div></div></div>
+  </div>
+  <div class="vide" data-pour="vide">
+    <h2>Aucun résultat</h2>
+    <p>Aucune recette ne correspond à cette recherche. Essaie un autre mot, ou retire le filtre de type.</p>
+    <button class="bouton bouton-second" type="button">Effacer la recherche</button>
+  </div>
+</main>
+<script src="refonte.js"></script>
+</body>
+</html>
