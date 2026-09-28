@@ -18,3 +18,10 @@ L'ancien `CLAUDE.md` (604 lignes) a été réduit à ≤ 60 lignes (chargé à c
 | § 8. Documentation (où vit quoi) | [`docs/claude/07-documentation.md`](claude/07-documentation.md) |
 | § 9. Leçons apprises | [`docs/claude/08-lecons-et-style.md`](claude/08-lecons-et-style.md) et [`docs/LESSONS.md`](LESSONS.md) |
 | § 10. Style et compte-rendu | [`docs/claude/08-lecons-et-style.md`](claude/08-lecons-et-style.md) et [`docs/COMPTE-RENDU.md`](COMPTE-RENDU.md) (importé par `CLAUDE.md`) |
+
+## Autres documents
+
+| Document | Contenu |
+|---|---|
+| [`docs/ETAT.md`](ETAT.md) | Où en est le projet maintenant : fait / en cours / bloqué, portes qualité, risques ouverts. |
+| [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) | Choix techniques réels et pourquoi (stack, serveur MCP, OAuth), alternatives écartées quand documentées. |
