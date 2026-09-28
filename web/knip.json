@@ -1,5 +1,5 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignore": ["public/sw.js", "vitest.mutation.config.ts"],
+  "ignore": ["public/sw.js", "vitest.mutation.config.ts", "scripts/vercel-build.d.mts"],
   "ignoreDependencies": ["eslint-config-next"]
 }

@@ -10,13 +10,25 @@
 import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { etapesDeBuild } from "../scripts/vercel-build.mjs";
 import { resolve } from "node:path";
 
 const vercel = JSON.parse(readFileSync(resolve(process.cwd(), "vercel.json"), "utf8")) as {
   ignoreCommand?: string;
+  git?: { deploymentEnabled?: Record<string, boolean> };
 };
 
 describe("garde-fou de déploiement Vercel", () => {
+  it("aucune préversion pour les branches des agents et de Dependabot (base Neon unique)", () => {
+    // Une préversion construite exécute le build avec l'accès à la base : les branches automatiques
+    // (claude/*, agence/*, dependabot/*) ne doivent PAS en produire. Leurs contrôles vivent dans GitHub Actions.
+    const actif = vercel.git?.deploymentEnabled ?? {};
+    // Les branches des agents sont IMBRIQUÉES (agence/<session>/<sujet>) : la forme `**` est exigée en plus de `*`.
+    for (const motif of ["claude/*", "claude/**", "agence/*", "agence/**", "dependabot/*", "dependabot/**"]) {
+      expect(actif[motif], motif).toBe(false);
+    }
+  });
+
   it("vercel.json délègue la décision de build à un script", () => {
     expect(vercel.ignoreCommand).toBeTruthy();
   });
@@ -100,13 +112,24 @@ describe("réparation des ingrédients — la passe reste branchée au build", (
     scripts: Record<string, string>;
   };
 
-  it("`vercel-build` lance la réparation, et AVANT le build", () => {
-    const chaine = pkg.scripts["vercel-build"] ?? "";
-    expect(chaine).toContain("db:reparer-ingredients");
+  // ÉGALITÉ STRICTE (exigence pole-securite) : ce fichier est protégé (attestation) ; tout changement de ces trois
+  // scripts, un `&& <commande>` ajouté compris, casse ce test. Un changement voulu met à jour la valeur ICI, dans la
+  // même PR (donc sous attestation). Depuis #129, `vercel-build` passe par la garde `scripts/vercel-build.mjs`
+  // (migrations et réparation seulement en production, voir `etapesDeBuild`) au lieu d'enchaîner les commandes.
+  it("les scripts de déploiement sont EXACTEMENT ceux attendus", () => {
+    expect(pkg.scripts["vercel-build"]).toEqual("node scripts/vercel-build.mjs");
+    expect(pkg.scripts["db:migrate"]).toEqual("drizzle-kit migrate");
+    expect(pkg.scripts["db:reparer-ingredients"]).toEqual("tsx scripts/reparer-ingredients.ts");
+  });
+
+  it("`vercel-build` passe par la garde, qui lance la réparation AVANT le build (production seulement)", () => {
+    expect(pkg.scripts["vercel-build"] ?? "").toContain("scripts/vercel-build.mjs");
+    const noms = etapesDeBuild({ VERCEL_ENV: "production" }).etapes.map((e) => e.nom);
+    expect(noms).toContain("db:reparer-ingredients");
     // L'ordre compte : réparer après le build laisserait le déploiement servir l'ancien état.
-    expect(chaine.indexOf("db:reparer-ingredients")).toBeLessThan(chaine.indexOf("next build"));
+    expect(noms.indexOf("db:reparer-ingredients")).toBeLessThan(noms.indexOf("build"));
     // Et les migrations d'abord : la réparation écrit dans des tables qu'elles créent.
-    expect(chaine.indexOf("db:migrate")).toBeLessThan(chaine.indexOf("db:reparer-ingredients"));
+    expect(noms.indexOf("db:migrate")).toBeLessThan(noms.indexOf("db:reparer-ingredients"));
   });
 
   it("le script visé existe vraiment", () => {

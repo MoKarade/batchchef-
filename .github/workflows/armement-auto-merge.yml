@@ -1,0 +1,79 @@
+# GABARIT d'armement de l'auto-fusion : à copier tel quel dans .github/workflows/ d'un dépôt d'app (voir LISEZMOI.md, « Adopter le gabarit »).
+# Il ARME (auto-fusion native de GitHub) ou DÉSARME chaque PR selon `peutArmer` (modeles/auto-merge/autoMerge.mjs) et .github/auto-merge.json.
+#
+# Grille de relecture sécurité (points A1-A9, testés par cockpit/tests/test_gabarit_armement.py : le gabarit est lu comme DONNÉE, la suite
+# échoue si l'un de ces points disparaît) :
+#  A1  pull_request_target SANS jamais récupérer ni exécuter le code de la PR : un seul checkout, de la BASE (base.sha) ; la PR n'est lue que par
+#      l'API `gh` (armer.mjs) ;
+#  A2  workflow, module de décision et configuration lus sur la branche de base ;
+#  A3  aucune PR de fork (head.repo.full_name == github.repository) ;
+#  A4  permissions {} au niveau global ; contents et pull-requests en écriture sur le SEUL job d'armement ;
+#  A5  aucun texte de la PR (titre, corps, nom de branche, nom de fichier) dans un `run:` ni une expression : seuls le numéro et le SHA (validés
+#      par expression régulière dans armer.mjs) passent, par l'environnement ;
+#  A6  toutes les actions épinglées par SHA de commit ;
+#  A7  aucun secret ;
+#  A8  échec fermé : toute erreur DÉSARME (étape finale `if: failure()`) ;
+#  A9  types d'événements couvrant tout ce qui change la décision (un label ou un brouillon désarme) ;
+#  A16 attestation de pole-securite : revue APPROVED d'un compte dédié sur le SHA exact (autoMerge.mjs, attestationValide), JAMAIS `pull_request_review` ;
+#      seul autre déclencheur : workflow_dispatch avec l'entrée `pr` (numéro validé), sur la branche par défaut.
+# Runner : GitHub-hosted par défaut. Variable de dépôt ARMEMENT_RUNNER (JSON) pour un runner auto-hébergé, ce qui n'est accepté QUE si le dépôt est
+# PRIVÉ (garde ci-dessous) : jamais de runner auto-hébergé sur un dépôt public. Arrêt d'urgence : variable de dépôt AUTOMERGE_OFF (=1 : tout est désarmé).
+name: armement-auto-merge
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled, edited, converted_to_draft]
+  # Attestation de pole-securite (A16) : JAMAIS `pull_request_review` (il exécuterait la version du workflow venant de la PR). Après avoir approuvé, pole-securite
+  # lance CE workflow, sur la branche de base, pour le numéro de la PR : `gh workflow run armement-auto-merge.yml --ref <branche par défaut> -f pr=<numéro>`.
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Numéro de la PR à réévaluer (chiffres seulement, validé par armer.mjs)"
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: armement-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: true
+
+jobs:
+  armement:
+    # pas de fork ; un runner auto-hébergé seulement sur un dépôt privé (sinon le job ne tourne pas : rien n'est armé)
+    # lancement manuel : seulement sur la branche par défaut (jamais la version du workflow d'une autre branche) ; le fork est refusé par armer.mjs (isCrossRepository)
+    if: >
+      (github.event.pull_request.head.repo.full_name == github.repository ||
+       (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))) &&
+      (github.event.repository.private == true || !contains(vars.ARMEMENT_RUNNER, 'self-hosted'))
+    runs-on: ${{ fromJSON(vars.ARMEMENT_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # UNIQUE checkout : la BASE de la PR (jamais sa tête). Le module, la configuration et l'exécuteur viennent donc de la branche protégée.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          persist-credentials: false
+      - name: Armer ou désarmer (décision par API, code de la base)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMERO: ${{ github.event.pull_request.number || inputs.pr }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          ACTION: ${{ github.event.action || github.event_name }}
+          AUTOMERGE_OFF: ${{ vars.AUTOMERGE_OFF }}
+        run: node modeles/auto-merge/armer.mjs
+      - name: Échec fermé, désarmer par précaution
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMERO: ${{ github.event.pull_request.number || inputs.pr }}
+        run: |
+          [[ "$NUMERO" =~ ^[1-9][0-9]{0,8}$ ]] || exit 1
+          gh pr merge "$NUMERO" --repo "$REPO" --disable-auto || true

@@ -68,7 +68,7 @@
 
   ~~**Rattrapage immédiat** : tableau de bord Vercel → `batchchef-glu8` → Deployments → « … »
   → Redeploy sur `24eeccd`.~~ ⚠️ **Conseil faux, barré le 25/09** : un Redeploy rejoue le commit
-  d'un déploiement EXISTANT (`CLAUDE.md` §6) — `24eeccd` n'en avait aucun, il n'y avait rien à
+  d'un déploiement EXISTANT (`docs/claude/05-deploiement.md`, ancien §6) — `24eeccd` n'en avait aucun, il n'y avait rien à
   rejouer. Le seul déclencheur fiable est un NOUVEAU push sur `master` qui touche un fichier
   hors exemptions. (Sans objet aujourd'hui : `24eeccd` est en ligne depuis, par ses successeurs.)
 
@@ -105,7 +105,7 @@
   « Recettes », dix mille et des qui ne bougent pas) ; le NOM du batch en cours en alerte
   d'information ; et un bloc `details` avec la proposition de la semaine et l'épicerie.
   6 mutations jouées, 6 attrapées.
-  ⚠️ **Aucun `expectedMaxAgeSec`, exprès** — voir le `CLAUDE.md` §7. BatchChef n'a pas de
+  ⚠️ **Aucun `expectedMaxAgeSec`, exprès** — voir le `docs/claude/06-integration-hub.md`, ancien §7. BatchChef n'a pas de
   moteur : un seuil ferait crier « figée » à chaque semaine où Marc a mangé dehors.
   ⚠️ **Le hub LIT la semaine** (`lireSemaine`, exportée pour ça), jamais `semaineCourante`
   qui la FABRIQUE : un GET du hub ne doit rien écrire, et son `delete … where semaine <> …`
