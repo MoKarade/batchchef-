@@ -101,3 +101,12 @@ La neutralisation des échecs « quota » (Vercel) de Hubperso : elle suppose qu
 
 ## Piste (non faite)
 `gh` n'expose ni « qui a poussé » ni l'ancien nom des fichiers renommés (`gh pr view --json files`). Une fonction commune `lister_prs` (JSON complet d'une PR en un appel : fichiers avec `previous_filename`, dernier commit vérifié, checks) dans `agence/` éviterait de recoder cette récolte dans chaque workflow.
+
+## Profils du kit (`--profil`)
+Un profil est le kit COMPLET moins une liste fermée de fichiers retirés, chacun avec sa raison déclarée ; il ne change rien à la décision (mêmes empreintes pour `autoMerge.mjs`, `fusionner.mjs`, `armer.mjs`, listes).
+- `complet` (défaut) : tous les fichiers du manifeste.
+- `prive` : dépôt privé GitHub Free sans protection de branche : sans le SEUL `.github/workflows/armement-auto-merge.yml` (pas d'auto-fusion native ; `fusionner.mjs` fusionne).
+- `node modeles/auto-merge/verifier-copies.mjs <dépôt> --profil prive` : le fichier retiré s'affiche `RETIRÉ` avec sa raison (distinct d'un `ABSENT` = oubli, qui échoue) ; s'il est pourtant présent il doit rester fidèle.
+- `--ecrire-copies <dépôt> --profil prive` : `COPIES.md` consigne `Profil : prive` et les fichiers non copiés avec leur raison ; une vérification avec un autre profil échoue.
+- La liste retirée est écrite dans `verifier-copies.mjs` (copie hachée) ET dans le manifeste : élargir le retrait en éditant seulement le manifeste fait échouer la vérification (code 2).
+- **Visibilité du dépôt** : avec un profil autre que `complet`, `verifier-copies` imprime `Profil : prive — dépôt PRIVÉ (gh repo view)` (lu DANS le dépôt vérifié) et ÉCHOUE si le dépôt est PUBLIC ou si la visibilité est illisible (échec fermé) ; `--ecrire-copies` n'écrit alors rien. Le profil complet ne lit rien.
