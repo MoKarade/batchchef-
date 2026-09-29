@@ -89,33 +89,41 @@ export default async function CataloguePage({
     })}`;
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold">Catalogue de découverte</h1>
-        <p className="mt-1 text-sm doux">
-          {total.toLocaleString("fr-CA")} recettes — cherche par titre ou par ingrédient, ajoute une idée à ta
-          bibliothèque.
-        </p>
+    <div>
+      <header className="entete">
+        <div>
+          <p className="surtitre">Découverte</p>
+          <h1>Catalogue de découverte</h1>
+          <p className="doux mt-1">
+            {total.toLocaleString("fr-CA")} recettes — cherche par titre ou par ingrédient,
+            ajoute une idée à ta bibliothèque.
+          </p>
+        </div>
+      </header>
+      <div className="pile mb-6">
+        <CatalogueSearch initial={q} />
+        <FiltreType actif={typeDemande} />
       </div>
-      <CatalogueSearch initial={q} />
-      <FiltreType actif={typeDemande} />
 
       {recipes.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-[var(--bordure)] p-6 text-center text-sm doux">
-          {total === 0
-            ? "Catalogue vide — lance l’import (npm run catalog:import) pour peupler les 10 188 recettes."
-            : typeDemande
-              ? "Aucun résultat avec ce type. Le classement est une estimation : essaie « Non déterminé »."
-              : "Aucun résultat pour cette recherche."}
-        </p>
+        <div className="vide">
+          <h2>{total === 0 ? "Catalogue vide" : "Aucun résultat"}</h2>
+          <p>
+            {total === 0
+              ? "Catalogue vide — lance l’import (npm run catalog:import) pour peupler les 10 188 recettes."
+              : typeDemande
+                ? "Aucun résultat avec ce type. Le classement est une estimation : essaie « Non déterminé »."
+                : "Aucun résultat pour cette recherche."}
+          </p>
+        </div>
       ) : (
         <>
-          <p className="text-xs doux">
+          <p className="doux mb-4 text-sm">
             Coche les recettes (coin des cartes) pour en ajouter plusieurs d’un coup à ta bibliothèque.
           </p>
           <CatalogueGrid recipes={recipes} />
           {lastPage > 1 && (
-            <div className="flex items-center justify-between text-sm">
+            <div className="mt-8 flex items-center justify-between gap-3 text-sm">
               {page > 1 ? (
                 <Link href={qs(page - 1)} className="bouton bouton-second">
                   ← Précédent

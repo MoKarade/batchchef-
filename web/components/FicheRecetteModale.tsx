@@ -49,7 +49,7 @@ export function FicheRecetteModale({
         // Clic sur le fond (hors du contenu) = fermer, comme partout ailleurs.
         if (e.target === dialogue.current) onFermer();
       }}
-      className="w-[min(92vw,32rem)] rounded-2xl border border-[var(--bordure)] p-0 backdrop:bg-black/50"
+      className="carte w-[min(92vw,32rem)] p-0 backdrop:bg-black/50"
       style={{ backgroundColor: "var(--surface)", color: "var(--texte)" }}
       aria-label="Fiche de la recette"
     >
@@ -81,13 +81,13 @@ export function FicheRecetteModale({
               </div>
 
               <section>
-                <h3 className="mb-2 font-semibold">Ingrédients</h3>
+                <h3 className="mb-2 text-base font-bold">Ingrédients</h3>
                 {fiche.ingredients.length === 0 ? (
                   <p className="text-sm doux">Aucun ingrédient enregistré.</p>
                 ) : (
-                  <ul className="divide-y divide-[var(--bordure)]">
+                  <ul className="liste">
                     {fiche.ingredients.map((ing, i) => (
-                      <li key={i} className="flex items-baseline justify-between gap-3 py-2 text-sm">
+                      <li key={i} className="flex items-baseline justify-between gap-3 px-4 py-2 text-sm">
                         <span>
                           {ing.nom}
                           {ing.note && <span className="doux"> — {ing.note}</span>}
@@ -101,7 +101,7 @@ export function FicheRecetteModale({
 
               {fiche.instructions && (
                 <section>
-                  <h3 className="mb-2 font-semibold">Préparation</h3>
+                  <h3 className="mb-2 text-base font-bold">Préparation</h3>
                   <p className="whitespace-pre-line text-sm leading-relaxed">
                     {fiche.instructions}
                   </p>
@@ -124,7 +124,7 @@ export function FicheRecetteModale({
                       ? `/catalogue/${fiche.id}`
                       : `/recettes/${fiche.id}`
                   }
-                  className="block text-center text-xs doux underline"
+                  className="block py-3 text-center text-sm doux underline"
                 >
                   Ouvrir la fiche complète (quitte la conversation)
                 </Link>

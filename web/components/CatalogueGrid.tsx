@@ -52,7 +52,7 @@ export function CatalogueGrid({ recipes }: { recipes: CatalogItem[] }) {
 
   return (
     <>
-      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <ul className="grille g3">
         {recipes.map((r) => {
           const isSel = selected.has(r.id);
           return (
@@ -73,17 +73,22 @@ export function CatalogueGrid({ recipes }: { recipes: CatalogItem[] }) {
                 // surface du thème : son contraste se joue contre l'image, jamais contre
                 // `--fond`. Blanc/noir en dur est donc le bon choix ici — c'est la seule
                 // exception, et elle est nommée dans `tests/theme.test.ts`.
-                className={`absolute left-2 top-2 flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-bold shadow-sm transition ${
-                  isSel
-                    ? "border-transparent sur-accent"
-                    : "border-white/80 bg-black/30 text-transparent hover:bg-black/50"
-                }`}
-                style={isSel ? { backgroundColor: "var(--accent)" } : undefined}
+                // Zone tactile de 44 px ; le disque visible (32 px) est dedans.
+                className="absolute left-1 top-1 flex h-11 w-11 items-center justify-center"
               >
-                {/* coche dessinée (pas d'emoji) */}
-                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={3}>
-                  <path d="M4 10l4 4 8-9" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <span
+                  className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-bold transition ${
+                    isSel
+                      ? "border-transparent sur-accent"
+                      : "border-white/80 bg-black/30 text-transparent hover:bg-black/50"
+                  }`}
+                  style={isSel ? { backgroundColor: "var(--accent)" } : undefined}
+                >
+                  {/* coche dessinée (pas d'emoji) */}
+                  <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={3}>
+                    <path d="M4 10l4 4 8-9" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
               </button>
             </li>
           );
@@ -91,16 +96,14 @@ export function CatalogueGrid({ recipes }: { recipes: CatalogItem[] }) {
       </ul>
 
       {(msg || error) && (
-        <p
-          className={`rounded-lg p-2 text-sm ${error ? "erreur" : "succes"}`}
-        >
+        <p className={`bandeau mt-4 ${error ? "erreur" : "succes"}`} role={error ? "alert" : "status"}>
           {error ?? msg}
         </p>
       )}
 
       {/* Barre d'action collante : n'apparaît qu'avec une sélection. */}
       {selected.size > 0 && (
-        <div className="sticky bottom-3 z-10 flex items-center gap-3 rounded-2xl border border-[var(--bordure)] bg-[var(--surface)]/95 p-3 shadow-lg backdrop-blur">
+        <div className="carte sticky bottom-24 z-10 mt-4 flex flex-wrap items-center gap-3 p-3 md:bottom-4">
           <span className="text-sm font-medium">
             {selected.size} sélectionnée{selected.size > 1 ? "s" : ""}
           </span>

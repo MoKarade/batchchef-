@@ -39,7 +39,7 @@ export function TypePlatEditeur({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="rounded-full border border-[var(--bordure)] px-3 py-1">
+        <span className="pastille repere">
           {type ? LIBELLES[type] : "Type non déterminé"}
         </span>
         {!corrige && type && <span className="text-xs doux">estimé</span>}
@@ -48,21 +48,21 @@ export function TypePlatEditeur({
           type="button"
           disabled={pending}
           onClick={() => setOuvert((v) => !v)}
-          className="text-xs underline disabled:opacity-50"
+          className="bouton bouton-second"
         >
           {ouvert ? "Fermer" : "Corriger"}
         </button>
       </div>
 
       {ouvert && (
-        <div className="flex flex-wrap gap-2">
+        <div className="onglets">
           {FAMILLES.map((f) => (
             <button
               key={f}
               type="button"
               disabled={pending}
               onClick={() => choisir(f)}
-              className="rounded-full border border-[var(--bordure)] px-3 py-2 text-xs disabled:opacity-50"
+              className="onglet"
             >
               {LIBELLES[f]}
             </button>
@@ -71,7 +71,7 @@ export function TypePlatEditeur({
             type="button"
             disabled={pending}
             onClick={() => choisir(null)}
-            className="rounded-full border border-dashed border-[var(--bordure)] px-3 py-2 text-xs disabled:opacity-50"
+            className="onglet !border-dashed"
           >
             Aucune de ces familles
           </button>
