@@ -21,6 +21,7 @@ import {
   type CandidateSemaine,
 } from "@/lib/semaine";
 import { estRepas, estTypePlat, type TypePlat } from "@/lib/typePlat";
+import { typeEffectifSql } from "@/lib/typePlatSql";
 import { positionEnBase } from "@/lib/assistant/protocole";
 import { aggregateShoppingList, fillMissingCosts } from "@/lib/aggregate";
 import { ecarterIngredientsDeFond } from "@/lib/ingredientsDeFond";
@@ -67,8 +68,8 @@ async function candidates(graine: string, exclues: readonly number[]): Promise<C
   // sous sa nouvelle famille. Et on ne présélectionne QUE ce qui peut être proposé (plats,
   // soupes, salades, desserts) — tirer des sauces pour les jeter ensuite gaspillerait la
   // présélection et laisserait des places vides.
-  const typeSql = sql<string | null>`coalesce(${schema.typeCorrections.type}, ${schema.catalogRecipes.typeEstime})`;
-  const proposable = sql`coalesce(${schema.typeCorrections.type}, ${schema.catalogRecipes.typeEstime}) in ('plat','soupe','salade','dessert')`;
+  const typeSql = typeEffectifSql();
+  const proposable = sql`${typeEffectifSql()} in ('plat','soupe','salade','dessert')`;
   const base = db
     .select({
       id: schema.catalogRecipes.id,
@@ -153,7 +154,7 @@ export async function lireSemaine(semaine: string): Promise<RecetteSemaine[]> {
       imageUrl: schema.catalogRecipes.imageUrl,
       prepMinutes: schema.catalogRecipes.prepMinutes,
       cuissonMinutes: schema.catalogRecipes.cuissonMinutes,
-      type: sql<string | null>`coalesce(${schema.typeCorrections.type}, ${schema.catalogRecipes.typeEstime})`,
+      type: typeEffectifSql(),
       difficulte: schema.catalogRecipes.difficulteEstimee,
     })
     .from(schema.weekPicks)
@@ -417,7 +418,7 @@ export async function apercuPlacement(
   const [cible] = await db
     .select({
       titre: schema.catalogRecipes.title,
-      type: sql<string | null>`coalesce(${schema.typeCorrections.type}, ${schema.catalogRecipes.typeEstime})`,
+      type: typeEffectifSql(),
     })
     .from(schema.catalogRecipes)
     .leftJoin(schema.typeCorrections, eq(schema.typeCorrections.sourceUrl, schema.catalogRecipes.sourceUrl))
