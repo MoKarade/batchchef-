@@ -89,7 +89,7 @@ export function BatchStatusControls({
         </button>
       )}
       {current === "termine" && (
-        <p className="rounded-xl succes px-4 py-3 text-center text-sm font-medium">
+        <p className="bandeau succes text-sm px-4 py-3 text-center text-sm font-medium">
           Batch terminé.
         </p>
       )}
@@ -110,7 +110,7 @@ export function BatchStatusControls({
             router.push("/batchs");
           });
         }}
-        className="w-full rounded-xl border border-[var(--bordure)] px-4 py-2 text-sm doux disabled:opacity-60"
+        className="bouton bouton-second w-full"
       >
         Supprimer le batch
       </button>

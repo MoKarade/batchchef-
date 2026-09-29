@@ -58,7 +58,7 @@ export function FicheRecetteModale({
 
         {erreur && (
           <div className="space-y-3 p-6">
-            <p className="rounded-lg erreur p-3 text-sm">{erreur}</p>
+            <p className="bandeau erreur text-sm">{erreur}</p>
             <button type="button" onClick={onFermer} className="bouton bouton-second w-full">
               Retour à la conversation
             </button>

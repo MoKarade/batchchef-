@@ -380,6 +380,20 @@ body {
     color: var(--texte-doux);
   }
 
+  /* Liste dans une carte : lignes séparées par un filet, aucune ombre. */
+  .liste {
+    background-color: var(--surface);
+    border: 1px solid var(--bordure);
+    border-radius: var(--rayon);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  .liste > li + li {
+    border-top: 1px solid var(--bordure);
+  }
+
   .tuile {
     background-color: var(--surface-douce);
     border-radius: 14px;
@@ -562,8 +576,8 @@ body {
     cursor: pointer;
     text-decoration: none;
   }
-  .onglet[aria-checked="true"],
-  .onglet[aria-current="true"] {
+  .onglet[aria-pressed="true"],
+  .onglet[aria-checked="true"] {
     background-color: var(--texte);
     color: var(--fond);
     border-color: var(--texte);

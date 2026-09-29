@@ -34,7 +34,7 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
 
   if (fallbackNotice) {
     return (
-      <div className="space-y-3 rounded-xl alerte p-6 text-sm">
+      <div className="bandeau alerte text-sm space-y-3">
         <p className="font-medium">Batch créé — budget approximatif.</p>
         <p>
           L&apos;estimation précise par IA a échoué ({fallbackNotice.error}) : les prix viennent d&apos;un
@@ -43,8 +43,7 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
         </p>
         <Link
           href={`/batchs/${fallbackNotice.id}`}
-          className="inline-block rounded-lg px-4 py-2 font-medium sur-accent"
-          style={{ backgroundColor: "var(--accent)" }}
+          className="bouton bouton-principal"
         >
           Voir le batch →
         </Link>
@@ -58,8 +57,7 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
         <p>Ta bibliothèque est vide — un batch se compose de recettes que tu as déjà.</p>
         <Link
           href="/catalogue"
-          className="inline-block rounded-lg px-4 py-2 font-medium sur-accent"
-          style={{ backgroundColor: "var(--accent)" }}
+          className="bouton bouton-principal"
         >
           Piger dans le catalogue
         </Link>
@@ -103,11 +101,11 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Nom du batch (ex. Semaine du 28 juillet)"
-        className="w-full rounded-xl border border-[var(--bordure)] bg-[var(--surface)] px-3 py-3 text-sm"
+        className="champ"
         disabled={pending}
       />
 
-      <ul className="divide-y divide-[var(--bordure)] rounded-2xl border border-[var(--bordure)] bg-[var(--surface)]">
+      <ul className="liste">
         {recipes.map((r) => {
           const selected = r.id in portions;
           return (
@@ -133,7 +131,7 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
                     onChange={(e) =>
                       setPortions((prev) => ({ ...prev, [r.id]: Number(e.target.value) }))
                     }
-                    className="w-16 rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-center tabular-nums"
+                    className="champ w-16 text-center num"
                     disabled={pending}
                   />
                   portions
@@ -145,15 +143,14 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
       </ul>
 
       {error && (
-        <p className="rounded-lg erreur p-2 text-sm">
+        <p className="bandeau erreur text-sm">
           {error}
         </p>
       )}
       <button
         type="submit"
         disabled={pending || Object.keys(portions).length === 0 || !name.trim()}
-        className="w-full rounded-xl px-4 py-3 font-medium sur-accent disabled:opacity-50"
-        style={{ backgroundColor: "var(--accent)" }}
+        className="bouton bouton-principal w-full"
       >
         {pending ? "Génération de la liste…" : "Créer le batch"}
       </button>

@@ -81,7 +81,7 @@ export function Conversation({ configure }: { configure: boolean }) {
           key={i}
           type="button"
           onClick={() => ouvrirFiche(seg.source, seg.id)}
-          className="mx-0.5 inline-flex items-center gap-1 rounded-lg border border-[var(--bordure)] px-2 py-0.5 align-baseline text-xs font-medium"
+          className="bouton bouton-second mx-0.5 inline-flex items-center gap-1 align-baseline"
           style={{ backgroundColor: "var(--accent-doux)", color: "var(--accent-fonce)" }}
         >
           Voir la recette
@@ -112,7 +112,7 @@ export function Conversation({ configure }: { configure: boolean }) {
 
   if (!configure) {
     return (
-      <p className="rounded-lg alerte p-3 text-sm">
+      <p className="bandeau alerte text-sm">
         L’assistant n’est pas configuré : il manque <code>ANTHROPIC_API_KEY</code> côté serveur.
         Ce n’est pas une panne, l’intégration est simplement éteinte.
       </p>
@@ -131,7 +131,7 @@ export function Conversation({ configure }: { configure: boolean }) {
                   type="button"
                   onClick={() => envoyer(ex)}
                   disabled={pending}
-                  className="w-full rounded-xl border border-[var(--bordure)] px-4 py-3 text-left text-sm disabled:opacity-60"
+                  className="bouton bouton-second w-full text-left"
                 >
                   {ex}
                 </button>
@@ -166,7 +166,7 @@ export function Conversation({ configure }: { configure: boolean }) {
         )}
       </ul>
 
-      {erreur && <p className="rounded-lg erreur p-3 text-sm">{erreur}</p>}
+      {erreur && <p className="bandeau erreur text-sm">{erreur}</p>}
 
       <FicheRecetteModale
         fiche={fiche}
@@ -184,7 +184,7 @@ export function Conversation({ configure }: { configure: boolean }) {
           rows={3}
           placeholder="Ce que tu as sous la main, ou ce que tu cherches…"
           disabled={pending}
-          className="champ text-sm"
+          className="champ"
         />
         <button
           type="button"

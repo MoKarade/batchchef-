@@ -63,19 +63,19 @@ export function RecipeEditor({
   if (!editing) {
     return (
       <section>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="font-semibold">Ingrédients (pour {initialServings} portions)</h2>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-xl font-bold">Ingrédients (pour {initialServings} portions)</h2>
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="rounded-lg border border-[var(--bordure)] px-3 py-1.5 text-sm"
+            className="bouton bouton-second"
           >
             Modifier
           </button>
         </div>
-        <ul className="divide-y divide-[var(--bordure)] rounded-2xl border border-[var(--bordure)] bg-[var(--surface)]">
+        <ul className="liste">
           {initial.map((ing, i) => (
-            <li key={i} className="flex items-center justify-between px-4 py-3 text-sm">
+            <li key={i} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
               <span>
                 {ing.name}
                 {ing.note && <span className="doux"> — {ing.note}</span>}
@@ -92,9 +92,9 @@ export function RecipeEditor({
 
   return (
     <section className="space-y-3">
-      <h2 className="font-semibold">Corriger la recette</h2>
+      <h2 className="text-xl font-bold">Corriger la recette</h2>
 
-      <label className="flex items-center gap-3 text-sm">
+      <label className="flex items-center gap-3 text-sm etiquette !mb-0">
         <span className="shrink-0">Portions de référence</span>
         <input
           type="number"
@@ -103,7 +103,7 @@ export function RecipeEditor({
           value={servings}
           onChange={(e) => setServings(e.target.value)}
           disabled={pending}
-          className="w-20 rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-center tabular-nums"
+          className="champ w-20 text-center num"
         />
       </label>
       <p className="text-xs doux">
@@ -114,7 +114,7 @@ export function RecipeEditor({
       <IngredientFields rows={rows} onChange={setRows} disabled={pending} />
 
       {error && (
-        <p className="rounded-lg erreur p-2 text-sm">
+        <p className="bandeau erreur" role="alert">
           {error}
         </p>
       )}
@@ -124,7 +124,7 @@ export function RecipeEditor({
           type="button"
           onClick={reset}
           disabled={pending}
-          className="flex-1 rounded-xl border border-[var(--bordure)] px-4 py-3 text-sm"
+          className="bouton bouton-second flex-1"
         >
           Annuler
         </button>
@@ -132,8 +132,7 @@ export function RecipeEditor({
           type="button"
           onClick={save}
           disabled={pending}
-          className="flex-1 rounded-xl px-4 py-3 text-sm font-medium sur-accent disabled:opacity-50"
-          style={{ backgroundColor: "var(--accent)" }}
+          className="bouton bouton-principal flex-1"
         >
           {pending ? "Enregistrement…" : "Enregistrer"}
         </button>

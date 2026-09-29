@@ -101,12 +101,12 @@ export function RecipeDraftEditor({
   return (
     <div className="space-y-3 carte p-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold">Vérifie avant d’enregistrer</h2>
+        <h2 className="text-lg font-bold">Vérifie avant d’enregistrer</h2>
         <button
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="text-sm doux underline"
+          className="bouton bouton-second"
         >
           Annuler
         </button>
@@ -129,7 +129,7 @@ export function RecipeDraftEditor({
               className="aspect-video w-full rounded-xl object-cover"
             />
           ) : (
-            <p className="rounded-xl border border-dashed p-4 text-center text-xs doux" style={{ borderColor: "var(--bordure)" }}>
+            <p className="vide !p-4 text-xs">
               Aucune photo — la recette s’affichera sans image.
             </p>
           )}
@@ -149,7 +149,7 @@ export function RecipeDraftEditor({
                       disabled={pending}
                       aria-label={`Écran ${i + 1}`}
                       aria-pressed={actif}
-                      className="shrink-0 overflow-hidden rounded-lg border-2"
+                      className="shrink-0 overflow-hidden rounded-lg border-2 min-h-11"
                       style={{ borderColor: actif ? "var(--accent)" : "var(--bordure)" }}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -161,7 +161,7 @@ export function RecipeDraftEditor({
                   type="button"
                   onClick={() => setDraft({ ...draft, imageUrl: null })}
                   disabled={pending}
-                  className="shrink-0 rounded-lg border-2 px-3 text-xs doux"
+                  className="bouton bouton-second shrink-0 !border-2"
                   style={{ borderColor: draft.imageUrl ? "var(--bordure)" : "var(--accent)" }}
                 >
                   Sans photo
@@ -193,7 +193,7 @@ export function RecipeDraftEditor({
             type="button"
             onClick={() => void collerLien()}
             disabled={pending}
-            className="rounded-lg border border-[var(--bordure)] px-3 py-1 text-xs font-medium disabled:opacity-50"
+            className="bouton bouton-second"
           >
             Coller
           </button>
@@ -205,7 +205,7 @@ export function RecipeDraftEditor({
           onChange={(e) => setDraft({ ...draft, sourceUrl: e.target.value })}
           disabled={pending}
           placeholder="https://www.instagram.com/reel/…"
-          className="champ text-sm"
+          className="champ"
         />
         <p className="mt-1 text-xs doux">
           Gardé avec la recette pour pouvoir revoir la vidéo plus tard. Rien n’est téléchargé
@@ -222,11 +222,11 @@ export function RecipeDraftEditor({
           value={draft.servings}
           onChange={(e) => setDraft({ ...draft, servings: e.target.value, servingsGuessed: false })}
           disabled={pending}
-          className="w-20 rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-center tabular-nums"
+          className="champ w-20 text-center num"
         />
       </label>
       {draft.servingsGuessed && (
-        <p className="rounded-lg alerte p-2 text-xs">
+        <p className="bandeau alerte text-sm">
           Aucune portion annoncée par la source : 4 est un défaut, pas une donnée. Toutes les
           quantités de la liste d’épicerie seront mises à l’échelle à partir de ce nombre.
         </p>
@@ -246,12 +246,12 @@ export function RecipeDraftEditor({
           disabled={pending}
           rows={8}
           placeholder="Étapes de la recette"
-          className="champ text-sm"
+          className="champ"
         />
       </label>
 
       {error && (
-        <p className="rounded-lg erreur p-2 text-sm">
+        <p className="bandeau erreur text-sm">
           {error}
         </p>
       )}

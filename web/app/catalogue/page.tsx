@@ -117,7 +117,7 @@ export default async function CataloguePage({
           {lastPage > 1 && (
             <div className="flex items-center justify-between text-sm">
               {page > 1 ? (
-                <Link href={qs(page - 1)} className="rounded-lg border border-[var(--bordure)] px-3 py-2">
+                <Link href={qs(page - 1)} className="bouton bouton-second">
                   ← Précédent
                 </Link>
               ) : (
@@ -127,7 +127,7 @@ export default async function CataloguePage({
                 Page {page} / {lastPage.toLocaleString("fr-CA")}
               </span>
               {page < lastPage ? (
-                <Link href={qs(page + 1)} className="rounded-lg border border-[var(--bordure)] px-3 py-2">
+                <Link href={qs(page + 1)} className="bouton bouton-second">
                   Suivant →
                 </Link>
               ) : (

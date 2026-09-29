@@ -125,7 +125,7 @@ export function PartageClient({
   if (etat.kind === "vide") {
     return (
       <div className="space-y-3">
-        <p className="rounded-lg alerte p-3 text-sm">
+        <p className="bandeau alerte text-sm">
           {etat.motif} Tu peux quand même déposer la vidéo ou coller la description ci-dessous.
         </p>
         <ImportVideoForm transcriptionActive={transcriptionActive} />
@@ -140,7 +140,7 @@ export function PartageClient({
   return (
     <div className="space-y-3">
       {sansContenu && (
-        <div className="rounded-lg alerte p-3 text-sm">
+        <div className="bandeau alerte text-sm">
           <p className="font-medium">Instagram n’a partagé que le lien.</p>
           <p className="mt-1">
             Ni la vidéo, ni la légende : c’est sa limite, et elle vaut pour toute app. Un

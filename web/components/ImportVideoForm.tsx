@@ -259,7 +259,7 @@ export function ImportVideoForm({
       }}
     >
       <div>
-        <h2 className="font-semibold">Depuis une vidéo</h2>
+        <h2 className="text-lg font-bold">Depuis une vidéo</h2>
         <p className="mt-1 text-xs doux">
           La voie normale : un <strong>enregistrement d’écran</strong> du reel, légende dépliée —
           il porte à la fois les gestes, les quantités affichées et le texte. Instagram ne laisse
@@ -276,7 +276,7 @@ export function ImportVideoForm({
           onChange={(e) => setLien(e.target.value)}
           placeholder="https://www.instagram.com/reel/…"
           disabled={busy}
-          className="champ text-sm"
+          className="champ"
         />
       </label>
 
@@ -289,7 +289,7 @@ export function ImportVideoForm({
           accept="video/*"
           onChange={(e) => setFichier(e.target.files?.[0] ?? null)}
           disabled={busy}
-          className="w-full rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-douce)] file:px-3 file:py-1 file:text-sm"
+          className="champ file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-douce)] file:px-3 file:py-1 file:text-sm file:text-[var(--texte)]"
         />
         {fichier && (
           <p className="mt-1 text-xs doux">
@@ -308,7 +308,7 @@ export function ImportVideoForm({
           multiple
           onChange={(e) => setCaptures(Array.from(e.target.files ?? []))}
           disabled={busy}
-          className="w-full rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-douce)] file:px-3 file:py-1 file:text-sm"
+          className="champ file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-douce)] file:px-3 file:py-1 file:text-sm file:text-[var(--texte)]"
         />
         {captures.length > 0 && (
           <p className="mt-1 text-xs doux">
@@ -325,7 +325,7 @@ export function ImportVideoForm({
           type="button"
           onClick={() => void collerDescription()}
           disabled={busy}
-          className="w-full rounded-xl border border-dashed px-4 py-3 text-sm font-medium disabled:opacity-50"
+          className="bouton bouton-second w-full !border-dashed"
           style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
         >
           Coller la description copiée
@@ -339,7 +339,7 @@ export function ImportVideoForm({
             type="button"
             onClick={() => void collerDescription()}
             disabled={busy}
-            className="rounded-lg border border-[var(--bordure)] px-3 py-1 text-xs font-medium disabled:opacity-50"
+            className="bouton bouton-second"
           >
             Coller
           </button>
@@ -350,7 +350,7 @@ export function ImportVideoForm({
           rows={5}
           placeholder="Appui long sur la légende du reel → Copier, puis « Coller » ici."
           disabled={busy}
-          className="champ text-sm"
+          className="champ"
         />
       </div>
 
@@ -381,7 +381,7 @@ export function ImportVideoForm({
         </p>
       )}
       {error && (
-        <p className="rounded-lg erreur p-2 text-sm">
+        <p className="bandeau erreur text-sm">
           {error}
         </p>
       )}

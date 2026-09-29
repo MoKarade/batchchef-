@@ -28,14 +28,14 @@ export default async function RecipeDetailPage({
     .where(eq(schema.recipeIngredients.recipeId, id));
 
   return (
-    <article className="space-y-5">
+    <article className="space-y-6">
       {recipe.imageUrl && (
-         
         <ImageRecette src={recipe.imageUrl} className="aspect-video w-full rounded-2xl object-cover" />
       )}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">{recipe.title}</h1>
+          <p className="surtitre">Recette</p>
+          <h1 className="text-[1.75rem] font-bold leading-tight">{recipe.title}</h1>
           <Durees prep={recipe.prepMinutes} cuisson={recipe.cuissonMinutes} />
           <div className="mt-1">
             <Etoiles etoiles={recipe.difficulteEstimee} />
@@ -80,8 +80,8 @@ export default async function RecipeDetailPage({
 
       {recipe.instructions && (
         <section>
-          <h2 className="mb-2 font-semibold">Préparation</h2>
-          <p className="whitespace-pre-line rounded-2xl border border-[var(--bordure)] bg-[var(--surface)] p-4 text-sm leading-relaxed">
+          <h2 className="mb-3 text-xl font-bold">Préparation</h2>
+          <p className="carte whitespace-pre-line p-4 text-sm leading-relaxed">
             {recipe.instructions}
           </p>
         </section>

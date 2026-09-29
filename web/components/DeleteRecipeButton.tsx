@@ -25,7 +25,7 @@ export function DeleteRecipeButton({ recipeId }: { recipeId: number }) {
             router.push("/recettes");
           });
         }}
-        className="rounded-lg border border-[var(--bordure)] px-3 py-2 text-xs doux"
+        className="bouton bouton-danger"
       >
         {pending ? "…" : "Supprimer"}
       </button>

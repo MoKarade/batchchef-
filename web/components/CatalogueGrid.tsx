@@ -108,7 +108,7 @@ export function CatalogueGrid({ recipes }: { recipes: CatalogItem[] }) {
             type="button"
             onClick={clear}
             disabled={pending}
-            className="ml-auto rounded-lg border border-[var(--bordure)] px-3 py-2 text-sm disabled:opacity-50"
+            className="bouton bouton-second ml-auto"
           >
             Vider
           </button>
@@ -116,8 +116,7 @@ export function CatalogueGrid({ recipes }: { recipes: CatalogItem[] }) {
             type="button"
             onClick={addSelected}
             disabled={pending}
-            className="rounded-lg px-4 py-2 text-sm font-medium sur-accent disabled:opacity-50"
-            style={{ backgroundColor: "var(--accent)" }}
+            className="bouton bouton-principal"
           >
             {pending ? "Ajout…" : "Ajouter à ma bibliothèque"}
           </button>
