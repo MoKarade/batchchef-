@@ -78,7 +78,13 @@ function toutLeCode(): string[] {
   return res;
 }
 
-const estUseServer = (code: string): boolean => /^\s*["']use server["'];?/.test(code);
+/** Directive de fichier, même précédée de commentaires (sinon un fichier fautif passerait inaperçu). */
+const estUseServer = (code: string): boolean =>
+  /^["']use server["'];?/.test(code.replace(/^(\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*/, ""));
+
+/** Tout export dont le nom finit en `…Interne` : fonction, constante ou ré-export (renommé ou non). */
+const EXPORT_INTERNE =
+  /export\s+(async\s+)?function\s+\w*Interne|export\s+(const|let|var)\s+\w*Interne|export\s*\{[^}]*Interne/;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -92,16 +98,28 @@ describe("structure : les fonctions de travail ne sont jamais des Server Actions
     for (const f of fichiers) {
       const code = lire(f);
       expect(estUseServer(code), f).toBe(true);
-      expect(code, f).not.toMatch(/export\s+(async\s+)?function\s+\w*Interne/);
+      expect(code, f).not.toMatch(EXPORT_INTERNE);
     }
   });
 
   it("aucun fichier \"use server\" de l'app n'exporte un *Interne", () => {
     const fautifs = toutLeCode().filter((f) => {
       const code = readFileSync(f, "utf8");
-      return estUseServer(code) && /export\s+(async\s+)?function\s+\w*Interne|export\s*\{[^}]*Interne/.test(code);
+      return estUseServer(code) && EXPORT_INTERNE.test(code);
     });
     expect(fautifs).toEqual([]);
+  });
+
+  it("le détecteur reconnaît chaque forme d'export fautive", () => {
+    expect(estUseServer('// commentaire\n/* bloc */\n"use server";\n')).toBe(true);
+    expect(estUseServer('import x from "y";\n"use server";')).toBe(false);
+    for (const fautif of [
+      "export async function creerInterne() {}",
+      "export const creerInterne = async () => {};",
+      "export { a as creerInterne };",
+    ]) {
+      expect(EXPORT_INTERNE.test(fautif), fautif).toBe(true);
+    }
   });
 
   it("lib/actionsInternes/ n'est jamais \"use server\"", () => {
