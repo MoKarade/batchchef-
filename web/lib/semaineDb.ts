@@ -3,7 +3,7 @@
 //
 // ⚠️ Module ORDINAIRE, jamais `"use server"` : dans un fichier de Server Actions, TOUTE
 // fonction async exportée devient un point d'entrée HTTP. Ce qui est appelé par un Server
-// Component se lit ici ; ce qui ÉCRIT sur un geste de Marc vit dans `lib/actions.ts`, avec
+// Component se lit ici ; ce qui ÉCRIT sur un geste de Marc vit dans `lib/actions/semaine.ts`, avec
 // son `requireSession`.
 //
 // La décision de QUOI proposer est dans `lib/semaine.ts`, pur et testé. Ici, il n'y a que

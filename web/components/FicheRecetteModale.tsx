@@ -12,7 +12,7 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
-import type { FicheRecette } from "@/lib/actions";
+import type { FicheRecette } from "@/lib/actions/assistant";
 import { ImageRecette } from "@/components/ImageRecette";
 
 export function FicheRecetteModale({

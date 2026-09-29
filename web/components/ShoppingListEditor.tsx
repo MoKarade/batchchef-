@@ -6,7 +6,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { addShoppingItem, deleteShoppingItem, updateShoppingItem } from "@/lib/actions";
+import { addShoppingItem, deleteShoppingItem, updateShoppingItem } from "@/lib/actions/courses";
 
 type Unit = "g" | "ml" | "unite" | null;
 

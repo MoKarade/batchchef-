@@ -5,7 +5,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { deleteBatch, setBatchStatus } from "@/lib/actions";
+import { deleteBatch, setBatchStatus } from "@/lib/actions/batch";
 
 const STATUSES = [
   { value: "planifie", label: "Planifié" },

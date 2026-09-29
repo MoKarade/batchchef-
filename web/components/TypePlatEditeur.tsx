@@ -8,7 +8,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { corrigerTypeRecette } from "@/lib/actions";
+import { corrigerTypeRecette } from "@/lib/actions/catalogue";
 import { FAMILLES, LIBELLES, type TypePlat } from "@/lib/typePlat";
 
 export function TypePlatEditeur({

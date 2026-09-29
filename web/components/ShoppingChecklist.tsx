@@ -12,7 +12,7 @@
 // entière, ce qui compte quand l'autre main pousse un chariot.
 
 import { useMemo, useState } from "react";
-import { toggleShoppingItem } from "@/lib/actions";
+import { toggleShoppingItem } from "@/lib/actions/courses";
 import { formatQty } from "@/lib/aggregate";
 import { formatMontant, progressionCourses } from "@/lib/courses";
 

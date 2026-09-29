@@ -17,7 +17,7 @@
 // accès, le lien ne sert que de source affichée.
 
 import { useEffect, useRef, useState } from "react";
-import { parseRecipeFromVideo, type RecipePreview } from "@/lib/actions";
+import { parseRecipeFromVideo, type RecipePreview } from "@/lib/actions/import";
 import { RecipeDraftEditor } from "@/components/RecipeDraftEditor";
 import { captureFrames, reduireImage, type EtapeCapture } from "@/lib/video/capture";
 import { extraireAudio } from "@/lib/audio/extraction";

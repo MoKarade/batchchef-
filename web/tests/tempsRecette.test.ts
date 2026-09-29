@@ -85,7 +85,7 @@ describe("la copie catalogue → bibliothèque n'oublie aucune colonne", () => {
     // lisait, l'écriture le perdait, et rien ne levait.
     // Mutation : retirer `prepMinutes` de l'insert de `ajouterDuCatalogueInterne` fait
     // tomber ce test.
-    const code = readFileSync(resolve(process.cwd(), "lib/actions.ts"), "utf8");
+    const code = readFileSync(resolve(process.cwd(), "lib/actionsInternes/catalogue.ts"), "utf8");
     const bloc = code.slice(code.indexOf("ajouterDuCatalogueInterne"));
     const insert = bloc.slice(bloc.indexOf(".insert(schema.recipes)"), bloc.indexOf(".returning"));
 

@@ -6,7 +6,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { updateRecipe } from "@/lib/actions";
+import { updateRecipe } from "@/lib/actions/recettes";
 import { formatQty } from "@/lib/aggregate";
 import { IngredientFields, rowToEditable, type EditRow, type Unit } from "@/components/IngredientFields";
 

@@ -21,11 +21,9 @@ import { normaliserPourRecherche } from "../rechercheNormalisee";
 import { db, schema } from "@/lib/db";
 import { formatQty } from "@/lib/aggregate";
 import { formatMontant, progressionCourses } from "@/lib/courses";
-import {
-  ajouterDuCatalogueInterne,
-  cocherArticleInterne,
-  creerBatchInterne,
-} from "@/lib/actions";
+import { ajouterDuCatalogueInterne } from "@/lib/actionsInternes/catalogue";
+import { cocherArticleInterne } from "@/lib/actionsInternes/courses";
+import { creerBatchInterne } from "@/lib/actionsInternes/batch";
 import { resultatOutil } from "./protocole";
 
 // Ce que ces fonctions EXÉCUTENT est annoncé dans `declarations.ts` — un fichier de données
