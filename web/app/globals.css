@@ -156,6 +156,37 @@ body {
     background-color: var(--repere);
     border-radius: 0 0 3px 3px;
   }
+  /* Gestes rares (retour au hub, déconnexion) : texte simple, 44 px de haut. */
+  .nav-outil {
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0 12px;
+    border-radius: 12px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--texte-doux);
+    text-decoration: none;
+    text-align: left;
+    cursor: pointer;
+    width: 100%;
+  }
+  .nav-outil:hover {
+    background-color: var(--surface-douce);
+    color: var(--texte);
+  }
+  .barre-haute {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 52px;
+    padding: 0 12px 0 16px;
+    border-bottom: 1px solid var(--bordure);
+    background-color: var(--surface);
+  }
+  .barre-haute .nav-outil {
+    width: auto;
+  }
   .principal {
     flex: 1;
     min-width: 0;
@@ -274,6 +305,42 @@ body {
     align-items: center;
   }
 
+  .pile {
+    display: grid;
+    gap: 16px;
+  }
+  .grille {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 1fr;
+  }
+  .section {
+    margin-top: 40px;
+  }
+  .section > h2 {
+    margin-bottom: 12px;
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+  .tuiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+  }
+  @media (min-width: 640px) {
+    .grille {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1024px) {
+    .grille.g3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .grille.g4 {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
   /* Une surface posée sur le fond : bordure fine, aucune ombre. */
   .carte {
     background-color: var(--surface);
@@ -283,6 +350,23 @@ body {
   a.carte:hover,
   .carte:hover:has(a) {
     border-color: var(--bordure-champ);
+  }
+  /* Photo d'une recette : 2/1. Sans photo, un motif discret qui assume le vide. */
+  .photo {
+    aspect-ratio: 2 / 1;
+    width: 100%;
+    object-fit: cover;
+    border-radius: calc(var(--rayon) - 1px) calc(var(--rayon) - 1px) 0 0;
+  }
+  .photo-vide {
+    display: grid;
+    place-items: center;
+    background: repeating-linear-gradient(
+      135deg,
+      var(--surface-douce) 0 10px,
+      var(--bordure) 10px 11px
+    );
+    color: var(--texte-doux);
   }
   .carte-corps {
     padding: 16px 20px;

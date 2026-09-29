@@ -75,34 +75,7 @@ export default async function HomePage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-3">
-        {stats.map((s) => (
-          <Link
-            key={s.label}
-            href={s.href}
-            className="rounded-2xl border border-[var(--bordure)] bg-[var(--surface)] p-4 text-center shadow-sm"
-          >
-            <div className="text-2xl font-bold tabular-nums">{s.value}</div>
-            <div className="mt-1 text-xs doux">{s.label}</div>
-          </Link>
-        ))}
-      </div>
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <Link
-          href="/recettes"
-          className="flex-1 rounded-xl border border-[var(--bordure)] px-4 py-3 text-center font-medium"
-        >
-          + Importer une recette
-        </Link>
-        <Link
-          href="/batchs/nouveau"
-          className="bouton bouton-principal flex-1"
-        >
-          Nouveau batch
-        </Link>
-      </div>
-
+    <div>
       <SemaineProposee
         recettes={semaine?.recettes ?? []}
         temps={temps}
@@ -110,15 +83,37 @@ export default async function HomePage() {
         panne={panneSemaine}
       />
 
+      {/* Raccourcis : les trois compteurs et les deux gestes d'avant la refonte, gardés tels
+          quels (aucune fonctionnalité retirée). Ni l'un ni l'autre n'est « principal » : l'action
+          principale de l'écran est « Créer le batch », en haut. */}
+      <section className="section" aria-label="Raccourcis">
+        <div className="tuiles">
+          {stats.map((s) => (
+            <Link key={s.label} href={s.href} className="tuile block no-underline">
+              <div className="tuile-lib">{s.label}</div>
+              <div className="tuile-val">{s.value}</div>
+            </Link>
+          ))}
+        </div>
+        <div className="ligne mt-4">
+          <Link href="/recettes" className="bouton bouton-second">
+            + Importer une recette
+          </Link>
+          <Link href="/batchs/nouveau" className="bouton bouton-second">
+            Nouveau batch
+          </Link>
+        </div>
+      </section>
+
       {recent.length > 0 ? (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Recettes récentes</h2>
+        <section className="section">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-xl font-bold">Recettes récentes</h2>
             <Link href="/recettes" className="text-sm underline">
               Tout voir
             </Link>
           </div>
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <ul className="grille g3">
             {recent.map((r) => (
               <li key={r.id}>
                 <RecipeCard
@@ -132,7 +127,7 @@ export default async function HomePage() {
           </ul>
         </section>
       ) : (
-        <p className="text-sm doux">
+        <p className="section doux">
           Le cycle : importe tes recettes → compose un batch → fais l’épicerie avec la liste
           sur ton téléphone.
         </p>
