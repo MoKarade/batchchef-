@@ -6,7 +6,7 @@
 // Marc confirme/corrige avant que quoi que ce soit entre en base (précision garantie).
 
 import { useState, useTransition } from "react";
-import { parseRecipePreview, type RecipePreview } from "@/lib/actions";
+import { parseRecipePreview, type RecipePreview } from "@/lib/actions/import";
 import { RecipeDraftEditor } from "@/components/RecipeDraftEditor";
 
 export function ImportRecipeForm() {

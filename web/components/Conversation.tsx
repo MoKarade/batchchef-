@@ -9,13 +9,8 @@
 //    d'écrire parce que le réseau a coupé est la faute la plus agaçante d'un chat.
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import {
-  apercuPlacementSemaine,
-  demanderAAssistant,
-  lireFicheRecette,
-  placerRecetteSemaine,
-  type FicheRecette,
-} from "@/lib/actions";
+import { demanderAAssistant, lireFicheRecette, type FicheRecette } from "@/lib/actions/assistant";
+import { apercuPlacementSemaine, placerRecetteSemaine } from "@/lib/actions/semaine";
 // ⚠️ Le TYPE vient du module ordinaire, jamais du fichier "use server" : celui-ci ne peut
 // exporter que des fonctions async, et y ajouter un type casse le build.
 import type { ApercuPlacement } from "@/lib/semaineDb";

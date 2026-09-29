@@ -7,7 +7,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { RecipeCard } from "@/components/RecipeCard";
-import { addCatalogRecipesToLibrary } from "@/lib/actions";
+import { addCatalogRecipesToLibrary } from "@/lib/actions/catalogue";
 
 interface CatalogItem {
   id: number;

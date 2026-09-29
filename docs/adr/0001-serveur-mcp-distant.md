@@ -43,6 +43,11 @@ Action** qui la garde par `requireSession`. Le MCP appelle la première ; l'app 
 seconde. Un batch créé par Claude passe donc exactement par les mêmes règles qu'un batch créé
 au doigt : sel et poivre écartés de la liste, prix estimés, dédup du catalogue.
 
+*Mise à jour du 29/09/2026 (faille M2)* : exportées d'un fichier `"use server"`, les
+fonctions de travail étaient elles-mêmes des Server Actions appelables sans session. Elles
+vivent désormais dans `lib/actionsInternes/` (module ordinaire) ; les Server Actions sont
+découpées par domaine dans `lib/actions/`. Verrou : `tests/actionsSession.test.ts`.
+
 **3. L'autorisation est un jeton porteur, et son absence est un 503, pas un 401.**
 
 `MCP_TOKEN` en variable d'environnement, comparé en temps constant (SHA-256 +

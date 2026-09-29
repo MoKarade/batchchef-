@@ -6,7 +6,7 @@
 
 import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { saveImportedRecipe, type RecipePreview } from "@/lib/actions";
+import { saveImportedRecipe, type RecipePreview } from "@/lib/actions/import";
 import { IngredientFields, rowToEditable, type EditRow } from "@/components/IngredientFields";
 
 interface Draft {

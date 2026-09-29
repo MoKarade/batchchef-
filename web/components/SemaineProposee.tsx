@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import { Durees } from "@/components/Durees";
 import { Etoiles } from "@/components/Etoiles";
 import { ImageRecette } from "@/components/ImageRecette";
-import { creerBatchDepuisSemaine, regenererSemaineAction, remplacerRecetteSemaine } from "@/lib/actions";
+import { creerBatchDepuisSemaine, regenererSemaineAction, remplacerRecetteSemaine } from "@/lib/actions/semaine";
 import { formatMinutes, type TempsSemaine } from "@/lib/semaine";
 import { LIBELLES, type TypePlat } from "@/lib/typePlat";
 

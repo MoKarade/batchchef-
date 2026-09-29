@@ -13,7 +13,8 @@
 | Chemin | Rôle |
 |---|---|
 | `app/` | routes (recettes, batchs, courses, catalogue, `/api/hub/summary`, `/api/mcp`) |
-| `lib/actions.ts` | Server Actions (import, batch, liste, statut, catalogue) |
+| `lib/actions/` | Server Actions (`"use server"`), un fichier par domaine : `import`, `recettes`, `batch`, `courses`, `catalogue`, `semaine`, `assistant`. Chaque export revérifie `requireSession` en tête |
+| `lib/actionsInternes/` | fonctions de TRAVAIL `*Interne` (sans contrôle d'accès, appelées par les Server Actions et le MCP) + `commun.ts` / `session.ts`. Module ORDINAIRE, jamais `"use server"` (faille M2) : verrou `tests/actionsSession.test.ts` |
 | `lib/aggregate.ts` | agrégation liste d'épicerie, mise à l'échelle, filet de prix (purs) |
 | `lib/ingredientsDeFond.ts` | sel/poivre/eau écartés de la liste — automatique, mot à mot, et DIT à l'écran (PUR, testé) |
 | `lib/assistant/` | `protocole.ts` = bornes, troncature, classement, balisage (PUR, testé) · `outils.ts` = ce que Claude peut interroger · `boucle.ts` = les allers-retours |

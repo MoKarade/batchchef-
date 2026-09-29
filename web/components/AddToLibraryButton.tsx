@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { addCatalogRecipeToLibrary } from "@/lib/actions";
+import { addCatalogRecipeToLibrary } from "@/lib/actions/catalogue";
 
 export function AddToLibraryButton({ catalogRecipeId }: { catalogRecipeId: number }) {
   const [state, setState] = useState<"idle" | "done" | string>("idle");

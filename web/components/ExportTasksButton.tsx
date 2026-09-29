@@ -6,7 +6,7 @@
 // (Server Action) avec le jeton Google de la session.
 
 import { useState, useTransition } from "react";
-import { exportBatchToTasks } from "@/lib/actions";
+import { exportBatchToTasks } from "@/lib/actions/courses";
 
 export function ExportTasksButton({ batchId }: { batchId: number }) {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);

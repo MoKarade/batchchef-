@@ -8,9 +8,13 @@ const creerBatchInterne = vi.fn();
 const ajouterDuCatalogueInterne = vi.fn();
 const cocherArticleInterne = vi.fn();
 
-vi.mock("@/lib/actions", () => ({
+vi.mock("@/lib/actionsInternes/batch", () => ({
   creerBatchInterne: (...a: unknown[]) => creerBatchInterne(...a),
+}));
+vi.mock("@/lib/actionsInternes/catalogue", () => ({
   ajouterDuCatalogueInterne: (...a: unknown[]) => ajouterDuCatalogueInterne(...a),
+}));
+vi.mock("@/lib/actionsInternes/courses", () => ({
   cocherArticleInterne: (...a: unknown[]) => cocherArticleInterne(...a),
 }));
 

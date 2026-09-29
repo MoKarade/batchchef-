@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { deleteRecipe } from "@/lib/actions";
+import { deleteRecipe } from "@/lib/actions/recettes";
 
 export function DeleteRecipeButton({ recipeId }: { recipeId: number }) {
   const [error, setError] = useState<string | null>(null);
