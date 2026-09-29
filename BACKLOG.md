@@ -635,9 +635,8 @@ Rien n'est engagé ici — à proposer à Marc avant de coder.
   faux — même arbitrage que « un 0 crédible est pire qu'un — honnête ». À rouvrir seulement
   si une mesure montre que les unités inconnues sont fréquentes ET majoritairement des pièces.
 
-- [ ] Le stock ne sait pas ce qui a été mangé, seulement ce qu'il reste. Un historique
-  permettrait « tu manges du chili trois fois par semaine », mais c'est de la mesure sans
-  usage tant que personne ne l'a demandée.
+- [x] ~~Le stock ne sait pas ce qui a été mangé.~~ Demandé par Marc le 29/09 : livré comme
+  `HIST-01` (voir « Fait »).
 - [ ] Le budget d'épicerie n'est jamais confronté au réel (pas de reçus — décision
   assumée dans `CLAUDE.md`). Aucun moyen de savoir si l'estimation est bonne à ±10 % ou à ×2.
 
@@ -652,6 +651,13 @@ Rien n'est engagé ici — à proposer à Marc avant de coder.
 
 ## Fait
 
+- [x] **`HIST-01` — Historique de ce qui a été cuisiné.** Écran `/historique` (lien depuis
+  `/batchs`, pas d'onglet) : fréquence par recette + chronologique par semaine ISO (heure du
+  Québec). La trace naît à « Terminer le batch », dans le MÊME `db.batch` que le statut ;
+  un recul l'efface. Libellé « cuisiné le » et « portions prévues », jamais « mangé ».
+  Table `meal_history` (migration `0017`, création seule), copies + clés `set null` : la
+  trace survit à la suppression du batch ou de la recette. Démarre VIDE (aucune date
+  inventée). Décisions de Marc du 29/09/2026 ; plan `plan-batchchef-historique.md`.
 - [x] **`BOT-02` — Cartes de recettes cliquables dans le chat.** Une recette citée par
   l'assistant devient une pastille ; elle ouvre la fiche (ingrédients + préparation)
   PAR-DESSUS la conversation, qui n'est jamais détruite. Demande de Marc, 19/08/2026.

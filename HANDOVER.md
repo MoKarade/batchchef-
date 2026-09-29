@@ -102,7 +102,14 @@ ligne sans que rien ne soit rouge nulle part. Ce qui est établi :
   RÉUTILISE désormais la fenêtre ouverte (`launch_handler`), et le lien du hub vers l'app
   installée dépend de Chrome.
 - `ING-09` (26 lignes, 0,03 %) — à rouvrir seulement si l'une gêne en vrai.
-- Trois idées NON arbitrées — à proposer, jamais à prendre seul.
+- Deux idées NON arbitrées — à proposer, jamais à prendre seul. (La troisième,
+  l'historique, est devenue `HIST-01` sur décision de Marc le 29/09.)
+- **`HIST-01` (29/09)** — `/historique` (lien depuis `/batchs`) : la trace naît à « Terminer
+  le batch », dans le MÊME `db.batch` que le statut, et un recul l'efface. Table
+  `meal_history` (migration `0017`, création seule). À faire après le merge : vérifier le
+  déploiement `READY`, que la table existe, puis terminer / reculer / supprimer un vrai batch
+  (C1, C3, C4). ⚠️ Ne pas tester « Terminer » sur une préversion : la table n'y existe pas
+  avant le merge, et le changement de statut échouerait (voulu : pas de trace manquante).
 - **Le chantier SEMAINE n'a jamais été vu servir d'ici** : aucune de ses surfaces n'a été
   exercée par cette session contre la production. Le premier usage reste le premier test.
 
