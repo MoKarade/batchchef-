@@ -3,22 +3,34 @@
 // C4 (batch supprimé : la trace reste), C5 (recette supprimée : titre gardé), C10 (migrations
 // rejouées sans effet). Base vide au départ ; valeurs de test neutres.
 //
-// ⚠️ PGlite n'a pas `db.batch` (propre au pilote Neon HTTP) : le test le remplace par une
-// exécution dans l'ordre. L'ATOMICITÉ elle-même relève de Neon et n'est pas prouvée ici —
-// seulement le contenu et l'ordre des requêtes passées au lot.
+// ⚠️ PGlite n'a pas `db.batch` (propre au pilote Neon HTTP, qui exécute le lot dans UNE
+// transaction). Le test le remplace par la même sémantique : BEGIN, les requêtes dans
+// l'ordre, COMMIT — ou ROLLBACK au premier échec. Ce qui est prouvé : le contenu du lot et
+// le fait que l'historique et le statut y sont ENSEMBLE. Que Neon honore la transaction
+// relève de Neon (documenté), pas de ce test.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import type { BaseTest } from "./outils/basePglite";
 
+type Client = { exec: (q: string) => Promise<unknown> };
+
 vi.mock("@/lib/db", async () => {
   const { creerBaseTest } = await import("./outils/basePglite");
   const schema = await import("@/lib/db/schema");
   const base = await creerBaseTest();
+  const client = (base as unknown as { $client: Client }).$client;
   const batch = async (requetes: readonly PromiseLike<unknown>[]) => {
-    const res: unknown[] = [];
-    for (const r of requetes) res.push(await r);
-    return res;
+    await client.exec("begin");
+    try {
+      const res: unknown[] = [];
+      for (const r of requetes) res.push(await r);
+      await client.exec("commit");
+      return res;
+    } catch (err) {
+      await client.exec("rollback");
+      throw err;
+    }
   };
   return { db: Object.assign(base, { batch }), schema };
 });
@@ -135,6 +147,21 @@ describe("setBatchStatus → historique", () => {
 
     // Et la lecture le rend tel quel, du plus récent au plus ancien.
     expect((await lireHistorique()).map((x) => x.titre).sort()).toEqual(["recette-test-1", "recette-test-2"]);
+  });
+
+  it("si l'historique ne s'écrit pas, le statut ne change pas non plus (erreur dite)", async () => {
+    // Cas réel : une préversion sans la table (migration pas encore passée en production).
+    const { batchId } = await poserBatch();
+    const client = (db as unknown as { $client: Client }).$client;
+    await client.exec('alter table "meal_history" rename to "meal_history_absente"');
+    try {
+      const r = await setBatchStatus(batchId, "termine");
+      expect(r.ok).toBe(false);
+      const [batch] = await db.select().from(schema.batches).where(eq(schema.batches.id, batchId));
+      expect(batch?.status).toBe("planifie");
+    } finally {
+      await client.exec('alter table "meal_history_absente" rename to "meal_history"');
+    }
   });
 
   it("sans session : refus, rien d'écrit", async () => {

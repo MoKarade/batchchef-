@@ -69,6 +69,8 @@ export async function deleteBatch(batchId: number): Promise<ActionResult> {
     await requireSession();
     await db.delete(schema.batches).where(eq(schema.batches.id, batchId));
     revalidatePath("/batchs");
+    // La trace survit (clés `set null`) mais perd son lien vers le batch.
+    revalidatePath("/historique");
     return { ok: true };
   } catch (err) {
     return fail(err);
