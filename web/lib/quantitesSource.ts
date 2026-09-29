@@ -157,7 +157,7 @@ function donneUnePiece(ligne: LigneSource): boolean {
 }
 
 /** Ce que la quantité par portion DEVRAIT valoir, ou `null` quand il n'y a rien à corriger. */
-export type Motif = "fraction" | "sansNombre" | "sentinelle" | "rendementInconnu";
+type Motif = "fraction" | "sansNombre" | "sentinelle" | "rendementInconnu";
 export type Verdict = { corriger: false } | { corriger: true; qpp: number | null; motif: Motif };
 
 /** La V3 posait cette valeur quand elle renonçait à lire une quantité. */

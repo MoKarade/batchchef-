@@ -12,7 +12,7 @@ export interface EditRow {
   note: string;
 }
 
-export function emptyRow(): EditRow {
+function emptyRow(): EditRow {
   return { name: "", qty: "", unit: "g", note: "" };
 }
 
