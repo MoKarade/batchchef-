@@ -49,6 +49,8 @@ export interface ConfigAutoMerge {
   controles_non_bloquants: string[];
   chemins_interdits: string[];
   chemins_label_validation: string[];
+  /** Frein visuel (facultatif) : une PR qui touche un de ces chemins reçoit `do-not-merge` (jamais levé automatiquement), attestation ou non. */
+  chemins_validation_visuelle?: string[];
   carence_dependabot_jours: number;
   branche_base?: string;
   app_id_requis?: number;

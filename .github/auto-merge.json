@@ -33,6 +33,15 @@
     "web/tests/blocageFusion.test.ts",
     "**/settings*.json"
   ],
+  "chemins_validation_visuelle": [
+    "web/app/**/page.tsx",
+    "web/app/layout.tsx",
+    "web/components/**/*.tsx",
+    "web/**/*.css",
+    "web/public/*icon*.svg",
+    "web/public/*icon*.png",
+    "web/public/manifest.webmanifest"
+  ],
   "securite_login": "atelier-securite-marc[bot]",
   "securite_user_id": 334232309,
   "carence_dependabot_jours": 0,
