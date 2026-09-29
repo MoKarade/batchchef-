@@ -131,7 +131,7 @@ export function Conversation({ configure }: { configure: boolean }) {
                   type="button"
                   onClick={() => envoyer(ex)}
                   disabled={pending}
-                  className="bouton bouton-second w-full !justify-start text-left"
+                  className="bouton bouton-second w-full justify-start! text-left"
                 >
                   {ex}
                 </button>
@@ -168,7 +168,7 @@ export function Conversation({ configure }: { configure: boolean }) {
         onFermer={fermerFiche}
       />
 
-      <div className="sticky bottom-[4.75rem] space-y-2 bg-[var(--fond)] pt-3 md:bottom-0">
+      <div className="sticky bottom-24 space-y-2 bg-[var(--fond)] pt-3 md:bottom-0">
         <textarea
           ref={champ}
           value={saisie}
@@ -267,7 +267,7 @@ function CartePlacement({ place, id }: { place: number; id: number }) {
         type="button"
         disabled={enCours}
         onClick={poser}
-        className="bouton bouton-principal mt-2 w-full disabled:opacity-50"
+        className="bouton bouton-second mt-2 w-full disabled:opacity-50"
       >
         {enCours ? "…" : `Mettre à la place ${place}`}
       </button>

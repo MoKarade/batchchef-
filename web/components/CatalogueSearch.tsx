@@ -28,7 +28,7 @@ export function CatalogueSearch({ initial }: { initial: string }) {
           className="champ"
         />
       </div>
-      <button type="submit" className="bouton bouton-principal self-end">
+      <button type="submit" className="bouton bouton-second self-end">
         Chercher
       </button>
     </form>
