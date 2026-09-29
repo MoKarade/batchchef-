@@ -33,9 +33,11 @@ de l'import par URL (SSRF) et des routes MCP/OAuth (#131).
   `launch_handler` sur un partage Instagram, et si le lien du hub ouvre l'app installée.
 - `ING-09` (26 lignes irréductibles, 0,03 % du catalogue) — à rouvrir seulement si l'une
   gêne Marc en vrai, pas parce qu'elle traîne.
-- Trois idées non arbitrées au backlog (unité inconnue comptée en pièces, historique de ce
-  qui est mangé, budget confronté au réel) — à proposer avant de coder, jamais à trancher
-  seul.
+- Deux idées non arbitrées au backlog (unité inconnue comptée en pièces, budget confronté
+  au réel) — à proposer avant de coder, jamais à trancher seul.
+- **`HIST-01` — historique de ce qui a été cuisiné** (29/09, PR en relecture) : écran
+  `/historique`, table `meal_history` (migration `0017`). Démarre VIDE à la mise en ligne ;
+  C1, C3 et C4 du plan restent à contrôler une fois en production sur un vrai batch.
 
 ## Bloqué / risque ouvert
 

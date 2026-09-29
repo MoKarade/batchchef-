@@ -30,11 +30,17 @@ export default async function BatchesPage() {
           <p className="surtitre">Batchs</p>
           <h1>Batchs</h1>
         </div>
-        {batches.length > 0 && (
-          <Link href="/batchs/nouveau" className="bouton bouton-principal">
-            + Nouveau
+        <div className="ligne">
+          {/* HIST-01 : un lien, pas un onglet de navigation de plus (décision de Marc). */}
+          <Link href="/historique" className="bouton bouton-second">
+            Historique
           </Link>
-        )}
+          {batches.length > 0 && (
+            <Link href="/batchs/nouveau" className="bouton bouton-principal">
+              + Nouveau
+            </Link>
+          )}
+        </div>
       </header>
 
       {batches.length === 0 ? (

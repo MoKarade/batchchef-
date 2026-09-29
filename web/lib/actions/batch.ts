@@ -11,6 +11,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { creerBatchInterne } from "@/lib/actionsInternes/batch";
+import { requetesDeterminer, requetesTerminer } from "@/lib/historiqueDb";
 import { fail, type ActionResult } from "@/lib/actionsInternes/commun";
 import { requireSession } from "@/lib/actionsInternes/session";
 
@@ -34,13 +35,27 @@ export async function createBatch(input: {
   }
 }
 
+/**
+ * Change l'étape d'un batch, et tient l'historique de ce qui a été cuisiné (HIST-01).
+ *
+ * « Terminé » crée la trace (une ligne par recette) ; toute autre étape efface celle de CE
+ * batch — un recul corrige une fausse manœuvre. Les deux passent dans le MÊME `db.batch`
+ * que le statut : si l'historique échoue, le statut ne change pas, et l'erreur est dite.
+ * Pas de lecture préalable du statut : l'insertion ignore les doublons et la suppression
+ * est sans effet quand il n'y a rien, donc deux onglets ne peuvent pas se contredire.
+ */
 export async function setBatchStatus(
   batchId: number,
   status: "planifie" | "courses" | "cuisine" | "termine",
 ): Promise<ActionResult> {
   try {
     await requireSession();
-    await db.update(schema.batches).set({ status }).where(eq(schema.batches.id, batchId));
+    const miseAJour = db.update(schema.batches).set({ status }).where(eq(schema.batches.id, batchId));
+    await db.batch([
+      miseAJour,
+      status === "termine" ? requetesTerminer(batchId) : requetesDeterminer(batchId),
+    ]);
+    revalidatePath("/historique");
     revalidatePath("/batchs");
     revalidatePath(`/batchs/${batchId}`);
     return { ok: true };

@@ -46,6 +46,20 @@ validation, vitest pour les tests.
   (mesuré 5,2 % au lieu de 40,6 %). Ce n'est pas un choix de fond contre vitest 5, mais une
   dépendance à la maturité d'un outil tiers — à revoir quand Stryker suivra.
 
+## L'historique de ce qui a été cuisiné (`HIST-01`, 29/09/2026)
+
+- **Table `meal_history`** (migration `0017`, création seule) : une ligne par recette d'un
+  batch passé à « Terminé ». Elle RECOPIE titre, source, nom du batch et portions prévues, et
+  ses trois clés (`batch_recipe_id`, `batch_id`, `recipe_id`) sont en `on delete set null` :
+  la trace survit à la suppression du batch ou de la recette. `batch_recipe_id` est unique
+  (`ON CONFLICT DO NOTHING`) : un double clic ne crée pas de doublon.
+- **Écriture atomique avec le statut** : `setBatchStatus` (`lib/actions/batch.ts`) passe la
+  mise à jour ET l'insertion (ou, sur tout autre statut, la suppression des lignes du batch)
+  dans un seul `db.batch` Neon. Si l'historique échoue, le statut ne change pas.
+- **Lecture** : `lib/historiqueDb.ts` (requêtes) + `lib/historique.ts` (regroupements PURS :
+  fréquence par source/fiche/titre, semaines ISO en heure du Québec). Écran `/historique`,
+  lien depuis `/batchs`. « Cuisiné », jamais « mangé » : l'app ne sait pas ce qui a été avalé.
+
 ## Le serveur MCP (`POST /api/mcp`) — ADR-0001
 
 Deux décisions de Marc ont fixé toute l'architecture de cette pièce : le serveur tourne

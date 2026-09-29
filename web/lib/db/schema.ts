@@ -277,6 +277,39 @@ export const mcpOauthAttempts = pgTable("mcp_oauth_attempts", {
   echecs: integer("echecs").notNull().default(0),
 });
 
+/**
+ * Historique de ce qui a été CUISINÉ (HIST-01, décision de Marc du 29/09/2026).
+ *
+ * Une ligne par recette d'un batch passé à « Terminé », écrite dans le MÊME `db.batch` que
+ * le changement de statut (cf. `setBatchStatus`). Un recul « terminé → autre étape » efface
+ * les lignes du batch ; un nouveau « Terminé » les recrée avec la nouvelle date.
+ *
+ * ⚠️ « Cuisiné », pas « mangé » : l'app ne sait pas ce qui a été avalé. Les portions sont
+ * celles PRÉVUES dans le batch.
+ *
+ * ⚠️ Les COPIES (titre, source, nom du batch, portions) ne sont pas de la redondance : un
+ * batch ou une recette peut être supprimé après cuisson, et la trace doit y survivre. D'où
+ * les trois clés `on delete set null` — jamais `cascade`, qui effacerait l'historique avec
+ * le batch. `batch_recipe_id` UNIQUE : un double clic ou deux onglets ne créent pas de
+ * doublon (`ON CONFLICT DO NOTHING`). L'historique démarre VIDE : aucune date inventée
+ * pour les batchs terminés avant la mise en ligne.
+ */
+export const mealHistory = pgTable("meal_history", {
+  id: serial("id").primaryKey(),
+  batchRecipeId: integer("batch_recipe_id")
+    .unique()
+    .references(() => batchRecipes.id, { onDelete: "set null" }),
+  batchId: integer("batch_id").references(() => batches.id, { onDelete: "set null" }),
+  recipeId: integer("recipe_id").references(() => recipes.id, { onDelete: "set null" }),
+  titre: text("titre").notNull(),
+  /** Clé de regroupement de la fréquence quand elle existe (même logique que `typeCorrections`). */
+  sourceUrl: text("source_url"),
+  nomBatch: text("nom_batch").notNull(),
+  portions: integer("portions").notNull(),
+  /** L'instant où Marc a touché « Terminé », pris par le serveur. */
+  cuisineLe: timestamp("cuisine_le", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type Recipe = typeof recipes.$inferSelect;
 export type CatalogRecipe = typeof catalogRecipes.$inferSelect;
 export type CatalogIngredient = typeof catalogIngredients.$inferSelect;
