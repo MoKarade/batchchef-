@@ -21,7 +21,7 @@ export function Etoiles({
 }) {
   if (!estDifficulte(etoiles)) {
     return (
-      <span className="text-xs doux" title="Trop peu d'information dans la source pour estimer.">
+      <span className="text-sm doux" title="Trop peu d'information dans la source pour estimer.">
         Difficulté non estimée
       </span>
     );
@@ -40,7 +40,7 @@ export function Etoiles({
           <Etoile key={i} pleine={i < etoiles} />
         ))}
       </span>
-      {!compact && <span className="text-xs doux">{libelle} — estimée</span>}
+      {!compact && <span className="text-sm doux">{libelle} — estimée</span>}
     </span>
   );
 }
@@ -58,7 +58,7 @@ function Etoile({ pleine }: { pleine: boolean }) {
       aria-hidden="true"
       focusable="false"
       className="h-3.5 w-3.5"
-      style={{ color: pleine ? "var(--texte)" : "var(--bordure)" }}
+      style={{ color: pleine ? "var(--texte)" : "var(--bordure-champ)" }}
     >
       <path
         fill="currentColor"

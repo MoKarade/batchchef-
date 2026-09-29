@@ -46,34 +46,36 @@ export function BatchStatusControls({
   const next = STATUSES[currentIndex + 1];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div>
-        <h2 className="mb-2 font-semibold">Avancement</h2>
-        <div className="grid grid-cols-4 gap-1 rounded-xl border border-[var(--bordure)] p-1">
+        <h2 className="mb-3 text-xl font-bold">Avancement</h2>
+        {/* L'étape « en cours » est en ARGENT (contour `--accent`), pas en `--repere` : le
+            repère n'est jamais un état. Fait / en cours se DISENT aussi en texte masqué,
+            jamais par la couleur seule. */}
+        <ol className="etapes" aria-label="Avancement du batch">
           {STATUSES.map((s, i) => {
             const done = i < currentIndex;
             const active = i === currentIndex;
             return (
-              <button
-                key={s.value}
-                type="button"
-                disabled={pending}
-                onClick={() => go(s.value)}
-                aria-current={active ? "step" : undefined}
-                className={`rounded-lg px-2 py-2 text-xs font-medium transition disabled:opacity-60 ${
-                  active
-                    ? "sur-accent"
-                    : done
-                      ? ""
-                      : "doux "
-                }`}
-                style={active ? { backgroundColor: "var(--accent)" } : undefined}
-              >
-                {s.label}
-              </button>
+              <li key={s.value}>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => go(s.value)}
+                  aria-current={active ? "step" : undefined}
+                  data-fait={done ? "oui" : "non"}
+                  className="etape disabled:opacity-60"
+                >
+                  <span className="etape-st">Étape {i + 1}</span>
+                  {s.label}
+                  {(done || active) && (
+                    <span className="sr-only">{done ? " (faite)" : " (en cours)"}</span>
+                  )}
+                </button>
+              </li>
             );
           })}
-        </div>
+        </ol>
       </div>
 
       {/* Action principale : avancer d'une étape (dont « Terminer le batch » depuis Cuisine). */}
@@ -82,19 +84,22 @@ export function BatchStatusControls({
           type="button"
           disabled={pending}
           onClick={() => go(next.value)}
-          className="w-full rounded-xl border-2 px-4 py-3 text-sm font-medium disabled:opacity-60"
-          style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+          className="bouton bouton-principal w-full"
         >
           {next.value === "termine" ? "Terminer le batch" : `Passer à « ${next.label} »`}
         </button>
       )}
       {current === "termine" && (
-        <p className="rounded-xl succes px-4 py-3 text-center text-sm font-medium">
+        <p className="bandeau succes" role="status">
           Batch terminé.
         </p>
       )}
 
-      {error && <p className="text-xs texte-erreur">{error}</p>}
+      {error && (
+        <p className="bandeau erreur" role="alert">
+          {error}
+        </p>
+      )}
 
       <button
         type="button"
@@ -110,7 +115,7 @@ export function BatchStatusControls({
             router.push("/batchs");
           });
         }}
-        className="w-full rounded-xl border border-[var(--bordure)] px-4 py-2 text-sm doux disabled:opacity-60"
+        className="bouton bouton-second w-full"
       >
         Supprimer le batch
       </button>

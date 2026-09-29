@@ -52,17 +52,10 @@ export function ShoppingChecklist({ items: initial }: { items: Item[] }) {
         type="button"
         onClick={() => toggle(item)}
         aria-pressed={item.checked}
-        className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left"
+        className="flex min-h-[3.25rem] w-full items-center gap-3 px-4 py-2 text-left"
       >
-        <span
-          aria-hidden
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2"
-          style={{
-            borderColor: item.checked ? "var(--accent)" : "var(--bordure)",
-            backgroundColor: item.checked ? "var(--accent)" : "transparent",
-            color: "var(--sur-accent)",
-          }}
-        >
+        {/* Coché = coche + texte barré (jamais la couleur seule). */}
+        <span aria-hidden className="case" data-coche={item.checked ? "oui" : "non"}>
           {item.checked && (
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <path d="m5 12.5 4.5 4.5L19 7" />
@@ -76,10 +69,10 @@ export function ShoppingChecklist({ items: initial }: { items: Item[] }) {
           >
             {item.name}
           </span>
-          <span className="ml-2 text-sm tabular-nums doux">{formatQty(item.qty, item.unit)}</span>
+          <span className="ml-2 text-sm num doux">{formatQty(item.qty, item.unit)}</span>
         </span>
         {item.estCost !== null && (
-          <span className="shrink-0 text-sm tabular-nums doux">{formatMontant(item.estCost)}</span>
+          <span className="shrink-0 text-sm num doux">{formatMontant(item.estCost)}</span>
         )}
       </button>
     </li>
@@ -87,37 +80,29 @@ export function ShoppingChecklist({ items: initial }: { items: Item[] }) {
 
   if (items.length === 0) {
     return (
-      <p
-        className="rounded-2xl border border-dashed p-6 text-center text-sm doux"
-        style={{ borderColor: "var(--bordure)" }}
-      >
-        Liste vide.
-      </p>
+      <div className="vide">
+        <h2>Liste vide</h2>
+        <p>Aucun article dans cette liste d’épicerie.</p>
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
       {syncError && (
-        <p
-          className="rounded-xl p-3 text-sm"
-          style={{ backgroundColor: "var(--erreur-fond)", color: "var(--erreur-texte)" }}
-        >
+        <p className="bandeau erreur" role="alert">
           Échec de sauvegarde (réseau ?) — la case a été remise. Réessaie.
         </p>
       )}
 
       {/* Reste collé sous l'en-tête : au milieu d'une liste de trente articles, l'avancement
           doit rester visible sans remonter. */}
-      <div
-        className="carte sticky top-14 z-10 px-4 py-3"
-        style={{ backgroundColor: "var(--surface)" }}
-      >
+      <div className="carte sticky top-2 z-10 px-4 py-3">
         <div className="flex items-baseline justify-between gap-3">
           <span className="font-medium">
             {progression.termine ? "Tout est pris" : `${progression.pris} sur ${progression.total} pris`}
           </span>
-          <span className="text-sm tabular-nums doux">
+          <span className="text-sm num doux">
             {/* « estimé » est DIT : ce sont des prix devinés par un modèle, pas des prix
                 relevés en magasin. Un montant nu passerait pour un vrai total. */}
             reste {formatMontant(progression.restantEstime)} estimé
@@ -139,14 +124,14 @@ export function ShoppingChecklist({ items: initial }: { items: Item[] }) {
           />
         </div>
         {progression.montantIncomplet && (
-          <p className="mt-2 text-xs doux">
+          <p className="mt-2 text-sm doux">
             Le « + » signale des articles restants sans coût estimé : le montant est un
             plancher, pas le total.
           </p>
         )}
       </div>
 
-      <ul className="carte divide-y overflow-hidden" style={{ borderColor: "var(--bordure)" }}>
+      <ul className="liste">
         {remaining.map((item) => (
           <Row key={item.id} item={item} />
         ))}
@@ -154,8 +139,8 @@ export function ShoppingChecklist({ items: initial }: { items: Item[] }) {
 
       {done.length > 0 && (
         <>
-          <h2 className="pt-1 text-sm font-medium doux">Dans le panier ({done.length})</h2>
-          <ul className="carte divide-y overflow-hidden" style={{ borderColor: "var(--bordure)" }}>
+          <h2 className="surtitre pt-2">Dans le panier ({done.length})</h2>
+          <ul className="liste">
             {done.map((item) => (
               <Row key={item.id} item={item} />
             ))}

@@ -11,14 +11,17 @@ export const maxDuration = 60;
 
 export default function AssistantPage() {
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold">Assistant</h1>
-        <p className="mt-1 text-sm doux">
-          Il fouille tes recettes et le catalogue pour répondre. Il dit toujours d’où vient ce
-          qu’il propose.
-        </p>
-      </div>
+    <div>
+      <header className="entete">
+        <div>
+          <p className="surtitre">Cuisine</p>
+          <h1>Assistant</h1>
+          <p className="doux mt-1">
+            Il fouille tes recettes et le catalogue pour répondre. Il dit toujours d’où vient ce
+            qu’il propose.
+          </p>
+        </div>
+      </header>
       <Conversation configure={Boolean(process.env.ANTHROPIC_API_KEY)} />
     </div>
   );

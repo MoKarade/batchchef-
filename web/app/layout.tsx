@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SignOutButton } from "@/components/AuthButtons";
 import { EnregistrerServiceWorker } from "@/components/EnregistrerServiceWorker";
-import { NavigationBasse, NavigationHaute } from "@/components/Navigation";
+import { Navigation } from "@/components/Navigation";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,7 +12,9 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#c2410c",
+  // Fond du thème sombre (`--fond`) : la barre du navigateur se fond dans la page.
+  themeColor: "#07090d",
+  colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
   // La barre du bas s'ancre sur la zone sûre : encore faut-il que le navigateur la donne.
@@ -23,42 +25,33 @@ export const viewport: Viewport = {
 const HUB_URL = (process.env.NEXT_PUBLIC_HUB_URL || "https://hubperso.com").replace(/\/+$/, "");
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const pied = (
+    <>
+      <a href={HUB_URL} className="nav-outil">
+        ← Hub
+      </a>
+      <SignOutButton />
+    </>
+  );
+
   return (
     <html lang="fr-CA">
       <body className="min-h-dvh">
-        {/* L'en-tête ne porte plus que l'identité et les gestes RARES (hub, déconnexion).
-            Les quatre onglets vivent en bas sur téléphone : c'est là que se trouve le
-            pouce, et c'est ce qui a réglé le débordement de l'ancienne barre unique. */}
-        <header
-          className="sticky top-0 z-10 border-b backdrop-blur"
-          style={{ borderColor: "var(--bordure)", backgroundColor: "color-mix(in srgb, var(--fond) 90%, transparent)" }}
-        >
-          <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-4">
-            <span
-              className="text-lg font-bold tracking-tight"
-              style={{ color: "var(--accent)", fontFamily: "var(--police-titre)" }}
-            >
-              BatchChef
-            </span>
-            <NavigationHaute />
-            <div className="ml-auto flex items-center gap-1">
-              <a
-                href={HUB_URL}
-                className="rounded-lg px-2 py-2 text-sm font-medium"
-                style={{ color: "var(--texte-doux)" }}
-              >
-                ← Hub
-              </a>
-              <SignOutButton />
-            </div>
-          </div>
-        </header>
+        <div className="coque">
+          {/* Téléphone : une fine barre en haut pour l'identité et les gestes RARES (hub,
+              déconnexion) ; les onglets vivent en bas, là où se trouve le pouce.
+              Dès 768 px, la barre latérale les porte tous et cette barre disparaît. */}
+          <header className="barre-haute md:hidden">
+            <span className="text-base font-bold tracking-tight">BatchChef</span>
+            <div className="ml-auto flex items-center gap-1">{pied}</div>
+          </header>
 
-        {/* La marge basse dégage la barre d'onglets : sans elle, le dernier élément de
-            chaque page passe dessous et devient impossible à atteindre. */}
-        <main className="mx-auto max-w-3xl px-4 py-5 pb-28 sm:pb-8">{children}</main>
+          <Navigation pied={pied} />
 
-        <NavigationBasse />
+          {/* La marge basse (`.principal`) dégage la barre d'onglets : sans elle, le dernier
+              élément de chaque page passe dessous et devient impossible à atteindre. */}
+          <main className="principal">{children}</main>
+        </div>
         <EnregistrerServiceWorker />
         <Analytics />
       </body>

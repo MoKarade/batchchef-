@@ -240,7 +240,7 @@ export function ImportVideoForm({
         vignettes={vignettes}
         onCancel={reset}
         hint={
-          <p className="text-xs doux">
+          <p className="text-sm doux">
             {lu ? `${resumeSources(lu, description)}. ` : ""}
             Une publication annonce rarement les quantités exactes : relis chaque ligne, c’est
             ce que tu valides qui est enregistré.
@@ -259,8 +259,8 @@ export function ImportVideoForm({
       }}
     >
       <div>
-        <h2 className="font-semibold">Depuis une vidéo</h2>
-        <p className="mt-1 text-xs doux">
+        <h2 className="text-lg font-bold">Depuis une vidéo</h2>
+        <p className="mt-1 text-sm doux">
           La voie normale : un <strong>enregistrement d’écran</strong> du reel, légende dépliée —
           il porte à la fois les gestes, les quantités affichées et le texte. Instagram ne laisse
           pas enregistrer la vidéo elle-même, mais ton téléphone sait filmer son propre écran.
@@ -276,7 +276,7 @@ export function ImportVideoForm({
           onChange={(e) => setLien(e.target.value)}
           placeholder="https://www.instagram.com/reel/…"
           disabled={busy}
-          className="champ text-sm"
+          className="champ"
         />
       </label>
 
@@ -289,10 +289,10 @@ export function ImportVideoForm({
           accept="video/*"
           onChange={(e) => setFichier(e.target.files?.[0] ?? null)}
           disabled={busy}
-          className="w-full rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-douce)] file:px-3 file:py-1 file:text-sm"
+          className="champ file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-douce)] file:px-3 file:py-1 file:text-sm file:text-[var(--texte)]"
         />
         {fichier && (
-          <p className="mt-1 text-xs doux">
+          <p className="mt-1 text-sm doux">
             {fichier.name} · {(fichier.size / 1_000_000).toFixed(1)} Mo
           </p>
         )}
@@ -308,10 +308,10 @@ export function ImportVideoForm({
           multiple
           onChange={(e) => setCaptures(Array.from(e.target.files ?? []))}
           disabled={busy}
-          className="w-full rounded-lg border border-[var(--bordure)] bg-[var(--surface)] px-2 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-douce)] file:px-3 file:py-1 file:text-sm"
+          className="champ file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-douce)] file:px-3 file:py-1 file:text-sm file:text-[var(--texte)]"
         />
         {captures.length > 0 && (
-          <p className="mt-1 text-xs doux">
+          <p className="mt-1 text-sm doux">
             {captures.length} capture(s) — le texte y sera lu.
           </p>
         )}
@@ -325,8 +325,7 @@ export function ImportVideoForm({
           type="button"
           onClick={() => void collerDescription()}
           disabled={busy}
-          className="w-full rounded-xl border border-dashed px-4 py-3 text-sm font-medium disabled:opacity-50"
-          style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+          className="bouton bouton-second w-full !border-dashed"
         >
           Coller la description copiée
         </button>
@@ -339,7 +338,7 @@ export function ImportVideoForm({
             type="button"
             onClick={() => void collerDescription()}
             disabled={busy}
-            className="rounded-lg border border-[var(--bordure)] px-3 py-1 text-xs font-medium disabled:opacity-50"
+            className="bouton bouton-second"
           >
             Coller
           </button>
@@ -350,7 +349,7 @@ export function ImportVideoForm({
           rows={5}
           placeholder="Appui long sur la légende du reel → Copier, puis « Coller » ici."
           disabled={busy}
-          className="champ text-sm"
+          className="champ"
         />
       </div>
 
@@ -363,25 +362,25 @@ export function ImportVideoForm({
       </button>
 
       {phase.kind === "captures" && (
-        <p className="text-xs doux">Préparation des captures d’écran…</p>
+        <p className="text-sm doux">Préparation des captures d’écran…</p>
       )}
       {phase.kind === "video" && (
-        <p className="text-xs doux">
+        <p className="text-sm doux">
           {phase.etape === "reperage"
             ? `Repérage des écrans de la vidéo${phase.total > 0 ? ` — ${phase.done}/${phase.total}` : "…"}`
             : `Extraction des images retenues — ${phase.done}/${phase.total}`}
         </p>
       )}
       {phase.kind === "transcription" && (
-        <p className="text-xs doux">Transcription de la bande sonore…</p>
+        <p className="text-sm doux">Transcription de la bande sonore…</p>
       )}
       {phase.kind === "analyse" && (
-        <p className="text-xs doux">
+        <p className="text-sm doux">
           Extraction de la recette (ingrédients + préparation), 20-40 s…
         </p>
       )}
       {error && (
-        <p className="rounded-lg erreur p-2 text-sm">
+        <p className="bandeau erreur text-sm">
           {error}
         </p>
       )}

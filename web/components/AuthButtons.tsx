@@ -14,8 +14,7 @@ export function ReconnectGoogleButton({ redirectTo = "/" }: { redirectTo?: strin
     >
       <button
         type="submit"
-        className="w-full rounded-xl border px-4 py-3 text-sm font-medium"
-        style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+        className="bouton bouton-second w-full"
       >
         Reconnecter Google (autoriser l’accès à Tasks)
       </button>
@@ -31,10 +30,7 @@ export function SignOutButton() {
         await signOut({ redirectTo: "/login" });
       }}
     >
-      <button
-        type="submit"
-        className="rounded-lg px-3 py-2 text-sm font-medium doux hover:bg-[var(--surface-douce)]"
-      >
+      <button type="submit" className="nav-outil">
         Déconnexion
       </button>
     </form>

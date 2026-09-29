@@ -27,34 +27,39 @@ export default async function RecipesPage() {
     .orderBy(desc(schema.recipes.createdAt));
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-baseline justify-between gap-3">
-        <h1 className="text-2xl font-bold">Mes recettes</h1>
+    <div>
+      <header className="entete">
+        <div>
+          <p className="surtitre">Bibliothèque</p>
+          <h1>Mes recettes</h1>
+        </div>
         {recipes.length > 0 && (
-          <span className="text-sm tabular-nums doux">
+          <span className="num doux">
             {recipes.length} recette{recipes.length > 1 ? "s" : ""}
           </span>
         )}
-      </div>
+      </header>
 
       <details className="carte overflow-hidden">
-        <summary className="cursor-pointer px-4 py-3 font-medium">Ajouter une recette</summary>
-        <div className="space-y-4 border-t px-4 py-4" style={{ borderColor: "var(--bordure)" }}>
+        <summary className="flex min-h-11 cursor-pointer items-center px-5 font-semibold">
+          Ajouter une recette
+        </summary>
+        <div className="space-y-4 border-t px-5 py-4" style={{ borderColor: "var(--bordure)" }}>
           <ImportRecipeForm />
           <ImportVideoForm transcriptionActive={Boolean(process.env.GROQ_API_KEY)} />
         </div>
       </details>
 
       {recipes.length === 0 ? (
-        <p
-          className="rounded-2xl border border-dashed p-6 text-center text-sm doux"
-          style={{ borderColor: "var(--bordure)" }}
-        >
-          Aucune recette pour l’instant. Partage un enregistrement d’écran d’un reel vers
-          BatchChef, colle l’URL d’une recette, ou pige dans le catalogue.
-        </p>
+        <div className="vide mt-6">
+          <h2>Aucune recette pour l’instant</h2>
+          <p>
+            Partage un enregistrement d’écran d’un reel vers BatchChef, colle l’URL d’une
+            recette, ou pige dans le catalogue.
+          </p>
+        </div>
       ) : (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <ul className="grille g3 mt-6">
           {recipes.map((r) => (
             <li key={r.id}>
               <RecipeCard

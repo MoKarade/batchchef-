@@ -44,14 +44,16 @@ export default async function CatalogueDetailPage({
   );
 
   return (
-    <article className="space-y-5">
+    <article className="space-y-6">
       <Link href="/catalogue" className="text-sm underline">← Catalogue</Link>
       {recipe.imageUrl && (
-         
         <ImageRecette src={recipe.imageUrl} className="aspect-video w-full rounded-2xl object-cover" />
       )}
       <div className="flex items-start justify-between gap-3">
-        <h1 className="text-xl font-bold">{recipe.title}</h1>
+        <div>
+          <p className="surtitre">Catalogue</p>
+          <h1 className="text-[1.75rem] font-bold leading-tight">{recipe.title}</h1>
+        </div>
         <AddToLibraryButton catalogRecipeId={recipe.id} />
       </div>
 
@@ -61,10 +63,10 @@ export default async function CatalogueDetailPage({
       <TypePlatEditeur catalogRecipeId={recipe.id} type={type} corrige={corrige} />
 
       <section>
-        <h2 className="mb-2 font-semibold">Ingrédients (pour {recipe.servings} portion{recipe.servings > 1 ? "s" : ""})</h2>
-        <ul className="divide-y divide-[var(--bordure)] rounded-2xl border border-[var(--bordure)] bg-[var(--surface)]">
+        <h2 className="mb-3 text-xl font-bold">Ingrédients (pour {recipe.servings} portion{recipe.servings > 1 ? "s" : ""})</h2>
+        <ul className="liste">
           {ingredients.map((ing) => (
-            <li key={ing.id} className="flex items-center justify-between px-4 py-3 text-sm">
+            <li key={ing.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
               <span>{ing.name}{ing.note && <span className="doux"> — {ing.note}</span>}</span>
               <span className="tabular-nums doux">{formatQty(ing.qty, ing.unit)}</span>
             </li>
@@ -74,14 +76,14 @@ export default async function CatalogueDetailPage({
 
       {recipe.instructions && (
         <section>
-          <h2 className="mb-2 font-semibold">Préparation</h2>
-          <p className="whitespace-pre-line rounded-2xl border border-[var(--bordure)] bg-[var(--surface)] p-4 text-sm leading-relaxed">
+          <h2 className="mb-3 text-xl font-bold">Préparation</h2>
+          <p className="carte whitespace-pre-line p-4 text-sm leading-relaxed">
             {recipe.instructions}
           </p>
         </section>
       )}
       {recipe.sourceUrl && (
-        <a href={recipe.sourceUrl} target="_blank" rel="noreferrer noopener" className="inline-block text-sm underline">
+        <a href={recipe.sourceUrl} target="_blank" rel="noreferrer noopener" className="bouton bouton-second">
           Voir sur Marmiton →
         </a>
       )}

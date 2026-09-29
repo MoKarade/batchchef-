@@ -33,10 +33,9 @@ export function FiltreType({ actif }: { actif: string | null }) {
         type="button"
         onClick={() => aller(valeur)}
         aria-pressed={choisi}
-        className={`rounded-full border px-3 py-2 text-xs ${
-          choisi ? "sur-accent border-transparent" : "border-[var(--bordure)]"
-        }`}
-        style={choisi ? { backgroundColor: "var(--accent)" } : undefined}
+        // `aria-pressed` porte aussi le style « pilule active » (globals.css) : fond inversé
+        // ET gras, donc jamais la couleur seule.
+        className="onglet"
       >
         {libelle}
       </button>
@@ -44,7 +43,7 @@ export function FiltreType({ actif }: { actif: string | null }) {
   };
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="onglets" role="group" aria-label="Filtrer par type de plat">
       {pastille(null, "Tous")}
       {FAMILLES.map((f) => pastille(f, LIBELLES[f]))}
       {pastille(TYPE_INCONNU, "Non déterminé")}

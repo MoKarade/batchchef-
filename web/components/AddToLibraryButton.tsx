@@ -14,7 +14,7 @@ export function AddToLibraryButton({ catalogRecipeId }: { catalogRecipeId: numbe
       <button
         type="button"
         onClick={() => router.push("/recettes")}
-        className="shrink-0 rounded-xl border border-[var(--bordure)] px-3 py-2 text-sm"
+        className="bouton bouton-second shrink-0"
       >
         ✓ Ajoutée — voir
       </button>
@@ -32,12 +32,11 @@ export function AddToLibraryButton({ catalogRecipeId }: { catalogRecipeId: numbe
             setState(res.ok ? "done" : res.error);
           })
         }
-        className="rounded-xl px-3 py-2 text-sm font-medium sur-accent disabled:opacity-50"
-        style={{ backgroundColor: "var(--accent)" }}
+        className="bouton bouton-principal"
       >
         {pending ? "…" : "+ Ma bibliothèque"}
       </button>
-      {state !== "idle" && state !== "done" && <p className="mt-1 max-w-40 text-xs texte-erreur">{state}</p>}
+      {state !== "idle" && state !== "done" && <p className="mt-1 max-w-40 text-sm texte-erreur">{state}</p>}
     </div>
   );
 }

@@ -65,21 +65,26 @@ export function SemaineProposee({
   // vide se dit, et quatre recettes s'affichent. Les confondre rendrait la panne invisible.
   if (panne) {
     return (
-      <section className="carte space-y-2 p-4">
-        <h2 className="text-lg font-semibold">Ta semaine</h2>
-        <p className="text-sm texte-erreur">
-          La proposition de la semaine n’a pas pu être préparée : {panne}
-        </p>
+      <section aria-labelledby="titre-semaine">
+        <EnTete />
+        <div className="bandeau erreur" role="alert">
+          <IconeErreur />
+          <div>
+            <strong>La semaine n’a pas pu être préparée.</strong>
+            <span>La proposition de la semaine n’a pas pu être préparée : {panne}</span>
+          </div>
+        </div>
       </section>
     );
   }
   if (recettes.length === 0) {
     return (
-      <section className="carte space-y-2 p-4">
-        <h2 className="text-lg font-semibold">Ta semaine</h2>
-        <p className="text-sm doux">
-          Aucune recette à proposer pour l’instant — le catalogue est vide.
-        </p>
+      <section aria-labelledby="titre-semaine">
+        <EnTete />
+        <div className="vide">
+          <h2>Pas encore de semaine proposée</h2>
+          <p>Aucune recette à proposer pour l’instant — le catalogue est vide.</p>
+        </div>
       </section>
     );
   }
@@ -112,54 +117,98 @@ export function SemaineProposee({
     });
 
   return (
-    <section className="carte space-y-3 p-4">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-lg font-semibold">Ta semaine</h2>
-        <span className="text-xs doux">Trois plats et un dessert</span>
-      </div>
+    <section aria-labelledby="titre-semaine">
+      <EnTete
+        description="Trois plats et un dessert. Change-en un, ou crée le batch quand la semaine te convient."
+        actions={
+          <>
+            <button
+              type="button"
+              disabled={pending || confirmeRegen}
+              onClick={() => setConfirmeRegen(true)}
+              className="bouton bouton-second"
+            >
+              Propose-moi une autre semaine
+            </button>
+            {batchCree === null ? (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={monterLeBatch}
+                className="bouton bouton-principal"
+              >
+                <IconePlus />
+                {pending ? "…" : "Créer le batch de la semaine"}
+              </button>
+            ) : (
+              <Link href={`/batchs/${batchCree}`} className="bouton bouton-principal">
+                Batch créé — voir la liste d’épicerie
+              </Link>
+            )}
+          </>
+        }
+      />
+
+      {/* ⚠️ Deux temps pour la regénération (cf. plus haut) : la confirmation est un bandeau
+          d'alerte avec ses deux boutons, pas un simple texte. */}
+      {confirmeRegen && (
+        <div className="bandeau alerte mb-4" role="alertdialog" aria-labelledby="titre-regen">
+          <IconeAlerte />
+          <div>
+            <strong id="titre-regen">Régénérer remplace les quatre recettes.</strong>
+            <span>
+              Les quatre recettes seront remplacées, et celles d’aujourd’hui ne reviendront pas.
+            </span>
+            <div className="ligne mt-3">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={regenerer}
+                className="bouton bouton-second"
+              >
+                {pending ? "…" : "Oui, propose-m’en quatre autres"}
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setConfirmeRegen(false)}
+                className="bouton bouton-second"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Synthese temps={temps} prix={prix} />
 
-      <ul className="grid gap-3 sm:grid-cols-2">
+      <ul className="grille g4 mt-4" aria-label="Recettes de la semaine">
         {recettes.map((r) => (
-          <li
-            key={r.position}
-            className="flex gap-3 rounded-xl border border-[var(--bordure)] p-2"
-          >
-            {r.imageUrl ? (
-              <ImageRecette
-                src={r.imageUrl}
-                className="h-20 w-20 shrink-0 rounded-lg object-cover"
-                lazy
-              />
-            ) : (
-              <div
-                className="h-20 w-20 shrink-0 rounded-lg"
-                style={{ backgroundColor: "var(--surface-douce)" }}
-                aria-hidden
-              />
-            )}
-            <div className="flex min-w-0 flex-1 flex-col justify-between gap-2">
-              <div className="min-w-0">
-                <Link
-                  href={`/catalogue/${r.catalogRecipeId}`}
-                  className="line-clamp-2 text-sm font-medium underline-offset-2 hover:underline"
-                >
-                  {r.titre}
-                </Link>
-                {r.type && <div className="mt-1 text-xs doux">{LIBELLES[r.type]}</div>}
-                <div className="mt-1 text-xs">
+          <li key={r.position} className="carte flex flex-col overflow-hidden">
+            <Link href={`/catalogue/${r.catalogRecipeId}`} className="block">
+              {r.imageUrl ? (
+                <ImageRecette src={r.imageUrl} className="photo" lazy />
+              ) : (
+                <div className="photo photo-vide" aria-hidden />
+              )}
+              <div className="carte-corps">
+                <h3 className="line-clamp-2 text-base font-bold">{r.titre}</h3>
+                <div className="meta">
+                  {r.type && <span className="pastille repere">{LIBELLES[r.type]}</span>}
                   <Durees prep={r.prepMinutes} cuisson={r.cuissonMinutes} />
                 </div>
-                <div className="mt-1">
+                <div className="mt-2">
                   <Etoiles etoiles={r.difficulte} compact />
                 </div>
               </div>
+            </Link>
+            <div className="mt-auto px-5 pb-4">
               <button
                 type="button"
                 disabled={pending}
                 onClick={() => remplacer(r.position)}
-                className="self-start rounded-lg border border-[var(--bordure)] px-3 py-2 text-xs disabled:opacity-50"
+                className="bouton bouton-second w-full"
               >
                 {enCours === r.position ? "…" : "Remplacer"}
               </button>
@@ -168,71 +217,72 @@ export function SemaineProposee({
         ))}
       </ul>
 
-      {confirmeRegen ? (
-        <div className="space-y-2 rounded-xl p-2 alerte">
-          <p className="text-xs">
-            Les quatre recettes seront remplacées, et celles d’aujourd’hui ne reviendront pas.
-          </p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={pending}
-              onClick={regenerer}
-              className="flex-1 rounded-lg border border-[var(--bordure)] px-3 py-2 text-xs disabled:opacity-50"
-            >
-              {pending ? "…" : "Oui, propose-m’en quatre autres"}
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => setConfirmeRegen(false)}
-              className="flex-1 rounded-lg border border-[var(--bordure)] px-3 py-2 text-xs disabled:opacity-50"
-            >
-              Annuler
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => setConfirmeRegen(true)}
-          className="w-full rounded-lg border border-[var(--bordure)] px-3 py-2 text-xs disabled:opacity-50"
-        >
-          Propose-moi une autre semaine
-        </button>
-      )}
-
-      {batchCree === null ? (
-        <button
-          type="button"
-          disabled={pending}
-          onClick={monterLeBatch}
-          className="bouton bouton-principal w-full disabled:opacity-50"
-        >
-          {pending ? "…" : "Créer le batch de la semaine"}
-        </button>
-      ) : (
-        <Link href={`/batchs/${batchCree}`} className="bouton bouton-principal block w-full text-center">
-          Batch créé — voir la liste d’épicerie
-        </Link>
-      )}
-
       {recettes.length < 4 && (
-        <p className="text-sm doux">
+        <p className="doux mt-4">
           {4 - recettes.length} place(s) non pourvue(s) : le catalogue n’a pas de quoi compléter
           la semaine sous cette composition. Mieux vaut une place vide qu’une recette qui ment
           sur ce qu’elle est.
         </p>
       )}
 
-      {erreur && <p className="text-sm texte-erreur">{erreur}</p>}
+      {erreur && (
+        <div className="bandeau erreur mt-4" role="alert">
+          <IconeErreur />
+          <div>{erreur}</div>
+        </div>
+      )}
     </section>
   );
 }
 
+/** En-tête commun à tous les états de la carte : surtitre, titre, actions éventuelles. */
+function EnTete({
+  description,
+  actions,
+}: {
+  description?: string;
+  actions?: React.ReactNode;
+}) {
+  return (
+    <header className="entete">
+      <div>
+        <p className="surtitre">Accueil</p>
+        <h1 id="titre-semaine">Ta semaine</h1>
+        {description && <p className="doux mt-1">{description}</p>}
+      </div>
+      {actions && <div className="ligne">{actions}</div>}
+    </header>
+  );
+}
+
+function IconePlus() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function IconeErreur() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v6M12 16.5v.5" />
+    </svg>
+  );
+}
+
+function IconeAlerte() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3l10 18H2z" />
+      <path d="M12 10v5M12 18v.5" />
+    </svg>
+  );
+}
+
 /**
- * La ligne de synthèse : temps total et prix estimé de la semaine (SEM-05).
+ * La synthèse : temps total et prix estimé de la semaine (SEM-05), en trois tuiles.
  *
  * ⚠️ Chacun des deux peut MANQUER, et pour des raisons différentes — une recette sans durée
  * dans la source, un prix qui n'a pas pu être calculé. Les deux se DISENT, aucun ne se
@@ -248,38 +298,44 @@ function Synthese({ temps, prix }: { temps?: TempsSemaine | null; prix?: PrixAff
       : (prix.cents / 100).toLocaleString("fr-CA", { style: "currency", currency: "CAD" });
 
   return (
-    <div className="space-y-1 text-sm">
-      <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        {duree ? (
-          <span>
-            <strong className="tabular-nums">{duree}</strong> de cuisine
-          </span>
-        ) : (
-          <span className="doux">Durée inconnue pour toutes les recettes</span>
-        )}
-        <span className="doux" aria-hidden>
-          ·
-        </span>
-        {montant ? (
-          <span>
-            environ <strong className="tabular-nums">{montant}</strong> d’épicerie
-          </span>
-        ) : (
-          <span className="doux">prix non calculé</span>
-        )}
-      </p>
+    <div className="space-y-3">
+      <div role="group" aria-label="Résumé de la semaine" className="tuiles">
+        <div className="tuile">
+          <div className="tuile-lib">Temps total</div>
+          <div className="tuile-val">{duree ?? "Inconnu"}</div>
+          <div className="doux text-sm">
+            {duree ? "de cuisine" : "Durée inconnue pour toutes les recettes"}
+          </div>
+        </div>
+        <div className="tuile">
+          <div className="tuile-lib">Prix estimé</div>
+          <div className="tuile-val">{montant ? `≈ ${montant}` : "Non estimé"}</div>
+          <div className="text-sm">
+            {montant ? (
+              <span className="pastille alerte">Estimation</span>
+            ) : (
+              <span className="doux">prix non calculé</span>
+            )}
+          </div>
+        </div>
+        <div className="tuile">
+          <div className="tuile-lib">Sans durée connue</div>
+          <div className="tuile-val">{temps.sansDuree.length}</div>
+          <div className="doux text-sm">recettes dont la source ne dit rien</div>
+        </div>
+      </div>
 
       {/* ⚠️ Les deux mentions ci-dessous ne sont pas de la prudence décorative : sans elles,
           un total amputé et un tarif forfaitaire se lisent comme des mesures exactes. */}
       {temps.sansDuree.length > 0 && (
-        <p className="text-xs doux">
+        <p className="text-sm doux">
           {duree ? "Temps calculé sur " : ""}
           {duree ? `${temps.comptees} recette${temps.comptees > 1 ? "s" : ""} sur ${temps.comptees + temps.sansDuree.length} — ` : ""}
           la source ne donne aucune durée pour&nbsp;: {temps.sansDuree.join(", ")}.
         </p>
       )}
       {prix != null && (
-        <p className="text-xs doux">
+        <p className="text-sm doux">
           {prix.methode === "llm"
             ? "Prix estimé ingrédient par ingrédient, comme celui du batch. Une estimation, jamais un prix relevé."
             : "Estimation indisponible : ce montant vient d’un tarif forfaitaire, donc plus grossier que celui du batch."}

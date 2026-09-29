@@ -1,82 +1,64 @@
 @import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   BatchChef — socle visuel.
+   BatchChef — socle visuel (refonte du 28/09/2026).
 
-   Direction assumée (décision de Marc, 13/08/2026) : une identité d'APP DE CUISINE,
-   pas un tableau de bord. Les deux écrans les plus utilisés — la liste d'épicerie et
-   une recette — se lisent DEBOUT, une main occupée, parfois sous les néons d'un
-   supermarché. Tout part de là : contraste franc, cibles larges, hiérarchie nette.
+   Source des jetons : docs/maquettes/refonte/refonte.css, validée visuellement par Marc.
+   Décisions de Marc, non négociables :
+   - Thème SOMBRE SEUL : plus de bascule clair/sombre, plus de règle qui suit le thème du système.
+   - `--repere` (terracotta) = nav active, surtitre, catégorie. JAMAIS un état.
+   - `--accent` (argent) = l'action principale, et rien d'autre. Le « en cours » d'un batch
+     est donc en argent aussi, pas en `--repere`.
+   - Piles de polices système : pas de `next/font/google` (dépendance réseau au build).
 
-   ⚠️ Pas de police téléchargée. `next/font/google` va chercher les fichiers au BUILD :
-   ça ajoute une dépendance réseau à un déploiement, et ça casserait tout build hors
-   ligne. Les piles système donnent déjà le contraste serif/sans qui fait l'identité,
-   pour zéro octet et zéro requête.
-
-   Les couleurs vivent en VARIABLES et nulle part ailleurs. Avant, 288 chaînes de
-   classes recopiées réinventaient bordures et gris d'un écran à l'autre : c'est ce qui
-   faisait dériver l'ensemble dès qu'on ajoutait une page.
+   Les couleurs vivent en VARIABLES et nulle part ailleurs (verrou tests/theme.test.ts) :
+   aucune classe de palette Tailwind, aucune valeur `#…` dans un composant.
+   Les composants et les utilitaires Tailwind (mise en page, espacement) cohabitent : les
+   classes maison sont dans `@layer components`, donc un utilitaire garde le dernier mot.
    ───────────────────────────────────────────────────────────────────────────── */
 
 :root {
-  /* Fonds et surfaces — blanc cassé chaud plutôt que gris froid. */
-  --fond: #faf8f5;
-  --surface: #ffffff;
-  --surface-douce: #f5f1ec;
-  --bordure: #e5ded4;
+  color-scheme: dark;
 
-  /* Textes. `--texte-doux` vise 7:1 sur `--surface` : l'ancien gris clair était
-     illisible en plein jour, et c'est exactement la situation d'usage. */
-  --texte: #1c1917;
-  --texte-doux: #57534e;
+  /* Fonds et surfaces. */
+  --fond: #07090d;
+  --surface: #0e1014;
+  --surface-douce: #15181e;
+  --bordure: #262a33;
+  /* Contour de champ, de case et de bouton secondaire : >= 3:1 sur `--surface` (WCAG 1.4.11). */
+  --bordure-champ: #6f7b8e;
 
-  /* L'accent ne sert QU'À l'action principale. Partout ailleurs, il ment sur ce qui
-     est cliquable. */
-  --accent: #c2410c;
-  --accent-fonce: #9a3412;
-  --accent-doux: #fff1e9;
-  --sur-accent: #ffffff;
+  /* Textes. */
+  --texte: #f8fafc;
+  --texte-doux: #94a3b8;
 
-  /* Sémantique — un seul endroit pour « ça va » / « attention ». */
-  --succes-fond: #ecfdf5;
-  --succes-texte: #065f46;
-  --alerte-fond: #fef3c7;
-  --alerte-texte: #78350f;
-  --erreur-fond: #fee2e2;
-  --erreur-texte: #991b1b;
+  /* L'accent (argent) ne sert QU'À l'action principale. Partout ailleurs, il mentirait sur
+     ce qui est cliquable. */
+  --accent: #e6eaf2;
+  --accent-fonce: #c3cad8;
+  --accent-doux: #15181e;
+  --sur-accent: #07090d;
 
-  --rayon: 1rem;
-  --ombre: 0 1px 2px rgb(28 25 23 / 0.06), 0 4px 12px rgb(28 25 23 / 0.04);
+  /* Le repère (terracotta) : navigation active, surtitre, catégorie. Jamais un état. */
+  --repere: #fb923c;
+  --repere-doux: #2a1b14;
 
-  --police-titre: ui-serif, Georgia, "Times New Roman", serif;
+  /* Sémantique — un seul endroit pour « ça va » / « attention » / « erreur ». */
+  --succes-fond: #0f2a24;
+  --succes-texte: #6ee7b7;
+  --alerte-fond: #2c2410;
+  --alerte-texte: #fbbf24;
+  --erreur-fond: #331618;
+  --erreur-texte: #f87171;
+
+  --rayon: 16px;
+  --police-titre: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --police-texte: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --police-chiffres: ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --fond: #12100e;
-    --surface: #1c1917;
-    --surface-douce: #262220;
-    --bordure: #332e2a;
-
-    --texte: #f5f5f4;
-    --texte-doux: #b3aca5;
-
-    /* Un orange plus clair : le ton de jour n'a pas assez de contraste sur fond noir. */
-    --accent: #f97316;
-    --accent-fonce: #ea580c;
-    --accent-doux: #2a1a10;
-    --sur-accent: #1c1917;
-
-    --succes-fond: #0b2b21;
-    --succes-texte: #6ee7b7;
-    --alerte-fond: #3a2a08;
-    --alerte-texte: #fcd34d;
-    --erreur-fond: #3f1618;
-    --erreur-texte: #fca5a5;
-
-    --ombre: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 12px rgb(0 0 0 / 0.3);
-  }
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -86,12 +68,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Les titres portent l'identité « cuisine » : c'est le seul endroit où le serif sert. */
-h1,
-h2,
-h3 {
-  font-family: var(--police-titre);
-  letter-spacing: -0.01em;
+/* Les titres : sans-serif système, gras, serrés. En couche `base` pour que les utilitaires
+   (`text-lg`, `font-semibold`…) gardent le dernier mot. */
+@layer base {
+  h1,
+  h2,
+  h3 {
+    font-family: var(--police-titre);
+    letter-spacing: -0.01em;
+  }
 }
 
 /* Le contour de focus est une fonctionnalité, pas une verrue : l'app se navigue aussi
@@ -102,30 +87,363 @@ h3 {
   border-radius: 4px;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
 @layer components {
-  /* Une surface posée sur le fond. Un seul endroit pour la bordure, l'arrondi et l'ombre. */
+  /* ── Coque : barre du bas (< 768), rail (768-1023), barre latérale (>= 1024). ── */
+  .coque {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+  .nav {
+    position: fixed;
+    z-index: 20;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    background-color: var(--surface);
+    border-top: 1px solid var(--bordure);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .nav-marque {
+    display: none;
+  }
+  .nav-pied {
+    display: none;
+  }
+  .nav-lien {
+    flex: 1;
+    min-height: 56px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-decoration: none;
+    color: var(--texte-doux);
+    position: relative;
+  }
+  .nav-lien svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.75;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  /* Actif : couleur repère + trait + gras. Jamais la couleur seule. */
+  .nav-lien[aria-current="page"] {
+    color: var(--repere);
+    font-weight: 700;
+  }
+  .nav-lien[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 25%;
+    right: 25%;
+    height: 3px;
+    background-color: var(--repere);
+    border-radius: 0 0 3px 3px;
+  }
+  /* Gestes rares (retour au hub, déconnexion) : texte simple, 44 px de haut. */
+  .nav-outil {
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0 12px;
+    border-radius: 12px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--texte-doux);
+    text-decoration: none;
+    text-align: left;
+    cursor: pointer;
+    width: 100%;
+  }
+  .nav-outil:hover {
+    background-color: var(--surface-douce);
+    color: var(--texte);
+  }
+  .barre-haute {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 52px;
+    padding: 0 12px 0 16px;
+    border-bottom: 1px solid var(--bordure);
+    background-color: var(--surface);
+  }
+  .barre-haute .nav-outil {
+    width: auto;
+  }
+  .principal {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 20px 16px 96px;
+  }
+  @media (min-width: 768px) {
+    .coque {
+      flex-direction: row;
+    }
+    .nav {
+      position: sticky;
+      top: 0;
+      bottom: auto;
+      left: auto;
+      right: auto;
+      height: 100dvh;
+      width: 88px;
+      flex: none;
+      flex-direction: column;
+      justify-content: flex-start;
+      gap: 4px;
+      padding: 16px 8px;
+      border-top: 0;
+      border-right: 1px solid var(--bordure);
+    }
+    .nav-marque {
+      display: block;
+      font-family: var(--police-titre);
+      font-weight: 700;
+      font-size: 0.8125rem;
+      text-align: center;
+      padding: 4px 0 16px;
+      color: var(--texte);
+    }
+    .nav-pied {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: auto;
+    }
+    .nav-lien {
+      flex: none;
+      border-radius: 12px;
+      min-height: 60px;
+    }
+    .nav-lien[aria-current="page"] {
+      background-color: var(--repere-doux);
+    }
+    .nav-lien[aria-current="page"]::before {
+      top: 12px;
+      bottom: 12px;
+      left: 0;
+      right: auto;
+      width: 3px;
+      height: auto;
+      border-radius: 0 3px 3px 0;
+    }
+    .principal {
+      padding: 32px 32px 48px;
+    }
+  }
+  @media (min-width: 1024px) {
+    .nav {
+      width: 232px;
+      padding: 20px 12px;
+    }
+    .nav-marque {
+      font-size: 1.25rem;
+      text-align: left;
+      padding: 4px 12px 20px;
+    }
+    .nav-lien {
+      flex-direction: row;
+      justify-content: flex-start;
+      gap: 12px;
+      padding: 0 12px;
+      font-size: 0.9375rem;
+      min-height: 48px;
+    }
+    .principal {
+      padding: 40px 48px 64px;
+    }
+  }
+
+  /* ── Éléments de page ── */
+  .surtitre {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--repere);
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+  .entete {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px 16px;
+    margin-bottom: 24px;
+  }
+  .entete h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .ligne {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .pile {
+    display: grid;
+    gap: 16px;
+  }
+  .grille {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 1fr;
+  }
+  .section {
+    margin-top: 40px;
+  }
+  .section > h2 {
+    margin-bottom: 12px;
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+  .tuiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+  }
+  @media (min-width: 640px) {
+    .grille {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 1024px) {
+    .grille.g3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .grille.g4 {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  /* Une surface posée sur le fond : bordure fine, aucune ombre. */
   .carte {
     background-color: var(--surface);
     border: 1px solid var(--bordure);
     border-radius: var(--rayon);
-    box-shadow: var(--ombre);
+  }
+  a.carte:hover,
+  .carte:hover:has(a) {
+    border-color: var(--bordure-champ);
+  }
+  /* Photo d'une recette : 2/1. Sans photo, un motif discret qui assume le vide. */
+  .photo {
+    aspect-ratio: 2 / 1;
+    width: 100%;
+    object-fit: cover;
+    border-radius: calc(var(--rayon) - 1px) calc(var(--rayon) - 1px) 0 0;
+  }
+  .photo-vide {
+    display: grid;
+    place-items: center;
+    background: repeating-linear-gradient(
+      135deg,
+      var(--surface-douce) 0 10px,
+      var(--bordure) 10px 11px
+    );
+    color: var(--texte-doux);
+  }
+  .carte-corps {
+    padding: 16px 20px;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin-top: 10px;
+    font-size: 0.875rem;
+    color: var(--texte-doux);
   }
 
-  /* Cibles tactiles : 44 px de haut minimum, la main est souvent occupée. */
+  /* Liste dans une carte : lignes séparées par un filet, aucune ombre. */
+  .liste {
+    background-color: var(--surface);
+    border: 1px solid var(--bordure);
+    border-radius: var(--rayon);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  .liste > li + li {
+    border-top: 1px solid var(--bordure);
+  }
+
+  .tuile {
+    background-color: var(--surface-douce);
+    border-radius: 14px;
+    padding: 14px 16px;
+  }
+  .tuile-lib {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--texte-doux);
+  }
+  .tuile-val {
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Boutons : cibles tactiles de 44 px minimum, la main est souvent occupée. ── */
   .bouton {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 8px;
     min-height: 2.75rem;
-    padding: 0.625rem 1rem;
-    border-radius: 0.75rem;
-    font-weight: 500;
+    padding: 0.625rem 1.125rem;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    font-weight: 600;
     font-size: 0.9375rem;
-    transition: background-color 120ms ease;
+    line-height: 1.2;
+    cursor: pointer;
+    text-decoration: none;
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease;
+  }
+  .bouton svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
   .bouton:disabled {
     opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .bouton-principal {
@@ -139,10 +457,16 @@ h3 {
   .bouton-second {
     background-color: var(--surface);
     color: var(--texte);
-    border: 1px solid var(--bordure);
+    border-color: var(--bordure-champ);
   }
   .bouton-second:hover:not(:disabled) {
     background-color: var(--surface-douce);
+  }
+
+  .bouton-danger {
+    background-color: transparent;
+    color: var(--erreur-texte);
+    border-color: var(--erreur-texte);
   }
 
   .champ {
@@ -151,17 +475,27 @@ h3 {
     padding: 0.625rem 0.75rem;
     background-color: var(--surface);
     color: var(--texte);
-    border: 1px solid var(--bordure);
-    border-radius: 0.75rem;
+    border: 1px solid var(--bordure-champ);
+    border-radius: 12px;
     font-size: 1rem; /* 16 px : en dessous, iOS zoome tout seul à la mise au point. */
+    line-height: 1.4;
+  }
+  .champ::placeholder {
+    color: var(--texte-doux);
+  }
+
+  .etiquette {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 6px;
   }
 
   .doux {
     color: var(--texte-doux);
   }
 
-  /* Texte posé SUR l'accent. `text-white` était codé en dur : juste en thème clair,
-     faux en thème sombre où l'accent s'éclaircit — du blanc sur orange clair. */
+  /* Texte posé SUR l'accent (argent clair) : le fond de page, sombre. */
   .sur-accent {
     color: var(--sur-accent);
   }
@@ -175,8 +509,7 @@ h3 {
   }
 
   /* « Ça va », un avertissement et une erreur ne sont pas des nuances de gris : elles
-     ont leur propre couleur, déclarée UNE fois. Elles étaient recopiées à la main dans
-     huit fichiers, avec des teintes qui ne correspondaient déjà plus entre elles. */
+     ont leur propre couleur, déclarée UNE fois. */
   .succes {
     background-color: var(--succes-fond);
     color: var(--succes-texte);
@@ -188,5 +521,201 @@ h3 {
   .erreur {
     background-color: var(--erreur-fond);
     color: var(--erreur-texte);
+  }
+
+  /* Pastille : fond + LIBELLÉ TEXTE. Jamais la couleur seule. `.repere` = catégorie. */
+  .pastille {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+    padding: 2px 10px;
+    border-radius: 9999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    background-color: var(--surface-douce);
+    color: var(--texte);
+  }
+  .pastille.statut {
+    border: 1px solid var(--accent);
+  }
+  .pastille.repere {
+    background-color: var(--repere-doux);
+    color: var(--repere);
+  }
+  .pastille.succes {
+    background-color: var(--succes-fond);
+    color: var(--succes-texte);
+  }
+  .pastille.alerte {
+    background-color: var(--alerte-fond);
+    color: var(--alerte-texte);
+  }
+  .pastille.erreur {
+    background-color: var(--erreur-fond);
+    color: var(--erreur-texte);
+  }
+
+  /* Onglets « pilule » (filtre de type) : 44 px de haut. */
+  .onglets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .onglet {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0 16px;
+    border-radius: 9999px;
+    border: 1px solid var(--bordure-champ);
+    background-color: var(--surface);
+    color: var(--texte);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .onglet[aria-pressed="true"],
+  .onglet[aria-checked="true"] {
+    background-color: var(--texte);
+    color: var(--fond);
+    border-color: var(--texte);
+    font-weight: 700;
+  }
+
+  /* Bandeaux d'état : fond sémantique + contour de la même couleur. */
+  .bandeau {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px solid currentColor;
+  }
+  .bandeau svg {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    margin-top: 1px;
+  }
+  .bandeau strong {
+    display: block;
+  }
+
+  /* État vide : texte clair + UNE action. */
+  .vide {
+    text-align: center;
+    padding: 40px 20px;
+    border: 1px dashed var(--bordure-champ);
+    border-radius: var(--rayon);
+  }
+  .vide h2 {
+    margin-bottom: 6px;
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+  .vide p {
+    max-width: 44ch;
+    margin: 0 auto 16px;
+    color: var(--texte-doux);
+  }
+
+  /* Chargement : squelettes fixes, animation seulement si l'utilisateur l'accepte. */
+  .squelette {
+    background-color: var(--surface-douce);
+    border-radius: 8px;
+    min-height: 14px;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .squelette {
+      animation: pouls 1.4s ease-in-out infinite;
+    }
+  }
+
+  /* Étapes d'un batch : planifié > courses > cuisine > terminé. « En cours » = ARGENT. */
+  .etapes {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .etape {
+    display: block;
+    width: 100%;
+    min-height: 2.75rem;
+    background-color: transparent;
+    padding: 10px 8px;
+    border-radius: 12px;
+    border: 1px solid var(--bordure);
+    text-align: center;
+    font-size: 0.875rem;
+    color: var(--texte-doux);
+  }
+  .etape[aria-current="step"] {
+    border: 2px solid var(--accent);
+    color: var(--texte);
+    font-weight: 700;
+    background-color: var(--surface-douce);
+  }
+  .etape[data-fait="oui"] {
+    color: var(--texte);
+  }
+  .etape-st {
+    display: block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* Case à cocher des courses : 28 px dans une ligne de 52 px, coché = coche + barré. */
+  .case {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border: 2px solid var(--bordure-champ);
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    background-color: var(--surface);
+  }
+  .case[data-coche="oui"] {
+    background-color: var(--texte);
+    border-color: var(--texte);
+    color: var(--fond);
+  }
+
+  /* Assistant : bulles. */
+  .msg {
+    max-width: 640px;
+    padding: 12px 16px;
+    border-radius: 16px;
+    border: 1px solid var(--bordure);
+    background-color: var(--surface);
+  }
+  .msg-moi {
+    justify-self: end;
+    background-color: var(--surface-douce);
+  }
+  .msg-qui {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--texte-doux);
+    margin-bottom: 4px;
+  }
+}
+
+@keyframes pouls {
+  50% {
+    opacity: 0.55;
   }
 }

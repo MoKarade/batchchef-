@@ -17,8 +17,13 @@ export default async function NewBatchPage() {
     .orderBy(desc(schema.recipes.createdAt));
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-xl font-bold">Nouveau batch</h1>
+    <div>
+      <header className="entete">
+        <div>
+          <p className="surtitre">Batchs</p>
+          <h1>Nouveau batch</h1>
+        </div>
+      </header>
       <NewBatchForm recipes={recipes} />
     </div>
   );

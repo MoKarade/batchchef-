@@ -8,13 +8,14 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   return (
-    <div className="mx-auto mt-16 max-w-sm rounded-2xl border border-[var(--bordure)] bg-[var(--surface)] p-8 text-center shadow-sm">
-      <h1 className="text-xl font-bold">BatchChef</h1>
-      <p className="mt-2 text-sm doux">
+    <div className="carte mx-auto mt-16 max-w-sm p-8 text-center">
+      <p className="surtitre">Connexion</p>
+      <h1 className="mt-1 text-2xl font-bold">BatchChef</h1>
+      <p className="doux mt-2">
         App privée — connexion Google requise.
       </p>
       {params.error === "AccessDenied" && (
-        <p className="mt-3 rounded-lg erreur p-2 text-sm">
+        <p className="bandeau erreur mt-3 text-left" role="alert">
           Accès non autorisé pour ce compte.
         </p>
       )}
@@ -26,8 +27,7 @@ export default async function LoginPage({
       >
         <button
           type="submit"
-          className="mt-5 w-full rounded-xl px-4 py-3 font-medium sur-accent"
-          style={{ backgroundColor: "var(--accent)" }}
+          className="bouton bouton-principal mt-5 w-full"
         >
           Se connecter avec Google
         </button>

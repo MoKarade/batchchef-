@@ -13,7 +13,7 @@ import { semaineISO } from "@/lib/semaine";
 import { lireSemaine, type RecetteSemaine } from "@/lib/semaineDb";
 import { LIBELLES } from "@/lib/typePlat";
 
-const APP_COLOR = "#c2410c"; // orange cuisine
+const APP_COLOR = "#fb923c"; // couleur officielle BatchChef (repère du système de design commun)
 const ACTIVE = ["planifie", "courses", "cuisine"] as const;
 
 /**

@@ -36,13 +36,13 @@ export function ExportTasksButton({ batchId }: { batchId: number }) {
         type="button"
         onClick={run}
         disabled={pending}
-        className="bouton bouton-principal w-full"
+        className="bouton bouton-second w-full"
       >
         {pending ? "Envoi vers Google Tasks…" : "Envoyer vers Google Tasks (liste cochable)"}
       </button>
       {msg && (
         <p
-          className={`text-center text-xs ${
+          className={`text-center text-sm ${
             msg.ok ? "texte-succes" : "texte-erreur"
           }`}
         >

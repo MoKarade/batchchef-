@@ -1,14 +1,16 @@
 "use client";
 
-// Navigation principale — l'onglet ACTIF est marqué, et la barre vit EN BAS sur téléphone.
+// Navigation principale — l'onglet ACTIF est marqué (couleur repère + trait + gras : jamais
+// la couleur seule). Un seul composant, trois dispositions (refonte du 28/09/2026) :
+// barre du bas sur téléphone (< 768 px), rail d'icônes (768-1023), barre latérale (>= 1024).
 //
-// Pourquoi en bas. L'ancienne barre entassait sur une seule ligne, sans retour possible :
-// le nom de l'app, quatre onglets, « ← Hub » et la déconnexion. À 360 px de large ça
-// débordait — sur l'appareil précisément utilisé pour la liste d'épicerie, debout, une main
-// occupée par un panier. Le haut de l'écran est aussi le point le plus difficile à atteindre
-// au pouce sur un grand téléphone.
+// Pourquoi en bas sur téléphone. L'ancienne barre entassait sur une seule ligne le nom de
+// l'app, les onglets, « ← Hub » et la déconnexion : à 360 px ça débordait — sur l'appareil
+// précisément utilisé pour la liste d'épicerie, debout, une main occupée par un panier. Le haut
+// de l'écran est aussi le point le plus difficile à atteindre au pouce.
 //
-// Au-delà de `sm`, la souris rend le bas sans intérêt : les onglets remontent dans l'en-tête.
+// Les gestes rares (hub, déconnexion) arrivent en `pied` : des Server Actions, donc rendus par
+// le layout serveur et passés ici comme enfants.
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -37,121 +39,69 @@ export function estOngletActif(href: string, pathname: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function Icone({ href, actif }: { href: string; actif: boolean }) {
-  const trait = actif ? "var(--accent)" : "currentColor";
-  const commun = {
-    width: 22,
-    height: 22,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: trait,
-    strokeWidth: 1.8,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    "aria-hidden": true,
-  };
-  switch (href) {
-    case "/": // toit
-      return (
-        <svg {...commun}>
-          <path d="M3 10.5 12 3l9 7.5" />
-          <path d="M5 9.5V21h14V9.5" />
-        </svg>
-      );
-    case "/recettes": // casserole
-      return (
-        <svg {...commun}>
-          <path d="M4 10h16v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5v-5Z" />
-          <path d="M20 11h2M2 11h2" />
-          <path d="M9 6.5c0-1 1.5-1 1.5-2M13.5 6.5c0-1 1.5-1 1.5-2" />
-        </svg>
-      );
-    case "/batchs": // boîtes empilées
-      return (
-        <svg {...commun}>
-          <rect x="3" y="13" width="18" height="7" rx="1.5" />
-          <rect x="5.5" y="6" width="13" height="6" rx="1.5" />
-        </svg>
-      );
-    case "/assistant": // bulle de conversation
-      return (
-        <svg {...commun}>
-          <path d="M20 12a7.5 7.5 0 0 1-7.5 7.5H8l-4 2.5V12a7.5 7.5 0 0 1 7.5-7.5h1A7.5 7.5 0 0 1 20 12Z" />
-          <path d="M9 11.5h6M9 14.5h3.5" />
-        </svg>
-      );
-    default: // loupe (catalogue)
-      return (
-        <svg {...commun}>
-          <circle cx="11" cy="11" r="6.5" />
-          <path d="m16 16 4.5 4.5" />
-        </svg>
-      );
-  }
-}
-
-/** Barre du bas, téléphone uniquement. */
-export function NavigationBasse() {
-  const pathname = usePathname();
+/** Tracés de la maquette (24×24, trait). Le style vit dans `.nav-lien svg` (globals.css). */
+function Icone({ href }: { href: string }) {
+  const trace = (() => {
+    switch (href) {
+      case "/":
+        return (
+          <>
+            <path d="M3 11l9-8 9 8" />
+            <path d="M5 10v10h14V10" />
+          </>
+        );
+      case "/recettes":
+        return (
+          <>
+            <path d="M4 4h11a3 3 0 013 3v13H7a3 3 0 01-3-3z" />
+            <path d="M8 8h6" />
+          </>
+        );
+      case "/batchs":
+        return (
+          <>
+            <path d="M3 8l9-5 9 5v8l-9 5-9-5z" />
+            <path d="M3 8l9 5 9-5M12 13v8" />
+          </>
+        );
+      case "/assistant":
+        return <path d="M4 5h16v11H9l-5 4z" />;
+      default: // catalogue : boussole
+        return (
+          <>
+            <circle cx="12" cy="12" r="9" />
+            <path d="M15.5 8.5l-2 5-5 2 2-5z" />
+          </>
+        );
+    }
+  })();
   return (
-    <nav
-      aria-label="Navigation principale"
-      // `env(safe-area-inset-bottom)` : sans ça, la barre passe SOUS la barre de gestes
-      // d'Android et d'iOS, et le dernier onglet devient intouchable.
-      className="fixed inset-x-0 bottom-0 z-20 border-t sm:hidden"
-      style={{
-        borderColor: "var(--bordure)",
-        backgroundColor: "var(--surface)",
-        paddingBottom: "env(safe-area-inset-bottom)",
-      }}
-    >
-      <ul className="mx-auto flex max-w-3xl">
-        {ONGLETS.map((onglet) => {
-          const actif = estOngletActif(onglet.href, pathname);
-          return (
-            <li key={onglet.href} className="flex-1">
-              <Link
-                href={onglet.href}
-                aria-current={actif ? "page" : undefined}
-                className="flex min-h-[3.5rem] flex-col items-center justify-center gap-1 text-[0.6875rem] font-medium"
-                style={{ color: actif ? "var(--accent)" : "var(--texte-doux)" }}
-              >
-                <Icone href={onglet.href} actif={actif} />
-                {onglet.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      {trace}
+    </svg>
   );
 }
 
-/** Onglets de l'en-tête, à partir de `sm` (souris : le bas n'a plus d'intérêt). */
-export function NavigationHaute() {
+export function Navigation({ pied }: { pied?: React.ReactNode }) {
   const pathname = usePathname();
   return (
-    <nav aria-label="Navigation principale" className="hidden sm:block">
-      <ul className="flex items-center gap-1">
-        {ONGLETS.map((onglet) => {
-          const actif = estOngletActif(onglet.href, pathname);
-          return (
-            <li key={onglet.href}>
-              <Link
-                href={onglet.href}
-                aria-current={actif ? "page" : undefined}
-                className="block rounded-lg px-3 py-2 text-sm font-medium"
-                style={{
-                  color: actif ? "var(--accent)" : "var(--texte-doux)",
-                  backgroundColor: actif ? "var(--accent-doux)" : undefined,
-                }}
-              >
-                {onglet.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+    <nav aria-label="Navigation principale" className="nav">
+      <div className="nav-marque">BatchChef</div>
+      {ONGLETS.map((onglet) => {
+        const actif = estOngletActif(onglet.href, pathname);
+        return (
+          <Link
+            key={onglet.href}
+            href={onglet.href}
+            aria-current={actif ? "page" : undefined}
+            className="nav-lien"
+          >
+            <Icone href={onglet.href} />
+            {onglet.label}
+          </Link>
+        );
+      })}
+      {pied ? <div className="nav-pied">{pied}</div> : null}
     </nav>
   );
 }

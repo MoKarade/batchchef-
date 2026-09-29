@@ -223,33 +223,115 @@ describe("socle visuel — aucune couleur figée hors des jetons", () => {
   });
 });
 
-describe("socle visuel — les deux thèmes déclarent les mêmes couleurs", () => {
+describe("socle visuel — thème SOMBRE UNIQUE (décision de Marc, 26/09/2026)", () => {
   const css = lire("app/globals.css");
 
   /**
-   * Un jeton de COULEUR défini en clair mais oublié en sombre garde la valeur claire : c'est
-   * exactement la forme « blanc sur blanc », déplacée d'un cran. On dérive donc la liste des
-   * jetons à vérifier du fichier lui-même (une couleur = une valeur `#…`), jamais d'une
-   * liste recopiée qui vieillirait avec le prochain jeton ajouté.
+   * Avant la refonte, ce bloc vérifiait que le thème sombre redéfinissait chaque couleur du
+   * thème clair : une couleur oubliée en sombre gardait sa valeur claire, d'où « blanc sur
+   * blanc » (incident du 14/08). L'app n'a plus qu'UN thème : cette bifurcation n'existe plus,
+   * mais le défaut visé (une couleur qui n'obéit pas au thème) change de forme. On le garde
+   * donc verrouillé sous ses nouvelles formes :
+   *  1. aucune bifurcation ne revient sans qu'un test s'en aperçoive (`prefers-color-scheme`,
+   *     `dark:` dans le balisage) : un second thème ré-ouvrirait exactement le trou d'avant ;
+   *  2. chaque couleur est définie UNE fois, en hexadécimal : un doublon ferait gagner la
+   *     dernière valeur sans que rien ne le dise ;
+   *  3. les couples texte/fond restent lisibles, MESURÉS (WCAG) comme le fait
+   *     docs/maquettes/refonte/contrastes.mjs, mais dans la CI et non à l'œil.
+   * La garantie « aucune couleur en dur, tout en variables » (tests du dessus) est inchangée.
    */
-  const bloc = (source: string, apres: string): string => {
-    const debut = source.indexOf(apres);
-    expect(debut, `bloc introuvable : ${apres}`).toBeGreaterThan(-1);
-    const suite = source.slice(debut + apres.length);
-    return suite.slice(0, suite.indexOf("}"));
-  };
+  const racine = ((): string => {
+    const debut = css.indexOf(":root {");
+    expect(debut, "bloc :root introuvable").toBeGreaterThan(-1);
+    const suite = css.slice(debut + ":root {".length);
+    return suite.slice(0, suite.indexOf("\n}"));
+  })();
 
-  const jetonsCouleur = (source: string): string[] =>
-    [...source.matchAll(/(--[a-z-]+)\s*:\s*#[0-9a-f]{3,8}\s*;/gi)]
-      .map((m) => m[1])
-      .filter((j): j is string => j !== undefined)
-      .sort();
+  const couleurs = (source: string): [string, string][] =>
+    [...source.matchAll(/^\s+(--[a-z-]+)\s*:\s*(#[0-9a-f]{6})\s*;/gim)].map(
+      (m) => [m[1] ?? "", (m[2] ?? "").toLowerCase()] as [string, string],
+    );
 
-  it("le thème sombre redéfinit chaque couleur du thème clair", () => {
-    const clair = jetonsCouleur(bloc(css, ":root {"));
-    const sombre = jetonsCouleur(bloc(css, "@media (prefers-color-scheme: dark) {\n  :root {"));
-    expect(clair.length).toBeGreaterThan(10);
-    const manquants = clair.filter((j) => !sombre.includes(j));
-    expect(manquants, `Couleurs figées au thème clair : ${manquants.join(", ")}`).toEqual([]);
+  it("déclare le thème sombre, et lui seul", () => {
+    expect(racine).toMatch(/color-scheme:\s*dark\s*;/);
+    expect(css, "globals.css ne doit plus bifurquer selon le thème du système").not.toMatch(
+      /prefers-color-scheme/,
+    );
+  });
+
+  it("aucun composant ne bifurque selon le thème (`dark:`, `prefers-color-scheme`)", () => {
+    const fautes: string[] = [];
+    for (const fichier of fichiersAConsiderer(DOSSIERS_RENDUS)) {
+      if (PALETTES_AUTONOMES.includes(fichier)) continue; // sa page porte sa propre palette
+      lire(fichier)
+        .split("\n")
+        .forEach((ligne, i) => {
+          if (/\bdark:|prefers-color-scheme/.test(ligne)) fautes.push(`${fichier}:${i + 1}`);
+        });
+    }
+    expect(fautes, `Bifurcation de thème (il n'y en a qu'un) :\n${fautes.join("\n")}`).toEqual([]);
+  });
+
+  it("chaque couleur est définie une seule fois", () => {
+    const tous = couleurs(racine);
+    expect(tous.length, "trop peu de jetons lus : le garde serait vide").toBeGreaterThan(15);
+    const noms = tous.map(([nom]) => nom);
+    const doublons = noms.filter((nom, i) => noms.indexOf(nom) !== i);
+    expect(doublons, `Jetons définis deux fois : ${doublons.join(", ")}`).toEqual([]);
+    // Les jetons dont les écrans dépendent doivent exister (un renommage casserait en silence).
+    for (const requis of ["--repere", "--repere-doux", "--bordure-champ", "--accent", "--sur-accent"]) {
+      expect(noms, `jeton manquant : ${requis}`).toContain(requis);
+    }
+  });
+
+  it("les couples texte/fond passent le WCAG (texte 4,5:1 ; contour et focus 3:1)", () => {
+    const v = Object.fromEntries(couleurs(racine)) as Record<string, string>;
+    const lin = (c: number): number => {
+      const x = c / 255;
+      return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+    };
+    const lum = (hex: string): number => {
+      const n = parseInt(hex.slice(1), 16);
+      return 0.2126 * lin(n >> 16) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+    };
+    const ratio = (a: string, b: string): number => {
+      const [x = 0, y = 0] = [lum(a), lum(b)].sort((p, q) => q - p);
+      return (x + 0.05) / (y + 0.05);
+    };
+    // [premier plan, arrière-plan, minimum]. 4,5 = texte ; 3 = composant d'interface (1.4.11).
+    const couples: [string, string, number][] = [
+      ["--texte", "--fond", 4.5],
+      ["--texte", "--surface", 4.5],
+      ["--texte-doux", "--surface", 4.5],
+      ["--texte-doux", "--fond", 4.5],
+      ["--texte-doux", "--surface-douce", 4.5],
+      ["--sur-accent", "--accent", 4.5],
+      ["--sur-accent", "--accent-fonce", 4.5],
+      ["--repere", "--fond", 4.5],
+      ["--repere", "--surface", 4.5],
+      ["--repere", "--repere-doux", 4.5],
+      ["--succes-texte", "--succes-fond", 4.5],
+      ["--alerte-texte", "--alerte-fond", 4.5],
+      ["--erreur-texte", "--erreur-fond", 4.5],
+      ["--erreur-texte", "--surface", 4.5],
+      ["--texte", "--surface-douce", 4.5],
+      ["--fond", "--texte", 4.5],
+      ["--bordure-champ", "--surface", 3],
+      ["--bordure-champ", "--fond", 3],
+      ["--accent", "--fond", 3],
+      ["--repere", "--fond", 3],
+    ];
+    const tropBas: string[] = [];
+    for (const [a, b, min] of couples) {
+      const fa = v[a];
+      const fb = v[b];
+      if (!fa || !fb) {
+        tropBas.push(`${a} / ${b} : jeton introuvable`);
+        continue;
+      }
+      const r = ratio(fa, fb);
+      if (r < min) tropBas.push(`${a} ${fa} / ${b} ${fb} : ${r.toFixed(2)}:1 < ${min}:1`);
+    }
+    expect(tropBas, `Contrastes insuffisants :\n${tropBas.join("\n")}`).toEqual([]);
   });
 });

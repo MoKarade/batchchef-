@@ -29,34 +29,28 @@ export function RecipeCard({
   return (
     <Link href={href} className="carte flex h-full flex-col overflow-hidden">
       {imageUrl ? (
-         
-        <ImageRecette src={imageUrl} className="aspect-video w-full object-cover" lazy />
+        <ImageRecette src={imageUrl} className="photo" lazy />
       ) : (
-        <div
-          className="flex aspect-video w-full items-center justify-center"
-          style={{ backgroundColor: "var(--surface-douce)" }}
-          aria-hidden
-        >
+        <div className="photo photo-vide" aria-hidden>
           <svg
             width="28"
             height="28"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="var(--texte-doux)"
+            stroke="currentColor"
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
-            opacity="0.6"
           >
             <path d="M4 10h16v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5v-5Z" />
             <path d="M20 11h2M2 11h2" />
           </svg>
         </div>
       )}
-      <span className="flex flex-col gap-1 p-3">
-        <span className="line-clamp-2 text-sm font-medium">{title}</span>
+      <div className="carte-corps flex flex-col gap-1">
+        <h3 className="line-clamp-2 text-base font-bold">{title}</h3>
         {difficulte !== undefined && <Etoiles etoiles={difficulte} compact />}
-      </span>
+      </div>
     </Link>
   );
 }

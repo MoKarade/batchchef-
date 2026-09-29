@@ -49,18 +49,26 @@ export default async function BatchDetailPage({
   const totalPortions = recipeRows.reduce((sum, r) => sum + r.portions, 0);
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold">{batch.name}</h1>
-        <p className="mt-1 text-sm doux">{totalPortions} portions au total</p>
-      </div>
+    <div className="space-y-8">
+      <header className="entete !mb-0">
+        <div>
+          <p className="surtitre">Batchs</p>
+          <h1>{batch.name}</h1>
+          <p className="doux num mt-1">{totalPortions} portions au total</p>
+        </div>
+        <div className="ligne">
+          <Link href={`/courses/${batch.id}`} className="bouton bouton-second">
+            Liste d’épicerie ({items.length})
+          </Link>
+        </div>
+      </header>
 
       <section>
-        <h2 className="mb-2 font-semibold">Recettes à cuisiner</h2>
-        <p className="mb-2 text-xs doux">
+        <h2 className="mb-3 text-xl font-bold">Recettes à cuisiner</h2>
+        <p className="doux mb-3 text-sm">
           Quantités ajustées aux portions choisies pour ce batch. Touche une recette pour la déplier.
         </p>
-        <ul className="space-y-2">
+        <ul className="pile">
           {recipeRows.map((r) => {
             const ings = ingredientRows.filter((i) => i.recipeId === r.recipeId);
             return (
@@ -69,16 +77,16 @@ export default async function BatchDetailPage({
                 className="overflow-hidden carte"
               >
                 <details>
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
-                    <span className="min-w-0 flex-1 font-medium">{r.title}</span>
-                    <span className="shrink-0 tabular-nums text-sm doux">
+                  <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-5 py-3">
+                    <span className="min-w-0 flex-1 text-base font-bold">{r.title}</span>
+                    <span className="shrink-0 num text-sm doux">
                       {r.portions} portions
                     </span>
                   </summary>
-                  <div className="border-t border-[var(--bordure)] px-4 py-3">
-                    <ul className="divide-y divide-[var(--bordure)]">
+                  <div className="border-t border-[var(--bordure)] px-5 py-3">
+                    <ul className="liste !border-0 !rounded-none">
                       {ings.map((ing) => (
-                        <li key={ing.id} className="flex items-center justify-between py-2 text-sm">
+                        <li key={ing.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                           <span>
                             {ing.name}
                             {ing.note && <span className="doux"> — {ing.note}</span>}
@@ -96,7 +104,7 @@ export default async function BatchDetailPage({
                     )}
                     <Link
                       href={`/recettes/${r.recipeId}`}
-                      className="mt-3 inline-block text-sm underline"
+                      className="bouton bouton-second mt-3"
                     >
                       Fiche recette (portions de référence) →
                     </Link>
@@ -108,25 +116,18 @@ export default async function BatchDetailPage({
         </ul>
       </section>
 
-      <section className="carte p-4">
-        <h2 className="font-semibold">Budget d’épicerie</h2>
-        <p className="mt-1 text-2xl font-bold tabular-nums">
+      <section className="tuile" aria-labelledby="budget">
+        <h2 id="budget" className="tuile-lib">
+          Budget d’épicerie
+        </h2>
+        <p className="tuile-val">
           {totalCost.toLocaleString("fr-CA", { style: "currency", currency: "CAD" })}
         </p>
-        <p className="mt-1 text-xs doux">
-          {items.length} article(s) · taxes exclues.
-        </p>
+        <p className="doux mt-1 text-sm">{items.length} article(s) · taxes exclues.</p>
       </section>
 
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <Link
-          href={`/courses/${batch.id}`}
-          className="bouton bouton-principal flex-1"
-        >
-          Ouvrir la liste d’épicerie ({items.length})
-        </Link>
-      </div>
-
+      {/* Avancement + suppression : en bas, comme avant la refonte — « Supprimer » ne doit pas
+          s'intercaler entre l'en-tête et les recettes. */}
       <BatchStatusControls batchId={batch.id} status={batch.status} />
     </div>
   );

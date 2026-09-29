@@ -68,12 +68,11 @@ export function ShareListButton({ batchName, items }: { batchName: string; items
       <button
         type="button"
         onClick={share}
-        className="w-full rounded-xl border px-4 py-3 text-sm font-medium"
-        style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
+        className="bouton bouton-second w-full"
       >
         Partager la liste (Keep, Notes…)
       </button>
-      <p className="text-center text-xs doux">
+      <p className="text-center text-sm doux">
         {msg ?? "Dans Keep : ⋮ → « Afficher les cases à cocher » pour une liste cochable."}
       </p>
     </div>
