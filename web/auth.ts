@@ -27,8 +27,8 @@ import {
   majJetonsGoogle,
 } from "@/lib/jetonsGoogle";
 
-/** Conservé sous son ancien nom : `lib/googleTasks.ts` et les tests s'en servent. */
-export const TASKS_SCOPE = PORTEE_TASKS;
+/** Portée Google Tasks, sous son ancien nom. Interne à ce module : aucun autre fichier ne s'en sert. */
+const TASKS_SCOPE = PORTEE_TASKS;
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
