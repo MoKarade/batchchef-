@@ -262,6 +262,17 @@ conditionnait pas.
   **« Propose-moi une autre semaine »** qui rejoue les quatre d'un coup, derrière une
   confirmation.
 
+- [ ] **`SEM-BUG-TYPE-NUL` — une correction de type « aucune famille » est ignorée en SQL.**
+  Découvert le 29/09 par les tests d'intégration de `lib/semaineDb.ts` (test en `it.skip`
+  dans `web/tests/semaineDb.test.ts`), **non corrigé** : attend le feu vert. Le type effectif
+  s'écrit `coalesce(type_corrections.type, catalog_recipes.type_estime)` ; une correction à
+  `null` (« aucune de ces familles », que `typeEffectif` distingue par la PRÉSENCE de la
+  ligne) retombe donc sur l'estimation. Effet : une recette que Marc a sortie des familles
+  reste tirée dans la semaine, et s'affiche avec son ancien type. Mêmes requêtes dans
+  `candidates`, `lireSemaine`, `apercuPlacement` (`lib/semaineDb.ts`) et dans le filtre de
+  `app/catalogue/page.tsx`. Piste : `case when type_corrections.id is not null then
+  type_corrections.type else catalog_recipes.type_estime end`, puis activer le test.
+
 
 ### Chantier CATALOGUE (plan arbitré par Marc le 19/08, un lot par PR)
 
