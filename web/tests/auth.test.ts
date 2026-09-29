@@ -29,6 +29,13 @@ describe("garde des chemins", () => {
     // mais pas les autres routes /api (elles exigent une session)
     expect(isPublicPath("/api/hub/other")).toBe(false);
   });
+  it("la sonde de santé est publique, et SEULE elle — jamais son préfixe", () => {
+    // Même raison que le hub : sous la garde de session, la vigie recevrait une redirection
+    // vers /login (307) au lieu du JSON, et ne verrait jamais une panne de base.
+    expect(isPublicPath("/api/sante")).toBe(true);
+    expect(isPublicPath("/api/sante/detail")).toBe(false);
+    expect(isPublicPath("/api/sante-admin")).toBe(false);
+  });
   it("l'endpoint MCP est public, et SEUL lui — jamais son préfixe", () => {
     // Même raison que le hub : c'est une machine qui appelle, elle n'a pas de cookie.
     // Laissé sous la garde de session, Claude recevrait une redirection HTML vers /login
