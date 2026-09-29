@@ -1,18 +1,28 @@
 import type { NextConfig } from "next";
 
 /**
- * CSP en REPORT-ONLY (2026-07-31). BatchChef n'avait AUCUN en-tête de sécurité.
+ * CSP posée en REPORT-ONLY le 2026-07-31 (BatchChef n'avait AUCUN en-tête de sécurité),
+ * passée en BLOCAGE RÉEL le 2026-09-29.
  *
  * Le cas particulier ici, c'est `img-src` : les recettes affichent des photos dont l'URL
  * vient de N'IMPORTE QUEL site de recettes (`images: { unoptimized: true }` juste en
  * dessous, pour la même raison). On ne peut donc pas fermer `img-src` à une allowlist —
  * `https:` est le maximum réaliste, et ça reste utile : ça interdit `http:` en clair.
  *
- * Report-Only parce que la politique n'a pas été vérifiée dans un navigateur : une CSP
- * trop stricte casse silencieusement, et ni le build ni les tests ne l'attrapent.
- * ➜ POUR PASSER EN ENFORCÉ : ouvrir l'accueil, /recettes, /catalogue, /batchs, /courses/[id],
- *   vérifier qu'aucune violation n'apparaît en console, puis renommer la clé
- *   `Content-Security-Policy-Report-Only` en `Content-Security-Policy`.
+ * ⚠️ Ce qui a été VÉRIFIÉ avant la bascule (29/09/2026, build de production servi en local,
+ * Chrome, écouteur `securitypolicyviolation` posé AVANT le chargement, témoin de violation
+ * volontaire détecté) : `/login` et tout ce que le layout racine charge sans session —
+ * scripts et CSS de `_next/static`, manifeste PWA, icône, script Vercel Analytics, service
+ * worker `/sw.js` enregistré. Zéro violation. Aucun `eval`/`new Function` dans les scripts
+ * client construits ; aucune origine externe appelée (`va.vercel-scripts.com` n'est chargé
+ * qu'en mode développement).
+ * ⚠️ Ce qui N'A PAS pu l'être (aucune session ni base en local, et plus de préversion Vercel
+ * pour les branches) : les pages avec session (accueil, /recettes, /catalogue, /batchs,
+ * /courses/[id], /assistant, /partage), l'import vidéo (`blob:`), la connexion Google
+ * (`form-action`) et la page de consentement MCP. Si l'une d'elles casse après la mise en
+ * ligne, la console du navigateur le dit (« Refused to … because it violates the
+ * Content-Security-Policy ») : ajouter la directive manquante, ou revenir à
+ * `Content-Security-Policy-Report-Only` le temps de corriger.
  */
 const CSP = [
   "default-src 'self'",
@@ -50,7 +60,7 @@ const CSP = [
 ].join("; ");
 
 const SECURITY_HEADERS = [
-  { key: "Content-Security-Policy-Report-Only", value: CSP },
+  { key: "Content-Security-Policy", value: CSP },
   // HSTS : l'app est 100 % HTTPS (Vercel).
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
   { key: "X-Content-Type-Options", value: "nosniff" },

@@ -60,10 +60,16 @@ describe("garde-fou de déploiement Vercel", () => {
 });
 
 describe("CSP — les cibles de formulaire couvrent les flux qui redirigent", () => {
-  // La CSP est en Report-Only aujourd'hui : rien ne casse. Ce test protège le JOUR du
-  // passage en enforcé, où une directive trop serrée coupe une fonctionnalité SANS erreur
-  // visible — c'est la note que DriveAI porte déjà sur sa propre CSP.
+  // La CSP BLOQUE depuis le 29/09/2026 : une directive trop serrée coupe une fonctionnalité
+  // SANS erreur visible côté serveur — c'est la note que DriveAI porte déjà sur sa propre CSP.
   const config = readFileSync(resolve(process.cwd(), "next.config.ts"), "utf8");
+
+  it("la CSP est servie en blocage réel, pas seulement en rapport", () => {
+    // Revenir à Report-Only est un choix possible (retour arrière), mais il doit se voir :
+    // ce test tombe, et la décision se prend en le modifiant, pas en silence.
+    expect(config).toContain('{ key: "Content-Security-Policy", value: CSP }');
+    expect(config).not.toContain('key: "Content-Security-Policy-Report-Only"');
+  });
 
   /**
    * La DIRECTIVE, pas la prose qui en parle.
