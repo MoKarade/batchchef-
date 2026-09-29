@@ -99,19 +99,19 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
     });
 
   return (
-    <details className="rounded-2xl border border-[var(--bordure)]">
-      <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium">
+    <details className="carte">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center px-4 text-sm font-semibold">
         Modifier la liste (ajouter / corriger)
       </summary>
       <div className="space-y-4 border-t border-[var(--bordure)] p-4">
         {error && (
-          <p className="bandeau erreur text-sm">
+          <p className="bandeau erreur" role="alert">
             {error}
           </p>
         )}
 
         {/* Ajout d'un article manuel */}
-        <div className="space-y-2 rounded-xl border border-[var(--bordure)] p-3">
+        <div className="carte space-y-2 p-3">
           <p className="text-sm font-medium">Ajouter un article</p>
           <input
             type="text"
@@ -159,7 +159,7 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
             const setF = (patch: Partial<Fields>) =>
               setEdits((prev) => ({ ...prev, [item.id]: { ...f, ...patch } }));
             return (
-              <li key={item.id} className="space-y-2 rounded-xl border border-[var(--bordure)] p-3">
+              <li key={item.id} className="carte space-y-2 p-3">
                 <input
                   type="text"
                   value={f.name}

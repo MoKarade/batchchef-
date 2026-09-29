@@ -53,11 +53,13 @@ export default async function ShoppingPage({
 
 
   return (
-    <div className="space-y-5">
-      <div>
-        <p className="text-sm doux">Épicerie</p>
-        <h1 className="text-2xl font-bold">{batch.name}</h1>
-      </div>
+    <div className="space-y-6">
+      <header className="entete !mb-0">
+        <div>
+          <p className="surtitre">Épicerie</p>
+          <h1>{batch.name}</h1>
+        </div>
+      </header>
 
       <ShoppingChecklist
         key={shoppingChecklistKey(items)}
@@ -72,12 +74,14 @@ export default async function ShoppingPage({
       />
 
 
-      {noteDeFond && <p className="text-xs doux">{noteDeFond}</p>}
+      {noteDeFond && <p className="text-sm doux">{noteDeFond}</p>}
 
       {/* Tout ce qui se fait AVANT de partir, replié sous un seul dépliant. */}
       <details className="carte overflow-hidden">
-        <summary className="cursor-pointer px-4 py-3 font-medium">Outils de la liste</summary>
-        <div className="space-y-4 border-t px-4 py-4" style={{ borderColor: "var(--bordure)" }}>
+        <summary className="flex min-h-11 cursor-pointer items-center px-5 font-semibold">
+          Outils de la liste
+        </summary>
+        <div className="space-y-4 border-t px-5 py-4" style={{ borderColor: "var(--bordure)" }}>
           <div className="space-y-2">
             <ExportTasksButton batchId={id} />
             <ShareListButton
@@ -90,8 +94,8 @@ export default async function ShoppingPage({
               }))}
             />
             {/* Si Google Tasks répond « reconnecte-toi » : ce bouton accorde la permission. */}
-            <details className="text-xs doux">
-              <summary className="cursor-pointer py-1">
+            <details className="text-sm doux">
+              <summary className="flex min-h-11 cursor-pointer items-center">
                 Google Tasks demande de te reconnecter ?
               </summary>
               <div className="mt-2">

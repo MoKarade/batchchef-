@@ -648,6 +648,10 @@ body {
     padding: 0;
   }
   .etape {
+    display: block;
+    width: 100%;
+    min-height: 2.75rem;
+    background-color: transparent;
     padding: 10px 8px;
     border-radius: 12px;
     border: 1px solid var(--bordure);

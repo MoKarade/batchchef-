@@ -34,27 +34,31 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
 
   if (fallbackNotice) {
     return (
-      <div className="bandeau alerte text-sm space-y-3">
-        <p className="font-medium">Batch créé — budget approximatif.</p>
-        <p>
-          L&apos;estimation précise par IA a échoué ({fallbackNotice.error}) : les prix viennent d&apos;un
-          tarif moyen de secours, pas de l&apos;estimation habituelle. Tu peux les corriger dans la liste
-          d&apos;épicerie.
-        </p>
-        <Link
-          href={`/batchs/${fallbackNotice.id}`}
-          className="bouton bouton-principal"
-        >
-          Voir le batch →
-        </Link>
+      <div className="bandeau alerte" role="status">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3l10 18H2z" />
+          <path d="M12 10v5M12 18v.5" />
+        </svg>
+        <div className="space-y-3 text-sm">
+          <strong>Batch créé — budget approximatif.</strong>
+          <p>
+            L&apos;estimation précise par IA a échoué ({fallbackNotice.error}) : les prix viennent
+            d&apos;un tarif moyen de secours, pas de l&apos;estimation habituelle. Tu peux les
+            corriger dans la liste d&apos;épicerie.
+          </p>
+          <Link href={`/batchs/${fallbackNotice.id}`} className="bouton bouton-second">
+            Voir le batch →
+          </Link>
+        </div>
       </div>
     );
   }
 
   if (recipes.length === 0) {
     return (
-      <div className="space-y-3 rounded-xl border border-dashed border-[var(--bordure)] p-6 text-center text-sm doux">
-        <p>Ta bibliothèque est vide — un batch se compose de recettes que tu as déjà.</p>
+      <div className="vide">
+        <h2>Ta bibliothèque est vide</h2>
+        <p>Un batch se compose de recettes que tu as déjà.</p>
         <Link
           href="/catalogue"
           className="bouton bouton-principal"
@@ -95,7 +99,11 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
         });
       }}
     >
+      <label className="etiquette" htmlFor="nom-batch">
+        Nom du batch
+      </label>
       <input
+        id="nom-batch"
         type="text"
         required
         value={name}
@@ -109,16 +117,16 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
         {recipes.map((r) => {
           const selected = r.id in portions;
           return (
-            <li key={r.id} className="flex items-center gap-3 px-4 py-3">
+            <li key={r.id} className="flex min-h-14 items-center gap-3 px-4 py-2">
               <input
                 type="checkbox"
                 id={`r-${r.id}`}
                 checked={selected}
                 onChange={() => toggle(r.id, r.servings)}
-                className="h-6 w-6 accent-[var(--accent)]"
+                className="h-6 w-6 shrink-0 accent-[var(--accent)]"
                 disabled={pending}
               />
-              <label htmlFor={`r-${r.id}`} className="min-w-0 flex-1 text-sm">
+              <label htmlFor={`r-${r.id}`} className="min-w-0 flex-1 py-2 text-base">
                 {r.title}
               </label>
               {selected && (
@@ -143,7 +151,7 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
       </ul>
 
       {error && (
-        <p className="bandeau erreur text-sm">
+        <p className="bandeau erreur" role="alert">
           {error}
         </p>
       )}
@@ -155,7 +163,7 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
         {pending ? "Génération de la liste…" : "Créer le batch"}
       </button>
       {!pending && (!name.trim() || Object.keys(portions).length === 0) && (
-        <p className="text-center text-xs doux">
+        <p className="text-center text-sm doux">
           {!name.trim() && Object.keys(portions).length === 0
             ? "Nomme le batch et coche au moins une recette pour l’activer."
             : !name.trim()
@@ -164,7 +172,7 @@ export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
         </p>
       )}
       {pending && (
-        <p className="text-center text-xs doux">
+        <p className="text-center text-sm doux" role="status">
           Agrégation des ingrédients + estimation du budget (quelques secondes)…
         </p>
       )}
