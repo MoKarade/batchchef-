@@ -16,6 +16,10 @@ export function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith("/api/auth/")) return true;
   // Endpoint hub : gardé par jeton x-hub-token dans la route, pas par session Google.
   if (pathname === "/api/hub/summary") return true;
+  // Sonde de santé de la vigie de l'Atelier : ne rend que {"ok": true|false}, sans donnée.
+  // Sous la garde de session, elle recevrait une redirection vers /login au lieu du JSON et
+  // ne verrait JAMAIS une panne de base (incident Neon du 29/09/2026). ⚠️ ÉGALITÉ STRICTE.
+  if (pathname === "/api/sante") return true;
   // Endpoint MCP : gardé par jeton `MCP_TOKEN` dans la route. Comme le hub, c'est une
   // MACHINE qui appelle — elle n'a pas de cookie de session à présenter. Laissé sous la
   // garde de session, il recevrait une redirection HTML vers /login au lieu du JSON-RPC,
