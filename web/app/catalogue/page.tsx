@@ -9,6 +9,7 @@ import { CatalogueSearch } from "@/components/CatalogueSearch";
 import { CatalogueGrid } from "@/components/CatalogueGrid";
 import { FiltreType, TYPE_INCONNU } from "@/components/FiltreType";
 import { estTypePlat } from "@/lib/typePlat";
+import { typeEffectifSql } from "@/lib/typePlatSql";
 
 export const dynamic = "force-dynamic";
 const PAGE = 24;
@@ -49,14 +50,15 @@ export default async function CataloguePage({
   const recherche = qn ? or(ilike(schema.catalogRecipes.titreRecherche, `%${qn}%`), ingredientMatch) : undefined;
   // Le type AFFICHÉ est la correction de Marc si elle existe, sinon l'estimation — le filtre
   // doit donc porter sur le même calcul, sinon une recette corrigée resterait introuvable
-  // sous sa nouvelle famille. `COALESCE` sur la jointure fait exactement ça.
-  const typeEffectifSql = sql`coalesce(${schema.typeCorrections.type}, ${schema.catalogRecipes.typeEstime})`;
+  // sous sa nouvelle famille. `typeEffectifSql` porte cette règle, y compris la correction
+  // « aucune famille » (`null`), qui doit tomber sous « type inconnu ».
+  const typeEffectif = typeEffectifSql();
   const filtreType =
     typeDemande === null
       ? undefined
       : typeDemande === TYPE_INCONNU
-        ? sql`${typeEffectifSql} is null`
-        : sql`${typeEffectifSql} = ${typeDemande}`;
+        ? sql`${typeEffectif} is null`
+        : sql`${typeEffectif} = ${typeDemande}`;
   const where =
     recherche && filtreType ? and(recherche, filtreType) : (recherche ?? filtreType ?? undefined);
 

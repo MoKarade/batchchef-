@@ -262,9 +262,11 @@ conditionnait pas.
   **« Propose-moi une autre semaine »** qui rejoue les quatre d'un coup, derrière une
   confirmation.
 
-- [ ] **`SEM-BUG-TYPE-NUL` — une correction de type « aucune famille » est ignorée en SQL.**
-  Découvert le 29/09 par les tests d'intégration de `lib/semaineDb.ts` (test en `it.skip`
-  dans `web/tests/semaineDb.test.ts`), **non corrigé** : attend le feu vert. Le type effectif
+- [x] **`SEM-BUG-TYPE-NUL` — une correction de type « aucune famille » est ignorée en SQL.**
+  **Corrigé le 29/09** (feu vert du gérant) : la règle vit dans `lib/typePlatSql.ts`
+  (`typeEffectifSql`), employée par `lib/semaineDb.ts` et `app/catalogue/page.tsx` ; tests
+  actifs dans `web/tests/semaineDb.test.ts`.
+  Découvert le 29/09 par les tests d'intégration de `lib/semaineDb.ts`. Le type effectif
   s'écrit `coalesce(type_corrections.type, catalog_recipes.type_estime)` ; une correction à
   `null` (« aucune de ces familles », que `typeEffectif` distingue par la PRÉSENCE de la
   ligne) retombe donc sur l'estimation. Effet : une recette que Marc a sortie des familles

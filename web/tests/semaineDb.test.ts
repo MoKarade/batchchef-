@@ -125,6 +125,13 @@ describe("lireSemaine", () => {
     expect(lues[1]).toMatchObject({ catalogRecipeId: inconnue, type: null });
   });
 
+  it("une correction « aucune famille » (null) l'emporte sur l'estimation à la lecture", async () => {
+    const retiree = await recette("plat", { sourceUrl: "test://retiree" });
+    await db.insert(schema.typeCorrections).values({ sourceUrl: "test://retiree", type: null });
+    await db.insert(schema.weekPicks).values({ semaine: SEMAINE, catalogRecipeId: retiree, position: 0 });
+    expect((await lireSemaine(SEMAINE))[0]).toMatchObject({ catalogRecipeId: retiree, type: null });
+  });
+
   it("ne mélange pas deux semaines", async () => {
     const { repas } = await catalogueComplet();
     await db.insert(schema.weekPicks).values({ semaine: SEMAINE_PRECEDENTE, catalogRecipeId: repas[0]!, position: 0 });
@@ -186,11 +193,9 @@ describe("semaineCourante", () => {
     expect(ids).toContain(dessert);
   });
 
-  // ⚠️ BUG CONNU, NON CORRIGÉ (hors périmètre de ce lot, cf. BACKLOG.md) : le SQL fait
-  // `coalesce(correction.type, typeEstime)`, donc une correction à `null` (« aucune de ces
-  // familles », cf. `typeEffectif`) retombe sur l'estimation et la recette reste tirée.
-  // Ce test décrit le comportement ATTENDU ; il sera activé avec le correctif.
-  it.skip("tire sous le type CORRIGÉ : une correction vers « aucune famille » écarte la recette", async () => {
+  // SEM-BUG-TYPE-NUL (29/09) : l'ancien `coalesce(correction.type, typeEstime)` faisait
+  // retomber une correction à `null` (« aucune de ces familles ») sur l'estimation.
+  it("tire sous le type CORRIGÉ : une correction vers « aucune famille » écarte la recette", async () => {
     const { repas, dessert } = await catalogueComplet();
     const promue = await recette("sauce", { sourceUrl: "test://promue" });
     const retiree = await recette("plat", { sourceUrl: "test://retiree" });
@@ -438,6 +443,14 @@ describe("apercuPlacement", () => {
     expect(await apercuPlacement(2, plat, MAINTENANT)).toMatchObject({ casseComposition: false, roleAttendu: "repas" });
     expect(await apercuPlacement(4, dessert, MAINTENANT)).toMatchObject({ casseComposition: false, roleAttendu: "dessert" });
     expect(await apercuPlacement(4, plat, MAINTENANT)).toMatchObject({ casseComposition: true });
+  });
+
+  it("une recette corrigée « aucune famille » est annoncée sans type, et casse la composition", async () => {
+    await catalogueComplet();
+    await semaineCourante(MAINTENANT);
+    const retiree = await recette("plat", { sourceUrl: "test://retiree" });
+    await db.insert(schema.typeCorrections).values({ sourceUrl: "test://retiree", type: null });
+    expect(await apercuPlacement(1, retiree, MAINTENANT)).toMatchObject({ type: null, casseComposition: true });
   });
 
   it("une recette de type inconnu est rendue sans type et casse la composition", async () => {
