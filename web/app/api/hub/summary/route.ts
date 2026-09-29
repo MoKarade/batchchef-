@@ -43,7 +43,7 @@ async function construireResume(): Promise<HubSummary> {
       // littéral ment. Ce payload-ci ne s'exécute qu'en panne, donc personne ne le verrait
       // diverger avant qu'il ne serve.
       contractVersion: CONTRACT_VERSION,
-      app: { id: "batchchef", name: "BatchChef", url: base, color: "#c2410c" },
+      app: { id: "batchchef", name: "BatchChef", url: base, color: "#fb923c" },
       generatedAt: new Date().toISOString(),
       status: "error",
       metrics: [],
