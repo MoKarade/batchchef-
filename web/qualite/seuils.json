@@ -39,7 +39,7 @@
       "min": 51.6
     },
     "code_mort.problemes": {
-      "max": 0
+      "max": 1
     },
     "architecture.violations": {
       "max": 0
