@@ -54,6 +54,12 @@ const ETATS_OK = new Set(["CLEAN", "HAS_HOOKS"]);
 const SHA = /^[0-9a-f]{40}$/;
 /** Chemins JAMAIS attestables (secrets, clés) : aucune attestation, aucune configuration d'app ne les lève. Motifs sur chemins normalisés (minuscules). */
 export const JAMAIS_ATTESTABLES = Object.freeze(["**/.env*", "**/*.pem", "**/secrets/**", "**/jeton*", "**/*.key"]);
+// Faux positif « jeton » (décision gérant/Marc 28/09) : SEUL le motif jeton est levé, et SEULEMENT pour un fichier de test (nom de fichier : point test point, point spec point,
+// test_ puis .py, _test.py). Aucun autre motif ni aucun autre chemin n'est exempté (un test dans secrets/, un .env, une clé restent refusés).
+const MOTIF_JETON = "**/jeton*";
+const FICHIER_DE_TEST = Object.freeze(["**/*.test.*", "**/*.spec.*", "**/test_*.py", "**/*_test.py"]);
+export const estTestExemptJeton = (chemin) => correspond(chemin, FICHIER_DE_TEST);
+const jamaisAttestable = (c) => JAMAIS_ATTESTABLES.some((m) => !(m === MOTIF_JETON && estTestExemptJeton(c)) && correspond(c, [m]));
 /** Login GitHub valide (lettres, chiffres, tirets ; 1 à 39 caractères) : nom du compte dédié de pole-securite, comparé EXACTEMENT (casse comprise). */
 const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?(?:\[bot\])?$/;
 /** Login d'une GitHub App (« <slug>[bot] ») : l'attestation par l'App exige alors l'identifiant numérique du compte bot ET le type « Bot » sur les revues. */
@@ -124,6 +130,7 @@ export function validerConfig(config) {
   if (!listeDeTextes(config.controles_requis) || config.controles_requis.length === 0) erreurs.push("controles_requis : liste non vide de noms de checks");
   if (!listeDeTextes(config.chemins_interdits)) erreurs.push("chemins_interdits : liste de motifs");
   if (!listeDeTextes(config.chemins_label_validation)) erreurs.push("chemins_label_validation : liste de motifs");
+  if (config.chemins_validation_visuelle !== undefined && !listeDeTextes(config.chemins_validation_visuelle)) erreurs.push("chemins_validation_visuelle : liste de motifs (chemins dont la modification demande la validation visuelle de Marc)");
   if (!listeDeTextes(config.controles_non_bloquants)) erreurs.push("controles_non_bloquants : liste de noms de checks");
   if (!Number.isInteger(config.carence_dependabot_jours) || config.carence_dependabot_jours < 0 || config.carence_dependabot_jours > 60) {
     erreurs.push("carence_dependabot_jours : entier de 0 à 60");
@@ -147,6 +154,13 @@ export function validerConfig(config) {
   if (config.chemins_attestables !== undefined && !listeDeTextes(config.chemins_attestables)) erreurs.push("chemins_attestables : liste de motifs (chemins de l'app que l'attestation peut lever)");
   if (config.securite_user_id !== undefined && (!Number.isInteger(config.securite_user_id) || config.securite_user_id <= 0)) erreurs.push("securite_user_id : entier positif (identifiant numérique du compte dédié)");
   if (config.branche_base !== undefined && (typeof config.branche_base !== "string" || config.branche_base === "")) erreurs.push("branche_base : texte");
+  if (config.statut_local !== undefined) {
+    const s = config.statut_local;
+    const bienForme = s && typeof s === "object" && !Array.isArray(s) && typeof s.contexte === "string" && s.contexte.trim() !== ""
+      && typeof s.createur_login === "string" && LOGIN.test(s.createur_login) && Number.isInteger(s.createur_id) && s.createur_id > 0;
+    if (!bienForme) erreurs.push("statut_local : {contexte, createur_login, createur_id} (statut de commit publié par un compte identifié par son login ET son identifiant numérique)");
+    else if (!Array.isArray(config.controles_requis) || !config.controles_requis.includes(s.contexte)) erreurs.push("statut_local.contexte doit figurer dans controles_requis");
+  }
   if (erreurs.length === 0) {
     const requis = new Set(config.controles_requis);
     const doublon = config.controles_non_bloquants.find((n) => requis.has(n));
@@ -156,6 +170,35 @@ export function validerConfig(config) {
 }
 
 // ── checks ──────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Statut de commit du vérificateur local (config `statut_local`) : il ne satisfait le contrôle requis de même nom QUE s'il est un vrai STATUT de commit (pas un check-run,
+ * pas de champ `status`) portant `createur` = { id, login, type } EXACTEMENT égal au compte configuré (même principe que l'attestation de pole-securite : le nom du
+ * statut seul ne prouve rien, n'importe qui avec un accès en écriture peut publier « portes-locales »). Type attendu : « Bot » pour un login « <slug>[bot] », sinon « User ».
+ */
+export function statutLocalValide(c, nom, cfg) {
+  if (!cfg || typeof cfg !== "object" || nom !== cfg.contexte) return false;
+  if (!c || typeof c.state !== "string" || c.status !== undefined || c.context !== nom) return false;
+  const u = c.createur;
+  if (!u || typeof u !== "object") return false;
+  return u.id === cfg.createur_id && u.login === cfg.createur_login && u.type === (estLoginBot(cfg.createur_login) ? "Bot" : "User");
+}
+
+/**
+ * Rattache le créateur du DERNIER statut de commit portant `contexte` au check correspondant de statusCheckRollup. `lignesTsv` : sortie de
+ * `repos/{r}/commits/{sha}/statuses` (du plus récent au plus ancien), une ligne « contexte<TAB>état<TAB>id<TAB>login<TAB>type ». Seul le plus récent compte ;
+ * s'il ne concorde pas avec l'état du rollup (course), ou s'il est illisible, AUCUN créateur n'est rattaché (échec fermé : le statut ne satisfait rien).
+ */
+export function rattacherCreateurs(checks, lignesTsv, contexte) {
+  const dernier = String(lignesTsv ?? "").split("\n").filter((l) => l !== "").map((l) => l.split("\t")).find((p) => p[0] === contexte);
+  return checks.map((c) => {
+    if (!c || c.context !== contexte || typeof c.state !== "string" || c.status !== undefined) return c;
+    if (!dernier || dernier.length < 5 || dernier[1] !== c.state) return c;
+    const id = Number(dernier[2]);
+    if (!Number.isInteger(id) || id <= 0) return c;
+    return { ...c, createur: { id, login: dernier[3], type: dernier[4] } };
+  });
+}
 
 const nomDuCheck = (c) => (c && (c.name || c.context)) || "check sans nom";
 
@@ -304,7 +347,7 @@ export function codeRaison(d) {
   const r = String(d.raison || "");
   if (r.startsWith("attestation de pole-securite requise")) return "attestation_requise";
   if (r === "brouillon" || r.startsWith("brouillon")) return "brouillon";
-  if (r === `label ${LABEL_FREIN}`) return "do_not_merge";
+  if (r === `label ${LABEL_FREIN}` || r.startsWith("validation visuelle requise")) return "do_not_merge";
   if (r.startsWith("le SHA de la PR a changé")) return "sha_change";
   if (r.startsWith("état de fusion")) return "etat_fusion";
   if (r.startsWith("aucun check") || r.startsWith("contrôle requis absent")) return "controle_en_cours";
@@ -338,7 +381,18 @@ function examinerFichiers(pr, config) {
   for (const c of touches) {
     const app = correspond(c, config.chemins_interdits);
     if (app && !correspond(c, attestables)) return refus(`chemin interdit par auto-merge.json : ${c}`);
-    if (correspond(c, JAMAIS_ATTESTABLES)) return refus(`chemin jamais attestable (secret, clé) : ${c}`);
+    if (jamaisAttestable(c)) return refus(`chemin jamais attestable (secret, clé) : ${c}`);
+  }
+  // Frein VISUEL (chemins_validation_visuelle) : NON attestable (une attestation de sécurité ne remplace pas le regard de Marc sur le rendu) et évalué ICI, dans la même fonction pure
+  // que les autres chemins, donc à CHAQUE passage (workflow_run, status, check_run, cron) : un fichier visuel ajouté par un commit ultérieur reçoit le label lui aussi.
+  // Le label posé est `do-not-merge` (le frein DUR) : le kit ne le retire jamais (aucun `--remove-label` dans le kit), seul un retrait manuel rouvre la fusion.
+  // La raison dit QUEL motif a touché QUEL fichier : elle ne ressemble jamais à un do-not-merge posé à la main pour une faille de sécurité.
+  for (const motif of config.chemins_validation_visuelle || []) {
+    const fichier = touches.find((c) => correspond(c, [motif]));
+    if (fichier) {
+      return refus(`validation visuelle requise : le motif « ${court(motif)} » de chemins_validation_visuelle touche ${court(fichier)} ; label ${LABEL_FREIN} posé, à retirer À LA MAIN par Marc après validation`,
+        { etiqueter: [LABEL_FREIN], motif: "do_not_merge" });
+    }
   }
   const attestable = [];
   const fixe = touches.find((c) => correspond(c, CHEMINS_INTERDITS));
@@ -466,7 +520,8 @@ export function decision(pr, config, contexte = {}) {
     if (v === "attente" || v === "rouge") return refus(`${nom} : ${detail}`, { motif: v === "rouge" ? "controle_rouge" : "controle_en_cours" });
     if (v === "vert") {
       preuve = true;
-      if (requis.has(nom) && c.appId === appIdRequis) requis.set(nom, true);   // vert ET publié par GitHub Actions (appId absent = non)
+      // vert ET publié par GitHub Actions (appId absent = non), OU statut de commit du vérificateur local publié par le compte identifié (statut_local)
+      if (requis.has(nom) && (c.appId === appIdRequis || statutLocalValide(c, nom, config.statut_local))) requis.set(nom, true);
     }
   }
   const manquant = [...requis].find(([, vu]) => !vu);

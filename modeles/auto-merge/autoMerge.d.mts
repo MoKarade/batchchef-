@@ -49,6 +49,8 @@ export interface ConfigAutoMerge {
   controles_non_bloquants: string[];
   chemins_interdits: string[];
   chemins_label_validation: string[];
+  /** Frein visuel (facultatif) : une PR qui touche un de ces chemins reçoit `do-not-merge` (jamais levé automatiquement), attestation ou non. */
+  chemins_validation_visuelle?: string[];
   carence_dependabot_jours: number;
   branche_base?: string;
   app_id_requis?: number;
@@ -58,6 +60,8 @@ export interface ConfigAutoMerge {
   securite_login?: string;
   /** Identifiant numérique du compte dédié : exigé en plus du login quand il est configuré. */
   securite_user_id?: number;
+  /** Statut de commit du vérificateur local : ne satisfait le contrôle requis `contexte` que si le créateur du DERNIER statut a exactement cet identifiant, ce login et le type attendu (Bot pour `<slug>[bot]`, sinon User). `contexte` doit figurer dans controles_requis. */
+  statut_local?: { contexte: string; createur_login: string; createur_id: number };
   /** Chemins de l'app (parmi chemins_interdits) que l'attestation peut lever ; jamais les JAMAIS_ATTESTABLES. */
   chemins_attestables?: string[];
 }
@@ -95,6 +99,9 @@ export function testAffaibli(fichiers: (string | FichierPR)[]): string | null;
 export function estFichierDeTest(chemin: string): boolean;
 
 /** Le compte dédié `login` a-t-il APPROUVÉ le SHA exact `sha` ? (dernière revue du compte, échec fermé) */
+export function statutLocalValide(c: unknown, nom: string, cfg: { contexte: string; createur_login: string; createur_id: number } | null | undefined): boolean;
+/** Rattache le créateur du dernier statut de commit de `contexte` aux checks (lignes TSV « contexte, état, id, login, type », du plus récent au plus ancien) ; rien si illisible ou en désaccord avec l'état du rollup. */
+export function rattacherCreateurs<T>(checks: T[], lignesTsv: string | undefined, contexte: string): T[];
 export function attestationValide(reviews: unknown, cible: { login?: string; sha?: string; userId?: number }): boolean;
 
 /** Chemins jamais attestables (secrets, clés). */
