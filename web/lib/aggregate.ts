@@ -6,7 +6,7 @@
 // l'agrégation n'additionne QUE des quantités de même unité. Deux unités incompatibles
 // pour le même canonical → deux lignes distinctes (honnête, jamais une somme absurde).
 
-export interface IngredientLine {
+interface IngredientLine {
   name: string;
   canonical: string;
   /** Quantité pour `servings` portions de la recette ; null = « au goût ». */

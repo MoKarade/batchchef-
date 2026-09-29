@@ -10,7 +10,7 @@
 /** Nombre d'images maximum envoyées au LLM pour une vidéo. */
 export const MAX_FRAMES = 12;
 /** Côté le plus long d'une image envoyée (px). Au-delà, on paie des tokens pour rien. */
-export const MAX_EDGE_PX = 768;
+const MAX_EDGE_PX = 768;
 /** Qualité JPEG de l'encodage des images. */
 export const JPEG_QUALITY = 0.72;
 

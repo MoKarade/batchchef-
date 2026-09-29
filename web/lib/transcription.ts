@@ -13,7 +13,7 @@
 // partir du texte à l'écran et de la description. D'où un état explicite plutôt qu'un throw.
 
 /** Modèle de transcription. Surchargeable : les noms de modèles bougent chez les fournisseurs. */
-export const MODELE_TRANSCRIPTION =
+const MODELE_TRANSCRIPTION =
   process.env.BATCHCHEF_MODELE_TRANSCRIPTION || "whisper-large-v3-turbo";
 
 const URL_GROQ = "https://api.groq.com/openai/v1/audio/transcriptions";

@@ -30,16 +30,16 @@
       "max": 0
     },
     "couverture.lignes_coeur": {
-      "min": 66.4
+      "min": 73.5
     },
     "couverture.lignes_global": {
-      "min": 50
+      "min": 54.9
     },
     "couverture.branches_global": {
-      "min": 50.4
+      "min": 51.6
     },
     "code_mort.problemes": {
-      "max": 14
+      "max": 1
     },
     "architecture.violations": {
       "max": 0
