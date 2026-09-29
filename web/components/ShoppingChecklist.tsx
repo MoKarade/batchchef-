@@ -124,7 +124,7 @@ export function ShoppingChecklist({ items: initial }: { items: Item[] }) {
           />
         </div>
         {progression.montantIncomplet && (
-          <p className="mt-2 text-xs doux">
+          <p className="mt-2 text-sm doux">
             Le « + » signale des articles restants sans coût estimé : le montant est un
             plancher, pas le total.
           </p>

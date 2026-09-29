@@ -36,7 +36,7 @@ export function AddToLibraryButton({ catalogRecipeId }: { catalogRecipeId: numbe
       >
         {pending ? "…" : "+ Ma bibliothèque"}
       </button>
-      {state !== "idle" && state !== "done" && <p className="mt-1 max-w-40 text-xs texte-erreur">{state}</p>}
+      {state !== "idle" && state !== "done" && <p className="mt-1 max-w-40 text-sm texte-erreur">{state}</p>}
     </div>
   );
 }

@@ -42,8 +42,8 @@ export function TypePlatEditeur({
         <span className="pastille repere">
           {type ? LIBELLES[type] : "Type non déterminé"}
         </span>
-        {!corrige && type && <span className="text-xs doux">estimé</span>}
-        {corrige && <span className="text-xs doux">corrigé par toi</span>}
+        {!corrige && type && <span className="text-sm doux">estimé</span>}
+        {corrige && <span className="text-sm doux">corrigé par toi</span>}
         <button
           type="button"
           disabled={pending}

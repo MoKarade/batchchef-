@@ -106,7 +106,7 @@ export function RecipeEditor({
           className="champ w-20 text-center num"
         />
       </label>
-      <p className="text-xs doux">
+      <p className="text-sm doux">
         Les quantités ci-dessous valent pour ce nombre de portions. À la création d’un batch,
         elles sont mises à l’échelle des portions voulues.
       </p>

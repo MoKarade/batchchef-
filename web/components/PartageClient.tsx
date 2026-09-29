@@ -119,13 +119,17 @@ export function PartageClient({
   }, [erreurWorker]);
 
   if (etat.kind === "chargement") {
-    return <p className="text-sm doux">Récupération du partage…</p>;
+    return (
+      <p className="doux" role="status">
+        Récupération du partage…
+      </p>
+    );
   }
 
   if (etat.kind === "vide") {
     return (
       <div className="space-y-3">
-        <p className="bandeau alerte text-sm">
+        <p className="bandeau alerte" role="status">
           {etat.motif} Tu peux quand même déposer la vidéo ou coller la description ci-dessous.
         </p>
         <ImportVideoForm transcriptionActive={transcriptionActive} />
@@ -140,8 +144,9 @@ export function PartageClient({
   return (
     <div className="space-y-3">
       {sansContenu && (
-        <div className="bandeau alerte text-sm">
-          <p className="font-medium">Instagram n’a partagé que le lien.</p>
+        <div className="bandeau alerte text-sm" role="status">
+         <div>
+          <p className="font-semibold">Instagram n’a partagé que le lien.</p>
           <p className="mt-1">
             Ni la vidéo, ni la légende : c’est sa limite, et elle vaut pour toute app. Un
             enregistrement d’écran, lui, porte tout d’un coup :
@@ -160,6 +165,7 @@ export function PartageClient({
           <p className="mt-2">
             La légende est lue dans l’enregistrement comme le reste : rien d’autre à copier.
           </p>
+         </div>
         </div>
       )}
       <ImportVideoForm
@@ -211,17 +217,19 @@ function DiagnosticPartage({
   ];
 
   return (
-    <details className="rounded-xl border border-[var(--bordure)] p-3 text-sm">
-      <summary className="cursor-pointer doux">Ce que le partage a transmis</summary>
+    <details className="carte p-3 text-sm">
+      <summary className="flex min-h-11 cursor-pointer items-center doux">
+        Ce que le partage a transmis
+      </summary>
       <dl className="mt-2 space-y-2">
         {lignes.map(([cle, valeur]) => (
           <div key={cle}>
-            <dt className="text-xs font-medium doux">{cle}</dt>
+            <dt className="text-sm font-semibold doux">{cle}</dt>
             <dd className="break-words whitespace-pre-wrap">{valeur}</dd>
           </div>
         ))}
       </dl>
-      <p className="mt-2 text-xs doux">
+      <p className="mt-2 text-sm doux">
         C’est l’app source (Instagram, Galerie…) qui décide de ce qu’elle met ici. BatchChef
         n’a accès à rien d’autre.
       </p>

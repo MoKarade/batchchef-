@@ -112,7 +112,7 @@ export function RecipeDraftEditor({
         </button>
       </div>
       {hint ?? (
-        <p className="text-xs doux">
+        <p className="text-sm doux">
           Analyse relue par le LLM. Corrige le titre, les portions ou une quantité si besoin —
           c’est ce que tu valides qui est enregistré.
         </p>
@@ -129,13 +129,13 @@ export function RecipeDraftEditor({
               className="aspect-video w-full rounded-xl object-cover"
             />
           ) : (
-            <p className="vide !p-4 text-xs">
+            <p className="vide !p-4 text-sm">
               Aucune photo — la recette s’affichera sans image.
             </p>
           )}
           {vignettes.length > 0 && (
             <>
-              <p className="text-xs doux">
+              <p className="text-sm doux">
                 Photo de la recette — choisis un autre moment de la vidéo si celui-ci ne dit rien.
               </p>
               <div className="flex gap-2 overflow-x-auto pb-1">
@@ -207,7 +207,7 @@ export function RecipeDraftEditor({
           placeholder="https://www.instagram.com/reel/…"
           className="champ"
         />
-        <p className="mt-1 text-xs doux">
+        <p className="mt-1 text-sm doux">
           Gardé avec la recette pour pouvoir revoir la vidéo plus tard. Rien n’est téléchargé
           depuis ce lien.
         </p>

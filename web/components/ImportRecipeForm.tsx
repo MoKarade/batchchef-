@@ -62,7 +62,7 @@ export function ImportRecipeForm() {
         </button>
       </div>
       {pending && (
-        <p className="text-xs doux">
+        <p className="text-sm doux">
           Lecture de la page, extraction puis vérification de la recette (20-30 s)…
         </p>
       )}

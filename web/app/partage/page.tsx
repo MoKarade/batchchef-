@@ -20,14 +20,17 @@ export default async function PartagePage({
   const { erreur } = await searchParams;
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold">Recette partagée</h1>
-        <p className="mt-1 text-sm doux">
-          Vérifie l’extraction avant d’enregistrer — c’est ce que tu valides qui entre dans ta
-          bibliothèque.
-        </p>
-      </div>
+    <div>
+      <header className="entete">
+        <div>
+          <p className="surtitre">Partage</p>
+          <h1>Recette partagée</h1>
+          <p className="doux mt-1">
+            Vérifie l’extraction avant d’enregistrer — c’est ce que tu valides qui entre dans ta
+            bibliothèque.
+          </p>
+        </div>
+      </header>
       <PartageClient
         erreurWorker={erreur === "1"}
         transcriptionActive={Boolean(process.env.GROQ_API_KEY)}

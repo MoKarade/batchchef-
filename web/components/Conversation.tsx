@@ -81,8 +81,8 @@ export function Conversation({ configure }: { configure: boolean }) {
           key={i}
           type="button"
           onClick={() => ouvrirFiche(seg.source, seg.id)}
-          className="bouton bouton-second mx-0.5 inline-flex items-center gap-1 align-baseline"
-          style={{ backgroundColor: "var(--accent-doux)", color: "var(--accent-fonce)" }}
+          // Lien DANS une phrase : pastille, pas un bouton de 44 px (exception WCAG 2.5.8).
+          className="pastille mx-0.5 cursor-pointer border border-[var(--bordure-champ)] align-baseline"
         >
           Voir la recette
         </button>
@@ -112,7 +112,7 @@ export function Conversation({ configure }: { configure: boolean }) {
 
   if (!configure) {
     return (
-      <p className="bandeau alerte text-sm">
+      <p className="bandeau alerte">
         L’assistant n’est pas configuré : il manque <code>ANTHROPIC_API_KEY</code> côté serveur.
         Ce n’est pas une panne, l’intégration est simplement éteinte.
       </p>
@@ -123,7 +123,7 @@ export function Conversation({ configure }: { configure: boolean }) {
     <div className="space-y-4">
       {messages.length === 0 && (
         <div className="space-y-2">
-          <p className="text-sm doux">Par exemple :</p>
+          <p className="doux">Par exemple :</p>
           <ul className="space-y-2">
             {EXEMPLES.map((ex) => (
               <li key={ex}>
@@ -131,7 +131,7 @@ export function Conversation({ configure }: { configure: boolean }) {
                   type="button"
                   onClick={() => envoyer(ex)}
                   disabled={pending}
-                  className="bouton bouton-second w-full text-left"
+                  className="bouton bouton-second w-full !justify-start text-left"
                 >
                   {ex}
                 </button>
@@ -141,32 +141,25 @@ export function Conversation({ configure }: { configure: boolean }) {
         </div>
       )}
 
-      <ul className="space-y-3">
+      <ul className="grid gap-3" aria-label="Conversation">
         {messages.map((m, i) => (
-          <li
-            key={i}
-            className={m.role === "user" ? "flex justify-end" : "flex justify-start"}
-          >
-            <div
-              className={
-                m.role === "user"
-                  ? "max-w-[85%] rounded-2xl px-4 py-3 text-sm sur-accent"
-                  : "max-w-[85%] whitespace-pre-line carte px-4 py-3 text-sm leading-relaxed"
-              }
-              style={m.role === "user" ? { backgroundColor: "var(--accent)" } : undefined}
-            >
-              {m.role === "assistant" ? rendreReponse(m.contenu) : m.contenu}
-            </div>
+          <li key={i} className={m.role === "user" ? "msg msg-moi" : "msg whitespace-pre-line leading-relaxed"}>
+            <div className="msg-qui">{m.role === "user" ? "Toi" : "Assistant"}</div>
+            {m.role === "assistant" ? rendreReponse(m.contenu) : m.contenu}
           </li>
         ))}
         {pending && (
-          <li className="flex justify-start">
-            <p className="carte px-4 py-3 text-sm doux">Je cherche dans ta base…</p>
+          <li className="msg doux" role="status">
+            Je cherche dans ta base…
           </li>
         )}
       </ul>
 
-      {erreur && <p className="bandeau erreur text-sm">{erreur}</p>}
+      {erreur && (
+        <p className="bandeau erreur" role="alert">
+          {erreur}
+        </p>
+      )}
 
       <FicheRecetteModale
         fiche={fiche}
@@ -175,7 +168,7 @@ export function Conversation({ configure }: { configure: boolean }) {
         onFermer={fermerFiche}
       />
 
-      <div className="sticky bottom-20 space-y-2 sm:bottom-4">
+      <div className="sticky bottom-[4.75rem] space-y-2 bg-[var(--fond)] pt-3 md:bottom-0">
         <textarea
           ref={champ}
           value={saisie}
@@ -240,7 +233,7 @@ function CartePlacement({ place, id }: { place: number; id: number }) {
 
   if (erreur) {
     return (
-      <span className="mx-0.5 inline-block rounded-lg px-2 py-0.5 align-baseline text-xs erreur">
+      <span className="bandeau erreur my-1 text-sm" role="alert">
         {erreur}
       </span>
     );
@@ -249,23 +242,23 @@ function CartePlacement({ place, id }: { place: number; id: number }) {
     // ⚠️ Le chat vit sur /assistant, la carte « Ta semaine » sur l'accueil : Marc ne verra
     // rien bouger. Le dire est la seule confirmation qu'il aura.
     return (
-      <span className="mx-0.5 inline-block rounded-lg px-2 py-0.5 align-baseline text-xs succes">
+      <span className="bandeau succes my-1 text-sm" role="status">
         {pose} est posée à la place {place} de ta semaine.
       </span>
     );
   }
   if (!apercu) {
-    return <span className="mx-0.5 align-baseline text-xs doux">…</span>;
+    return <span className="mx-0.5 align-baseline text-sm doux">…</span>;
   }
 
   return (
-    <span className="my-1 block rounded-xl border border-[var(--bordure)] p-2 text-xs">
+    <span className="carte my-2 block p-3 text-sm">
       <span className="block">
         Mettre <strong>{apercu.titre}</strong> à la place {place}, à la place de{" "}
         <strong>{apercu.titreActuel}</strong>.
       </span>
       {apercu.casseComposition && (
-        <span className="mt-1 block rounded-lg px-2 py-1 alerte">
+        <span className="bandeau alerte mt-2">
           Cette place attend {apercu.roleAttendu === "dessert" ? "un dessert" : "un plat, une soupe ou une salade"} :
           ta semaine ne sera plus « trois plats et un dessert ».
         </span>
