@@ -24,7 +24,7 @@ import { COMPOSITION, semaineISO } from "@/lib/semaine";
 import { lireSemaine } from "@/lib/semaineDb";
 import { LIBELLES as LIBELLES_TYPE, estTypePlat } from "@/lib/typePlat";
 
-export type SourceRecette = "catalogue" | "mes-recettes";
+type SourceRecette = "catalogue" | "mes-recettes";
 
 /** Déclaration des outils, au format attendu par l'API Messages. */
 export const OUTILS = [

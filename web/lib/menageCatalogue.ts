@@ -26,11 +26,11 @@ export interface RecetteCandidate {
   ingredients: readonly string[];
 }
 
-export type Motif = "vide" | "sansIngredient" | "doublon";
+type MotifMenage = "vide" | "sansIngredient" | "doublon";
 
 export interface Retrait {
   url: string;
-  motif: Motif;
+  motif: MotifMenage;
   /** Pour un doublon : l'URL de l'exemplaire CONSERVÉ. Rend la décision relisible. */
   garde?: string;
 }
@@ -56,7 +56,7 @@ export function retraitsCatalogue(recettes: readonly RecetteCandidate[]): Retrai
 
   for (const r of recettes) {
     if (r.ingredients.length > 0) continue;
-    const motif: Motif = r.instructions.trim() ? "sansIngredient" : "vide";
+    const motif: MotifMenage = r.instructions.trim() ? "sansIngredient" : "vide";
     retraits.push({ url: r.url, motif });
     dejaRetire.add(r.url);
   }

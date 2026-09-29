@@ -33,7 +33,7 @@ export const LIBELLES: Record<TypePlat, string> = {
 };
 
 /** Ce qui a permis de trancher. Sert à l'écran (« estimé ») et au diagnostic. */
-export type Voie = "titre" | "titre+ingredients" | "ingredients" | "aucun-signal" | "ambigu";
+type Voie = "titre" | "titre+ingredients" | "ingredients" | "aucun-signal" | "ambigu";
 
 export interface Verdict {
   /** `null` = non déterminé. On ne devine pas : c'est une estimation, pas une donnée. */

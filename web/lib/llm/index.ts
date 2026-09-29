@@ -120,7 +120,7 @@ export const RawParsedRecipeSchema = z.object({
  * ni corriger, ni même savoir quel champ soupçonner. Vécu le 13/08 — un aller-retour entier
  * perdu à deviner. Trois issues suffisent à situer le problème ; le reste est compté.
  */
-export function decrireIssuesZod(erreur: z.ZodError, max = 3): string {
+function decrireIssuesZod(erreur: z.ZodError, max = 3): string {
   const vues = erreur.issues.slice(0, max).map((issue) => {
     const chemin = issue.path.length > 0 ? issue.path.join(".") : "(racine)";
     return `${chemin} : ${issue.message}`;
@@ -139,7 +139,7 @@ export function analyserSortieRecette(brut: unknown): ParsedRecipe {
 }
 
 /** Recette NORMALISÉE (unités en g/ml/unite) — le format consommé par le reste de l'app. */
-export interface ParsedIngredient {
+interface ParsedIngredient {
   name: string;
   canonical: string;
   qty: number | null;
@@ -324,7 +324,7 @@ function preserveGuessFlag(draft: ParsedRecipe, verified: ParsedRecipe): ParsedR
 /** Longueur maximale de la description prise en compte (une légende de reel est courte). */
 export const MAX_CAPTION_CHARS = 8000;
 /** En dessous, la description est trop maigre pour arbitrer quoi que ce soit. */
-export const MIN_CAPTION_FOR_VERIFY = 40;
+const MIN_CAPTION_FOR_VERIFY = 40;
 
 const MEDIA_SYSTEM = `Tu extrais une recette de cuisine depuis une publication de réseau social, en JSON strict.
 

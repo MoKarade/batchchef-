@@ -66,7 +66,7 @@ export function jetonExpire(expiresAt: number | undefined, maintenantMs: number)
 }
 
 /** Rafraîchit le jeton d'accès via le refresh_token. Erreur → marque le jeton. */
-export async function rafraichirJetonGoogle(token: JWT): Promise<JWT> {
+async function rafraichirJetonGoogle(token: JWT): Promise<JWT> {
   try {
     if (!token.refreshToken) throw new Error("pas de refresh_token");
     const res = await fetch("https://oauth2.googleapis.com/token", {
