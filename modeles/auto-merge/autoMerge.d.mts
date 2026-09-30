@@ -64,6 +64,8 @@ export interface ConfigAutoMerge {
   statut_local?: { contexte: string; createur_login: string; createur_id: number };
   /** Groupes « un parmi » : dans chaque groupe (≥ 2 noms distincts, un nom dans un seul groupe, jamais aussi requis simple ni non bloquant), AU MOINS UN contrôle doit être vert ET venir de la bonne source (GitHub Actions `app_id_requis`, ou `statut_local`). Un membre rouge bloque toujours. Avec au moins un groupe, `controles_requis` peut être vide. */
   controles_requis_un_parmi?: string[][];
+  /** INC-26 : vrai = TOUTE PR (quels que soient ses fichiers, Dependabot compris) exige l'attestation de pole-securite (revue APPROVED de securite_login, et securite_user_id, sur le SHA de tête) pour être armée ou fusionnée ; label validation-marc posé. Booléen strict ; vrai exige securite_login. Absent ou faux : comportement actuel. */
+  attestation_toutes_pr?: boolean;
   /** Chemins de l'app (parmi chemins_interdits) que l'attestation peut lever ; jamais les JAMAIS_ATTESTABLES. */
   chemins_attestables?: string[];
 }

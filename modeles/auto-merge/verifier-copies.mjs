@@ -79,7 +79,7 @@ export const GABARITS = Object.freeze([
 export const VERSION_CANEVAS_CLAUDE_MD = "1.0.0";
 
 /** Version du modèle : à incrémenter à chaque changement d'un fichier copiable (elle est écrite dans le manifeste et dans le COPIES.md de chaque dépôt). */
-export const VERSION_MODELE = "1.13.0";
+export const VERSION_MODELE = "1.15.0";
 export const FICHIER_COPIES = "COPIES.md";
 /** Transition : jusqu'à cette date (AAAA-MM-JJ, jour inclus), un COPIES.md ABSENT n'est qu'un avertissement (code 0) ; à partir de là c'est une erreur. Un COPIES.md présent mais faux est TOUJOURS une erreur. */
 export const COPIES_OBLIGATOIRE_DEPUIS = "2026-10-15";
@@ -92,6 +92,93 @@ export function absenceEstErreur(manifeste, maintenant = () => new Date()) {
 }
 
 export const empreinte = (octets) => createHash("sha256").update(String(octets).replace(/\r\n/g, "\n"), "utf8").digest("hex");
+
+// ── Branchement de la porte de commit (kit 1.15.0) ──────────────────────────────────────────────────
+// L'entrée de référence (modeles/qualite/commit-gate.reglage.json, hooks.PreToolUse[0]) est recopiée dans le manifeste ; elle doit se retrouver dans le
+// .claude/settings.json de chaque app. resynchroniser-kit l'INSTALLE (fusionnerBranchement), verifier-copies la CONTRÔLE (etatBranchement), échec fermé.
+export const REGLAGE_APP = ".claude/settings.json";
+export const REGLAGE_REFERENCE = "modeles/qualite/commit-gate.reglage.json";
+const OUTILS_SHELL = ["Bash", "PowerShell"];
+const RE_PORTE = /commit-gate\.mjs/;
+const estObjet = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
+const estPorte = (h) => estObjet(h) && typeof h.command === "string" && RE_PORTE.test(h.command);
+const couvreLeShell = (matcher) => typeof matcher === "string" && OUTILS_SHELL.every((o) => matcher.split("|").map((m) => m.trim()).includes(o));
+
+/** Entrée de référence valide : matcher couvrant CHAQUE outil shell, un seul hook, qui lance commit-gate.mjs. Lève sinon (échec fermé). */
+export function validerEntreeReference(entree) {
+  if (!estObjet(entree) || !couvreLeShell(entree.matcher)) throw new Error("réglage de référence : le matcher doit couvrir chaque outil shell (Bash|PowerShell)");
+  if (!Array.isArray(entree.hooks) || entree.hooks.length !== 1 || !estPorte(entree.hooks[0]) || entree.hooks[0].type !== "command") {
+    throw new Error("réglage de référence : une seule commande, qui lance commit-gate.mjs");
+  }
+  return entree;
+}
+
+/** Réglage de l'app analysé : objet racine, `hooks` objet, `PreToolUse` tableau d'entrées {hooks: tableau}. Lève sur toute autre forme (jamais de réécriture à l'aveugle). */
+function analyserReglage(texte) {
+  let obj;
+  try { obj = JSON.parse(String(texte).replace(/^\uFEFF/, "")); } catch { throw new Error(`${REGLAGE_APP} : JSON invalide, rien n'est écrit`); }
+  if (!estObjet(obj)) throw new Error(`${REGLAGE_APP} : la racine doit être un objet`);
+  if (obj.hooks !== undefined && !estObjet(obj.hooks)) throw new Error(`${REGLAGE_APP} : « hooks » doit être un objet`);
+  const pre = obj.hooks?.PreToolUse;
+  if (pre !== undefined && !Array.isArray(pre)) throw new Error(`${REGLAGE_APP} : « hooks.PreToolUse » doit être un tableau`);
+  for (const e of pre ?? []) if (!estObjet(e) || !Array.isArray(e.hooks)) throw new Error(`${REGLAGE_APP} : entrée PreToolUse mal formée`);
+  return obj;
+}
+
+/** Déjà conforme : exactement UNE porte, identique à la référence, dans une entrée dont le matcher couvre chaque outil shell. */
+function branchementConforme(obj, ref) {
+  const trouvees = (obj.hooks?.PreToolUse ?? []).flatMap((e) => e.hooks.filter(estPorte).map((h) => ({ e, h })));
+  return trouvees.length === 1 && couvreLeShell(trouvees[0].e.matcher) && JSON.stringify(trouvees[0].h) === JSON.stringify(ref.hooks[0]);
+}
+
+/** Mise en forme du fichier d'origine : indentation (espaces ou tabulation), fins de ligne, saut de ligne final. Défaut : 2 espaces, LF, saut final. */
+function formeDe(texte) {
+  if (texte === null) return { indent: 2, eol: "\n", final: true };
+  const eol = texte.includes("\r\n") ? "\r\n" : "\n";
+  const m = /\n([ \t]+)\S/.exec(texte.replace(/\r\n/g, "\n"));
+  const indent = !m ? 2 : m[1].startsWith("\t") ? "\t" : m[1].length;
+  return { indent, eol, final: /\n$/.test(texte) };
+}
+
+/**
+ * Installe l'entrée de référence dans le texte d'un .claude/settings.json (null = fichier absent), SANS toucher au reste du réglage :
+ * - déjà conforme : « identique », rien à écrire (idempotent) ;
+ * - sinon, toute porte existante est retirée de son entrée (entrée supprimée si elle n'avait qu'elle : son matcher « passe » donc à la référence, à la même place ;
+ *   si elle partageait d'autres hooks, ceux-ci restent sur leur matcher d'origine et la référence est insérée juste après) ; sans porte, la référence va en fin de PreToolUse.
+ * JSON invalide ou forme inattendue : lève, rien n'est écrit.
+ * @returns {{etat: "identique"|"a_mettre_a_jour"|"manquant", contenu?: string}}
+ */
+export function fusionnerBranchement(texte, entreeRef) {
+  const ref = validerEntreeReference(entreeRef);
+  const obj = texte === null ? {} : analyserReglage(texte);
+  if (texte !== null && branchementConforme(obj, ref)) return { etat: "identique" };
+  const hooks = obj.hooks ?? {};
+  const pre = hooks.PreToolUse ?? [];
+  const nouvelles = [];
+  let position = -1;
+  for (const e of pre) {
+    const autres = e.hooks.filter((h) => !estPorte(h));
+    if (autres.length === e.hooks.length) { nouvelles.push(e); continue; }
+    if (autres.length) nouvelles.push({ ...e, hooks: autres });
+    if (position < 0) position = nouvelles.length;
+  }
+  const copieRef = JSON.parse(JSON.stringify(ref));
+  if (position < 0) nouvelles.push(copieRef); else nouvelles.splice(position, 0, copieRef);
+  const resultat = { ...obj, hooks: { ...hooks, PreToolUse: nouvelles } };
+  const forme = formeDe(texte);
+  const contenu = JSON.stringify(resultat, null, forme.indent).replace(/\n/g, forme.eol) + (forme.final ? forme.eol : "");
+  return { etat: texte === null ? "manquant" : "a_mettre_a_jour", contenu };
+}
+
+/** État du branchement dans l'app (texte du réglage ou null) : branchement_ok | branchement_absent | branchement_a_mettre_a_jour | branchement_invalide. */
+export function etatBranchement(texte, entreeRef) {
+  let obj;
+  try { obj = texte === null ? null : analyserReglage(texte); } catch (e) { return { etat: "branchement_invalide", raison: String(e.message) }; }
+  if (obj && branchementConforme(obj, validerEntreeReference(entreeRef))) return { etat: "branchement_ok" };
+  const porte = obj && (obj.hooks?.PreToolUse ?? []).some((e) => e.hooks.some(estPorte));
+  return porte ? { etat: "branchement_a_mettre_a_jour", raison: "la porte ne couvre pas chaque outil shell (Bash|PowerShell) ou diffère de la référence" }
+    : { etat: "branchement_absent", raison: "aucune porte de commit dans hooks.PreToolUse" };
+}
 
 /** Manifeste de référence à partir de la racine de l'Atelier. */
 export function calculerManifeste(racine, lire = (chemin) => readFileSync(join(racine, chemin), "utf8")) {
@@ -106,6 +193,7 @@ export function calculerManifeste(racine, lire = (chemin) => readFileSync(join(r
     exemples: EXEMPLES.map((e) => ({ ...e })),
     non_copies: [...NON_COPIES],
     profils: JSON.parse(JSON.stringify(PROFILS)),
+    branchement: { fichier: REGLAGE_APP, source: REGLAGE_REFERENCE, entree: validerEntreeReference(JSON.parse(lire(REGLAGE_REFERENCE)).hooks.PreToolUse[0]) },
   };
 }
 
@@ -143,6 +231,17 @@ export function comparer(manifeste, { lire, existe }, profil = PROFIL_COMPLET) {
   }
   for (const interdit of manifeste.non_copies || []) {
     if (existe(interdit)) lignes.push({ fichier: interdit, etat: "a_ne_pas_copier" });
+  }
+  // branchement de la porte de commit (kit 1.15.0) : ÉCHEC FERMÉ (manifeste sans référence, référence altérée ou réglage illisible = écart)
+  const b = manifeste.branchement;
+  let refValide = null;
+  try { refValide = b && b.fichier === REGLAGE_APP ? validerEntreeReference(b.entree) : null; } catch { refValide = null; }
+  if (!refValide) lignes.push({ fichier: REGLAGE_APP, etat: "reference_absente", raison: "le manifeste ne porte pas de branchement de référence valide" });
+  else {
+    let texte = null;
+    try { texte = existe(REGLAGE_APP) ? lire(REGLAGE_APP) : null; } catch { texte = "\u0000illisible"; }
+    const e = etatBranchement(texte, refValide);
+    lignes.push(e.etat === "branchement_ok" ? { fichier: REGLAGE_APP, etat: "ok" } : { fichier: REGLAGE_APP, ...e });
   }
   return { ok: lignes.every((l) => l.etat === "ok" || l.etat === "retire"), lignes };
 }
@@ -300,7 +399,9 @@ export function assurerLabelsDuDepot(gh, racine, ecrire = console.log) {
   }
 }
 
-const LIBELLES = { ok: "OK       ", different: "DIFFÉRENT", absent: "ABSENT   ", retire: "RETIRÉ   ", a_ne_pas_copier: "À NE PAS COPIER" };
+const LIBELLES = { ok: "OK       ", different: "DIFFÉRENT", absent: "ABSENT   ", retire: "RETIRÉ   ", a_ne_pas_copier: "À NE PAS COPIER",
+  branchement_ok: "OK       ", branchement_absent: "BRANCHEMENT ABSENT", branchement_a_mettre_a_jour: "BRANCHEMENT À METTRE À JOUR", branchement_invalide: "RÉGLAGE ILLISIBLE",
+  reference_absente: "RÉFÉRENCE ABSENTE" };
 
 /** `--profil <nom>` dans les arguments : nom du profil (défaut `complet`), ou `null` si l'option est mal formée. */
 function profilDemande(argv) {
@@ -309,7 +410,7 @@ function profilDemande(argv) {
   const nom = argv[i + 1];
   return nom && !nom.startsWith("--") ? nom : null;
 }
-const detailLigne = (l) => (l.etat === "different" ? `  (attendu ${l.attendu}…, trouvé ${l.trouve}…)` : l.etat === "retire" ? `  (${l.raison})` : "");
+const detailLigne = (l) => (l.etat === "different" ? `  (attendu ${l.attendu}…, trouvé ${l.trouve}…)` : l.etat === "retire" || (l.raison && l.etat !== "branchement_ok") ? `  (${l.raison})` : "");
 
 /** `--ecrire-copies <dépôt> [--manifeste <chemin>]` : écrit COPIES.md dans le dépôt cible, SEULEMENT si toutes ses copies sont fidèles (jamais d'attestation d'une copie modifiée). */
 function ecrireCopies(argv, ici, gh) {

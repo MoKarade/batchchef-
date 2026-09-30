@@ -175,6 +175,10 @@ export function validerConfig(config) {
   if (config.chemins_attestables !== undefined && !listeDeTextes(config.chemins_attestables)) erreurs.push("chemins_attestables : liste de motifs (chemins de l'app que l'attestation peut lever)");
   if (config.securite_user_id !== undefined && (!Number.isInteger(config.securite_user_id) || config.securite_user_id <= 0)) erreurs.push("securite_user_id : entier positif (identifiant numérique du compte dédié)");
   if (config.branche_base !== undefined && (typeof config.branche_base !== "string" || config.branche_base === "")) erreurs.push("branche_base : texte");
+  if (config.attestation_toutes_pr !== undefined && typeof config.attestation_toutes_pr !== "boolean") erreurs.push("attestation_toutes_pr : booléen (true ou false)");
+  if (config.attestation_toutes_pr === true && (typeof config.securite_login !== "string" || config.securite_login === "")) {
+    erreurs.push("attestation_toutes_pr : exige securite_login (sinon aucune attestation ne serait jamais possible)");
+  }
   if (config.statut_local !== undefined) {
     const s = config.statut_local;
     const bienForme = s && typeof s === "object" && !Array.isArray(s) && typeof s.contexte === "string" && s.contexte.trim() !== ""
@@ -399,6 +403,17 @@ export function codeRaison(d) {
  * Un refus « attestable » (chemin interdit ou sensible, test affaibli, test associé manquant) est LEVÉ par une attestation valide sur le SHA actuel ;
  * sans elle il reste un refus, avec une raison qui le dit. Les autres refus (liste douteuse, brouillon…) ne sont jamais attestables.
  */
+/**
+ * INC-26 : `attestation_toutes_pr: true` = TOUTE PR (quels que soient ses fichiers, Dependabot compris) exige l'attestation de pole-securite (revue APPROVED de
+ * `securite_login`, et `securite_user_id` si configuré, sur le SHA de tête). Refus lisible + label validation-marc (informatif) ; null si rien à exiger.
+ */
+function exigenceAttestationToutes(pr, config) {
+  if (config.attestation_toutes_pr !== true) return null;
+  const sha = typeof pr.headRefOid === "string" ? pr.headRefOid : "";
+  if (attestationValide(pr.reviews, { login: config.securite_login, sha, userId: config.securite_user_id })) return null;
+  return { raison: `attestation de pole-securite requise pour ${SHA.test(sha) ? sha.slice(0, 7) : "SHA inconnu"} (toutes les PR de ce dépôt : attestation_toutes_pr)`, etiqueter: [LABEL_VALIDATION] };
+}
+
 function avecAttestation(fautif, pr, config) {
   if (!fautif) return null;
   const { attestable, ...refusSimple } = fautif;
@@ -472,6 +487,8 @@ export function peutArmer(pr, config) {
   // `validation-marc` est INFORMATIF : il ne bloque plus (seule l'attestation de pole-securite lève un chemin sensible ; `do-not-merge` reste le frein)
   const fautif = avecAttestation(examinerFichiers(pr, config), pr, config);
   if (fautif) return non(fautif.raison, fautif.etiqueter, fautif.code);
+  const toutes = exigenceAttestationToutes(pr, config);
+  if (toutes) return non(toutes.raison, toutes.etiqueter);
   return { armer: true, raison: "aucun obstacle à l'armement", etiqueter: [] };
 }
 
@@ -535,6 +552,9 @@ export function decision(pr, config, contexte = {}) {
   // 4. fichiers : chemins interdits (source unique) + interdits de l'app ; chemins sensibles → validation de Marc
   const fautif = avecAttestation(examinerFichiers(pr, config), pr, config);
   if (fautif) return fautif;
+  // 4a. INC-26 : dépôt où TOUTE PR doit être attestée (Dependabot compris, aucune exception)
+  const toutes = exigenceAttestationToutes(pr, config);
+  if (toutes) return refus(toutes.raison, { etiqueter: toutes.etiqueter });
 
   // 4b. frein horaire : trop de fusions automatiques dans l'heure = la suite attend Marc (compte inconnu = refus)
   if (config.frein_fusions_par_heure !== undefined) {
