@@ -132,7 +132,7 @@ describe("rayonDe — pièges (mot entier, jamais sous-chaîne)", () => {
 describe("rayonDe — couverture mesurée sur le catalogue réel", () => {
   const require_ = createRequire(import.meta.url);
 
-  it("range hors « Autres » au moins 90 % des 200 canonicals les plus fréquents", async () => {
+  it("range hors « Autres » au moins 95 % des 200 canonicals les plus fréquents", async () => {
     const SQL = await initSqlJs({ locateFile: () => require_.resolve("sql.js/dist/sql-wasm.wasm") });
     const seed = new SQL.Database(readFileSync(resolve(process.cwd(), "data", "batchchef.seed.db")));
     const res = seed.exec(
@@ -145,9 +145,11 @@ describe("rayonDe — couverture mesurée sur le catalogue réel", () => {
     expect(canonicals.length).toBe(200); // anti-vacuité : le catalogue est bien lu
 
     const ranges = canonicals.filter((c) => rayonDe(c, c) !== "Autres").length;
-    // Mesuré le 30/09/2026 : voir MESURE dans lib/rayons.ts. Plancher posé juste sous la
-    // mesure (cliquet) : ce qu'il interdit, c'est un effondrement silencieux du classement.
-    expect(ranges / canonicals.length).toBeGreaterThanOrEqual(0.9);
+    // Mesuré le 30/09/2026 : 192 sur 200 (96 %). Restent dans « Autres » : eau (×2), pâtes
+    // feuilletées et brisées, feuilles de brick, bouquets garnis, et deux résidus V3 (« es »,
+    // « laçons »). Plancher posé juste sous la mesure (cliquet) : ce qu'il interdit, c'est un
+    // effondrement silencieux du classement.
+    expect(ranges / canonicals.length).toBeGreaterThanOrEqual(0.95);
     // Borne haute : l'eau, les résidus (« es ») et les pâtes à tarte restent « Autres ».
     expect(ranges).toBeLessThan(200);
   });
