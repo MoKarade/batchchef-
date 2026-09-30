@@ -8,6 +8,17 @@
 
 ## En cours / décidé, pas encore livré
 
+### Commande d'épicerie (spec validée par Marc, 30/09/2026)
+
+- [x] **Jalon A — liste par rayon** : bloc « Préparer une commande » sur `/courses/[id]`,
+  rayons dérivés du canonical (`lib/rayons.ts`), texte copiable (`lib/listeParRayon.ts`).
+  30/09/2026.
+- [ ] À regarder sur un vrai batch : un article mal rangé se corrige dans `REGLES` de
+  `lib/rayons.ts`, avec un cas de test.
+- [ ] **Jalon B — liens de recherche par épicier** (Maxi, Metro, IGA, Super C, Walmart) :
+  gabarits d'URL à valider par Marc d'un clic chacun avant fusion ; ordre d'affichage à
+  trancher par Marc.
+
 ### Installable sur le téléphone (Marc, 18/09/2026 — Android)
 
 - [x] **La variante `maskable` n'existait pas : les DEUX icônes étaient `any maskable`.** Le
