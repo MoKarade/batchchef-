@@ -3,16 +3,20 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { decideGuard } from "@/lib/authGuard";
-import { isAuthConfigured } from "@/lib/authConfigured";
+import { contourneAuthNonConfiguree, decideGuard } from "@/lib/authGuard";
+import { variablesAuthManquantes } from "@/lib/authConfigured";
 
 export default auth((req) => {
-  if (!isAuthConfigured()) {
+  // Exception unique : la sonde de configuration doit répondre justement dans ce cas-là.
+  const manquantes = variablesAuthManquantes();
+  if (manquantes.length > 0 && !contourneAuthNonConfiguree(req.nextUrl.pathname)) {
+    // Les NOMS au journal serveur seulement ; la réponse publique reste générique (F7) :
+    // nommer ce qui manque donnerait la carte de ce qu'il faut forcer.
+    console.error(`[middleware] authentification non configurée : ${manquantes.join(", ")}`);
     return NextResponse.json(
       {
         error: "auth_unconfigured",
-        message:
-          "Authentification non configurée (AUTH_SECRET / AUTHORIZED_EMAIL manquants). Accès refusé.",
+        message: "Authentification non configurée. Accès refusé.",
       },
       { status: 503 },
     );
