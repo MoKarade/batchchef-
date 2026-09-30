@@ -41,7 +41,7 @@ const REGLES: readonly (readonly [Rayon, readonly string[]])[] = [
   // 1. Exceptions : un mot « frais » dans un produit d'épicerie, ou l'inverse.
   // On ne sait pas si la pâte à tarte est achetée surgelée, au frigo ou faite maison : Autres.
   ["Autres", ["pâte feuilletée", "pâte brisée", "pâte sablée", "feuille de brick"]],
-  ["Viandes et poissons", ["fruits de mer"]],
+  ["Viandes et poissons", ["fruits de mer", "noix de Saint-Jacques"]],
   [
     "Épicerie",
     [
@@ -49,7 +49,8 @@ const REGLES: readonly (readonly [Rayon, readonly string[]])[] = [
       // « bouillon » et pas « cube » : « bœuf en cubes » est de la viande.
       "lait concentré", "chocolat", "bouillon", "fond de", "sauce", "concentré", "coulis",
       "conserve", "poudre", "raisin sec", "fruit sec", "tomate séchée", "piment d'espelette",
-      "piment de cayenne",
+      "piment de cayenne", "pâte de tomate", "purée de tomate", "fécule", "lait d'amande",
+      "lait de soja", "lait d'avoine",
       "eau de rose", "eau de fleur d'oranger", "herbes de provence", "laurier", "extrait",
       "arôme", "levure",
     ],

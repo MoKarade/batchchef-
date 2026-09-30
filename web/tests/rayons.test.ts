@@ -96,8 +96,17 @@ describe("rayonDe — pièges (mot entier, jamais sous-chaîne)", () => {
     expect(rayonDe("gingembre_en_poudre", "Gingembre en poudre")).toBe("Épicerie");
   });
 
-  it("« fruits de mer » est du poisson, pas des fruits", () => {
+  it("« fruits de mer » et « noix de Saint-Jacques » sont du poisson", () => {
     expect(rayonDe("fruits de mer", "Fruits de mer")).toBe("Viandes et poissons");
+    expect(rayonDe("noix de saint-jacques", "Noix de Saint-Jacques")).toBe("Viandes et poissons");
+  });
+
+  it("produits secs portant un mot frais (relevés par la revue du 30/09)", () => {
+    expect(rayonDe("pâte de tomate", "Pâte de tomate")).toBe("Épicerie");
+    expect(rayonDe("purée de tomates", "Purée de tomates")).toBe("Épicerie");
+    expect(rayonDe("fécule de pomme de terre", "Fécule de pomme de terre")).toBe("Épicerie");
+    expect(rayonDe("lait d'amande", "Lait d'amande")).toBe("Épicerie");
+    expect(rayonDe("lait de soja", "Lait de soja")).toBe("Épicerie");
   });
 
   it("la pâte feuilletée n'est pas rangée avec les pâtes alimentaires (on ne sait pas : Autres)", () => {
