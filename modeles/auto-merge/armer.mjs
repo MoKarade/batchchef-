@@ -8,8 +8,9 @@
 // nouveau commit sur un chemin sensible doit toujours retirer l'armement). Aucun texte de la PR (titre, branche, corps) n'est jamais utilisé.
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { DEPENDABOT, LABEL_VALIDATION, peutArmer } from "./autoMerge.mjs";
-import { lireRevues, marqueurRefus, sansRisque } from "./fusionner.mjs";
+import { DEPENDABOT, attestationValide, peutArmer } from "./autoMerge.mjs";
+import { executer, lireRevues, marqueurRefus, sansRisque } from "./fusionner.mjs";
+import { assurerLabels, corpsRefus, LABELS, raisonLabelDejaPose } from "./labels.mjs";
 
 const RE_NUMERO = /^[1-9][0-9]{0,8}$/;
 const RE_SHA = /^[0-9a-f]{40}$/;
@@ -26,13 +27,13 @@ async function avecReessais(f, attente) {
 const json = (t, quoi) => { try { return JSON.parse(t); } catch { throw new Error(`${quoi} : réponse illisible`); } };
 
 /** Refus à expliquer par un commentaire (chemin, label, test) plutôt qu'un simple brouillon / fork / configuration. */
-const AEXPLIQUER = /^(attestation de pole-securite|fichier sensible|chemin |label |tests affaiblis|code .* sans test associé)/;
+const AEXPLIQUER = /^(attestation de pole-securite|fichier sensible|chemin |label |validation visuelle|tests affaiblis|code .* sans test associé)/;
 
 /**
- * @returns {Promise<{etat: "arme"|"desarme"|"inchange"|"ignore", raison: string}>}
+ * @returns {Promise<{etat: "arme"|"fusionne"|"desarme"|"inchange"|"ignore", raison: string}>}
  * @throws si l'entrée est invalide ou si une lecture échoue APRÈS tentative de désarmement (le job doit alors échouer, visiblement)
  */
-export async function armer({ gh, config, env, ecrire = () => {}, attente = pause }) {
+export async function armer({ gh, config, env, ecrire = () => {}, attente = pause, maintenant = () => new Date().toISOString() }) {
   const repo = env.REPO;
   if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error("REPO absent ou invalide");
   const numero = String(env.NUMERO ?? "");
@@ -66,7 +67,7 @@ export async function armer({ gh, config, env, ecrire = () => {}, attente = paus
     }
     if (!manuel && !RE_SHA.test(sha)) throw new Error("SHA invalide");
     const pr = json(await avecReessais(() => gh(["pr", "view", numero, "--repo", repo, "--json",
-      "state,isDraft,isCrossRepository,labels,baseRefName,headRefOid,author,autoMergeRequest"]), attente), `PR #${numero}`);
+      "state,isDraft,isCrossRepository,labels,baseRefName,headRefOid,headRefName,author,autoMergeRequest,mergeStateStatus"]), attente), `PR #${numero}`);
     if (pr.state !== "OPEN") { ecrire(`- PR #${numero} (${action}) : ${sansRisque(pr.state, 20)}, rien à faire`); return { etat: "ignore", raison: "PR non ouverte" }; }
 
     if (manuel) sha = String(pr.headRefOid ?? "");
@@ -93,26 +94,42 @@ export async function armer({ gh, config, env, ecrire = () => {}, attente = paus
     const d = peutArmer({ ...pr, fichiers, reviews, auteur, creeLe: undefined }, config);
     if (!d.armer) {
       const etat = desarmer(d.raison);
-      for (const label of d.etiqueter) {
-        try {
-          if (label === LABEL_VALIDATION) gh(["label", "create", label, "--repo", repo, "--color", "FBCA04", "--description", "La fusion attend la validation de Marc", "--force"]);
-          gh(["pr", "edit", numero, "--repo", repo, "--add-label", label]);
-        } catch (e) { ecrire(`- ⚠️ label ${sansRisque(label, 40)} non posé`); }
+      let echecLabel = null;                                            // erreur BLOQUANTE : le job échoue à la fin (jamais un silence)
+      try { if (d.etiqueter.length) assurerLabels(gh, ["--repo", repo], d.etiqueter.filter((l) => LABELS[l])); }
+      catch (e) { echecLabel = String(e.message).slice(0, 160); ecrire(`- ❌ ${sansRisque(echecLabel, 160)}`); }
+      for (const label of echecLabel ? [] : d.etiqueter) {
+        try { gh(["pr", "edit", numero, "--repo", repo, "--add-label", label]); }
+        catch (e) { echecLabel = `label ${sansRisque(label, 40)} non posé`; ecrire(`- ❌ ${echecLabel}`); }
       }
-      if (AEXPLIQUER.test(d.raison)) {                                  // la raison (chemin ou label fautif) est écrite UNE fois sur la PR
+      if (AEXPLIQUER.test(d.raison) && !raisonLabelDejaPose(d.raison)) {                                // la raison (chemin ou label fautif) est écrite UNE fois sur la PR
         const marqueur = marqueurRefus(d.raison);
         try {
           const existants = gh(["api", "--paginate", `repos/${repo}/issues/${numero}/comments`, "--jq", ".[].body"]);
           if (!existants.includes(marqueur)) {
             gh(["pr", "comment", numero, "--repo", repo, "--body",
-              `Cette PR ne sera pas fusionnée automatiquement.\n\nRaison : \`${sansRisque(d.raison)}\`\n\nElle attend l'attestation de pole-securite (revue APPROVED du compte dédié sur ce commit) ; le label \`${LABEL_VALIDATION}\` est informatif.\n\n${marqueur}`]);
+              corpsRefus(d.raison, marqueur, sansRisque)]);
           }
         } catch { ecrire("- ⚠️ commentaire de refus non posé"); }
       }
+      if (echecLabel) throw new Error(echecLabel);                      // le catch ci-dessous désarme (déjà fait) et relance : le job échoue visiblement
       return { etat, raison: d.raison };
     }
 
     if (pr.autoMergeRequest) { ecrire(`- PR #${numero} (${action}) : déjà armée`); return { etat: "inchange", raison: "déjà armée" }; }
+    // INC-13 : GitHub REFUSE l'armement d'une PR déjà fusionnable (« Pull request is in clean status »). Si elle est CLEAN ET attestée par pole-securite
+    // au SHA de tête, on la confie à l'exécuteur de FUSION (fusionner.mjs, limité à cette PR) : même `decision` complète, fusion SANS --auto avec
+    // --match-head-commit. Aucune règle n'est recopiée ici ; si `decision` refuse, rien n'est fusionné (et un armement échouerait de toute façon).
+    const attestee = Boolean(config.securite_login) && attestationValide(reviews, { login: config.securite_login, sha, userId: config.securite_user_id });
+    if (pr.mergeStateStatus === "CLEAN" && attestee) {
+      const r = await executer({ gh, config, maintenant, ecrire, attente,
+        env: { REPO: repo, NUMERO: numero, BRANCHE: pr.headRefName, SHA_EVENT: sha, AUTOMERGE_OFF: env.AUTOMERGE_OFF } });
+      if (r.fusionnees.includes(Number(numero))) {
+        ecrire(`- PR #${numero} (${action}) : ✅ déjà fusionnable et attestée : fusionnée directement (${sha.slice(0, 8)})`);
+        return { etat: "fusionne", raison: "PR CLEAN attestée : fusion directe" };
+      }
+      ecrire(`- PR #${numero} (${action}) : CLEAN et attestée, mais la décision de fusion refuse (voir ci-dessus) : ni fusion, ni armement`);
+      return { etat: "inchange", raison: "CLEAN attestée, décision de fusion négative" };
+    }
     gh(["pr", "merge", numero, "--repo", repo, "--auto", "--squash", "--match-head-commit", sha]);
     ecrire(`- PR #${numero} (${action}) : ✅ armée (${sha.slice(0, 8)})`);
     return { etat: "arme", raison: d.raison };
