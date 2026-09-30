@@ -7,6 +7,7 @@ Court exprès (chargé à chaque session, ≤ 60 lignes, verrou `web/tests/claud
 - Workflow git (§3) → [03-git](docs/claude/03-git.md) · Commandes, vérifications avant commit (§4-5) → [04](docs/claude/04-commandes-et-verifications.md)
 - Déploiement, préversion = base de prod (§6) → [05-deploiement](docs/claude/05-deploiement.md) · Intégration hub (§7) → [06](docs/claude/06-integration-hub.md)
 - Documentation, où vit quoi (§8) → [07](docs/claude/07-documentation.md) · Leçons, style (§9-10) → [08](docs/claude/08-lecons-et-style.md), [LESSONS](docs/LESSONS.md)
+- Variables d'environnement (requises / optionnelles, sonde `/api/sante/configuration`) → [09-variables](docs/claude/09-variables.md)
 - Lire `HANDOVER.md` en premier à chaque reprise. Avant de toucher un domaine : Grep/Read ciblé dans le fichier indiqué, jamais en entier.
 
 ## But et stack

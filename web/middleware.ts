@@ -3,11 +3,12 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { decideGuard } from "@/lib/authGuard";
+import { contourneAuthNonConfiguree, decideGuard } from "@/lib/authGuard";
 import { isAuthConfigured } from "@/lib/authConfigured";
 
 export default auth((req) => {
-  if (!isAuthConfigured()) {
+  // Exception unique : la sonde de configuration doit répondre justement dans ce cas-là.
+  if (!isAuthConfigured() && !contourneAuthNonConfiguree(req.nextUrl.pathname)) {
     return NextResponse.json(
       {
         error: "auth_unconfigured",
