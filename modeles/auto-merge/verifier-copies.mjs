@@ -79,7 +79,7 @@ export const GABARITS = Object.freeze([
 export const VERSION_CANEVAS_CLAUDE_MD = "1.0.0";
 
 /** Version du modèle : à incrémenter à chaque changement d'un fichier copiable (elle est écrite dans le manifeste et dans le COPIES.md de chaque dépôt). */
-export const VERSION_MODELE = "1.12.0";
+export const VERSION_MODELE = "1.13.0";
 export const FICHIER_COPIES = "COPIES.md";
 /** Transition : jusqu'à cette date (AAAA-MM-JJ, jour inclus), un COPIES.md ABSENT n'est qu'un avertissement (code 0) ; à partir de là c'est une erreur. Un COPIES.md présent mais faux est TOUJOURS une erreur. */
 export const COPIES_OBLIGATOIRE_DEPUIS = "2026-10-15";

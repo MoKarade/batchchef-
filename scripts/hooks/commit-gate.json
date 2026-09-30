@@ -1,0 +1,9 @@
+{
+  "_doc": "Configuration BatchChef du commit-gate (adaptée de modeles/qualite/commit-gate.json de l'Atelier ; jamais comparée par verifier-copies). L'app vit dans web/ et le hook tourne depuis la racine du dépôt : chaque commande passe par « npm --prefix web ». Pas de ciblage des tests (la suite complète dure quelques secondes). Configuration illisible ou invalide = le hook BLOQUE (échec fermé).",
+  "sans_effet": ["\\.md$", "^docs/"],
+  "etapes": [
+    { "nom": "typecheck", "commande": ["npm", "--prefix", "web", "run", "typecheck"] },
+    { "nom": "tests", "commande": ["npm", "--prefix", "web", "test"] },
+    { "nom": "build", "commande": ["npm", "--prefix", "web", "run", "build"] }
+  ]
+}
