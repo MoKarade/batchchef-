@@ -1,9 +1,13 @@
-// lib/configurationRequise.ts — liste FIGÉE des variables d'environnement sans lesquelles
-// une fonctionnalité CŒUR (connexion, base, accès) casse. Lue par la sonde publique
-// `GET /api/sante/configuration` (F7, prévention INC-16).
+// lib/configurationRequise.ts — listes FIGÉES des variables d'environnement contrôlées par
+// la sonde publique `GET /api/sante/configuration` (F7, prévention INC-16).
 //
-// ⚠️ Liste écrite à la main, jamais dérivée d'un fichier `.env` : en production, aucun
-// fichier de configuration n'est lu. Ajouter une variable ici = décider qu'elle est cœur.
+// Deux niveaux (décision du gérant, 30/09/2026) :
+//   - REQUISES : l'absence d'une seule bloque TOUT LE MONDE (base, connexion) → 503 ;
+//   - DÉGRADANTES : l'absence ne bloque qu'une partie des utilisateurs (le propriétaire
+//     passe toujours) → 200, signalée par un compte `degrade`.
+//
+// ⚠️ Listes écrites à la main, jamais dérivées d'un fichier `.env` : en production, aucun
+// fichier de configuration n'est lu. Ajouter une variable ici = décider de son niveau.
 // Le détail (rôle, conséquence si absente, variables optionnelles) : docs/claude/09-variables.md.
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -17,17 +21,32 @@ export const VARIABLES_REQUISES = [
   // Connexion Google : sans elles, la page de connexion ne mène nulle part.
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
-  // Accès des invités (échec fermé dans lib/accesHub) et résumé du hub (503).
+] as const;
+
+export const VARIABLES_DEGRADANTES = [
+  // Accès des invités (échec fermé dans lib/accesHub) et résumé du hub (503). Le
+  // propriétaire, vérifié d'abord par AUTHORIZED_EMAIL, entre quand même.
   "HUB_TOKEN",
 ] as const;
 
 export type VariableRequise = (typeof VARIABLES_REQUISES)[number];
+export type VariableDegradante = (typeof VARIABLES_DEGRADANTES)[number];
+
+/** Vide ou fait d'espaces = absent (même règle que `isAuthConfigured`). */
+function absentes<T extends string>(noms: readonly T[], env: Env): T[] {
+  return noms.filter((nom) => !env[nom]?.trim());
+}
 
 /**
- * Noms des variables requises absentes, dans l'ordre de la liste. Une valeur vide ou faite
- * d'espaces compte comme absente (même règle que `isAuthConfigured`). Ne lit jamais la
- * VALEUR au-delà de ce test : elle ne sort pas de cette fonction.
+ * Noms des variables absentes, par niveau, dans l'ordre des listes. Ne lit jamais la
+ * VALEUR au-delà du test de présence : elle ne sort pas de cette fonction.
  */
-export function variablesManquantes(env: Env = process.env): VariableRequise[] {
-  return VARIABLES_REQUISES.filter((nom) => !env[nom]?.trim());
+export function variablesManquantes(env: Env = process.env): {
+  requises: VariableRequise[];
+  degradantes: VariableDegradante[];
+} {
+  return {
+    requises: absentes(VARIABLES_REQUISES, env),
+    degradantes: absentes(VARIABLES_DEGRADANTES, env),
+  };
 }

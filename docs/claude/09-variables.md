@@ -6,18 +6,22 @@ code réel (`process.env.*` dans `web/`, hors tests), pas au jugé.
 
 ## Contrôle en production
 
-`GET /api/sante/configuration` (public, `no-store`) : `200 {"ok": true}` si toutes les
-variables **requises** sont posées ; sinon `503 {"ok": false, "cause": "configuration",
-"manquantes": N, "message": "configuration incomplète : N variables manquantes"}`.
+`GET /api/sante/configuration` (public, `no-store`) :
+- tout est posé → `200 {"ok": true}` ;
+- seule une **dégradante** manque → `200 {"ok": true, "degrade": N}` (invités bloqués,
+  propriétaire OK) ;
+- une **requise** manque → `503 {"ok": false, "cause": "configuration", "manquantes": N,
+  "message": "configuration incomplète : N variables manquantes"}` (+ `degrade` s'il y a lieu).
 
 ⚠️ La réponse ne nomme JAMAIS une variable (un attaquant y lirait la carte de ce qu'il faut
 forcer). Les **noms** manquants sont dans les journaux Vercel de la fonction, ligne
-`[sante/configuration] variables requises manquantes : …`. Seule route servie quand
-l'authentification n'est pas configurée (sinon, dans le cas exact d'INC-16, elle ne
-répondrait jamais). Liste figée : `web/lib/configurationRequise.ts` — ajouter une variable
-là = décider qu'elle est cœur, et mettre ce tableau à jour dans la même PR.
+`[sante/configuration] manquantes — …`. Seule route servie quand l'authentification n'est
+pas configurée (sinon, dans le cas exact d'INC-16, elle ne répondrait jamais). Même règle
+pour le 503 du middleware : message générique, noms au journal (`[middleware] …`).
+Listes figées : `web/lib/configurationRequise.ts` — y ajouter une variable = décider de son
+niveau, et mettre ces tableaux à jour dans la même PR.
 
-## Requises (absence = connexion, base ou accès cassés) — comptées par la sonde
+## Requises (absence = tout le monde bloqué) — `manquantes`, 503
 
 | Variable | Si absente |
 |---|---|
@@ -26,6 +30,11 @@ là = décider qu'elle est cœur, et mettre ce tableau à jour dans la même PR.
 | `AUTHORIZED_EMAIL` | Idem (`lib/authConfigured.ts`). |
 | `GOOGLE_CLIENT_ID` | La connexion Google échoue ; plus personne n'entre. |
 | `GOOGLE_CLIENT_SECRET` | Idem ; le rafraîchissement des jetons Google (`lib/jetonsGoogle.ts`) échoue aussi. |
+
+## Dégradantes (absence = invités bloqués, propriétaire OK) — `degrade`, 200
+
+| Variable | Si absente |
+|---|---|
 | `HUB_TOKEN` | Aucun invité n'entre (échec fermé, `lib/accesHub.ts`) — le propriétaire passe ; `/api/hub/summary` → 503. |
 
 ## Optionnelles — une fonctionnalité s'éteint ou un défaut s'applique, non comptées

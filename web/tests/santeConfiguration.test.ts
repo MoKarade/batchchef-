@@ -1,18 +1,31 @@
-// GET /api/sante/configuration — contrôle PUBLIC de présence des variables requises (F7,
-// prévention INC-16 : la production a répondu 503 parce qu'AUTH_SECRET/AUTHORIZED_EMAIL
-// manquaient, et rien ne le disait).
+// GET /api/sante/configuration — contrôle PUBLIC de présence des variables (F7, prévention
+// INC-16 : la production a répondu 503 parce qu'AUTH_SECRET/AUTHORIZED_EMAIL manquaient,
+// et rien ne le disait). Deux niveaux : REQUISES (503) et DÉGRADANTES (200 + `degrade`).
 //
-// Règle absolue testée ici : la réponse HTTP ne nomme JAMAIS une variable, elle ne donne
-// qu'un COMPTE. Les noms réels partent au journal serveur (console.error) seulement.
+// Règle absolue testée ici : aucune réponse HTTP (sonde ET middleware) ne nomme une
+// variable, seulement des COMPTES. Les noms réels partent au journal serveur seulement.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { VARIABLES_REQUISES, variablesManquantes } from "@/lib/configurationRequise";
+import {
+  VARIABLES_DEGRADANTES,
+  VARIABLES_REQUISES,
+  variablesManquantes,
+} from "@/lib/configurationRequise";
 import { GET } from "@/app/api/sante/configuration/route";
 import { contourneAuthNonConfiguree, isPublicPath } from "@/lib/authGuard";
+import { isAuthConfigured, variablesAuthManquantes } from "@/lib/authConfigured";
+
+const TOUTES = [...VARIABLES_REQUISES, ...VARIABLES_DEGRADANTES] as const;
 
 /** Valeurs de remplissage : seule la PRÉSENCE compte, jamais le contenu. */
 function envComplet(): Record<string, string> {
-  return Object.fromEntries(VARIABLES_REQUISES.map((nom) => [nom, "present"]));
+  return Object.fromEntries(TOUTES.map((nom) => [nom, "present"]));
+}
+
+function envSans(...noms: string[]): Record<string, string | undefined> {
+  const env: Record<string, string | undefined> = { ...envComplet() };
+  for (const nom of noms) delete env[nom];
+  return env;
 }
 
 /** Remplace process.env le temps d'un appel, et le restaure quoi qu'il arrive. */
@@ -26,52 +39,55 @@ async function avecEnv<T>(env: Record<string, string | undefined>, fn: () => Pro
   }
 }
 
-/** Motif qui attrape n'importe quel nom de variable requise dans un texte. */
-const NOM_QUELCONQUE = new RegExp(VARIABLES_REQUISES.join("|"), "i");
+/** Motif qui attrape n'importe quel nom de variable contrôlée dans un texte. */
+const NOM_QUELCONQUE = new RegExp(TOUTES.join("|"), "i");
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("liste figée des variables requises", () => {
-  it("contient exactement les variables dont l'absence casse connexion, base ou accès", () => {
+describe("listes figées", () => {
+  it("requises = ce dont l'absence bloque tout le monde (base, connexion)", () => {
     expect([...VARIABLES_REQUISES].sort()).toEqual(
-      [
-        "AUTHORIZED_EMAIL",
-        "AUTH_SECRET",
-        "DATABASE_URL",
-        "GOOGLE_CLIENT_ID",
-        "GOOGLE_CLIENT_SECRET",
-        "HUB_TOKEN",
-      ].sort(),
+      ["AUTHORIZED_EMAIL", "AUTH_SECRET", "DATABASE_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"].sort(),
     );
+  });
+
+  it("dégradantes = ce dont l'absence ne bloque que les invités", () => {
+    expect([...VARIABLES_DEGRADANTES]).toEqual(["HUB_TOKEN"]);
   });
 });
 
 describe("variablesManquantes (fonction pure)", () => {
-  it("toutes présentes : aucune manquante", () => {
-    expect(variablesManquantes(envComplet())).toEqual([]);
+  it("toutes présentes : rien ne manque", () => {
+    expect(variablesManquantes(envComplet())).toEqual({ requises: [], degradantes: [] });
   });
 
-  it("environnement vide : toutes manquantes", () => {
-    expect(variablesManquantes({})).toEqual([...VARIABLES_REQUISES]);
+  it("environnement vide : tout manque, rangé par niveau", () => {
+    expect(variablesManquantes({})).toEqual({
+      requises: [...VARIABLES_REQUISES],
+      degradantes: [...VARIABLES_DEGRADANTES],
+    });
   });
 
-  it.each(VARIABLES_REQUISES)("retirer %s seule : exactement cette variable manque", (nom) => {
-    const env: Record<string, string | undefined> = { ...envComplet() };
-    delete env[nom];
-    expect(variablesManquantes(env)).toEqual([nom]);
+  it.each(VARIABLES_REQUISES)("retirer %s seule : exactement cette requise manque", (nom) => {
+    expect(variablesManquantes(envSans(nom))).toEqual({ requises: [nom], degradantes: [] });
+  });
+
+  it("retirer HUB_TOKEN seule : dégradante, pas requise", () => {
+    expect(variablesManquantes(envSans("HUB_TOKEN"))).toEqual({ requises: [], degradantes: ["HUB_TOKEN"] });
   });
 
   it.each(["", "   ", "\t\n"])("une valeur vide ou blanche (%j) compte comme absente", (vide) => {
-    expect(variablesManquantes({ ...envComplet(), AUTH_SECRET: vide })).toEqual(["AUTH_SECRET"]);
+    expect(variablesManquantes({ ...envComplet(), AUTH_SECRET: vide }).requises).toEqual(["AUTH_SECRET"]);
+    expect(variablesManquantes({ ...envComplet(), HUB_TOKEN: vide }).degradantes).toEqual(["HUB_TOKEN"]);
   });
 
-  it("le compte augmente d'un à chaque variable retirée", () => {
+  it("le compte des requises augmente d'un à chaque variable retirée", () => {
     const env: Record<string, string | undefined> = { ...envComplet() };
     VARIABLES_REQUISES.forEach((nom, i) => {
       delete env[nom];
-      expect(variablesManquantes(env)).toHaveLength(i + 1);
+      expect(variablesManquantes(env).requises).toHaveLength(i + 1);
     });
   });
 
@@ -82,18 +98,18 @@ describe("variablesManquantes (fonction pure)", () => {
 });
 
 describe("GET /api/sante/configuration", () => {
-  it("toutes présentes : 200 { ok: true }, no-store", async () => {
+  it("toutes présentes : 200 { ok: true }, no-store, rien au journal", async () => {
+    const journal = vi.spyOn(console, "error").mockImplementation(() => {});
     const res = await avecEnv(envComplet(), () => GET());
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
     expect(await res.json()).toEqual({ ok: true });
+    expect(journal).not.toHaveBeenCalled();
   });
 
   it.each(VARIABLES_REQUISES)("%s retirée : 503, compte 1, sans nom", async (nom) => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const env: Record<string, string | undefined> = { ...envComplet() };
-    delete env[nom];
-    const res = await avecEnv(env, () => GET());
+    const res = await avecEnv(envSans(nom), () => GET());
     expect(res.status).toBe(503);
     expect(res.headers.get("cache-control")).toBe("no-store");
     const corps = await res.text();
@@ -106,25 +122,37 @@ describe("GET /api/sante/configuration", () => {
     expect(corps).not.toMatch(NOM_QUELCONQUE);
   });
 
-  it("toutes absentes : compte = nombre de variables requises", async () => {
+  it("HUB_TOKEN seule retirée : 200 { ok: true, degrade: 1 }, sans nom", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await avecEnv(envSans("HUB_TOKEN"), () => GET());
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const corps = await res.text();
+    expect(JSON.parse(corps)).toEqual({ ok: true, degrade: 1 });
+    expect(corps).not.toMatch(NOM_QUELCONQUE);
+  });
+
+  it("tout absent : 503, compte des requises seulement, dégradation comptée à part", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const res = await avecEnv({}, () => GET());
     const n = VARIABLES_REQUISES.length;
+    expect(res.status).toBe(503);
     expect(await res.json()).toEqual({
       ok: false,
       cause: "configuration",
       manquantes: n,
+      degrade: 1,
       message: `configuration incomplète : ${n} variables manquantes`,
     });
   });
 
   it("adversarial : aucune combinaison de manques ne fait fuiter un nom ni une valeur", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const n = VARIABLES_REQUISES.length;
+    const n = TOUTES.length;
     // Toutes les combinaisons (2^6 = 64) : aucune ne doit laisser passer un nom.
     for (let masque = 0; masque < 2 ** n; masque++) {
       const env: Record<string, string | undefined> = {};
-      VARIABLES_REQUISES.forEach((nom, i) => {
+      TOUTES.forEach((nom, i) => {
         // Valeur piégée : si elle ressortait, le test la verrait.
         if (masque & (1 << i)) env[nom] = `valeur-piege-${nom}`;
       });
@@ -138,21 +166,24 @@ describe("GET /api/sante/configuration", () => {
 
   it("le journal serveur reçoit les NOMS réels manquants, jamais une valeur", async () => {
     const journal = vi.spyOn(console, "error").mockImplementation(() => {});
-    const env: Record<string, string | undefined> = { ...envComplet(), HUB_TOKEN: "valeur-piege" };
-    delete env.AUTH_SECRET;
-    delete env.AUTHORIZED_EMAIL;
+    const env = { ...envSans("AUTH_SECRET", "AUTHORIZED_EMAIL", "HUB_TOKEN"), DATABASE_URL: "valeur-piege" };
     await avecEnv(env, () => GET());
     expect(journal).toHaveBeenCalledTimes(1);
     const ecrit = journal.mock.calls.flat().join(" ");
     expect(ecrit).toMatch(/AUTH_SECRET/);
     expect(ecrit).toMatch(/AUTHORIZED_EMAIL/);
-    expect(ecrit).not.toMatch(/DATABASE_URL|HUB_TOKEN|valeur-piege|present/);
+    expect(ecrit).toMatch(/HUB_TOKEN/);
+    expect(ecrit).not.toMatch(/DATABASE_URL|GOOGLE_CLIENT|valeur-piege|present/);
   });
+});
 
-  it("configuration complète : rien au journal", async () => {
-    const journal = vi.spyOn(console, "error").mockImplementation(() => {});
-    await avecEnv(envComplet(), () => GET());
-    expect(journal).not.toHaveBeenCalled();
+describe("variablesAuthManquantes / isAuthConfigured", () => {
+  it("liste les variables d'auth absentes ou blanches, dans l'ordre", () => {
+    expect(variablesAuthManquantes({})).toEqual(["AUTH_SECRET", "AUTHORIZED_EMAIL"]);
+    expect(variablesAuthManquantes({ AUTH_SECRET: "s", AUTHORIZED_EMAIL: " " })).toEqual(["AUTHORIZED_EMAIL"]);
+    expect(variablesAuthManquantes({ AUTH_SECRET: "s", AUTHORIZED_EMAIL: "a@b.c" })).toEqual([]);
+    expect(isAuthConfigured({ AUTH_SECRET: "s", AUTHORIZED_EMAIL: "a@b.c" })).toBe(true);
+    expect(isAuthConfigured({ AUTHORIZED_EMAIL: "a@b.c" })).toBe(false);
   });
 });
 
@@ -164,28 +195,37 @@ describe("garde : la sonde reste joignable quand l'authentification n'est pas co
     expect(isPublicPath("/api/sante/autre")).toBe(false);
   });
 
-  it("le VRAI middleware, auth non configurée : 503 partout sauf sur la sonde", async () => {
+  it("le VRAI middleware, auth non configurée : 503 générique partout sauf sur la sonde", async () => {
     // `auth()` d'Auth.js remplacé par l'identité : on teste la logique du middleware, pas
     // Auth.js. Sans cette exception, INC-16 rendrait la sonde muette.
+    const journal = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.resetModules();
     vi.doMock("@/auth", () => ({ auth: (fn: unknown) => fn }));
     try {
       const { default: middleware } = await import("@/middleware");
       const appeler = (chemin: string) => {
-        const url = new URL(chemin, "https://batchchef.test");
-        const req = { auth: null, nextUrl: url };
+        const req = { auth: null, nextUrl: new URL(chemin, "https://batchchef.test") };
         return (middleware as unknown as (r: typeof req) => Response | undefined)(req);
       };
       const reponses = await avecEnv({ DATABASE_URL: "present" }, async () => ({
         sonde: appeler("/api/sante/configuration"),
-        accueil: appeler("/"),
-        sante: appeler("/api/sante"),
-        voisine: appeler("/api/sante/configuration-x"),
+        bloquees: [appeler("/"), appeler("/api/sante"), appeler("/api/sante/configuration-x")],
       }));
       expect(reponses.sonde).toBeUndefined(); // laissée passer jusqu'à la route
-      for (const r of [reponses.accueil, reponses.sante, reponses.voisine]) {
+      for (const r of reponses.bloquees) {
         expect(r?.status).toBe(503);
+        // Message générique : aucun nom de variable dans la réponse publique.
+        const corps = await r!.text();
+        expect(JSON.parse(corps)).toEqual({
+          error: "auth_unconfigured",
+          message: "Authentification non configurée. Accès refusé.",
+        });
+        expect(corps).not.toMatch(NOM_QUELCONQUE);
       }
+      // Les noms, eux, sont au journal serveur.
+      const ecrit = journal.mock.calls.flat().join(" ");
+      expect(ecrit).toMatch(/AUTH_SECRET/);
+      expect(ecrit).toMatch(/AUTHORIZED_EMAIL/);
     } finally {
       vi.doUnmock("@/auth");
       vi.resetModules();

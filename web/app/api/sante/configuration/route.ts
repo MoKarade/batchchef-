@@ -2,14 +2,18 @@
 //
 // Incident INC-16 : la production a répondu 503 parce qu'AUTH_SECRET/AUTHORIZED_EMAIL
 // manquaient, et rien ne le disait. `GET /api/sante` vérifie la BASE ; celle-ci vérifie
-// que les variables REQUISES (lib/configurationRequise.ts) sont posées.
+// que les variables contrôlées (lib/configurationRequise.ts) sont posées :
+//   - une REQUISE absente (tout le monde bloqué) → 503 { ok: false, manquantes: N } ;
+//   - seulement une DÉGRADANTE absente (invités bloqués, propriétaire OK) → 200
+//     { ok: true, degrade: N } ;
+//   - tout est là → 200 { ok: true }.
 //
 // ⚠️ SANS authentification, délibérément, comme /api/sante : exemptée par ÉGALITÉ STRICTE
 // dans `lib/authGuard.ts`, et SEULE route à passer le 503 « auth non configurée » du
 // middleware — sinon, dans le cas exact d'INC-16, elle ne serait jamais atteinte.
 //
-// ⚠️ Règle absolue : la réponse ne NOMME JAMAIS une variable (ni valeur) — seulement un
-// COMPTE. Nommer publiquement ce qui manque donnerait la carte de ce qu'il faut forcer.
+// ⚠️ Règle absolue : la réponse ne NOMME JAMAIS une variable (ni valeur) — seulement des
+// COMPTES. Nommer publiquement ce qui manque donnerait la carte de ce qu'il faut forcer.
 // Les noms réels partent au journal serveur (journaux Vercel), jamais dans la réponse.
 //
 // Route séparée plutôt qu'un champ de /api/sante : celle-ci ne touche pas la base (réponse
@@ -22,19 +26,31 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store" } as const;
 
+function pluriel(n: number): string {
+  return n === 1 ? "1 variable manquante" : `${n} variables manquantes`;
+}
+
 export async function GET(): Promise<Response> {
-  const manquantes = variablesManquantes();
-  if (manquantes.length === 0) {
-    return Response.json({ ok: true }, { headers: NO_STORE });
+  const { requises, degradantes } = variablesManquantes();
+  if (requises.length + degradantes.length > 0) {
+    // Journal serveur uniquement : les NOMS, jamais les valeurs.
+    console.error(
+      `[sante/configuration] manquantes — requises : ${requises.join(", ") || "aucune"} ; ` +
+        `dégradantes : ${degradantes.join(", ") || "aucune"}`,
+    );
   }
-  // Journal serveur uniquement : les NOMS, jamais les valeurs.
-  console.error(
-    `[sante/configuration] variables requises manquantes : ${manquantes.join(", ")}`,
-  );
-  const n = manquantes.length;
-  const libelle = n === 1 ? "1 variable manquante" : `${n} variables manquantes`;
+  const degrade = degradantes.length > 0 ? { degrade: degradantes.length } : {};
+  if (requises.length === 0) {
+    return Response.json({ ok: true, ...degrade }, { headers: NO_STORE });
+  }
   return Response.json(
-    { ok: false, cause: "configuration", manquantes: n, message: `configuration incomplète : ${libelle}` },
+    {
+      ok: false,
+      cause: "configuration",
+      manquantes: requises.length,
+      ...degrade,
+      message: `configuration incomplète : ${pluriel(requises.length)}`,
+    },
     { status: 503, headers: NO_STORE },
   );
 }
