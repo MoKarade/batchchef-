@@ -623,6 +623,11 @@ sur-compte, parce que le commentaire qui explique le correctif NOMME l'action.
   (10 188 recettes, ouvert rarement) a une recherche ; la bibliothèque perso, ouverte
   souvent, n'en a pas. Constat exact, mais Marc juge le volume actuel trop faible pour que
   ça vaille le travail. À rouvrir si la bibliothèque grossit.
+- [x] ~~Alerte Dependabot #1, esbuild ≤ 0.24.2 (GHSA-67mh-4wv8-2f99, moyenne)~~ — **tolérée
+  le 30/09** (batchchef-chef). Dev-only : tirée par drizzle-kit → `@esbuild-kit/core-utils`
+  → esbuild 0.18.20, qui ne sert qu'à charger la config de drizzle-kit et ne lance jamais de
+  serveur de dev exposé. Un override casserait probablement `@esbuild-kit`. À rouvrir quand
+  une version de drizzle-kit abandonne `@esbuild-kit`.
 
 ## Idées non arbitrées
 
