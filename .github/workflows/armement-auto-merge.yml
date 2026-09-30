@@ -7,7 +7,8 @@
 #      l'API `gh` (armer.mjs) ;
 #  A2  workflow, module de décision et configuration lus sur la branche de base ;
 #  A3  aucune PR de fork (head.repo.full_name == github.repository) ;
-#  A4  permissions {} au niveau global ; contents et pull-requests en écriture sur le SEUL job d'armement ;
+#  A4  permissions {} au niveau global ; contents et pull-requests en écriture sur le SEUL job d'armement, plus checks et statuses en LECTURE
+#      (INC-13 : une PR déjà CLEAN et attestée est fusionnée directement par la même décision que fusionner.mjs, qui vérifie la provenance des contrôles) ;
 #  A5  aucun texte de la PR (titre, corps, nom de branche, nom de fichier) dans un `run:` ni une expression : seuls le numéro et le SHA (validés
 #      par expression régulière dans armer.mjs) passent, par l'environnement ;
 #  A6  toutes les actions épinglées par SHA de commit ;
@@ -51,6 +52,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      checks: read
+      statuses: read
     steps:
       # UNIQUE checkout : la BASE de la PR (jamais sa tête). Le module, la configuration et l'exécuteur viennent donc de la branche protégée.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

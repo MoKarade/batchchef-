@@ -7,7 +7,10 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
-import { decision, peutArmer, codeRaison, LABEL_VALIDATION } from "./autoMerge.mjs";
+import { decision, peutArmer, codeRaison, rattacherCreateurs } from "./autoMerge.mjs";
+import { assurerLabels, corpsRefus, LABEL_ALERTE, LABELS, raisonLabelDejaPose } from "./labels.mjs";
+
+export { LABEL_ALERTE };
 
 const TENTATIVES = 5;
 
@@ -41,7 +44,7 @@ export function marqueurRefus(raison) {
 }
 
 /** Le refus vient-il d'un chemin ou d'un label (à expliquer à la PR) plutôt que d'un brouillon, d'un fork ou d'une config ? */
-const refusAExpliquer = (raison) => /^(attestation de pole-securite|fichier sensible|chemin |label |tests affaiblis|code .* sans test associé)/.test(raison);
+const refusAExpliquer = (raison) => /^(attestation de pole-securite|fichier sensible|chemin |label |validation visuelle|tests affaiblis|code .* sans test associé)/.test(raison);
 
 /**
  * Revues de la PR (attestation de pole-securite) : `gh api --paginate repos/R/pulls/N/reviews`, réduites aux champs utiles. Lecture ratée ou illisible = `null`
@@ -55,9 +58,6 @@ export async function lireRevues(gh, repo, numero, attente = pause) {
     return brut.split("\n").filter((l) => l !== "").map((l) => JSON.parse(l));
   } catch { return null; }
 }
-
-/** Label des issues d'alerte, lues par le gérant et le cockpit (`gh issue list --label alerte-auto-merge`). */
-export const LABEL_ALERTE = "alerte-auto-merge";
 
 /**
  * Catégories FIXES des issues d'alerte. Une issue est bâtie UNIQUEMENT à partir de ce modèle (catégorie, numéro de PR, SHA court, lien du run) :
@@ -114,12 +114,17 @@ export async function executer({ gh, config, env, maintenant, ecrire, sortie = (
   if (cibles.length === 0) { ecrire("- aucune PR ouverte à examiner."); return res; }
 
   let shaCourant;   // SHA de la PR en cours d'examen (pour le modèle des alertes)
+  // Les labels utiles EXISTENT avant d'être posés (liste puis création des seuls absents, jamais --force : voir labels.mjs). Échec = erreur BLOQUANTE (le job échoue, alerte), jamais un silence.
+  const labelsAssures = new Set();
   const poserLabels = (n, labels) => {
+    const aAssurer = labels.filter((l) => LABELS[l] && !labelsAssures.has(l));
+    if (aAssurer.length) {
+      try { assurerLabels(gh, ["--repo", repo], aAssurer); aAssurer.forEach((l) => labelsAssures.add(l)); }
+      catch (e) { res.erreurs.push(`PR #${n} : ${String(e.message).slice(0, 160)}`); signaler("label_non_pose", n, shaCourant); return; }
+    }
     for (const label of labels) {
-      try {
-        if (label === LABEL_VALIDATION) gh(["label", "create", label, "--repo", repo, "--color", "FBCA04", "--description", "La fusion attend la validation de Marc", "--force"]);
-        gh(["pr", "edit", String(n), "--repo", repo, "--add-label", label]);
-      } catch (e) { res.erreurs.push(`PR #${n} : label ${label} non posé (${String(e.message).slice(0, 80)})`); signaler("label_non_pose", n, shaCourant); }
+      try { gh(["pr", "edit", String(n), "--repo", repo, "--add-label", label]); }
+      catch (e) { res.erreurs.push(`PR #${n} : label ${label} non posé (${String(e.message).slice(0, 80)})`); signaler("label_non_pose", n, shaCourant); }
     }
   };
 
@@ -128,7 +133,7 @@ export async function executer({ gh, config, env, maintenant, ecrire, sortie = (
     const marqueur = marqueurRefus(raison);
     const existants = await avecReessais(() => gh(["api", "--paginate", `repos/${repo}/issues/${n}/comments`, "--jq", ".[].body"]), attente);
     if (existants.includes(marqueur)) return false;
-    const corps = `Cette PR ne sera pas fusionnée automatiquement.\n\nRaison : \`${sansRisque(raison)}\`\n\nElle attend l'attestation de pole-securite (revue APPROVED du compte dédié sur ce commit) ; le label \`${LABEL_VALIDATION}\` est informatif.\n\n${marqueur}`;
+    const corps = corpsRefus(raison, marqueur, sansRisque);
     try { gh(["pr", "comment", String(n), "--repo", repo, "--body", corps]); return true; }
     catch (e) { res.erreurs.push(`PR #${n} : commentaire de refus non posé (${String(e.message).slice(0, 80)})`); signaler("commentaire_non_pose", n, shaCourant); return false; }
   };
@@ -164,7 +169,13 @@ export async function executer({ gh, config, env, maintenant, ecrire, sortie = (
         const [nom, id] = l.split("\t");
         apps.set(nom, apps.has(nom) && apps.get(nom) !== Number(id) ? "ambigu" : Number(id));
       }
-      const checks = (pr.statusCheckRollup || []).map((c) => (c && c.name && apps.has(c.name) ? { ...c, appId: apps.get(c.name) } : c));
+      let checks = (pr.statusCheckRollup || []).map((c) => (c && c.name && apps.has(c.name) ? { ...c, appId: apps.get(c.name) } : c));
+      // statut du vérificateur local (config `statut_local`) : créateur du dernier statut de commit de ce contexte (id + login + type), lu seulement si configuré
+      if (config.statut_local) {
+        const jq = '.[] | [.context, .state, ((.creator.id // 0) | tostring), (.creator.login // ""), (.creator.type // "")] | @tsv';
+        const brutStatuts = await avecReessais(() => gh(["api", "--paginate", `repos/${repo}/commits/${pr.headRefOid}/statuses`, "--jq", jq]), attente);
+        checks = rattacherCreateurs(checks, brutStatuts, config.statut_local.contexte);
+      }
 
       // revues (attestation de pole-securite) : lues seulement si le dépôt a un compte dédié (`securite_login`), sinon aucune attestation n'est possible
       const reviews = config.securite_login ? await lireRevues(gh, repo, n, attente) : [];
@@ -176,7 +187,9 @@ export async function executer({ gh, config, env, maintenant, ecrire, sortie = (
       const armement = peutArmer(entree, config);
       if (!armement.armer) {
         poserLabels(n, armement.etiqueter);
-        const commente = refusAExpliquer(armement.raison) ? await expliquer(n, armement.raison) : false;
+        // Un label do-not-merge DÉJÀ présent (posé au passage précédent, ou à la main) n'est pas réexpliqué : sa raison générique « label do-not-merge » donnerait un commentaire FAUX
+        // (« attend l'attestation ») qui contredit le commentaire précis du premier passage ; qui pose ce label à la main sait pourquoi. Les autres refus gardent leur commentaire.
+        const commente = refusAExpliquer(armement.raison) && !raisonLabelDejaPose(armement.raison) ? await expliquer(n, armement.raison) : false;
         if (armement.code) signaler(armement.code, n, shaCourant);
         const codeArmement = codeRaison(armement);
         sortie(`code_pr_${n}=${codeArmement}`);
@@ -254,11 +267,11 @@ export async function executer({ gh, config, env, maintenant, ecrire, sortie = (
       const marqueur = `<!-- auto-merge-alerte:${createHash("sha256").update(`${categorie}|${n}|${sha}`).digest("hex").slice(0, 16)} -->`;
       const ouvertes = gh(["issue", "list", "--repo", repo, "--label", LABEL_ALERTE, "--state", "open", "--limit", "100", "--json", "body", "--jq", ".[].body"]);
       if (ouvertes.includes(marqueur)) continue;
-      gh(["label", "create", LABEL_ALERTE, "--repo", repo, "--color", "B60205", "--description", "Alerte de la fusion automatique (lue par le gérant et le cockpit)", "--force"]);
+      if (!labelsAssures.has(LABEL_ALERTE)) { assurerLabels(gh, ["--repo", repo], [LABEL_ALERTE]); labelsAssures.add(LABEL_ALERTE); }
       const corps = `Catégorie : ${nom}\nPR : #${Number(n)}\nCommit : ${sha8}${urlRun ? `\nRun : ${urlRun}` : ""}\n\n${marqueur}`;
       gh(["issue", "create", "--repo", repo, "--title", `Alerte fusion automatique : ${nom} (PR #${Number(n)})`, "--label", LABEL_ALERTE, "--body", corps]);
       ecrire(`- 🚨 issue ${enCode(LABEL_ALERTE)} créée : ${nom} (PR #${Number(n)})`);
-    } catch (e) { ecrire("- ⚠️ issue d'alerte non créée"); }
+    } catch (e) { ecrire("- ⚠️ issue d'alerte non créée"); res.erreurs.push(`issue d'alerte non créée (${String(e && e.message).slice(0, 100)})`); }
   }
   return res;
 }
