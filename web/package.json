@@ -34,11 +34,14 @@
     "react-dom": "^19.3.0",
     "zod": "^4.6.5"
   },
-  "//overrides": "Failles HIGH dans des dépendances transitives que Next épingle lui-même : postcss (XSS + lecture de fichier arbitraire via sourceMappingURL), sharp (libvips) et nanoid (boucle infinie sur size zéro, GHSA-2v37-7h3g-55p8 — tiré par postcss). Next 15.5.21 embarque encore postcss 8.4.31 dans son propre node_modules. À retirer dès qu'une version de Next les remonte d'elle-même — vérifier avec `npm audit --omit=dev`.",
+  "//overrides": "Failles HIGH dans des dépendances transitives que Next épingle lui-même : postcss (XSS + lecture de fichier arbitraire via sourceMappingURL), sharp (libvips) et nanoid (boucle infinie sur size zéro, GHSA-2v37-7h3g-55p8 — tiré par postcss). Next 15.5.21 embarque encore postcss 8.4.31 dans son propre node_modules. À retirer dès qu'une version de Next les remonte d'elle-même — vérifier avec `npm audit --omit=dev`. typed-rest-client (outil de dev Stryker) épingle qs 6.15.1 exactement (GHSA-q8mj-m7cp-5q26, moyenne, dev-only) : override limité à ce seul paquet, à retirer dès que Stryker le remonte.",
   "overrides": {
     "postcss": "^8.5.24",
     "sharp": "^0.35.4",
-    "nanoid": "^3.3.17"
+    "nanoid": "^3.3.17",
+    "typed-rest-client": {
+      "qs": "^6.15.2"
+    }
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
