@@ -14,6 +14,7 @@ import { estIngredientDeFond, resumerIngredientsDeFond } from "@/lib/ingredients
 import { ShoppingChecklist } from "@/components/ShoppingChecklist";
 import { ShoppingListEditor } from "@/components/ShoppingListEditor";
 import { ShareListButton } from "@/components/ShareListButton";
+import { CommandeEpicerie } from "@/components/CommandeEpicerie";
 import { ExportTasksButton } from "@/components/ExportTasksButton";
 import { ReconnectGoogleButton } from "@/components/AuthButtons";
 
@@ -103,6 +104,17 @@ export default async function ShoppingPage({
               </div>
             </details>
           </div>
+
+          <CommandeEpicerie
+            batchName={batch.name}
+            items={items.map((i) => ({
+              name: i.name,
+              canonical: i.canonical,
+              qty: i.qty,
+              unit: i.unit,
+              checked: i.checked,
+            }))}
+          />
 
           <ShoppingListEditor
             batchId={id}

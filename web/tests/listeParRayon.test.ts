@@ -60,7 +60,7 @@ describe("grouperParRayon (C5)", () => {
       art("Échalotes", "échalotes", 2, "unite"),
       art("carottes", "carottes", 3, "unite"),
     ]);
-    expect(groupes[0].articles.map((a) => a.name)).toEqual(["carottes", "Échalotes", "Tomates"]);
+    expect(groupes[0]?.articles.map((a) => a.name)).toEqual(["carottes", "Échalotes", "Tomates"]);
   });
 
   it("n'exporte que le RESTANT (articles cochés = déjà au panier)", () => {
