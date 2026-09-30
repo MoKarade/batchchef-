@@ -164,6 +164,34 @@ describe("garde : la sonde reste joignable quand l'authentification n'est pas co
     expect(isPublicPath("/api/sante/autre")).toBe(false);
   });
 
+  it("le VRAI middleware, auth non configurée : 503 partout sauf sur la sonde", async () => {
+    // `auth()` d'Auth.js remplacé par l'identité : on teste la logique du middleware, pas
+    // Auth.js. Sans cette exception, INC-16 rendrait la sonde muette.
+    vi.resetModules();
+    vi.doMock("@/auth", () => ({ auth: (fn: unknown) => fn }));
+    try {
+      const { default: middleware } = await import("@/middleware");
+      const appeler = (chemin: string) => {
+        const url = new URL(chemin, "https://batchchef.test");
+        const req = { auth: null, nextUrl: url };
+        return (middleware as unknown as (r: typeof req) => Response | undefined)(req);
+      };
+      const reponses = await avecEnv({ DATABASE_URL: "present" }, async () => ({
+        sonde: appeler("/api/sante/configuration"),
+        accueil: appeler("/"),
+        sante: appeler("/api/sante"),
+        voisine: appeler("/api/sante/configuration-x"),
+      }));
+      expect(reponses.sonde).toBeUndefined(); // laissée passer jusqu'à la route
+      for (const r of [reponses.accueil, reponses.sante, reponses.voisine]) {
+        expect(r?.status).toBe(503);
+      }
+    } finally {
+      vi.doUnmock("@/auth");
+      vi.resetModules();
+    }
+  });
+
   it("seule elle contourne le 503 « auth non configurée » du middleware", () => {
     expect(contourneAuthNonConfiguree("/api/sante/configuration")).toBe(true);
     for (const chemin of [
