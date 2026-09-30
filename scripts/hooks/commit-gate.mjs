@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// MODÈLE COMMUN — PreToolUse (Bash) : avant tout `git commit`, exige que les étapes du dépôt (typecheck, tests ciblés, build…) soient vertes.
+// MODÈLE COMMUN — PreToolUse (Bash|PowerShell : chaque outil shell, voir commit-gate.reglage.json) : avant tout `git commit`, exige que les étapes du dépôt (typecheck, tests ciblés, build…) soient vertes.
 // exit 2 = bloque. Copie du modèle de l'Atelier (modeles/qualite/), généralisée à partir de FinanceAI/scripts/hooks/commit-gate.mjs (#1071, relu par pole-securite).
 //
 // COMMUN (ce fichier + lib/analyseCommande.mjs) : lecture de la commande, détection d'un VRAI `git commit`, fichiers attendus, exécution SANS shell, plafond de sortie.
