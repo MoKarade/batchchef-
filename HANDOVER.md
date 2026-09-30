@@ -6,6 +6,26 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
+## Commande d'épicerie, jalon A — liste par rayon (30/09/2026)
+
+Spec `spec-batchchef-commande-epicerie.md` (validée par Marc le 30/09), jalon A sur deux.
+Sur `/courses/[id]`, dans le dépliant « Outils de la liste » : un bloc **« Préparer une
+commande »** montre le restant à acheter regroupé par rayon, et un bouton **« Copier la liste
+par rayon »** le copie (un rayon par paragraphe) pour le recopier dans une commande en ligne.
+
+- **Aucun rayon n'existe dans les données** (`ingredient_master.category` NULL partout dans le
+  seed V3) : le rayon est DÉRIVÉ du canonical par une table de mots-clés fermée
+  (`web/lib/rayons.ts`), en mot entier via `comparable()`, première règle gagnante, rien en
+  base. Ce qui n'est reconnu nulle part va dans « Autres » ; l'écran dit que les rayons sont
+  approximatifs. Mesure du 30/09 : 192 des 200 canonicals les plus fréquents rangés hors
+  « Autres » (96 %), cliquet dans `tests/rayons.test.ts`.
+- Quantités brutes (g, ml, unités), aucun format d'emballage, aucun prix dans le texte.
+- `ligneArticle` (`web/lib/listeParRayon.ts`) est désormais LE formatage de ligne : le partage
+  Keep (`buildText`) l'utilise aussi, comportement inchangé (`tests/shareList.test.ts` intact).
+- Un mauvais rangement se corrige dans la table `REGLES` de `lib/rayons.ts` (ordre = priorité),
+  avec un cas ajouté aux pièges de `tests/rayons.test.ts`.
+- Suite : jalon B (liens de recherche par épicier), après fusion de A.
+
 ## État au 25/09/2026 — à lire en premier
 
 > Mesuré le 25/09/2026 à 13 h 44 Z (API Vercel, `git`, API GitHub), pas recopié. Tout ce qui

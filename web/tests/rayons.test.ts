@@ -105,6 +105,13 @@ describe("rayonDe — pièges (mot entier, jamais sous-chaîne)", () => {
     expect(rayonDe("pâtes", "Pâtes")).toBe("Épicerie");
   });
 
+  it("formes de pâtes et herbes séchées vues sur une vraie recette (Fusilli à la crème, seed n° 1)", () => {
+    expect(rayonDe("fusilli", "Fusilli")).toBe("Épicerie");
+    expect(rayonDe("origan", "Origan")).toBe("Épicerie");
+    expect(rayonDe("piment de cayenne", "Piment de Cayenne")).toBe("Épicerie");
+    expect(rayonDe("piment", "Piment")).toBe("Fruits et légumes");
+  });
+
   it("singulier et pluriel se rangent pareil", () => {
     expect(rayonDe("pomme de terre", "Pomme de terre")).toBe(rayonDe("pommes de terre", "Pommes de terre"));
     expect(rayonDe("choux-fleurs", "Choux-fleurs")).toBe("Fruits et légumes");

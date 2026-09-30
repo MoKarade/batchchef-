@@ -39,6 +39,10 @@ de l'import par URL (SSRF) et des routes MCP/OAuth (#131).
   `/historique`, table `meal_history` (migration `0017`). Démarre VIDE à la mise en ligne ;
   C1, C3 et C4 du plan restent à contrôler une fois en production sur un vrai batch.
 
+- **Commande d'épicerie** (spec validée le 30/09) : jalon A livré le 30/09 (liste restante
+  regroupée par rayon approximatif et copiable, sur `/courses/[id]`) ; jalon B (liens de
+  recherche par épicier) à venir. Détail dans `HANDOVER.md`.
+
 ## Bloqué / risque ouvert
 
 - 🔴 **`DEPLOI-MUET`** (constaté le 15/09, re-mesuré le 25/09) — le projet Vercel

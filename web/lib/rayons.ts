@@ -49,6 +49,7 @@ const REGLES: readonly (readonly [Rayon, readonly string[]])[] = [
       // « bouillon » et pas « cube » : « bœuf en cubes » est de la viande.
       "lait concentré", "chocolat", "bouillon", "fond de", "sauce", "concentré", "coulis",
       "conserve", "poudre", "raisin sec", "fruit sec", "tomate séchée", "piment d'espelette",
+      "piment de cayenne",
       "eau de rose", "eau de fleur d'oranger", "herbes de provence", "laurier", "extrait",
       "arôme", "levure",
     ],
@@ -96,7 +97,8 @@ const REGLES: readonly (readonly [Rayon, readonly string[]])[] = [
     "Épicerie",
     [
       "sel", "poivre", "farine", "sucre", "cassonade", "huile", "vinaigre", "riz", "pâte",
-      "spaghetti", "nouille", "quinoa", "lentille", "pois chiche", "haricot", "semoule",
+      "spaghetti", "nouille", "fusilli", "penne", "macaroni", "linguine", "tagliatelle",
+      "lasagne", "vermicelle", "origan", "quinoa", "lentille", "pois chiche", "haricot", "semoule",
       "couscous", "boulgour", "flocons d'avoine", "avoine", "maïzena", "fécule", "gélatine",
       "chapelure", "moutarde", "ketchup", "mayonnaise", "miel", "sirop", "confiture", "cacao",
       "vanille", "cannelle", "cumin", "curry", "curcuma", "paprika", "muscade", "girofle",
