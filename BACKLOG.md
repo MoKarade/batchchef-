@@ -8,6 +8,14 @@
 
 ## En cours / décidé, pas encore livré
 
+### Outils tiers de CI, vague pilote (02/10/2026)
+
+- [ ] **`OUTILS-TIERS-01` — Rendre actionlint et OSV-Scanner bloquants le 16/10/2026.** Ils tournent en
+  avertissement (`continue-on-error: true`, job `securite` de `ci.yml`) depuis le 02/10/2026 ; à la date,
+  retirer `continue-on-error` des deux pas après avoir lu les lignes `MESURE outil=…` des runs. jscpd
+  (job `qualite`) reste en avertissement, sans date de bascule.
+
+
 ### Installable sur le téléphone (Marc, 18/09/2026 — Android)
 
 - [x] **La variante `maskable` n'existait pas : les DEUX icônes étaient `any maskable`.** Le
