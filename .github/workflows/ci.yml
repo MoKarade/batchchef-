@@ -171,6 +171,17 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Portes qualité (cliquet)
         run: node qualite/portes.mjs
+      # jscpd (code dupliqué) : AVERTISSEMENT seulement, sans date de bascule — objectif chiffré
+      # suivi dans le temps, comme le score de mutation (pas dans seuils.json pour l'instant).
+      # Binaire du lockfile (npm run), jamais un `npx` qui pourrait télécharger à la volée.
+      - name: Code dupliqué (jscpd, avertissement)
+        continue-on-error: true
+        run: |
+          set +e
+          npm run --silent duplication 2>&1 | tee jscpd.txt
+          code=${PIPESTATUS[0]}
+          echo "MESURE outil=jscpd alertes=$(grep -c -E 'Clone found' jscpd.txt) code=$code"
+          exit "$code"
       - name: Rapport
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -215,6 +226,51 @@ jobs:
           semgrep scan --metrics off --error \
             --config p/typescript --config p/react --config p/nextjs \
             --config p/secrets --config p/owasp-top-ten web
+
+      # ── Outils tiers, vague pilote (02/10/2026) ──────────────────────────────────
+      # Plan : atelier/_pc-local/agence/rapports/strategie-pr/plan-outils-tiers.md. Chaque
+      # outil écrit une ligne `MESURE outil=… alertes=N` pour que la mesure du coût et des
+      # alertes se fasse par script (gh api), sans relire les logs.
+      # zizmor : audit de sécurité des workflows eux-mêmes. BLOQUANT dès le premier jour
+      # (code de sortie non nul s'il trouve quelque chose). Roue PyPI officielle, version figée,
+      # --only-binary comme Semgrep. Aucun jeton passé : seuls les audits hors ligne tournent.
+      - name: Workflows, sécurité (zizmor)
+        run: |
+          python -m pip install --quiet --only-binary :all: zizmor==1.30.1
+          set +e
+          zizmor --no-progress --format plain .github/workflows 2>&1 | tee zizmor.txt
+          code=${PIPESTATUS[0]}
+          echo "MESURE outil=zizmor alertes=$(grep -c -E '^(error|warning|note|info)\[' zizmor.txt) code=$code"
+          exit "$code"
+
+      # actionlint : syntaxe et logique des workflows. AVERTISSEMENT jusqu'au 16/10/2026 (deux
+      # semaines d'observation), puis BLOQUANT : retirer `continue-on-error` à cette date
+      # (suivi dans BACKLOG.md, OUTILS-TIERS-01). La sortie reste visible dans les logs.
+      - name: Workflows, syntaxe (actionlint, avertissement jusqu'au 16/10/2026)
+        continue-on-error: true
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSfL -o actionlint.tgz https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  actionlint.tgz" | sha256sum -c -
+          tar xzf actionlint.tgz actionlint
+          set +e
+          ./actionlint -no-color 2>&1 | tee actionlint.txt
+          code=${PIPESTATUS[0]}
+          echo "MESURE outil=actionlint alertes=$(grep -c -E '^\.github/.*:[0-9]+:[0-9]+:' actionlint.txt) code=$code"
+          exit "$code"
+
+      # OSV-Scanner : vulnérabilités des dépendances (base OSV.dev) lues dans le lockfile.
+      # AVERTISSEMENT jusqu'au 16/10/2026, même échéance et même suivi qu'actionlint.
+      - name: Dépendances, vulnérabilités (OSV-Scanner, avertissement jusqu'au 16/10/2026)
+        continue-on-error: true
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSfL -o osv-scanner https://github.com/google/osv-scanner/releases/download/v2.6.0/osv-scanner_linux_amd64
+          echo "ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108  osv-scanner" | sha256sum -c -
+          chmod +x osv-scanner
+          set +e
+          ./osv-scanner scan source --format table -L web/package-lock.json 2>&1 | tee osv.txt
+          code=${PIPESTATUS[0]}
+          echo "MESURE outil=osv-scanner alertes=$(grep -c -E 'https://osv\.dev/' osv.txt) code=$code"
+          exit "$code"
 
   mutation:
     # Tests de mutation (Stryker) : Stryker modifie volontairement le code et vérifie que les
