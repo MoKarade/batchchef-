@@ -20,7 +20,7 @@
     "mutation": "stryker run",
     "architecture": "depcruise app lib components scripts",
     "code-mort": "knip",
-    "duplication": "jscpd app lib components scripts --ignore \"**/node_modules/**,**/*.test.*,**/fixtures/**,**/*.d.ts\" --reporters console --silent"
+    "duplication": "jscpd app lib components scripts --ignore \"**/node_modules/**,**/*.test.*,**/fixtures/**,**/*.d.ts\" --reporters console"
   },
   "//drizzle-orm": "Plancher 0.45.2 : en dessous, injection SQL par identifiants mal échappés (GHSA-gpj5-g38j-94v9, HIGH). Ne jamais redescendre. Une clé « // » ne se met qu'à la RACINE — npm refuse un nom de paquet invalide à l'intérieur de `dependencies`.",
   "dependencies": {
