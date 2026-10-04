@@ -438,6 +438,9 @@ function examinerFichiers(pr, config) {
     const app = correspond(c, config.chemins_interdits);
     if (app && !correspond(c, attestables)) return refus(`chemin interdit par auto-merge.json : ${c}`);
     if (jamaisAttestable(c)) return refus(`chemin jamais attestable (secret, clé) : ${c}`);
+    // NOYAU de l'Atelier (surcouche chemins-interdits-atelier.json, vide dans une app) : la revue du robot SEULE ne suffit pas ici. Ces chemins ne passent que par
+    // agence/armer-pr.ps1 (Test-AttestationNoyau : revue du robot ET verdict local de pole-securite, que ce module ne lit jamais).
+    if (correspond(c, CHEMINS_SURCOUCHE)) return refus(`fichier sensible ${c} : jamais auto-fusionné, validation de Marc requise (chemins-interdits-*.json) ; noyau : seul agence/armer-pr.ps1 l'arme, avec l'attestation à deux facteurs de pole-securite`, { etiqueter: [LABEL_VALIDATION] });
   }
   // Frein VISUEL (chemins_validation_visuelle) : NON attestable (une attestation de sécurité ne remplace pas le regard de Marc sur le rendu) et évalué ICI, dans la même fonction pure
   // que les autres chemins, donc à CHAQUE passage (workflow_run, status, check_run, cron) : un fichier visuel ajouté par un commit ultérieur reçoit le label lui aussi.

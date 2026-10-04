@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/hooks/commit-gate.mjs\"",
+            "command": "node -e \"const cp=require('child_process'),fs=require('fs'),path=require('path'),Q=String.fromCharCode(34),B=String.fromCharCode(92),N=String.fromCharCode(10);const non=(m)=>{process.stderr.write('Commit-gate : '+m+', commit bloque par prudence.'+N);process.exit(2)};let d='';try{d=fs.readFileSync(0,'utf8')}catch(e){}if(d.charCodeAt(0)===65279)d=d.slice(1);let c=null;try{c=JSON.parse(d).tool_input.command}catch(e){}if(typeof c==='string'&&!/git/i.test(c.split(Q).join('').split(B).join('').split(String.fromCharCode(39)).join('')))process.exit(0);let r='';try{r=cp.execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim()}catch(e){}if(!r)r=(process.env.CLAUDE_PROJECT_DIR||'').trim();if(!r)non('CLAUDE_PROJECT_DIR absente ou vide (et dossier hors de tout depot git)');const g=path.join(r,'scripts','hooks','commit-gate.mjs');if(!fs.existsSync(g))non('porte introuvable dans '+r);const x=cp.spawnSync(process.execPath,[g],{input:d,stdio:['pipe','inherit','inherit']});process.exit(x.status===0?0:2)\"; exit $LASTEXITCODE",
             "timeout": 600
           }
         ]

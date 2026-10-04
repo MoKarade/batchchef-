@@ -17,6 +17,9 @@
 // ligne ; le contenu des chaînes ('…', "…"), des heredocs (<<EOF) et des commentaires n'est JAMAIS pris
 // pour une commande ; `$(…)` et `(…)` sont analysés (une commande y tourne réellement).
 
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
 const MOTS_DE_TETE = new Set(['{', '!', 'then', 'do', 'else', 'elif', 'if', 'while', 'until', 'time', 'exec', 'command']);
 // Sous-commandes git qui modifient l'index de façon non prévisible ici → on ne devine pas.
 const GIT_MUTE_INDEX = new Set(['reset', 'restore', 'checkout', 'switch', 'rm', 'mv', 'stash', 'apply', 'merge', 'cherry-pick', 'rebase', 'revert', 'pull', 'am', 'clean']);
@@ -39,6 +42,19 @@ const GIT_SOUS_INOFFENSIVES = new Set(['status', 'diff', 'log', 'show', 'branch'
 // Un chemin venu du texte de la commande ne doit contenir aucun caractère de contrôle ni de métacaractère shell.
 const CHEMIN_HOSTILE = /[\x00-\x1f\x7f&|<>^%!`$;'"]|^-/;
 
+// kit 1.18.0 (avis de pole-securite) : interpréteurs visés par la règle du pipe quand ils lisent leurs commandes sur stdin (aucun fichier de script) :
+// shells BRUTS dès que le texte évoque git ; python / node (décision de pole-securite, 30/09 : la règle « enveloppe » ne regarde que le segment de DROITE)
+// dès que le texte évoque git ET commit. awk system() et sed e ne sont pas visés (à trancher) ; `base64 -d | sh` sans « git » dans le texte reste
+// indétectable (contournement délibéré : la porte est un garde-fou contre l'oubli, pas une frontière).
+const SHELLS_BRUTS = new Set(['sh', 'bash', 'dash', 'zsh', 'ksh', 'pwsh', 'powershell', 'cmd']);
+const LANGAGES_STDIN = new Set(['python', 'python3', 'py', 'node']);
+
+/** Le shell lit-il ses commandes sur stdin ? Oui s'il n'a AUCUN argument hors options (pas de fichier de script, pas de code en argument) : `sh`, `bash -s`, `sh -`, `pwsh -Command -`, `cmd`. */
+function litSesCommandesSurStdin(c, nom) {
+  const option = nom === 'cmd' ? (a) => a.startsWith('/') || a.startsWith('-') : (a) => a.startsWith('-');
+  return c.slice(1).every(option);
+}
+
 class Incertain extends Error {}
 
 /** Lit une liste de commandes jusqu'à `fermeur` (')' pour `$(…)`, '`' pour un backtick, ou fin de chaîne). */
@@ -51,12 +67,18 @@ function lireListe(s, debut, fermeur) {
   let i = debut;
 
   let cibleARejeter = false; // le mot qui suit un opérateur de redirection est un fichier, pas un argument
+  // kit 1.18.0 : le prochain segment NON VIDE lit-il l'entrée standard d'un `|` ? (maintenu à travers un retour ligne ou une `(` ; annulé par ; && || &)
+  let pipeEnAttente = false;
   const finMot = () => {
     if (!motOuvert) return;
     if (cibleARejeter) cibleARejeter = false; else mots.push(mot);
     mot = ''; motOuvert = false;
   };
-  const finSegment = () => { finMot(); if (mots.length) segments.push(mots); mots = []; };
+  const finSegment = () => {
+    finMot();
+    if (mots.length) { if (pipeEnAttente) mots.apresPipe = true; pipeEnAttente = false; segments.push(mots); }
+    mots = [];
+  };
   const ajoute = (c) => { mot += c; motOuvert = true; };
 
   while (i < s.length) {
@@ -97,9 +119,11 @@ function lireListe(s, debut, fermeur) {
       if (s[i] === '&') { i++; while (i < s.length && /[0-9-]/.test(s[i])) i++; } else cibleARejeter = true;
       continue;
     }
-    if (c === '&' && s[i + 1] === '&') { finSegment(); i += 2; continue; }
-    if (c === '|' && s[i + 1] === '|') { finSegment(); i += 2; continue; }
-    if (c === ';' || c === '|' || c === '&' || c === '(' || c === ')') { finSegment(); i++; continue; }
+    if (c === '&' && s[i + 1] === '&') { finSegment(); pipeEnAttente = false; i += 2; continue; }
+    if (c === '|' && s[i + 1] === '|') { finSegment(); pipeEnAttente = false; i += 2; continue; }
+    if (c === '|') { finSegment(); pipeEnAttente = true; i += s[i + 1] === '&' ? 2 : 1; continue; }        // `|` et `|&`
+    if (c === ';' || c === '&') { finSegment(); pipeEnAttente = false; i++; continue; }
+    if (c === '(' || c === ')') { finSegment(); i++; continue; }
     ajoute(c); i++;
   }
   if (fermeur) throw new Incertain(`« ${fermeur} » non fermé`);
@@ -187,6 +211,10 @@ export function analyseCommande(cmd) {
     const outil = c[0];
     const nomOutil = outil.replace(/^.*[\\/]/, '').toLowerCase().replace(/\.exe$/, '');
     if (outil === 'cd' || outil === 'pushd' || outil === 'popd') { if (!r.estCommit) r.aChangeDeDossier = true; continue; }
+    // kit 1.18.0 : `… | sh` (shell BRUT qui lit ses commandes sur stdin) alors que le texte évoque git : le texte envoyé au shell est une commande, invisible ici.
+    if (seg.apresPipe && SHELLS_BRUTS.has(nomOutil) && litSesCommandesSurStdin(c, nomOutil)) { r.suspect = `pipe vers l'interpréteur de shell « ${nomOutil} »`; continue; }
+    // …et python / node qui lisent LEUR CODE sur stdin (décision de pole-securite, 30/09) quand le texte évoque git ET commit : `echo "…os.system('git commit')" | python`.
+    if (seg.apresPipe && LANGAGES_STDIN.has(nomOutil) && evoqueCommit && litSesCommandesSurStdin(c, nomOutil)) { r.suspect = `pipe vers l'interpréteur « ${nomOutil} » (code lu sur stdin)`; continue; }
     const texteSegment = seg.join(' ');
     // Outil issu d'une expansion (`$G commit`) : impossible de savoir ce qu'il lance.
     if (/[$`]/.test(outil) && evoqueCommit) { r.suspect = 'outil issu d’une expansion'; continue; }
@@ -400,4 +428,56 @@ export function resoudreCommande(cmd, { execPath = process.execPath, existe = ()
     return existe(cli) ? { programme: execPath, args: [cli, ...args] } : { programme: 'npm', args };
   }
   return { programme: prog, args };
+}
+
+// ── kit 1.18.0 : liste blanche d'UNE forme prouvablement non committante (avis de pole-securite, 30/09) ──────────────────────
+// L'écriture du journal d'équipe par l'outil de l'Atelier : python + chemin absolu FIXE, un seul segment, arguments littéraux, aucun préfixe (VAR=),
+// ET le fichier doit avoir l'empreinte ci-dessous (le kit la recoupe avec son manifeste). Aucune variable d'environnement : une racine réglable
+// ferait exécuter en confiance un autre journal_ligne.py. Un worktree ou une autre machine tombe en « incertain » : coût de commodité seulement.
+// Si journal_ligne.py change, mettre à jour EMPREINTE_JOURNAL_LIGNE et régénérer le manifeste (un test du kit l'exige).
+export const CHEMIN_JOURNAL_LIGNE = 'C:\\dev\\atelier\\agence\\journal_ligne.py';
+export const EMPREINTE_JOURNAL_LIGNE = '5510087548374a54641acc0a972efb9ecf1a4b2284e1d805cf3d89039e7d0ae1';
+const PYTHONS = new Set(['python', 'python3', 'py']);
+const cheminNormal = (p) => p.replace(/\\/g, '/').replace(/^\/([A-Za-z])\//, '$1:/').replace(/\/+/g, '/').toLowerCase();
+
+/** Mots d'une commande SANS aucune expansion (les caractères actifs ont été refusés avant) ; `hors` : un antislash hors guillemets a été vu. null si illisible. */
+function motsLitteraux(cmd) {
+  const mots = [];
+  let mot = null;
+  let horsAntislash = false;
+  for (let i = 0; i < cmd.length; i++) {
+    const c = cmd[i];
+    if (c === ' ' || c === '\t') { if (mot !== null) { mots.push(mot); mot = null; } continue; }
+    if (c === "'" || c === '"') {
+      const fin = cmd.indexOf(c, i + 1);
+      if (fin < 0) return null;
+      mot = (mot ?? '') + cmd.slice(i + 1, fin); i = fin; continue;
+    }
+    if (c === '\\') horsAntislash = true;
+    mot = (mot ?? '') + c;
+  }
+  if (mot !== null) mots.push(mot);
+  return { mots, horsAntislash };
+}
+
+/**
+ * La commande est-elle EXACTEMENT `python C:\dev\atelier\agence\journal_ligne.py <arguments littéraux>` ? `outil` : outil de Claude Code (tool_name).
+ * Sous tout outil autre que PowerShell, les règles de bash s'appliquent : un antislash hors guillemets y est un échappement (`C:\dev` devient `C:dev`, chemin
+ * relatif au lecteur, donc un fichier de l'app) : refus. Pure : ne lit aucun fichier.
+ */
+export function formeJournalLigne(cmd, outil) {
+  if (typeof cmd !== 'string' || /[$`;|&<>()\r\n]/.test(cmd) || /\\["']/.test(cmd)) return false;
+  const lu = motsLitteraux(cmd.trim());
+  if (!lu || lu.mots.length < 2) return false;
+  if (outil !== 'PowerShell' && lu.horsAntislash) return false;
+  const [programme, script] = lu.mots;
+  if (programme.includes('=')) return false;                                              // préfixe VAR=… (PYTHONPATH= ferait charger d'autres modules)
+  if (!PYTHONS.has(programme.replace(/^.*[\\/]/, '').toLowerCase().replace(/\.exe$/, ''))) return false;
+  if (script.split(/[\\/]/).includes('..')) return false;
+  return cheminNormal(script) === cheminNormal(CHEMIN_JOURNAL_LIGNE);
+}
+
+/** Le fichier `chemin` a-t-il l'empreinte du kit (SHA-256, fins de ligne ramenées à LF, comme le manifeste) ? Illisible ou différent : non. */
+export function empreinteJournalLigneOk(chemin) {
+  try { return createHash('sha256').update(readFileSync(chemin, 'utf8').replace(/\r\n/g, '\n')).digest('hex') === EMPREINTE_JOURNAL_LIGNE; } catch { return false; }
 }

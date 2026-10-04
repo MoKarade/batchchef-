@@ -14,18 +14,23 @@ import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { analyseCommande, fichiersAttendus, toucheLeGate, estConfigGlobale, finDeSortie, validerConfigGate, resoudreCommande } from './lib/analyseCommande.mjs';
+import { analyseCommande, fichiersAttendus, toucheLeGate, estConfigGlobale, finDeSortie, validerConfigGate, resoudreCommande, CHEMIN_JOURNAL_LIGNE, empreinteJournalLigneOk, formeJournalLigne } from './lib/analyseCommande.mjs';
 
 // Entrée illisible = on ne sait pas ce qui va être lancé : fail-closed (exit 2 + message).
 // Un seul BOM UTF-8 en tête est toléré (un pipe de Windows PowerShell 5.1 l'ajoute) ; rien d'autre : un JSON réellement invalide reste bloqué.
 let cmd;
+let outil;
 try {
   const entree = JSON.parse(readFileSync(0, 'utf8').replace(/^\uFEFF/, ''));
   cmd = entree?.tool_input?.command ?? '';
+  outil = entree?.tool_name;
 } catch (e) {
   process.stderr.write(`Commit-gate : entrée du hook illisible (${e?.message ?? e}). Bloqué par prudence.\n`);
   process.exit(2);
 }
+
+// Kit 1.18.0 : UNE forme prouvablement non committante (écriture du journal d'équipe par l'outil de l'Atelier, chemin FIXE et empreinte du kit) : laissée passer.
+if (formeJournalLigne(cmd, outil) && empreinteJournalLigneOk(CHEMIN_JOURNAL_LIGNE)) process.exit(0);
 
 // On ne réagit qu'à un VRAI segment shell `git commit` (pas au texte d'un echo, d'un heredoc ou d'un rapport) ; incertain → suite complète.
 const analyse = analyseCommande(cmd);

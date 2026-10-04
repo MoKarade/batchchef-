@@ -43,6 +43,8 @@ export const COPIABLES = Object.freeze([
   { source: "modeles/ci/voie-rapide.mjs", destination: ".github/ci/voie-rapide.mjs", role: "garde" },
   { source: "modeles/claude-md/verifier-longueur.mjs", destination: ".github/ci/verifier-longueur.mjs", role: "garde" },
   { source: "modeles/docs/generer-index.mjs", destination: ".github/ci/generer-index.mjs", role: "garde" },
+  // kit 1.19.0 : exception zizmor CIBLÉE (règle dangerous-triggers, 2 workflows), justifiée dans le fichier et verrouillée par cockpit/tests/test_gabarit_armement.py et test_gabarits.py.
+  { source: "modeles/auto-merge/zizmor.yml", destination: ".github/zizmor.yml", role: "config" },
 ]);
 /** Exemples à ADAPTER par dépôt (jamais comparés) et fichiers qui ne doivent JAMAIS être copiés dans une app. */
 export const EXEMPLES = Object.freeze([{ source: "modeles/auto-merge/auto-merge.json", destination: ".github/auto-merge.json" },
@@ -79,7 +81,7 @@ export const GABARITS = Object.freeze([
 export const VERSION_CANEVAS_CLAUDE_MD = "1.0.0";
 
 /** Version du modèle : à incrémenter à chaque changement d'un fichier copiable (elle est écrite dans le manifeste et dans le COPIES.md de chaque dépôt). */
-export const VERSION_MODELE = "1.16.0";
+export const VERSION_MODELE = "1.19.4";
 export const FICHIER_COPIES = "COPIES.md";
 /** Transition : jusqu'à cette date (AAAA-MM-JJ, jour inclus), un COPIES.md ABSENT n'est qu'un avertissement (code 0) ; à partir de là c'est une erreur. Un COPIES.md présent mais faux est TOUJOURS une erreur. */
 export const COPIES_OBLIGATOIRE_DEPUIS = "2026-10-15";
@@ -98,6 +100,8 @@ export const empreinte = (octets) => createHash("sha256").update(String(octets).
 // .claude/settings.json de chaque app. resynchroniser-kit l'INSTALLE (fusionnerBranchement), verifier-copies la CONTRÔLE (etatBranchement), échec fermé.
 export const REGLAGE_APP = ".claude/settings.json";
 export const REGLAGE_REFERENCE = "modeles/qualite/commit-gate.reglage.json";
+/** Outil du journal d'équipe (Atelier) : la seule forme non committante de la liste blanche de la porte (kit 1.18.0). */
+export const JOURNAL_LIGNE = "agence/journal_ligne.py";
 const OUTILS_SHELL = ["Bash", "PowerShell"];
 const RE_PORTE = /commit-gate\.mjs/;
 const estObjet = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
@@ -131,6 +135,21 @@ function branchementConforme(obj, ref) {
   return trouvees.length === 1 && couvreLeShell(trouvees[0].e.matcher) && JSON.stringify(trouvees[0].h) === JSON.stringify(ref.hooks[0]);
 }
 
+/**
+ * Commandes de RÉFÉRENCE D'AVANT, reconnues à l'identique pour la migration (kit 1.17.0) : relative (≤ 1.14) et « $CLAUDE_PROJECT_DIR » (1.15/1.16, muette sous PowerShell).
+ * Une porte dont la commande n'est ni la référence ni l'une d'elles a été MODIFIÉE À LA MAIN par l'app : elle n'est jamais réécrite (état « personnalisé »),
+ * et verifier-copies la signale pour une revue humaine. Ajouter ici chaque commande de référence remplacée par une version future.
+ */
+export const ANCIENNES_COMMANDES_PORTE = Object.freeze(["node scripts/hooks/commit-gate.mjs", 'node "$CLAUDE_PROJECT_DIR/scripts/hooks/commit-gate.mjs"',
+  // 1.17.0 (#240) : échec fermé AVANT d'examiner la commande ; dans une copie isolée, CLAUDE_PROJECT_DIR = principal sans porte : TOUTE commande bloquée (INC-30 bis)
+  "node -e \"const d=process.env.CLAUDE_PROJECT_DIR;if(d===undefined||d.trim()===''){process.stderr.write('Commit-gate : CLAUDE_PROJECT_DIR absente ou vide, commit bloque par prudence.\\n');process.exit(2)}import(require('url').pathToFileURL(require('path').join(d,'scripts','hooks','commit-gate.mjs')).href).catch(()=>{process.stderr.write('Commit-gate : porte introuvable ou illisible, commit bloque par prudence.\\n');process.exit(2)})\"; exit $LASTEXITCODE"]);
+
+/** Porte modifiée à la main : au moins une commande de porte qui n'est ni la référence ni une ancienne référence connue. */
+function portePersonnalisee(obj, ref) {
+  const connues = new Set([ref.hooks[0].command, ...ANCIENNES_COMMANDES_PORTE]);
+  return (obj.hooks?.PreToolUse ?? []).some((e) => e.hooks.some((h) => estPorte(h) && !connues.has(h.command)));
+}
+
 /** Mise en forme du fichier d'origine : indentation (espaces ou tabulation), fins de ligne, saut de ligne final. Défaut : 2 espaces, LF, saut final. */
 function formeDe(texte) {
   if (texte === null) return { indent: 2, eol: "\n", final: true };
@@ -145,13 +164,15 @@ function formeDe(texte) {
  * - déjà conforme : « identique », rien à écrire (idempotent) ;
  * - sinon, toute porte existante est retirée de son entrée (entrée supprimée si elle n'avait qu'elle : son matcher « passe » donc à la référence, à la même place ;
  *   si elle partageait d'autres hooks, ceux-ci restent sur leur matcher d'origine et la référence est insérée juste après) ; sans porte, la référence va en fin de PreToolUse.
+ * - une porte MODIFIÉE À LA MAIN (commande ni de référence, ni d'une ancienne référence connue) : « personnalise », RIEN à écrire (le réglage de l'app reste tel quel).
  * JSON invalide ou forme inattendue : lève, rien n'est écrit.
- * @returns {{etat: "identique"|"a_mettre_a_jour"|"manquant", contenu?: string}}
+ * @returns {{etat: "identique"|"a_mettre_a_jour"|"manquant"|"personnalise", contenu?: string}}
  */
 export function fusionnerBranchement(texte, entreeRef) {
   const ref = validerEntreeReference(entreeRef);
   const obj = texte === null ? {} : analyserReglage(texte);
   if (texte !== null && branchementConforme(obj, ref)) return { etat: "identique" };
+  if (texte !== null && portePersonnalisee(obj, ref)) return { etat: "personnalise" };
   const hooks = obj.hooks ?? {};
   const pre = hooks.PreToolUse ?? [];
   const nouvelles = [];
@@ -174,7 +195,11 @@ export function fusionnerBranchement(texte, entreeRef) {
 export function etatBranchement(texte, entreeRef) {
   let obj;
   try { obj = texte === null ? null : analyserReglage(texte); } catch (e) { return { etat: "branchement_invalide", raison: String(e.message) }; }
-  if (obj && branchementConforme(obj, validerEntreeReference(entreeRef))) return { etat: "branchement_ok" };
+  const ref = validerEntreeReference(entreeRef);
+  if (obj && branchementConforme(obj, ref)) return { etat: "branchement_ok" };
+  if (obj && portePersonnalisee(obj, ref)) {
+    return { etat: "branchement_personnalise", raison: "commande de la porte modifiée à la main (ni la référence ni une ancienne référence) : non touchée par resynchroniser-kit, à revoir" };
+  }
   const porte = obj && (obj.hooks?.PreToolUse ?? []).some((e) => e.hooks.some(estPorte));
   return porte ? { etat: "branchement_a_mettre_a_jour", raison: "la porte ne couvre pas chaque outil shell (Bash|PowerShell) ou diffère de la référence" }
     : { etat: "branchement_absent", raison: "aucune porte de commit dans hooks.PreToolUse" };
@@ -194,6 +219,8 @@ export function calculerManifeste(racine, lire = (chemin) => readFileSync(join(r
     non_copies: [...NON_COPIES],
     profils: JSON.parse(JSON.stringify(PROFILS)),
     branchement: { fichier: REGLAGE_APP, source: REGLAGE_REFERENCE, entree: validerEntreeReference(JSON.parse(lire(REGLAGE_REFERENCE)).hooks.PreToolUse[0]) },
+    // kit 1.18.0 : empreinte de l'outil du journal, recoupée avec EMPREINTE_JOURNAL_LIGNE de la porte (liste blanche d'une forme ; test du kit)
+    journal_ligne: { chemin: JOURNAL_LIGNE, sha256: empreinte(lire(JOURNAL_LIGNE)) },
   };
 }
 
@@ -400,7 +427,7 @@ export function assurerLabelsDuDepot(gh, racine, ecrire = console.log) {
 }
 
 const LIBELLES = { ok: "OK       ", different: "DIFFÉRENT", absent: "ABSENT   ", retire: "RETIRÉ   ", a_ne_pas_copier: "À NE PAS COPIER",
-  branchement_ok: "OK       ", branchement_absent: "BRANCHEMENT ABSENT", branchement_a_mettre_a_jour: "BRANCHEMENT À METTRE À JOUR", branchement_invalide: "RÉGLAGE ILLISIBLE",
+  branchement_ok: "OK       ", branchement_absent: "BRANCHEMENT ABSENT", branchement_a_mettre_a_jour: "BRANCHEMENT À METTRE À JOUR", branchement_invalide: "RÉGLAGE ILLISIBLE", branchement_personnalise: "BRANCHEMENT PERSONNALISÉ (à revoir)",
   reference_absente: "RÉFÉRENCE ABSENTE" };
 
 /** `--profil <nom>` dans les arguments : nom du profil (défaut `complet`), ou `null` si l'option est mal formée. */
@@ -486,11 +513,13 @@ export function main(argv, maintenant = () => new Date(), gh = ghReel) {
   console.log(vis.ligne);
   for (const l of res.lignes) console.log(`${LIBELLES[l.etat]}  ${l.fichier}${detailLigne(l)}`);
   let copiesAbsentTolere = false;
-  if (copies.etat === "copies_ok") console.log(`OK         ${FICHIER_COPIES}  (version du modèle ${manifeste.version_modele})`);
+  // Valeurs lues dans le manifeste (fichier) : une seule ligne, sans caractère de contrôle, avant d'aller dans le journal (injection de lignes).
+  const sur = (v) => String(v ?? "?").replace(/\p{Cc}+/gu, " ");
+  if (copies.etat === "copies_ok") console.log(`OK         ${FICHIER_COPIES}  (version du modèle ${sur(manifeste.version_modele)})`);
   else if (copies.etat === "copies_absent") {
     const erreur = absenceEstErreur(manifeste, maintenant);
-    console.log(erreur ? `ABSENT     ${FICHIER_COPIES}  (obligatoire depuis le ${manifeste.copies_md_obligatoire_depuis ?? "?"} : à écrire avec --ecrire-copies .)`
-      : `AVERTISSEMENT  ${FICHIER_COPIES} absent : obligatoire à partir du ${manifeste.copies_md_obligatoire_depuis} (à écrire : node modeles/auto-merge/verifier-copies.mjs --ecrire-copies .)`);
+    console.log(erreur ? `ABSENT     ${FICHIER_COPIES}  (obligatoire depuis le ${sur(manifeste.copies_md_obligatoire_depuis)} : à écrire avec --ecrire-copies .)`
+      : `AVERTISSEMENT  ${FICHIER_COPIES} absent : obligatoire à partir du ${sur(manifeste.copies_md_obligatoire_depuis)} (à écrire : node modeles/auto-merge/verifier-copies.mjs --ecrire-copies .)`);
     copiesAbsentTolere = !erreur;
   }
   else { console.log(`DIFFÉRENT  ${FICHIER_COPIES}`); for (const d of copies.details) console.log(`  ${d}`); }

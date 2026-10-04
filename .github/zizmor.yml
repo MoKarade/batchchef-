@@ -1,0 +1,24 @@
+# Configuration de zizmor (analyse statique des workflows GitHub Actions) : copiée par resynchroniser-kit.mjs vers .github/zizmor.yml de chaque dépôt d'app.
+# Source unique : modeles/auto-merge/zizmor.yml (Atelier). Ne pas l'éditer dans un dépôt d'app (verifier-copies.mjs le signale).
+#
+# EXCEPTION CIBLÉE, deux fichiers et une seule règle (`dangerous-triggers`) ; toute autre règle, tout autre workflow reste analysé.
+#   - armement-auto-merge.yml : déclencheur pull_request_target
+#   - auto-merge.yml          : déclencheurs workflow_run et pull_request_target (ready_for_review)
+#
+# POURQUOI C'EST SÛR (faux positif connu de la règle, qui ne regarde que le NOM du déclencheur) :
+#   Ces déclencheurs sont dangereux quand le workflow récupère ou exécute le code d'une PR. Ces deux workflows ne le font JAMAIS :
+#   un seul checkout, celui de la BASE (base.sha) ; le contenu de la PR n'est lu que par l'API `gh` ; aucune PR de fork (head.repo.full_name == github.repository).
+#   C'est la grille de relecture sécurité, points A1 (aucun checkout ni exécution du code de la PR) et A3 (filtre : aucune PR de fork) :
+#   modeles/auto-merge/GRILLE-RELECTURE.md, et en tête des deux gabarits (gabarit-armement.yml, gabarit-auto-merge-evenementiel.yml).
+#
+# PREUVES QUI VERROUILLENT LA PROPRIÉTÉ (la suite échoue si A1 ou A3 disparaît ; avec mutation testing) :
+#   - cockpit/tests/test_gabarit_armement.py  (gabarit d'armement : lu comme DONNÉE)
+#   - cockpit/tests/test_gabarits.py          (gabarit auto-merge événementiel et CI réutilisable)
+#
+# Si un de ces deux workflows change de forme (checkout de la PR, ref: de la PR, script venant de la PR), ces tests échouent et cette exception doit être
+# retirée ou revue par pole-securite : une exception ne vaut que tant que les preuves ci-dessus tiennent. Chemin sensible (modeles/auto-merge/**) : attestation requise.
+rules:
+  dangerous-triggers:
+    ignore:
+      - armement-auto-merge.yml
+      - auto-merge.yml
