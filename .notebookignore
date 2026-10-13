@@ -1,0 +1,13 @@
+# Exclusions propres à BatchChef (en plus de la configuration centrale)
+
+# Captures d'écran des maquettes de refonte (PNG, aucun texte exploitable)
+docs/maquettes/refonte/captures/
+
+# Base seed du catalogue (SQLite d'environ 24 Mo, 10 188 recettes Marmiton) : donnée, pas du code
+web/data/
+
+# Instantanés et journal Drizzle générés par drizzle-kit (redondants avec web/drizzle/*.sql et web/lib/db/schema.ts)
+web/drizzle/meta/
+
+# Icônes PWA binaires
+web/public/*.png
