@@ -63,6 +63,9 @@ la PR #86 — zéro déploiement créé pour son push. Le paragraphe ci-dessus r
 toute autre branche (`feature/*`, un push direct), et la vigilance reste la même : ce qui a
 changé, c'est QUAND ça mord, pas SI.
 
+*(Au 14/10/2026 : `web/vercel.json` exclut aussi `agence/*` et `dependabot/*` depuis le 26/09,
+#132, et `ignoreCommand` exempte `*.md`, `web/tests/*` et `.github/*` — `web/scripts/build-necessaire.sh`.)*
+
 Constaté le 19/08 : la réparation des noms (`ING-03`) avait déjà traité 16 870 lignes de
 production quand j'ai lu les logs de la PRÉVERSION. Sans conséquence ici — la passe est
 idempotente, non destructive, et c'était le correctif voulu — mais le mécanisme, lui, ne

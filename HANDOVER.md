@@ -6,7 +6,53 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
-## État au 25/09/2026 — à lire en premier
+## État au 14/10/2026 — à lire en premier
+
+> Écrit le 14/10/2026 contre le code et `git log` de `master` (pointe `e0a22e7`, #170). La
+> production n'est pas accessible d'ici : rien de ce qui suit n'est une mesure Vercel.
+
+**Gel décidé par Marc le 14/10 : aucun nouveau travail sur les apps tant que le plan de
+réduction du temps des PR est en cours.**
+
+**Ce qui tourne** (d'après le code de `master`) : le cycle importer → batch → épicerie →
+cuisiner, le catalogue, l'assistant, « Ta semaine », le serveur MCP (`POST /api/mcp`,
+OAuth), le widget hub (`GET /api/hub/summary`, contrat épinglé `#v1.3.1`), l'historique
+(`/historique`) et une sonde publique `GET /api/sante`. Next 16.3.8 installé (plage
+`^16.3.5`), Node 24, vitest 4.1.11. Tests : **907 dans 54 fichiers** (mesuré le 14/10).
+
+**Livré depuis le 25/09** (git log, #126 → #170) :
+- Fonctionnel : `HIST-01` (#148, 29/09), refonte visuelle — thème sombre seul, six écrans
+  (#140), `GET /api/sante` pour la vigie (#154), correctif `SEM-BUG-TYPE-NUL` (#144).
+- Sécurité : import par URL sans SSRF + tests MCP/OAuth (#131), CSP en blocage réel (#147),
+  `vercel-build` ne migre que sur un build de production (#129), plus de préversion pour
+  `agence/*` et `dependabot/*` (#132), actions de CI épinglées par SHA (#151), gitleaks
+  8.30.1 (#152), dépendances : 5 alertes moyennes de dev (#162), sharp 0.35.5 et
+  source-map-js 1.2.2 (#169, deux failles hautes).
+- Code et qualité : `lib/actions.ts` découpé par domaine (#143), tests PGlite (#142), code
+  mort soldé (#146, #150), seuils resserrés le 29/09 (#145).
+- Processus : blocage de l'auto-fusion sur les chemins sensibles (#128), attestation de
+  pole-securite (#134), kit auto-merge resynchronisé jusqu'à 1.16.0 et commit-gate branché
+  (#133, #155, #158, #159, #161). Aucun `CODEOWNERS` dans ce dépôt.
+
+**En cours** : rien d'engagé (gel). `HIST-01` attend ses contrôles en production (C1, C3, C4 :
+déploiement `READY`, table `meal_history` présente, terminer / reculer / supprimer un vrai
+batch) — rien dans le dépôt ne les dit faits.
+
+**Cassé ou à surveiller** :
+- 🔴 `DEPLOI-MUET` — toujours ouvert ; dernière mesure consignée : 25/09 (ci-dessous). Cause
+  inconnue : vérifier qu'un déploiement `READY` EXISTE après tout merge qui change ce qui est
+  servi. Une PR de doc seule ne déploie rien (`ignoreCommand` exempte `*.md`), c'est voulu.
+- ⚠️ **Préversion = base de prod** : le runtime d'une préversion garde `DATABASE_URL` tant
+  qu'aucune branche Neon dédiée n'existe (`docs/claude/05-deploiement.md`) — toujours vrai.
+- Test instable (backlog, 14/10) : délais dépassés à 5 s sur des tests PGlite
+  (`tests/sante.test.ts`, `tests/historiqueDb.test.ts`), observés deux fois le 14/10.
+- La refonte visuelle et le chantier SEMAINE ne sont consignés nulle part comme vus en usage
+  réel.
+- ⚠️ À trancher par Marc (14/10) : règles de fusion divergentes entre ce dépôt (brouillon =
+  frein, kit `auto-merge.yml`), l'Atelier (`fusion_auto` : jamais en brouillon, jamais à la
+  main) et `claude-config` (« je fusionne moi-même ») — voir `docs/claude/03-git.md`.
+
+## État au 25/09/2026 (historique — remplacé par la section ci-dessus)
 
 > Mesuré le 25/09/2026 à 13 h 44 Z (API Vercel, `git`, API GitHub), pas recopié. Tout ce qui
 > suit est DATÉ : un chiffre au présent rote, et ce document l'a déjà vécu.
@@ -95,7 +141,7 @@ ligne sans que rien ne soit rouge nulle part. Ce qui est établi :
 | #97 | `CAT-H` | le prompt et l'outil MCP n'annoncent plus 10 188 recettes quand on en sert 10 170 |
 | #96, #98 | docs | HANDOVER remis à l'état réel ; un compte qui avait roté dans l'heure, retiré |
 
-### Ce qui reste ouvert
+### Ce qui reste ouvert (au 25/09 ; état courant : section du 14/10)
 
 - 🔴 `DEPLOI-MUET` — ci-dessus. C'est la seule chose qui compte avant tout nouveau lot.
 - Deux points PWA que seul un vrai téléphone tranche (backlog) : un partage Instagram
@@ -104,7 +150,7 @@ ligne sans que rien ne soit rouge nulle part. Ce qui est établi :
 - `ING-09` (26 lignes, 0,03 %) — à rouvrir seulement si l'une gêne en vrai.
 - Deux idées NON arbitrées — à proposer, jamais à prendre seul. (La troisième,
   l'historique, est devenue `HIST-01` sur décision de Marc le 29/09.)
-- **`HIST-01` (29/09)** — `/historique` (lien depuis `/batchs`) : la trace naît à « Terminer
+- **`HIST-01` (29/09, fusionné #148)** — `/historique` (lien depuis `/batchs`) : la trace naît à « Terminer
   le batch », dans le MÊME `db.batch` que le statut, et un recul l'efface. Table
   `meal_history` (migration `0017`, création seule). À faire après le merge : vérifier le
   déploiement `READY`, que la table existe, puis terminer / reculer / supprimer un vrai batch
@@ -140,7 +186,7 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 Production : `batchchef.hubperso.com` (Vercel, projet `batchchef-glu8`).
 Gate : `typecheck` · `lint` · `test` · `build`, plus les **portes qualité** (`npm run portes`).
 Node **24**, Next **16**, zod **4**. Le nombre de tests ne s'écrit pas ici — il se lit dans la CI
-(562 au 23/09, mesuré par #103).
+(562 au 23/09, mesuré par #103 ; 907 au 14/10).
 
 ## Le doublon de la bibliothèque perso (15/09/2026)
 
@@ -352,7 +398,7 @@ l'avait résolu par un OAuth 2.1 mono-utilisateur — c'est ce qui est repris ic
   prouvée par 7 mutations. Puis **en production** : les deux documents de découverte et la
   page de consentement répondent sur `batchchef.hubperso.com`.
 - ⚠️ Trouvé en lisant les en-têtes de production : `form-action` de la CSP n'autorisait pas
-  `claude.ai`. Sans effet aujourd'hui (Report-Only), mais le passage en enforcé aurait coupé
+  `claude.ai`. Sans effet alors (Report-Only ; la CSP est en blocage réel depuis le 29/09, #147), mais le passage en enforcé aurait coupé
   le branchement à la dernière étape, silencieusement. Corrigé et verrouillé.
 
 ### Troisième lot du 19/08 — les noms d'ingrédients (ING-03)
@@ -414,7 +460,7 @@ lui-même révélés :
 
 Le reliquat (`ING-07`) est documenté au backlog, classe par classe.
 
-## Prochaine chose prévue
+## Prochaine chose prévue (au 25/09 — historique ; au 14/10 : gel, voir en tête)
 
 **Au 25/09 : `DEPLOI-MUET` d'abord** (voir « État au 25/09 »). Le rattrapage fiable n'est PAS
 un Redeploy (il rejoue le commit d'un déploiement EXISTANT — `docs/claude/05-deploiement.md`, ancien §6 du `CLAUDE.md`) : c'est un
@@ -430,7 +476,7 @@ PAS une file de travail :
 - `ING-09` — les 26 lignes irréductibles du catalogue (0,03 %), chacune mesurée et nommée.
   **À rouvrir seulement si l'une gêne Marc en vrai**, pas parce qu'elle traîne.
 - Trois idées NON arbitrées (unité inconnue comptée en pièces, historique de ce qui est
-  mangé, budget confronté au réel) — à proposer avant de coder, jamais à prendre seul.
+  mangé — devenu `HIST-01`, livré le 29/09 —, budget confronté au réel) — à proposer avant de coder, jamais à prendre seul.
 
 ⚠️ **Ce qui manque n'est pas du code, c'est de l'USAGE.** Le chantier SEMAINE a été livré en
 une journée et **aucune de ses quatre surfaces n'a servi en vrai** : la carte « Ta semaine »,
@@ -489,7 +535,7 @@ surprennent le plus :
 ## Ce qui demande un geste de Marc
 
 - **Tableau de bord Vercel → `batchchef-glu8`** : comprendre pourquoi des pushs sur `master`
-  ne créent aucun déploiement depuis le 24/09, 15 h 43 Z (`DEPLOI-MUET`). La session n'a accès
+  n'ont créé aucun déploiement, par intermittence, à partir du 24/09, 15 h 43 Z (`DEPLOI-MUET`). La session n'a accès
   ni aux réglages Git du projet, ni à `*.hubperso.com`.
 - Activer **Web Analytics** dans le tableau de bord Vercel (sinon la dépendance ne mesure rien).
 - Le client MCP doit viser **`https://batchchef.hubperso.com/api/mcp`** — jamais une URL
@@ -497,3 +543,5 @@ surprennent le plus :
   celles-là répondent 302 vers la page de connexion Vercel avant que l'app ne tourne.
 - ~~Poser `MCP_TOKEN`~~ — **fait le 19/08**, connecteur branché et vérifié en usage réel.
 - `GROQ_API_KEY` est posée (transcription audio active).
+- Créer une **branche Neon dédiée aux préversions** (risque « préversion = base de prod »,
+  `docs/claude/05-deploiement.md`) — au 14/10, rien n'indique qu'elle existe.

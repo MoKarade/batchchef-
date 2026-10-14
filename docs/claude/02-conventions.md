@@ -28,6 +28,13 @@
 
 ### Direction visuelle (décision de Marc, 13/08/2026)
 
+> **Mise à jour factuelle (14/10/2026)** : depuis la refonte visuelle du 28-29/09 (#140,
+> maquettes dans `docs/maquettes/refonte/`), l'app a un **thème sombre seul** (plus de bascule
+> clair/sombre ni de règle qui suit le thème du système), un jeton `--repere` (terracotta :
+> navigation active, surtitre, catégorie, jamais un état) et un `--accent` argent réservé à
+> l'action principale. Les décisions font foi dans l'en-tête de `web/app/globals.css` ; les
+> passages ci-dessous sur le « thème sombre » racontent l'époque des deux thèmes.
+
 **Identité d'app de cuisine, pas de tableau de bord.** Les deux écrans les plus utilisés —
 la liste d'épicerie et une recette — se lisent DEBOUT, une main occupée, parfois sous les
 néons d'un supermarché.

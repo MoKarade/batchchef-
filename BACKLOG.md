@@ -12,6 +12,13 @@
   `npm run test` a donné 1 échec sur 907 (1 fichier sur 54) ; 4 passes suivantes : 907/907. Le
   fichier n'a pas été relevé. R3 : pas de relance pour « faire passer » ; à la prochaine
   occurrence, noter le nom du test et chercher la cause racine (ordre, horloge, parallélisme).
+  **Occurrence relevée le 14/10/2026** (session de mise à jour de la doc, `e0a22e7`, suite
+  complète lancée deux fois dans un conteneur chargé par d'autres sessions) : 1 puis 2 échecs
+  sur 907, tous des **délais dépassés à 5 000 ms** (`testTimeout` par défaut) sur des tests
+  PGlite — `tests/sante.test.ts` (« 200 { ok: true }, no-store ») les deux fois, et
+  `tests/historiqueDb.test.ts` (« C10 : une seconde passe ne crée ni n'altère rien », 5 967 ms)
+  la seconde fois. Piste [Probable], non vérifiée : démarrage de PGlite + migrations sous
+  charge parallèle, pas une erreur d'assertion. Rien n'a été corrigé.
 
 ### Installable sur le téléphone (Marc, 18/09/2026 — Android)
 
@@ -96,6 +103,10 @@
     portait les lockfiles en retard. **Un trou se referme donc au push suivant, quel qu'il
     soit.** L'item reste ouvert : la CAUSE des silences n'est toujours pas trouvée.
 
+  **Au 14/10/2026** : aucune mesure plus récente que celle du 25/09 n'est consignée dans le
+  dépôt, et aucune cause n'a été trouvée. L'item reste ouvert ; non re-mesuré par la session
+  de mise à jour de la doc (pas d'accès au tableau de bord Vercel).
+
   ⚠️ **Pourquoi une entrée de backlog et pas juste un redéploiement.** Un Redeploy remet ce
   commit en ligne ; il n'explique pas pourquoi le suivant ne partira pas non plus. Tant que
   la cause est inconnue, **chaque merge de ce dépôt doit être vérifié à la main** — et c'est
@@ -104,7 +115,7 @@
 ### Chantier HUB (14/09) — ce que la carte BatchChef dit du hub
 
 - [x] **`HUB-SEM` — la carte montre enfin ce qu'il y a à faire.** Livré le 14/09. Contrat
-  re-pinné sur `v1.3.0`, puis : `dataAsOf` (le dernier geste de Marc — le plus récent entre la
+  re-pinné sur `v1.3.0` (puis `v1.3.1` le 23/09, #110), puis : `dataAsOf` (le dernier geste de Marc — le plus récent entre la
   création d'un batch et la dernière case d'épicerie cochée) ; `primary` qui **suit** ce qu'il
   y a à faire (les courses tant qu'il en reste, l'état de la cuisine sinon — jamais
   « Recettes », dix mille et des qui ne bougent pas) ; le NOM du batch en cours en alerte
