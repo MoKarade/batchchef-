@@ -8,6 +8,11 @@
 
 ## En cours / décidé, pas encore livré
 
+- [ ] **Test instable à identifier (14/10/2026).** Pendant la PR deps #169, une passe de
+  `npm run test` a donné 1 échec sur 907 (1 fichier sur 54) ; 4 passes suivantes : 907/907. Le
+  fichier n'a pas été relevé. R3 : pas de relance pour « faire passer » ; à la prochaine
+  occurrence, noter le nom du test et chercher la cause racine (ordre, horloge, parallélisme).
+
 ### Installable sur le téléphone (Marc, 18/09/2026 — Android)
 
 - [x] **La variante `maskable` n'existait pas : les DEUX icônes étaient `any maskable`.** Le
