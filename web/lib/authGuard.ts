@@ -11,6 +11,17 @@ function estSousChemin(pathname: string, base: string): boolean {
   return pathname === base || pathname.startsWith(`${base}/`);
 }
 
+const SONDE_CONFIGURATION = "/api/sante/configuration";
+
+/**
+ * Seule route servie quand l'authentification n'est PAS configurée (AUTH_SECRET ou
+ * AUTHORIZED_EMAIL absents) : c'est précisément ce qu'elle doit signaler (INC-16). Elle ne
+ * lit aucune donnée et ne rend qu'un compte. ⚠️ ÉGALITÉ STRICTE : rien d'autre ne passe.
+ */
+export function contourneAuthNonConfiguree(pathname: string): boolean {
+  return pathname === SONDE_CONFIGURATION;
+}
+
 export function isPublicPath(pathname: string): boolean {
   if (pathname === "/login" || pathname.startsWith("/login/")) return true;
   if (pathname.startsWith("/api/auth/")) return true;
@@ -20,6 +31,9 @@ export function isPublicPath(pathname: string): boolean {
   // Sous la garde de session, elle recevrait une redirection vers /login au lieu du JSON et
   // ne verrait JAMAIS une panne de base (incident Neon du 29/09/2026). ⚠️ ÉGALITÉ STRICTE.
   if (pathname === "/api/sante") return true;
+  // Sonde de configuration (F7, INC-16) : ne rend qu'un COMPTE de variables manquantes,
+  // jamais un nom. ⚠️ ÉGALITÉ STRICTE.
+  if (pathname === SONDE_CONFIGURATION) return true;
   // Endpoint MCP : gardé par jeton `MCP_TOKEN` dans la route. Comme le hub, c'est une
   // MACHINE qui appelle — elle n'a pas de cookie de session à présenter. Laissé sous la
   // garde de session, il recevrait une redirection HTML vers /login au lieu du JSON-RPC,
