@@ -48,5 +48,11 @@ updates:
     directory: /
     schedule: { interval: weekly, day: monday }
     groups:
-      actions:
+      # Mineures et correctives : fusionnées seules par Mergify quand la CI est verte (MoKarade/.github#26).
+      # Majeures dans leur propre groupe : Marc les fusionne, et elles ne bloquent pas les mineures.
+      actions-mineures:
         patterns: ["*"]
+        update-types: [minor, patch]
+      actions-majeures:
+        patterns: ["*"]
+        update-types: [major]
