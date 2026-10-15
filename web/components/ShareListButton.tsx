@@ -6,7 +6,7 @@
 // Repli sans Web Share (ordi) : copie dans le presse-papier.
 
 import { useState } from "react";
-import { formatQty } from "@/lib/aggregate";
+import { ligneArticle } from "@/lib/listeParRayon";
 
 interface Item {
   name: string;
@@ -26,9 +26,7 @@ export function buildText(batchName: string, items: Item[]): { title: string; bo
   const list = remaining.length > 0 ? remaining : items;
   if (list.length === 0) return null;
   const title = `Épicerie — ${batchName}`;
-  const body = list
-    .map((i) => (i.qty !== null ? `${i.name} — ${formatQty(i.qty, i.unit)}` : i.name))
-    .join("\n");
+  const body = list.map(ligneArticle).join("\n");
   return { title, body };
 }
 

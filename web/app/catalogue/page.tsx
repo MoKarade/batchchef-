@@ -2,6 +2,7 @@
 // (« gingembre » retrouve toute recette qui en contient, pas seulement dans le titre).
 // Source d'idées, séparée de ta bibliothèque perso.
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { and, eq, exists, ilike, or, sql } from "drizzle-orm";
 import { normaliserPourRecherche } from "@/lib/rechercheNormalisee";
 import { db, schema } from "@/lib/db";
@@ -69,6 +70,16 @@ export default async function CataloguePage({
     .leftJoin(schema.typeCorrections, eq(schema.typeCorrections.sourceUrl, schema.catalogRecipes.sourceUrl))
     .where(where ? and(where) : undefined);
   const total = countRows[0]?.n ?? 0;
+  const lastPage = Math.max(1, Math.ceil(total / PAGE));
+  const qs = (p: number) =>
+    `/catalogue?${new URLSearchParams({
+      ...(q ? { q } : {}),
+      ...(typeDemande ? { type: typeDemande } : {}),
+      p: String(p),
+    })}`;
+
+  // Une page trop loin (lien ancien, filtre plus serré) ramène à la dernière page qui existe.
+  if (total > 0 && page > lastPage) redirect(qs(lastPage));
   const recipes = await db
     .select({
       id: schema.catalogRecipes.id,
@@ -82,14 +93,6 @@ export default async function CataloguePage({
     .orderBy(schema.catalogRecipes.id)
     .limit(PAGE)
     .offset((page - 1) * PAGE);
-
-  const lastPage = Math.max(1, Math.ceil(total / PAGE));
-  const qs = (p: number) =>
-    `/catalogue?${new URLSearchParams({
-      ...(q ? { q } : {}),
-      ...(typeDemande ? { type: typeDemande } : {}),
-      p: String(p),
-    })}`;
 
   return (
     <div>
