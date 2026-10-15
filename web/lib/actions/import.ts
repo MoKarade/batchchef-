@@ -35,7 +35,7 @@ import {
   base64Bytes,
   isLikelyBase64,
 } from "@/lib/video/frames";
-import { fail, type ActionResult } from "@/lib/actionsInternes/commun";
+import { fail, messagePageInjoignable, type ActionResult } from "@/lib/actionsInternes/commun";
 import { requireSession } from "@/lib/actionsInternes/session";
 
 export interface RecipePreview {
@@ -70,7 +70,7 @@ export async function parseRecipePreview(
     const page = await telechargerPagePublique(url, {
       userAgent: "Mozilla/5.0 (BatchChef; +recette perso)",
     });
-    if (!page.ok) return { ok: false, error: `Page injoignable (HTTP ${page.status}).` };
+    if (!page.ok) return { ok: false, error: messagePageInjoignable(page.status) };
 
     const text = htmlToText(page.texte);
     const draft = await parseRecipeFromPage(text);
