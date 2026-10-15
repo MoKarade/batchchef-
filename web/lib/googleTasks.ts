@@ -56,16 +56,15 @@ async function createTaskListOnly(accessToken: string, listTitle: string): Promi
   }
   if (!listRes.ok) {
     const body = await listRes.text().catch(() => "");
-    console.error("[tasks] création de liste échouée", listRes.status, body);
-    const g = googleError(body);
-    if (listRes.status === 401) return { ok: false, error: `Jeton Google refusé (401). ${g} — reconnecte-toi.` };
+    console.error("[tasks] création de liste échouée", listRes.status, googleError(body));
+    if (listRes.status === 401) return { ok: false, error: "Google a refusé ta connexion. Reconnecte-toi, puis réessaie." };
     if (listRes.status === 403) {
       return {
         ok: false,
-        error: `Accès refusé (403). ${g} — vérifie que l'API « Google Tasks » est activée dans LE MÊME projet Google Cloud que ton client OAuth, puis « Reconnecter Google ».`,
+        error: "Google Tasks refuse l’accès. Vérifie que l’API « Google Tasks » est activée dans le même projet Google Cloud que ton client OAuth, puis « Reconnecter Google ».",
       };
     }
-    return { ok: false, error: `Google Tasks : HTTP ${listRes.status}. ${g}` };
+    return { ok: false, error: "Google Tasks n’a pas répondu comme prévu. Réessaie plus tard." };
   }
   const list = (await listRes.json()) as { id?: string };
   if (!list.id) return { ok: false, error: "Google Tasks : liste créée sans identifiant." };
