@@ -27,7 +27,7 @@ export function DeleteRecipeButton({ recipeId }: { recipeId: number }) {
         }}
         className="bouton bouton-danger"
       >
-        {pending ? "…" : "Supprimer"}
+        {pending ? "Suppression…" : "Supprimer"}
       </button>
       {error && <p className="mt-1 max-w-40 text-sm texte-erreur">{error}</p>}
     </div>
