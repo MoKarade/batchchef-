@@ -70,8 +70,9 @@ export function SemaineProposee({
         <div className="bandeau erreur" role="alert">
           <IconeErreur />
           <div>
+            {/* La cause technique reste dans les journaux du serveur (cf. app/page.tsx). */}
             <strong>La semaine n’a pas pu être préparée.</strong>
-            <span>La proposition de la semaine n’a pas pu être préparée : {panne}</span>
+            <span>Réessaie plus tard.</span>
           </div>
         </div>
       </section>
