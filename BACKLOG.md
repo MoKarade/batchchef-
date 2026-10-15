@@ -8,6 +8,17 @@
 
 ## En cours / décidé, pas encore livré
 
+### Commande d'épicerie (spec validée par Marc, 30/09/2026)
+
+- [x] **Jalon A — liste par rayon** : bloc « Préparer une commande » sur `/courses/[id]`,
+  rayons dérivés du canonical (`lib/rayons.ts`), texte copiable (`lib/listeParRayon.ts`).
+  30/09/2026.
+- [ ] À regarder sur un vrai batch : un article mal rangé se corrige dans `REGLES` de
+  `lib/rayons.ts`, avec un cas de test.
+- [ ] **Jalon B — liens de recherche par épicier** (Maxi, Metro, IGA, Super C, Walmart) :
+  gabarits d'URL à valider par Marc d'un clic chacun avant fusion ; ordre d'affichage à
+  trancher par Marc.
+
 - [ ] **Test instable à identifier (14/10/2026).** Pendant la PR deps #169, une passe de
   `npm run test` a donné 1 échec sur 907 (1 fichier sur 54) ; 4 passes suivantes : 907/907. Le
   fichier n'a pas été relevé. R3 : pas de relance pour « faire passer » ; à la prochaine

@@ -6,6 +6,26 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
+## Commande d'épicerie, jalon A — liste par rayon (30/09/2026)
+
+Spec `spec-batchchef-commande-epicerie.md` (validée par Marc le 30/09), jalon A sur deux.
+Sur `/courses/[id]`, dans le dépliant « Outils de la liste » : un bloc **« Préparer une
+commande »** montre le restant à acheter regroupé par rayon, et un bouton **« Copier la liste
+par rayon »** le copie (un rayon par paragraphe) pour le recopier dans une commande en ligne.
+
+- **Aucun rayon n'existe dans les données** (`ingredient_master.category` NULL partout dans le
+  seed V3) : le rayon est DÉRIVÉ du canonical par une table de mots-clés fermée
+  (`web/lib/rayons.ts`), en mot entier via `comparable()`, première règle gagnante, rien en
+  base. Ce qui n'est reconnu nulle part va dans « Autres » ; l'écran dit que les rayons sont
+  approximatifs. Mesure du 30/09 : 192 des 200 canonicals les plus fréquents rangés hors
+  « Autres » (96 %), cliquet dans `tests/rayons.test.ts`.
+- Quantités brutes (g, ml, unités), aucun format d'emballage, aucun prix dans le texte.
+- `ligneArticle` (`web/lib/listeParRayon.ts`) est désormais LE formatage de ligne : le partage
+  Keep (`buildText`) l'utilise aussi, comportement inchangé (`tests/shareList.test.ts` intact).
+- Un mauvais rangement se corrige dans la table `REGLES` de `lib/rayons.ts` (ordre = priorité),
+  avec un cas ajouté aux pièges de `tests/rayons.test.ts`.
+- Suite : jalon B (liens de recherche par épicier), après fusion de A.
+
 ## État au 25/09/2026 — à lire en premier
 
 > Mesuré le 25/09/2026 à 13 h 44 Z (API Vercel, `git`, API GitHub), pas recopié. Tout ce qui
@@ -131,7 +151,7 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | **Semaine par l'assistant** | **Neuf (14/09)** — « mets-moi quelque chose avec du poulet à la place du troisième » : l'assistant lit ta semaine, propose, et un bouton dans le chat applique. Plus un « Propose-moi une autre semaine » sur la carte, derrière une confirmation |
 | **Prix, temps et difficulté** | **Neuf (14/09)** — la carte « Ta semaine » annonce le temps total et le prix estimé de l'épicerie ; chaque recette porte une note de difficulté en étoiles (1 à 5), partout où elle s'affiche |
 | **Type de plat** | **Neuf (14/09)** — sept familles déduites du titre et des ingrédients (91,4 % de couverture, 54/56 sur un échantillon jugé). Filtre dans le catalogue, étiquette « estimé » sur les fiches, correction manuelle qui survit au recalcul |
-| Widget hub | `GET /api/hub/summary`, contrat `@mokarade/hub-contract` **v1.3.1** — la carte montre la semaine et « Batchs (30 jours) » (#99) |
+| Widget hub | `GET /api/hub/summary`, contrat `@mokarade/hub-contract` **v1.4.0** (depuis le 15/10/2026) — la carte montre la semaine et « Batchs (30 jours) » (#99) |
 | Installable (Android) | PWA, icône `maskable` dédiée (#102) ; c'est l'app INSTALLÉE qui reçoit les vidéos partagées |
 | **Serveur MCP** | **Neuf (19/08)** — `POST /api/mcp`, 7 outils (4 lecture, 3 écriture). **BRANCHÉ ET VÉRIFIÉ EN USAGE RÉEL** le 19/08 : Marc a connecté le connecteur claude.ai (OAuth 2.1, ADR-0002), et les outils rendent ses vraies données. Claude Code reste possible par jeton direct. |
 | Accès | **Deux étages** : le propriétaire (`AUTHORIZED_EMAIL`, vérifié sans réseau), puis toute personne à qui le hub a donné l'accès (`lib/accesHub.ts` → `POST /api/acces`). Cette ligne disait « mono-adresse » — faux depuis l'étape 2 |
