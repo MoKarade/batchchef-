@@ -1,6 +1,6 @@
 {
   "_doc": "Seuils du cliquet (portes qualité de l'Atelier). Valeurs figées le jour de la mise en place : l'existant est toléré, rien ne peut reculer. `npm run portes:maj` resserre un seuil quand le chiffre s'améliore ; le desserrer demande `--forcer` et une décision de Marc.",
-  "mis_a_jour": "2026-09-29",
+  "mis_a_jour": "2026-10-15",
   "config": {
     "app": "batchchef",
     "lint": "eslint .",
@@ -30,16 +30,16 @@
       "max": 0
     },
     "couverture.lignes_coeur": {
-      "min": 73.5
+      "min": 74.7
     },
     "couverture.lignes_global": {
-      "min": 54.9
+      "min": 55.8
     },
     "couverture.branches_global": {
-      "min": 51.6
+      "min": 52.1
     },
     "code_mort.problemes": {
-      "max": 1
+      "max": 0
     },
     "architecture.violations": {
       "max": 0
