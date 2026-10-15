@@ -5,7 +5,17 @@
 // le plus de temps (une recette, un batch, une liste d'épicerie).
 
 import { describe, expect, it } from "vitest";
-import { ONGLETS, estOngletActif } from "../components/Navigation";
+import { ONGLETS, estOngletActif, estPageSansMenu } from "../components/Navigation";
+
+describe("estPageSansMenu", () => {
+  it("cache le menu sur la page de connexion seulement", () => {
+    expect(estPageSansMenu("/login")).toBe(true);
+    expect(estPageSansMenu("/")).toBe(false);
+    expect(estPageSansMenu("/recettes")).toBe(false);
+    // Un préfixe de lettres n'est pas la page de connexion.
+    expect(estPageSansMenu("/loginfo")).toBe(false);
+  });
+});
 
 describe("estOngletActif", () => {
   it("allume l'onglet d'une SECTION, pas seulement son URL exacte", () => {
