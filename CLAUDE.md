@@ -31,4 +31,4 @@ Planificateur de batch cooking québécois, 100 % en ligne ; toute l'app vit dan
 - **Code et langue** : réponses, commits, docs en français ; TypeScript strict, pas de `any` silencieux, erreurs jamais avalées ; pas d'emoji dans l'UI ni les docs ; logique en fonctions pures testées.
 
 ## Compte-rendu (convention de Marc)
-@docs/COMPTE-RENDU.md
+Règles de forme : instructions du projet « Apps ». Copie lisible à la demande dans `docs/COMPTE-RENDU.md` (non chargée à chaque session ; sa synchro reste vérifiée par la CI).
