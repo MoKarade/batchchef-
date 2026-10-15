@@ -42,6 +42,7 @@ export function IngredientFields({
               value={r.name}
               onChange={(e) => setRow(idx, { name: e.target.value })}
               placeholder="Nom de l’ingrédient"
+              aria-label="Nom de l’ingrédient"
               disabled={disabled}
               className="champ"
             />
@@ -52,11 +53,13 @@ export function IngredientFields({
                 value={r.qty}
                 onChange={(e) => setRow(idx, { qty: e.target.value })}
                 placeholder="Qté"
+                aria-label="Quantité"
                 disabled={disabled}
                 className="champ w-20 text-center num"
               />
               <select
                 value={r.unit ?? "augout"}
+                aria-label="Unité"
                 onChange={(e) =>
                   setRow(idx, { unit: e.target.value === "augout" ? null : (e.target.value as Unit) })
                 }
@@ -73,6 +76,7 @@ export function IngredientFields({
                 value={r.note}
                 onChange={(e) => setRow(idx, { note: e.target.value })}
                 placeholder="Note (facultatif)"
+                aria-label="Note"
                 disabled={disabled}
                 className="min-w-0 flex-1 champ"
               />
@@ -80,7 +84,7 @@ export function IngredientFields({
                 type="button"
                 onClick={() => removeRow(idx)}
                 disabled={disabled}
-                aria-label="Supprimer l’ingrédient"
+                aria-label={r.name.trim() ? `Retirer ${r.name.trim()}` : "Retirer l’ingrédient"}
                 className="bouton bouton-second"
               >
                 Retirer

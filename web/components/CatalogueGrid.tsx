@@ -67,7 +67,7 @@ export function CatalogueGrid({ recipes }: { recipes: CatalogItem[] }) {
               <button
                 type="button"
                 aria-pressed={isSel}
-                aria-label={isSel ? "Désélectionner" : "Sélectionner pour ajout"}
+                aria-label={`${isSel ? "Désélectionner" : "Sélectionner"} ${r.title}`}
                 onClick={() => toggle(r.id)}
                 // La case NON cochée est posée sur la PHOTO de la recette, pas sur une
                 // surface du thème : son contraste se joue contre l'image, jamais contre
