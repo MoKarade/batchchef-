@@ -1,8 +1,10 @@
 # Fusion automatique par Mergify (plan gratuit), en place depuis le 15/10/2026.
 # Remplace l'ancienne fusion automatique de l'Atelier (auto-merge.yml, armement, kit modeles/auto-merge).
 # Une PR prête (pas en brouillon, sans label « hold ») est fusionnée en squash dès que tous les
-# contrôles du gate sont verts (l'audit des dépendances reste à part). Fichiers sensibles
-# (.github/, scripts/hooks/, qualite/, vercel.json, drizzle/, .env, à la racine ou sous web/) : jamais fusionnés automatiquement, c'est Marc qui fusionne.
+# contrôles du gate sont verts (l'audit des dépendances reste à part).
+# Chemins protégés (.github/, hooks, qualite/, vercel.json, drizzle/, .env, extras du dépôt) : fusionnés aussi,
+# SI le contrôle « Garde-fou » est vert (oui écrit de Marc, 15/10/2026). Rouge = la PR attend et une issue
+# `qui:marc` s'ouvre. Règles et tests : MoKarade/.github, scripts/garde-fou.mjs. Ce fichier ne se modifie pas seul.
 # Branche protégée « à jour avant fusion » : Mergify exige une seule vérification à la fois.
 merge_queue:
   max_parallel_checks: 1
@@ -14,11 +16,12 @@ queue_rules:
       - base = master
       - -draft
       - label != hold
-      # Chemins protégés : Marc fusionne. SEULE exception (oui de Marc du 15/10/2026, MoKarade/.github#26) :
-      # montée mineure ou corrective des actions, ouverte par Dependabot, rien hors de .github/,
-      # aucun commit d'un autre auteur que Dependabot ou Mergify. Les majeures restent à Marc.
+      # Chemins protégés : fusionnés si le contrôle « Garde-fou » est vert (oui écrit de Marc, 15/10/2026). Il est vert
+      # d'office hors chemins protégés. Exception Dependabot conservée (oui de Marc, MoKarade/.github#26) : montée
+      # mineure ou corrective des actions, rien hors de .github/, aucun commit d'un autre auteur. Les majeures :
+      # elles passent par le garde-fou comme tout le reste.
       - or:
-          - '-files~=^(web/)?(\.github/|scripts/hooks/|qualite/|vercel\.json|drizzle/|\.env|\.mergify\.yml)'
+          - 'check-success = Garde-fou'
           - and:
               - 'author = dependabot[bot]'
               - 'head ~= ^dependabot/github_actions/'
@@ -33,11 +36,12 @@ queue_rules:
       - base = master
       - -draft
       - label != hold
-      # Chemins protégés : Marc fusionne. SEULE exception (oui de Marc du 15/10/2026, MoKarade/.github#26) :
-      # montée mineure ou corrective des actions, ouverte par Dependabot, rien hors de .github/,
-      # aucun commit d'un autre auteur que Dependabot ou Mergify. Les majeures restent à Marc.
+      # Chemins protégés : fusionnés si le contrôle « Garde-fou » est vert (oui écrit de Marc, 15/10/2026). Il est vert
+      # d'office hors chemins protégés. Exception Dependabot conservée (oui de Marc, MoKarade/.github#26) : montée
+      # mineure ou corrective des actions, rien hors de .github/, aucun commit d'un autre auteur. Les majeures :
+      # elles passent par le garde-fou comme tout le reste.
       - or:
-          - '-files~=^(web/)?(\.github/|scripts/hooks/|qualite/|vercel\.json|drizzle/|\.env|\.mergify\.yml)'
+          - 'check-success = Garde-fou'
           - and:
               - 'author = dependabot[bot]'
               - 'head ~= ^dependabot/github_actions/'
@@ -53,11 +57,12 @@ merge_protections_settings:
     - base = master
     - -draft
     - label != hold
-    # Chemins protégés : Marc fusionne. SEULE exception (oui de Marc du 15/10/2026, MoKarade/.github#26) :
-    # montée mineure ou corrective des actions, ouverte par Dependabot, rien hors de .github/,
-    # aucun commit d'un autre auteur que Dependabot ou Mergify. Les majeures restent à Marc.
+    # Chemins protégés : fusionnés si le contrôle « Garde-fou » est vert (oui écrit de Marc, 15/10/2026). Il est vert
+    # d'office hors chemins protégés. Exception Dependabot conservée (oui de Marc, MoKarade/.github#26) : montée
+    # mineure ou corrective des actions, rien hors de .github/, aucun commit d'un autre auteur. Les majeures :
+    # elles passent par le garde-fou comme tout le reste.
     - or:
-        - '-files~=^(web/)?(\.github/|scripts/hooks/|qualite/|vercel\.json|drizzle/|\.env|\.mergify\.yml)'
+        - 'check-success = Garde-fou'
         - and:
             - 'author = dependabot[bot]'
             - 'head ~= ^dependabot/github_actions/'
