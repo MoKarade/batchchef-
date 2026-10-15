@@ -115,9 +115,9 @@ export function BatchStatusControls({
             router.push("/batchs");
           });
         }}
-        className="bouton bouton-second w-full"
+        className="bouton bouton-danger w-full"
       >
-        Supprimer le batch
+        {pending ? "Suppression…" : "Supprimer le batch"}
       </button>
     </div>
   );
