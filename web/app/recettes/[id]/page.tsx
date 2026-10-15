@@ -88,7 +88,7 @@ export default async function RecipeDetailPage({
       )}
 
       {/* Le geste qui SUIT une recette : un lien souligné se confondait avec le reste. */}
-      <Link href="/batchs/nouveau" className="bouton bouton-second w-full">
+      <Link href={`/batchs/nouveau?recette=${recipe.id}`} className="bouton bouton-second w-full">
         Composer un batch avec cette recette
       </Link>
     </article>
