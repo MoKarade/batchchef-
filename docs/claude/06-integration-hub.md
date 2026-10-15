@@ -5,8 +5,9 @@
 ## 7. Intégration hub
 
 - BatchChef publie `GET /api/hub/summary` conforme à `@mokarade/hub-contract` — **pinné sur
-  le tag `v1.3.1`** depuis le 23/09/2026 (#110 : son `dist/` est commité, ce qu'exige npm 11
-  sous Node 24 ; Dependabot ne le déplace plus, #116) — gardé par le jeton `x-hub-token`.
+  le tag `v1.4.0`** depuis le 15/10/2026 (additif : sous-chemin `/session`, `CONTRACT_VERSION`
+  inchangé). Avant : `v1.3.1` depuis le 23/09/2026 (#110 : son `dist/` est commité, ce qu'exige
+  npm 11 sous Node 24 ; Dependabot ne le déplace plus, #116) — gardé par le jeton `x-hub-token`.
   Voir `lib/hubSummary.ts`.
   ⚠️ Re-pinner n'est pas optionnel pour consommer un champ neuf : Zod STRIPPE les clés
   inconnues, donc sur un pin antérieur `validateSummary` retire `dataAsOf`, `details` et
