@@ -8,6 +8,7 @@ import { db, schema } from "@/lib/db";
 import { CatalogueSearch } from "@/components/CatalogueSearch";
 import { CatalogueGrid } from "@/components/CatalogueGrid";
 import { FiltreType, TYPE_INCONNU } from "@/components/FiltreType";
+import { messageCatalogueVide } from "@/lib/catalogueVide";
 import { estTypePlat } from "@/lib/typePlat";
 import { typeEffectifSql } from "@/lib/typePlatSql";
 
@@ -109,14 +110,8 @@ export default async function CataloguePage({
 
       {recipes.length === 0 ? (
         <div className="vide">
-          <h2>{total === 0 ? "Catalogue vide" : "Aucun résultat"}</h2>
-          <p>
-            {total === 0
-              ? "Catalogue vide — lance l’import (npm run catalog:import) pour peupler les 10 188 recettes."
-              : typeDemande
-                ? "Aucun résultat avec ce type. Le classement est une estimation : essaie « Non déterminé »."
-                : "Aucun résultat pour cette recherche."}
-          </p>
+          <h2>{messageCatalogueVide({ total, typeDemande: Boolean(typeDemande) }).titre}</h2>
+          <p>{messageCatalogueVide({ total, typeDemande: Boolean(typeDemande) }).texte}</p>
         </div>
       ) : (
         <>
