@@ -49,9 +49,9 @@ export function NewBatchForm({
         <div className="space-y-3 text-sm">
           <strong>Batch créé — budget approximatif.</strong>
           <p>
-            L&apos;estimation précise par IA a échoué ({fallbackNotice.error}) : les prix viennent
-            d&apos;un tarif moyen de secours, pas de l&apos;estimation habituelle. Tu peux les
-            corriger dans la liste d&apos;épicerie.
+            L&apos;estimation précise des prix n&apos;a pas fonctionné cette fois : les prix
+            affichés viennent d&apos;un tarif moyen, donc moins exacts. Tu peux les corriger dans
+            la liste d&apos;épicerie.
           </p>
           <Link href={`/batchs/${fallbackNotice.id}`} className="bouton bouton-second">
             Voir le batch →
