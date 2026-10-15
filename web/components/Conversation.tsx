@@ -164,7 +164,11 @@ export function Conversation({ configure }: { configure: boolean }) {
       />
 
       <div className="sticky bottom-24 space-y-2 bg-[var(--fond)] pt-3 md:bottom-0">
+        <label className="etiquette" htmlFor="question-assistant">
+          Ta question
+        </label>
         <textarea
+          id="question-assistant"
           ref={champ}
           value={saisie}
           onChange={(e) => setSaisie(e.target.value)}
