@@ -20,7 +20,9 @@
   (zone sûre = cercle intérieur de 80 %), les poignées et les bords du couvercle se font
   **rogner**. L'icône s'affiche quand même, simplement coupée, et rien ne le signale.
   `icone-maskable-512.png` porte le MÊME motif réduit à 72 % et recentré sur le fond mesuré au
-  coin de l'image : aucune redessinée, seulement des marges. 18/09/2026.
+  coin de l'image : aucune redessinée, seulement des marges. 18/09/2026. Recolorée en #fb923c le 15/10/2026 (suite de #140) : mêmes pixels, seul le fond orange
+  change (la couleur de chaque pixel est recalculée comme mélange fond/blanc), donc la géométrie
+  ne bouge pas ; un re-rendu depuis `app/icon.svg` aurait changé le dessin (vapeur, poignées arrondies).
 - [x] **`id: "/"` et `launch_handler: navigate-existing`.** Sans `id`, l'identité de
   l'installation EST le `start_url` : le jour où il change, Android installe une SECONDE app.
 - [x] Garde : `web/tests/pwaManifeste.test.ts` (4 cas, 4 perturbations prouvées). Elle relit les
