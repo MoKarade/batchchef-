@@ -77,17 +77,21 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
     Object.fromEntries(items.map((i) => [i.id, toFields(i)])),
   );
   const [error, setError] = useState<string | null>(null);
+  // Article dont la correction vient d'être enregistrée : on le DIT (carte 12).
+  const [enregistre, setEnregistre] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
+  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, apres?: () => void) =>
     startTransition(async () => {
       setError(null);
+      setEnregistre(null);
       const res = await fn();
       if (!res.ok) {
         setError(res.error ?? "Échec.");
         return;
       }
+      apres?.();
       router.refresh();
     });
 
@@ -117,6 +121,7 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
             type="text"
             value={add.name}
             onChange={(e) => setAdd({ ...add, name: e.target.value })}
+            aria-label="Nom"
             placeholder="Nom (ex. Sacs de congélation)"
             disabled={pending}
             className="champ"
@@ -127,9 +132,10 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
               inputMode="decimal"
               value={add.qty}
               onChange={(e) => setAdd({ ...add, qty: e.target.value })}
-              placeholder="Qté"
+              aria-label="Quantité"
+              placeholder="Quantité"
               disabled={pending}
-              className="champ w-16 text-center num"
+              className="champ w-24 text-center num"
             />
             <UnitSelect value={add.unit} onChange={(u) => setAdd({ ...add, unit: u })} disabled={pending} />
             <input
@@ -137,6 +143,7 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
               inputMode="decimal"
               value={add.estCost}
               onChange={(e) => setAdd({ ...add, estCost: e.target.value })}
+              aria-label="Prix"
               placeholder="Prix $"
               disabled={pending}
               className="champ w-20 text-center num"
@@ -163,6 +170,7 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
                 <input
                   type="text"
                   value={f.name}
+                  aria-label="Nom"
                   onChange={(e) => setF({ name: e.target.value })}
                   disabled={pending}
                   className="champ"
@@ -173,9 +181,10 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
                     inputMode="decimal"
                     value={f.qty}
                     onChange={(e) => setF({ qty: e.target.value })}
-                    placeholder="Qté"
+                    aria-label="Quantité"
+                    placeholder="Quantité"
                     disabled={pending}
-                    className="champ w-16 text-center num"
+                    className="champ w-24 text-center num"
                   />
                   <UnitSelect value={f.unit} onChange={(u) => setF({ unit: u })} disabled={pending} />
                   <input
@@ -183,25 +192,32 @@ export function ShoppingListEditor({ batchId, items }: { batchId: number; items:
                     inputMode="decimal"
                     value={f.estCost}
                     onChange={(e) => setF({ estCost: e.target.value })}
+                    aria-label="Prix"
                     placeholder="Prix $"
                     disabled={pending}
                     className="champ w-20 text-center num"
                   />
                   <button
                     type="button"
-                    onClick={() => run(() => updateShoppingItem(item.id, toPayload(f)))}
+                    onClick={() => run(() => updateShoppingItem(item.id, toPayload(f)), () => setEnregistre(item.id))}
                     disabled={pending || !f.name.trim()}
                     className="bouton bouton-second ml-auto"
                   >
                     Enregistrer
                   </button>
+                  {enregistre === item.id && (
+                    <span className="texte-succes text-sm" role="status">
+                      Enregistré
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={() => run(() => deleteShoppingItem(item.id))}
                     disabled={pending}
+                    aria-label={`Retirer ${item.name}`}
                     className="bouton bouton-second"
                   >
-                    Suppr.
+                    Retirer
                   </button>
                 </div>
               </li>

@@ -14,9 +14,16 @@ interface RecipeOption {
   servings: number;
 }
 
-export function NewBatchForm({ recipes }: { recipes: RecipeOption[] }) {
+export function NewBatchForm({
+  recipes,
+  initial = {},
+}: {
+  recipes: RecipeOption[];
+  /** Recettes déjà cochées à l'ouverture (depuis la page d'une recette). */
+  initial?: Record<number, number>;
+}) {
   const [name, setName] = useState("");
-  const [portions, setPortions] = useState<Record<number, number>>({});
+  const [portions, setPortions] = useState<Record<number, number>>(initial);
   const [error, setError] = useState<string | null>(null);
   // Batch créé mais estimation LLM tombée sur le filet déterministe : on le dit avant
   // de partir, plutôt que de rediriger en silence sur des prix moins précis.

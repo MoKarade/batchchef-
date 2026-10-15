@@ -39,6 +39,14 @@ export function estOngletActif(href: string, pathname: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/**
+ * La page de connexion s'affiche sans menu : quelqu'un qui n'est pas connecté ne peut rien
+ * ouvrir, et « Déconnexion » ou « ← Hub » n'ont pas de sens devant un bouton de connexion.
+ */
+export function estPageSansMenu(pathname: string): boolean {
+  return pathname === "/login" || pathname.startsWith("/login/");
+}
+
 /** Tracés de la maquette (24×24, trait). Le style vit dans `.nav-lien svg` (globals.css). */
 function Icone({ href }: { href: string }) {
   const trace = (() => {
