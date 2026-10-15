@@ -19,6 +19,11 @@ export default async function LoginPage({
           Accès non autorisé pour ce compte.
         </p>
       )}
+      {params.error && params.error !== "AccessDenied" && (
+        <p className="bandeau erreur mt-3 text-left" role="alert">
+          La connexion a échoué, réessaie.
+        </p>
+      )}
       <form
         action={async () => {
           "use server";
