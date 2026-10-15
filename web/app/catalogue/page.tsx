@@ -2,12 +2,14 @@
 // (« gingembre » retrouve toute recette qui en contient, pas seulement dans le titre).
 // Source d'idées, séparée de ta bibliothèque perso.
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { and, eq, exists, ilike, or, sql } from "drizzle-orm";
 import { normaliserPourRecherche } from "@/lib/rechercheNormalisee";
 import { db, schema } from "@/lib/db";
 import { CatalogueSearch } from "@/components/CatalogueSearch";
 import { CatalogueGrid } from "@/components/CatalogueGrid";
 import { FiltreType, TYPE_INCONNU } from "@/components/FiltreType";
+import { messageCatalogueVide } from "@/lib/catalogueVide";
 import { estTypePlat } from "@/lib/typePlat";
 import { typeEffectifSql } from "@/lib/typePlatSql";
 
@@ -68,6 +70,16 @@ export default async function CataloguePage({
     .leftJoin(schema.typeCorrections, eq(schema.typeCorrections.sourceUrl, schema.catalogRecipes.sourceUrl))
     .where(where ? and(where) : undefined);
   const total = countRows[0]?.n ?? 0;
+  const lastPage = Math.max(1, Math.ceil(total / PAGE));
+  const qs = (p: number) =>
+    `/catalogue?${new URLSearchParams({
+      ...(q ? { q } : {}),
+      ...(typeDemande ? { type: typeDemande } : {}),
+      p: String(p),
+    })}`;
+
+  // Une page trop loin (lien ancien, filtre plus serré) ramène à la dernière page qui existe.
+  if (total > 0 && page > lastPage) redirect(qs(lastPage));
   const recipes = await db
     .select({
       id: schema.catalogRecipes.id,
@@ -81,14 +93,6 @@ export default async function CataloguePage({
     .orderBy(schema.catalogRecipes.id)
     .limit(PAGE)
     .offset((page - 1) * PAGE);
-
-  const lastPage = Math.max(1, Math.ceil(total / PAGE));
-  const qs = (p: number) =>
-    `/catalogue?${new URLSearchParams({
-      ...(q ? { q } : {}),
-      ...(typeDemande ? { type: typeDemande } : {}),
-      p: String(p),
-    })}`;
 
   return (
     <div>
@@ -109,14 +113,8 @@ export default async function CataloguePage({
 
       {recipes.length === 0 ? (
         <div className="vide">
-          <h2>{total === 0 ? "Catalogue vide" : "Aucun résultat"}</h2>
-          <p>
-            {total === 0
-              ? "Catalogue vide — lance l’import (npm run catalog:import) pour peupler les 10 188 recettes."
-              : typeDemande
-                ? "Aucun résultat avec ce type. Le classement est une estimation : essaie « Non déterminé »."
-                : "Aucun résultat pour cette recherche."}
-          </p>
+          <h2>{messageCatalogueVide({ total, typeDemande: Boolean(typeDemande) }).titre}</h2>
+          <p>{messageCatalogueVide({ total, typeDemande: Boolean(typeDemande) }).texte}</p>
         </div>
       ) : (
         <>

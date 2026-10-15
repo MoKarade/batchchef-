@@ -8,6 +8,22 @@
 
 ## En cours / décidé, pas encore livré
 
+### Commande d'épicerie (spec validée par Marc, 30/09/2026)
+
+- [x] **Jalon A — liste par rayon** : bloc « Préparer une commande » sur `/courses/[id]`,
+  rayons dérivés du canonical (`lib/rayons.ts`), texte copiable (`lib/listeParRayon.ts`).
+  30/09/2026.
+- [ ] À regarder sur un vrai batch : un article mal rangé se corrige dans `REGLES` de
+  `lib/rayons.ts`, avec un cas de test.
+- [ ] **Jalon B — liens de recherche par épicier** (Maxi, Metro, IGA, Super C, Walmart) :
+  gabarits d'URL à valider par Marc d'un clic chacun avant fusion ; ordre d'affichage à
+  trancher par Marc.
+
+- [ ] **Test instable à identifier (14/10/2026).** Pendant la PR deps #169, une passe de
+  `npm run test` a donné 1 échec sur 907 (1 fichier sur 54) ; 4 passes suivantes : 907/907. Le
+  fichier n'a pas été relevé. R3 : pas de relance pour « faire passer » ; à la prochaine
+  occurrence, noter le nom du test et chercher la cause racine (ordre, horloge, parallélisme).
+
 ### Installable sur le téléphone (Marc, 18/09/2026 — Android)
 
 - [x] **La variante `maskable` n'existait pas : les DEUX icônes étaient `any maskable`.** Le
@@ -15,7 +31,9 @@
   (zone sûre = cercle intérieur de 80 %), les poignées et les bords du couvercle se font
   **rogner**. L'icône s'affiche quand même, simplement coupée, et rien ne le signale.
   `icone-maskable-512.png` porte le MÊME motif réduit à 72 % et recentré sur le fond mesuré au
-  coin de l'image : aucune redessinée, seulement des marges. 18/09/2026.
+  coin de l'image : aucune redessinée, seulement des marges. 18/09/2026. Recolorée en #fb923c le 15/10/2026 (suite de #140) : mêmes pixels, seul le fond orange
+  change (la couleur de chaque pixel est recalculée comme mélange fond/blanc), donc la géométrie
+  ne bouge pas ; un re-rendu depuis `app/icon.svg` aurait changé le dessin (vapeur, poignées arrondies).
 - [x] **`id: "/"` et `launch_handler: navigate-existing`.** Sans `id`, l'identité de
   l'installation EST le `start_url` : le jour où il change, Android installe une SECONDE app.
 - [x] Garde : `web/tests/pwaManifeste.test.ts` (4 cas, 4 perturbations prouvées). Elle relit les
@@ -623,6 +641,11 @@ sur-compte, parce que le commentaire qui explique le correctif NOMME l'action.
   (10 188 recettes, ouvert rarement) a une recherche ; la bibliothèque perso, ouverte
   souvent, n'en a pas. Constat exact, mais Marc juge le volume actuel trop faible pour que
   ça vaille le travail. À rouvrir si la bibliothèque grossit.
+- [x] ~~Alerte Dependabot #1, esbuild ≤ 0.24.2 (GHSA-67mh-4wv8-2f99, moyenne)~~ — **tolérée
+  le 30/09** (batchchef-chef). Dev-only : tirée par drizzle-kit → `@esbuild-kit/core-utils`
+  → esbuild 0.18.20, qui ne sert qu'à charger la config de drizzle-kit et ne lance jamais de
+  serveur de dev exposé. Un override casserait probablement `@esbuild-kit`. À rouvrir quand
+  une version de drizzle-kit abandonne `@esbuild-kit`.
 
 ## Idées non arbitrées
 

@@ -70,8 +70,9 @@ export function SemaineProposee({
         <div className="bandeau erreur" role="alert">
           <IconeErreur />
           <div>
+            {/* La cause technique reste dans les journaux du serveur (cf. app/page.tsx). */}
             <strong>La semaine n’a pas pu être préparée.</strong>
-            <span>La proposition de la semaine n’a pas pu être préparée : {panne}</span>
+            <span>Réessaie plus tard.</span>
           </div>
         </div>
       </section>
@@ -138,7 +139,7 @@ export function SemaineProposee({
                 className="bouton bouton-principal"
               >
                 <IconePlus />
-                {pending ? "…" : "Créer le batch de la semaine"}
+                {pending ? "Création…" : "Créer le batch de la semaine"}
               </button>
             ) : (
               <Link href={`/batchs/${batchCree}`} className="bouton bouton-principal">
@@ -166,7 +167,7 @@ export function SemaineProposee({
                 onClick={regenerer}
                 className="bouton bouton-second"
               >
-                {pending ? "…" : "Oui, propose-m’en quatre autres"}
+                {pending ? "Nouvelle proposition…" : "Oui, propose-m’en quatre autres"}
               </button>
               <button
                 type="button"
@@ -210,7 +211,7 @@ export function SemaineProposee({
                 onClick={() => remplacer(r.position)}
                 className="bouton bouton-second w-full"
               >
-                {enCours === r.position ? "…" : "Remplacer"}
+                {enCours === r.position ? "Remplacement…" : "Remplacer"}
               </button>
             </div>
           </li>

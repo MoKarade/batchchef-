@@ -1,0 +1,67 @@
+# Fusion automatique par Mergify (plan gratuit), en place depuis le 15/10/2026.
+# Remplace l'ancienne fusion automatique de l'Atelier (auto-merge.yml, armement, kit modeles/auto-merge).
+# Une PR prête (pas en brouillon, sans label « hold ») est fusionnée en squash dès que tous les
+# contrôles du gate sont verts (l'audit des dépendances reste à part). Fichiers sensibles
+# (.github/, scripts/hooks/, qualite/, vercel.json, drizzle/, .env, à la racine ou sous web/) : jamais fusionnés automatiquement, c'est Marc qui fusionne.
+# Branche protégée « à jour avant fusion » : Mergify exige une seule vérification à la fois.
+merge_queue:
+  max_parallel_checks: 1
+queue_rules:
+  - name: default
+    merge_method: squash
+    batch_size: 1
+    queue_conditions:
+      - base = master
+      - -draft
+      - label != hold
+      # Chemins protégés : Marc fusionne. SEULE exception (oui de Marc du 15/10/2026, MoKarade/.github#26) :
+      # montée mineure ou corrective des actions, ouverte par Dependabot, rien hors de .github/,
+      # aucun commit d'un autre auteur que Dependabot ou Mergify. Les majeures restent à Marc.
+      - or:
+          - '-files~=^(web/)?(\.github/|scripts/hooks/|qualite/|vercel\.json|drizzle/|\.env|\.mergify\.yml)'
+          - and:
+              - 'author = dependabot[bot]'
+              - 'head ~= ^dependabot/github_actions/'
+              - '-files ~= ^(?!\.github/)'
+              - 'dependabot-update-type ~= ^version-update:semver-(minor|patch)$'
+              - '-dependabot-update-type = version-update:semver-major'
+              - '-commits[*].author ~= ^(?!(dependabot\[bot\]|mergify\[bot\])$)'
+      - 'check-success = Gate (typecheck · tests · build)'
+      - 'check-success = Qualité (lint · couverture · code mort · architecture)'
+      - 'check-success = Sécurité (secrets · analyse statique)'
+    merge_conditions:
+      - base = master
+      - -draft
+      - label != hold
+      # Chemins protégés : Marc fusionne. SEULE exception (oui de Marc du 15/10/2026, MoKarade/.github#26) :
+      # montée mineure ou corrective des actions, ouverte par Dependabot, rien hors de .github/,
+      # aucun commit d'un autre auteur que Dependabot ou Mergify. Les majeures restent à Marc.
+      - or:
+          - '-files~=^(web/)?(\.github/|scripts/hooks/|qualite/|vercel\.json|drizzle/|\.env|\.mergify\.yml)'
+          - and:
+              - 'author = dependabot[bot]'
+              - 'head ~= ^dependabot/github_actions/'
+              - '-files ~= ^(?!\.github/)'
+              - 'dependabot-update-type ~= ^version-update:semver-(minor|patch)$'
+              - '-dependabot-update-type = version-update:semver-major'
+              - '-commits[*].author ~= ^(?!(dependabot\[bot\]|mergify\[bot\])$)'
+      - 'check-success = Gate (typecheck · tests · build)'
+      - 'check-success = Qualité (lint · couverture · code mort · architecture)'
+      - 'check-success = Sécurité (secrets · analyse statique)'
+merge_protections_settings:
+  auto_merge_conditions:
+    - base = master
+    - -draft
+    - label != hold
+    # Chemins protégés : Marc fusionne. SEULE exception (oui de Marc du 15/10/2026, MoKarade/.github#26) :
+    # montée mineure ou corrective des actions, ouverte par Dependabot, rien hors de .github/,
+    # aucun commit d'un autre auteur que Dependabot ou Mergify. Les majeures restent à Marc.
+    - or:
+        - '-files~=^(web/)?(\.github/|scripts/hooks/|qualite/|vercel\.json|drizzle/|\.env|\.mergify\.yml)'
+        - and:
+            - 'author = dependabot[bot]'
+            - 'head ~= ^dependabot/github_actions/'
+            - '-files ~= ^(?!\.github/)'
+            - 'dependabot-update-type ~= ^version-update:semver-(minor|patch)$'
+            - '-dependabot-update-type = version-update:semver-major'
+            - '-commits[*].author ~= ^(?!(dependabot\[bot\]|mergify\[bot\])$)'

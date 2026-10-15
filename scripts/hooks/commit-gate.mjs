@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// MODÈLE COMMUN — PreToolUse (Bash) : avant tout `git commit`, exige que les étapes du dépôt (typecheck, tests ciblés, build…) soient vertes.
+// MODÈLE COMMUN — PreToolUse (Bash|PowerShell : chaque outil shell, voir commit-gate.reglage.json) : avant tout `git commit`, exige que les étapes du dépôt (typecheck, tests ciblés, build…) soient vertes.
 // exit 2 = bloque. Copie du modèle de l'Atelier (modeles/qualite/), généralisée à partir de FinanceAI/scripts/hooks/commit-gate.mjs (#1071, relu par pole-securite).
 //
 // COMMUN (ce fichier + lib/analyseCommande.mjs) : lecture de la commande, détection d'un VRAI `git commit`, fichiers attendus, exécution SANS shell, plafond de sortie.
@@ -17,9 +17,10 @@ import { execFileSync } from 'node:child_process';
 import { analyseCommande, fichiersAttendus, toucheLeGate, estConfigGlobale, finDeSortie, validerConfigGate, resoudreCommande } from './lib/analyseCommande.mjs';
 
 // Entrée illisible = on ne sait pas ce qui va être lancé : fail-closed (exit 2 + message).
+// Un seul BOM UTF-8 en tête est toléré (un pipe de Windows PowerShell 5.1 l'ajoute) ; rien d'autre : un JSON réellement invalide reste bloqué.
 let cmd;
 try {
-  const entree = JSON.parse(readFileSync(0, 'utf8'));
+  const entree = JSON.parse(readFileSync(0, 'utf8').replace(/^\uFEFF/, ''));
   cmd = entree?.tool_input?.command ?? '';
 } catch (e) {
   process.stderr.write(`Commit-gate : entrée du hook illisible (${e?.message ?? e}). Bloqué par prudence.\n`);
