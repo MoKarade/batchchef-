@@ -3,10 +3,16 @@
 import { desc } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { NewBatchForm } from "@/components/NewBatchForm";
+import { portionsInitiales } from "@/lib/portionsInitiales";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewBatchPage() {
+export default async function NewBatchPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ recette?: string }>;
+}) {
+  const sp = await searchParams;
   const recipes = await db
     .select({
       id: schema.recipes.id,
@@ -24,7 +30,7 @@ export default async function NewBatchPage() {
           <h1>Nouveau batch</h1>
         </div>
       </header>
-      <NewBatchForm recipes={recipes} />
+      <NewBatchForm recipes={recipes} initial={portionsInitiales(recipes, sp.recette)} />
     </div>
   );
 }
