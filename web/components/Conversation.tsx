@@ -108,8 +108,8 @@ export function Conversation({ configure }: { configure: boolean }) {
   if (!configure) {
     return (
       <p className="bandeau alerte">
-        L’assistant n’est pas configuré : il manque <code>ANTHROPIC_API_KEY</code> côté serveur.
-        Ce n’est pas une panne, l’intégration est simplement éteinte.
+        L’assistant n’est pas activé pour le moment. Ce n’est pas une panne : il faut simplement
+        le brancher côté serveur pour pouvoir lui poser des questions.
       </p>
     );
   }
