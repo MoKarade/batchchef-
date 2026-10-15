@@ -43,8 +43,12 @@ export function ImportRecipeForm() {
         analyze();
       }}
     >
+      <label className="etiquette" htmlFor="lien-recette">
+        Lien de la recette
+      </label>
       <div className="flex gap-2">
         <input
+          id="lien-recette"
           type="url"
           required
           value={url}
