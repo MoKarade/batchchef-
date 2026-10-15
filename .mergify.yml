@@ -1,0 +1,31 @@
+# Fusion automatique par Mergify (plan gratuit), en place depuis le 15/10/2026.
+# Remplace l'ancienne fusion automatique de l'Atelier (auto-merge.yml, armement, kit modeles/auto-merge).
+# Une PR prête (pas en brouillon, sans label « hold ») est fusionnée en squash dès que tous les
+# contrôles obligatoires sont verts. Fichiers sensibles (.github/, scripts/hooks/, qualite/,
+# vercel.json, drizzle/, .env) : jamais fusionnés automatiquement, c'est Marc qui fusionne.
+queue_rules:
+  - name: default
+    merge_method: squash
+    batch_size: 1
+    queue_conditions:
+      - base = master
+      - -draft
+      - label != hold
+      - '-files~=^(\.github/|scripts/hooks/|qualite/|vercel\.json|drizzle/|\.env)'
+      - 'check-success = Gate (typecheck · tests · build)'
+      - 'check-success = Audit des dépendances de production'
+      - 'check-success = Qualité (lint · couverture · code mort · architecture)'
+      - 'check-success = Sécurité (secrets · analyse statique)'
+    merge_conditions:
+      - label != hold
+      - '-files~=^(\.github/|scripts/hooks/|qualite/|vercel\.json|drizzle/|\.env)'
+      - 'check-success = Gate (typecheck · tests · build)'
+      - 'check-success = Audit des dépendances de production'
+      - 'check-success = Qualité (lint · couverture · code mort · architecture)'
+      - 'check-success = Sécurité (secrets · analyse statique)'
+merge_protections_settings:
+  auto_merge_conditions:
+    - base = master
+    - -draft
+    - label != hold
+    - '-files~=^(\.github/|scripts/hooks/|qualite/|vercel\.json|drizzle/|\.env)'
