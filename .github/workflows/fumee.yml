@@ -1,0 +1,27 @@
+name: Fumée de production
+
+# Après chaque déploiement de production réussi, sonde l'app EN LIGNE : une CI verte ne prouve pas que
+# le site répond. Le contrôle est le workflow commun de MoKarade/.github (plan de standardisation du
+# 15/10/2026, décision 5) ; ce fichier ne fait que l'appeler.
+#
+# Contrôles (rouge si l'un échoue après 3 essais) : santé (/api/sante), page de connexion (/login).
+# Le journal ne contient ni corps de réponse ni jeton.
+# Le contrôle « summary » est volontairement ABSENT (chemin-summary vide) : il exige le secret HUB_TOKEN du
+# dépôt, que Vercel ne laisse pas relire (valeur masquée) et qu'aucune session ne copie. Sans ce secret il
+# serait rouge à chaque déploiement (« jeton du hub absent »). À rétablir le jour où le secret est posé :
+# remettre `chemin-summary: /api/hub/summary` et le bloc `secrets: hub-token` (tâche liée dans HANDOVER.md).
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+
+jobs:
+  fumee:
+    name: Fumée de production
+    if: github.event.deployment_status.state == 'success' && github.event.deployment_status.environment == 'Production'
+    uses: MoKarade/.github/.github/workflows/fumee.yml@main
+    with:
+      url-base: https://batchchef.hubperso.com
+      # Pas de contrôle summary : voir l'en-tête.
+      chemin-summary: ""

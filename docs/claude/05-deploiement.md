@@ -73,12 +73,13 @@ ces branches, donc leurs migrations n'atteignent la production qu'**au merge**. 
 la PR #86 — zéro déploiement créé pour son push. Le paragraphe ci-dessus reste vrai pour
 un push direct sur `master`, et la vigilance reste la même : ce qui a changé, c'est QUAND ça mord, pas SI.
 
-✅ **Depuis le 16/10/2026 (tâche #218, décision 9a « production seule »)** : `"*/**": false` coupe aussi les
-préversions de toute branche à barre (`feature/…`, `fix/…`, imbriquées comprises), en plus de `claude/*`, `agence/*` et
-`dependabot/*`. `master` n'a pas de barre : jamais coupée. Pas de motif fourre-tout (`**` ou `*`) : Vercel ne documente pas la
-priorité quand une branche correspond à la fois à `false` et à `true`, et se tromper gèle la production (test
-`tests/deploiement.test.ts`). Une branche SANS barre (`essai`) déploierait encore une préversion : nommer toute branche
-`claude/<slug>` ou `feature/<slug>` (CLAUDE.md § Git).
+✅ **Depuis le 16/10/2026, production seule (décision 9a ; tâches #218 puis #216)** : `web/vercel.json` coupe `**`, `*`
+et `*/**` et rouvre `master` seule (`"master": true`), en plus de `claude/*`, `agence/*` et `dependabot/*` : AUCUNE
+préversion, quel que soit le nom de la branche (même sans barre, comme `essai`). C'est la forme que la grille de
+conformité commune exige (ligne 8). #218 avait écarté les motifs fourre-tout, de peur qu'une règle `false` l'emporte sur
+`master: true` et gèle la production ; #216 a levé le doute par la mesure (Hubperso et FinanceAI portent cette forme,
+leurs déploiements de production sont `READY` depuis). Sémantique : une branche à plusieurs règles se déploie si au moins
+une vaut `true`, donc `master: true` ne se retire jamais (verrou `tests/deploiement.test.ts`).
 
 Constaté le 19/08 : la réparation des noms (`ING-03`) avait déjà traité 16 870 lignes de
 production quand j'ai lu les logs de la PRÉVERSION. Sans conséquence ici — la passe est

@@ -6,6 +6,28 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
+## Contrôles communs et grille de conformité (16/10/2026, tâche #216)
+
+La CI appelle maintenant les contrôles communs de `MoKarade/.github` : `securite-commune` (gitleaks sur les commits de la PR,
+OSV-Scanner sur `web/package-lock.json`, CodeQL), `conformite` (la grille de 15 lignes, tableau dans le résumé du job,
+`bloquant: false` tant que des lignes attendent leur tâche) et `fumee.yml` (après chaque déploiement de production : santé
+et connexion de `https://batchchef.hubperso.com`). Le job `gate` lance aussi `npm run lint` (propre, mesuré). Le risque accepté
+`braces` 3.0.3 (dev seulement, GHSA-vfj7-8cjw-p6xm, aucun correctif) est dans `web/osv-scanner.toml`, à réexaminer au
+16/01/2027 (même décision que app-template). `web/vercel.json` : `**` et `*` coupés, `master` seule rouverte (voir
+`docs/claude/05-deploiement.md`). `BACKLOG.md` est un renvoi vers les issues ; l'ancien est dans `docs/archive/`.
+
+Grille mesurée en local avant la PR (6 vert, 9 rouge) ; chaque ligne rouge restante a sa tâche :
+
+| Ligne | Reste rouge parce que | Tâche |
+|---|---|---|
+| 6 Sécurité | scan de secrets et protection au push à activer (réglage propriétaire) | #237 (Marc) |
+| 7 Versions | vitest 4.1, la grille exige 5 (Stryker ne pilote pas encore vitest 5, #119) | #236 |
+| 9 Surveillance | pas de Sentry | #220 |
+| 10 Base | faux rouge : la grille ne lit pas `scripts/vercel-build.mjs` | MoKarade/.github#112 |
+| 12 Socle visuel | pas de thème sombre | #219 |
+
+La fumée ne contrôle pas le summary du hub tant que le secret `HUB_TOKEN` n'est pas dans les secrets du dépôt : #238 (Marc).
+
 ## Test qui échouait au hasard : trouvé (16/10/2026, tâche #204)
 
 Le coupable : `tests/sante.test.ts > GET /api/sante — base réelle en mémoire (PGlite) > 200 { ok: true }, no-store`. Cause : le
@@ -273,7 +295,7 @@ Marc et restent nommées au backlog.
   salade, dessert, sauce et condiment), déduites du titre et des ingrédients. **91,4 % du
   catalogue est classé** ; les 8,6 % restants disent « non déterminé » plutôt que de tomber
   dans la famille la plus probable. Exactitude **54 sur 56** sur un échantillon stratifié jugé
-  à la main — les deux erreurs sont nommées dans `BACKLOG.md`, et 56 est un petit échantillon.
+  à la main — les deux erreurs sont nommées dans `docs/archive/BACKLOG-avant-2026-10-16.md`, et 56 est un petit échantillon.
 
   Ce qui en découle à l'écran : un filtre par type dans le catalogue, une étiquette sur chaque
   fiche (marquée « estimé » tant que Marc ne l'a pas corrigée), et la semaine qui passe à
@@ -331,14 +353,14 @@ Marc et restent nommées au backlog.
   ⚠️ `servings` et `qty` partent dans la MÊME transaction (`db.batch`) : séparées, une
   coupure laisserait la recette fausse d'un facteur R sans qu'aucun écran ne le dise.
   Aucun batch existant ne bouge — vérifié sur le batch #13, liste identique au gramme.
-  Le chantier catalogue complet est planifié dans `BACKLOG.md` (`CAT-B` à `CAT-G`).
+  Le chantier catalogue complet est planifié dans `docs/archive/BACKLOG-avant-2026-10-16.md` (`CAT-B` à `CAT-G`).
 
 - **`ING-08` — les quantités reconstruites depuis le texte source.** 13 448 lignes
   corrigées. Le défaut le plus coûteux : une fraction en tête était lue « 1 », donc
   « 1/2 kg de viande hachée » faisait acheter **1 kg**. Vérifié par un test de corpus sur
   les 87 444 lignes, 3 000 batchs simulés, et la preuve par l'usage sur le batch #13
   (20 articles sur 20 conformes à leur source). Reste 26 lignes irréductibles, nommées une
-  par une dans `BACKLOG.md` (`ING-09`).
+  par une dans `docs/archive/BACKLOG-avant-2026-10-16.md` (`ING-09`).
 - ⚠️ **Le taux de 99,85 % annoncé par `ING-06` ne portait que sur le nom et l'unité.** La
   colonne quantité n'était jugée que par l'absurde. À relire avant de citer ce chiffre.
 

@@ -1,0 +1,8 @@
+# Risques acceptés pour OSV-Scanner (workflow commun securite.yml). Une exception = un identifiant,
+# une raison, une date de réexamen : passé cette date, l'alerte revient d'elle-même.
+# Ce fichier est à côté de web/package-lock.json : OSV-Scanner lit la configuration du dossier du verrou.
+
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+ignoreUntil = 2027-01-16
+reason = "braces 3.0.3, dépendance de développement seulement (eslint-config-next, micromatch) : elle ne part jamais en production (`npm audit --omit=dev` rend 0). Aucun correctif publié (3.0.3 est la dernière version). Même risque que app-template, toléré par Marc le 16/10/2026 ; à réexaminer si un correctif sort."
