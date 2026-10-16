@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { verifierMigrations, type LigneSuivi, type MigrationAttendue } from "@/lib/verifierMigrations";
 import { creerBaseTest } from "./outils/basePglite";
 
@@ -76,6 +76,14 @@ describe("verifierMigrations (pure)", () => {
 });
 
 describe("verifierMigrations sur le vrai journal du dépôt (PGlite)", () => {
+  // Une seule base pour tout le bloc : appliquer 18 migrations coûte quelques secondes, le faire trois fois
+  // alourdissait la suite (un test voisin, sante.test.ts, a dépassé son délai de 5 s sous charge).
+  let suiviReel: LigneSuivi[] = [];
+  beforeAll(async () => {
+    const base = await creerBaseTest();
+    suiviReel = (await base.execute<LigneSuivi>(sql`select created_at from drizzle.__drizzle_migrations`)).rows;
+  }, 60_000);
+
   it("le journal n'est pas vide et l'ordre des `when` est strictement croissant", () => {
     expect(attenduesDuDepot.length).toBeGreaterThan(0);
     for (let i = 1; i < attenduesDuDepot.length; i += 1) {
@@ -90,18 +98,14 @@ describe("verifierMigrations sur le vrai journal du dépôt (PGlite)", () => {
     expect(verifierMigrations(attenduesDuDepot, null).ok).toBe(false);
   });
 
-  it("après les VRAIES migrations du dépôt : la dernière est dans la table de suivi → ok, sans avertissement", async () => {
-    const base = await creerBaseTest();
-    const r = await base.execute<LigneSuivi>(sql`select created_at from drizzle.__drizzle_migrations`);
-    const v = verifierMigrations(attenduesDuDepot, r.rows);
-    expect(v).toMatchObject({ ok: true, avertissements: [] });
+  it("après les VRAIES migrations du dépôt : la dernière est dans la table de suivi → ok, sans avertissement", () => {
+    expect(verifierMigrations(attenduesDuDepot, suiviReel)).toMatchObject({ ok: true, avertissements: [] });
   });
 
-  it("migrations appliquées puis dernière ligne perdue (retard d'une migration) → échec", async () => {
-    const base = await creerBaseTest();
-    await base.execute(sql`delete from drizzle.__drizzle_migrations where created_at = (select max(created_at) from drizzle.__drizzle_migrations)`);
-    const r = await base.execute<LigneSuivi>(sql`select created_at from drizzle.__drizzle_migrations`);
-    const v = verifierMigrations(attenduesDuDepot, r.rows);
+  it("migrations appliquées puis dernière ligne perdue (retard d'une migration) → échec", () => {
+    const plusGrand = Math.max(...suiviReel.map((l) => Number(l.created_at)));
+    const enRetard = suiviReel.filter((l) => Number(l.created_at) !== plusGrand);
+    const v = verifierMigrations(attenduesDuDepot, enRetard);
     expect(v.ok).toBe(false);
     expect(v.message).toContain(attenduesDuDepot[attenduesDuDepot.length - 1]!.tag);
   });

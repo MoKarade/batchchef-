@@ -39,6 +39,17 @@ quatre merges restés sans déploiement. *(Cette ligne disait jusque-là qu'un c
 Corollaire : un merge qui ne change QUE de la doc n'a pas de déploiement à vérifier. Le dire
 plutôt que de laisser croire qu'on a vérifié.
 
+### Les migrations sont VÉRIFIÉES après coup (16/10/2026, tâche #213)
+
+`drizzle-kit migrate` peut sortir en code 0 sans rien appliquer (JobAI l'a vécu avec `@neondatabase/serverless`). Depuis le
+16/10/2026, en production, `vercel-build` enchaîne `db:migrate` → **`db:verifier-migrations`** → `db:reparer-ingredients` → build.
+`scripts/verifier-migrations.ts` lit (SELECT seul, `neon-http`) `drizzle.__drizzle_migrations` et exige que son plus grand
+`created_at` égale le plus grand `when` de `drizzle/meta/_journal.json` (règle de Drizzle : il n'applique que ce qui dépasse la
+dernière ligne). Sinon : sortie 1, build arrêté, la version précédente reste en ligne. La preuve s'imprime dans le journal de build
+(`[migrations] Base à jour : dernière migration … présente`). Logique pure : `lib/verifierMigrations.ts`, tests
+`tests/verifierMigrations.test.ts` (base vierge, base en retard, vraies migrations sur PGlite). Une migration intermédiaire sans
+ligne n'est qu'un avertissement.
+
 ### ⚠️ Une PRÉVERSION écrit dans la base de PRODUCTION
 
 ✅ **GARDE EN PLACE (25/09/2026).** `vercel-build` lance `node scripts/vercel-build.mjs` : `db:migrate` et
