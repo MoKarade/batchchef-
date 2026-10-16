@@ -71,8 +71,14 @@ avant toute revue.**
 `git.deploymentEnabled: { "claude/*": false }` : Vercel ne construit AUCUNE préversion pour
 ces branches, donc leurs migrations n'atteignent la production qu'**au merge**. Vérifié sur
 la PR #86 — zéro déploiement créé pour son push. Le paragraphe ci-dessus reste vrai pour
-toute autre branche (`feature/*`, un push direct), et la vigilance reste la même : ce qui a
-changé, c'est QUAND ça mord, pas SI.
+un push direct sur `master`, et la vigilance reste la même : ce qui a changé, c'est QUAND ça mord, pas SI.
+
+✅ **Depuis le 16/10/2026 (tâche #218, décision 9a « production seule »)** : `"*/**": false` coupe aussi les
+préversions de toute branche à barre (`feature/…`, `fix/…`, imbriquées comprises), en plus de `claude/*`, `agence/*` et
+`dependabot/*`. `master` n'a pas de barre : jamais coupée. Pas de motif fourre-tout (`**` ou `*`) : Vercel ne documente pas la
+priorité quand une branche correspond à la fois à `false` et à `true`, et se tromper gèle la production (test
+`tests/deploiement.test.ts`). Une branche SANS barre (`essai`) déploierait encore une préversion : nommer toute branche
+`claude/<slug>` ou `feature/<slug>` (CLAUDE.md § Git).
 
 Constaté le 19/08 : la réparation des noms (`ING-03`) avait déjà traité 16 870 lignes de
 production quand j'ai lu les logs de la PRÉVERSION. Sans conséquence ici — la passe est

@@ -12,6 +12,12 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // Délais larges (#204) : une base PGlite (WebAssembly) met plus de 5 s à démarrer quand la machine est chargée
+    // (CI partagée, plusieurs fichiers de test qui en créent une en parallèle). Mesuré le 16/10/2026 : sur UN seul cœur
+    // (`taskset -c 0 npx vitest run`), `tests/sante.test.ts > 200 { ok: true }` dépassait 5 000 ms à chaque passe, alors
+    // qu'il passe en 1 s sur une machine libre. Ce n'est pas un test qui boucle : c'est le démarrage de PGlite.
+    testTimeout: 30_000,
+    hookTimeout: 60_000,
     // Couverture (porte qualité de l'Atelier) : calculée seulement avec --coverage (npm run portes).
     coverage: {
       provider: "v8",
