@@ -6,10 +6,8 @@ name: Fumée de production
 #
 # Contrôles (rouge si l'un échoue après 3 essais) : santé (/api/sante), page de connexion (/login).
 # Le journal ne contient ni corps de réponse ni jeton.
-# Le contrôle « summary » est volontairement ABSENT (chemin-summary vide) : il exige le secret HUB_TOKEN du
-# dépôt, que Vercel ne laisse pas relire (valeur masquée) et qu'aucune session ne copie. Sans ce secret il
-# serait rouge à chaque déploiement (« jeton du hub absent »). À rétablir le jour où le secret est posé :
-# remettre `chemin-summary: /api/hub/summary` et le bloc `secrets: hub-token` (tâche liée dans HANDOVER.md).
+# Le contrôle « summary » sonde /api/hub/summary avec le secret HUB_TOKEN du dépôt (posé par Marc le 16/10/2026,
+# tâche #238). Le jeton est passé au workflow commun, jamais écrit dans un journal.
 on:
   deployment_status:
 
@@ -23,5 +21,6 @@ jobs:
     uses: MoKarade/.github/.github/workflows/fumee.yml@main
     with:
       url-base: https://batchchef.hubperso.com
-      # Pas de contrôle summary : voir l'en-tête.
-      chemin-summary: ""
+      chemin-summary: /api/hub/summary
+    secrets:
+      hub-token: ${{ secrets.HUB_TOKEN }}
