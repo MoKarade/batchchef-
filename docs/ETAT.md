@@ -41,7 +41,9 @@ de l'import par URL (SSRF) et des routes MCP/OAuth (#131).
 
 - **Commande d'épicerie** (spec validée le 30/09) : jalon A livré le 30/09 (liste restante
   regroupée par rayon approximatif et copiable, sur `/courses/[id]`) ; jalon B (liens de
-  recherche par épicier) à venir. Détail dans `HANDOVER.md`.
+  recherche par épicier : Maxi, Metro, IGA, Super C, Walmart, `lib/epiciers.ts`) codé le 16/10/2026,
+  en brouillon tant que Marc n'a pas validé chaque gabarit d'URL d'un clic (tâche #193). Détail dans
+  `HANDOVER.md`.
 
 ## Bloqué / risque ouvert
 

@@ -68,7 +68,11 @@ par rayon »** le copie (un rayon par paragraphe) pour le recopier dans une comm
   Keep (`buildText`) l'utilise aussi, comportement inchangé (`tests/shareList.test.ts` intact).
 - Un mauvais rangement se corrige dans la table `REGLES` de `lib/rayons.ts` (ordre = priorité),
   avec un cas ajouté aux pièges de `tests/rayons.test.ts`.
-- Suite : jalon B (liens de recherche par épicier), après fusion de A.
+- Jalon B (liens de recherche par épicier, tâche #193) : `lib/epiciers.ts` (5 gabarits d'URL de
+  recherche, `lienRecherche` encode le terme) et un sélecteur « Chercher chez » dans
+  `components/CommandeEpicerie.tsx`, un lien « Chercher » par article. Les 5 sites refusent les robots
+  (HTTP 403 le 16/10/2026) : AUCUN gabarit n'a été ouvert par une session. La spec veut que Marc les
+  valide d'un clic avant la fusion, et qu'il tranche l'ordre d'affichage (celui de la spec pour l'instant).
 
 ## État au 25/09/2026 — à lire en premier
 
