@@ -24,7 +24,13 @@ Grille mesurée en local avant la PR (6 vert, 9 rouge) ; chaque ligne rouge rest
 | 7 Versions | vitest 4.1, la grille exige 5 (Stryker ne pilote pas encore vitest 5, #119) | #236 |
 | 9 Surveillance | pas de Sentry | #220 |
 | 10 Base | faux rouge : la grille ne lit pas `scripts/vercel-build.mjs` | MoKarade/.github#112 |
-| 12 Socle visuel | pas de thème sombre | #219 |
+| 12 Socle visuel | faux rouge : la grille ne voit pas le `color-scheme: dark` de `:root` quand `globals.css` commence par `@import "tailwindcss";` | MoKarade/.github#113 |
+
+Socle visuel commun (tâche #219, 16/10/2026) : déjà appliqué, rien à refaire à l'écran. Le socle d'app-template (#39) est repris
+de la direction visuelle de BatchChef : mêmes jetons (comparés dans `globals.css`, seuls `--police` et `--police-code` y portent ici d'autres
+noms : `--police-titre`, `--police-texte`, `--police-chiffres`), mêmes règles verrouillées par `web/tests/theme.test.ts` (9 tests verts :
+couleurs seulement dans `globals.css`, aucune classe de palette, WCAG, cibles et champs). Seul écart voulu : BatchChef reste en thème sombre
+seul (décision de Marc, 26/09/2026) là où le socle suit le système ; la grille accepte ce choix (`MoKarade/.github#98`).
 
 La fumée ne contrôle pas le summary du hub tant que le secret `HUB_TOKEN` n'est pas dans les secrets du dépôt : #238 (Marc).
 
