@@ -99,6 +99,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # Le gate du CLAUDE.md citait `lint` sans que la CI le lance (ligne 3 de la grille de conformité).
+      # Mesuré propre le 16/10/2026 (`eslint .` : 0 erreur, 0 avertissement) avant de le rendre bloquant.
+      - name: Lint
+        run: npm run lint
+
       # Parmi ces tests, `tests/dependances.test.ts` inspecte TOUTES les copies du
       # lockfile — Next embarque sa propre postcss dans son node_modules, invisible
       # depuis le premier niveau. C'est le verrou des planchers de version ; il ne
@@ -247,6 +252,36 @@ jobs:
           name: rapport-mutation
           path: web/reports/mutation/
           if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------------------
+  # Contrôles COMMUNS aux dix dépôts, écrits une seule fois dans MoKarade/.github (plan de
+  # standardisation du 15/10/2026). Ce fichier ne fait que les appeler ; l'appel d'un workflow
+  # commun reste en `@main` (voulu : un correctif y atteint tous les dépôts sans PR).
+  #
+  # `securite-commune` s'ajoute au job `securite` ci-dessus sans le remplacer : le renommer
+  # changerait le contrôle « Sécurité (secrets · analyse statique) » que .mergify.yml exige.
+  # Le verrou des dépendances est dans `web/` : OSV-Scanner y lit aussi `osv-scanner.toml`.
+  securite-commune:
+    name: Sécurité commune
+    if: github.event_name != 'schedule'
+    uses: MoKarade/.github/.github/workflows/securite.yml@main
+    with:
+      dossier-verrou: web
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+  # La grille de conformité : un tableau ligne par ligne dans le résumé du job. `bloquant: false`
+  # tant que des lignes attendent leur tâche (voir HANDOVER.md « Grille de conformité ») ;
+  # passer à `true` quand toute la grille est verte.
+  conformite:
+    name: Conformité
+    if: github.event_name != 'schedule'
+    uses: MoKarade/.github/.github/workflows/conformite.yml@main
+    with:
+      bloquant: false
+      racine: web
 
 # ── Note sur le cron ──────────────────────────────────────────────────────────
 # GitHub désactive les workflows planifiés d'un dépôt resté 60 jours sans activité et

@@ -2,13 +2,16 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
+      "**": false,
+      "*": false,
       "claude/*": false,
       "claude/**": false,
       "agence/*": false,
       "agence/**": false,
       "dependabot/*": false,
       "dependabot/**": false,
-      "*/**": false
+      "*/**": false,
+      "master": true
     }
   },
   "framework": "nextjs",

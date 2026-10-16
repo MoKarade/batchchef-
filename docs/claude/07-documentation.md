@@ -5,7 +5,7 @@
 ## 8. Documentation (où vit quoi)
 
 - **`HANDOVER.md`** — état courant, **à lire en premier** à chaque reprise.
-- `BACKLOG.md` — tâches, chacune avec sa case, cochée au merge. ⚠️ Un item peut être périmé.
+- `BACKLOG.md` — un renvoi vers les issues du dépôt (20 lignes au plus) ; l'ancien backlog est dans `docs/archive/`.
 - `docs/LESSONS.md` — ce qui a été appris en le vivant · `docs/adr/` — décisions verrouillées.
 
 ⚠️ Doc périmée = pire que pas de doc.
@@ -15,7 +15,7 @@
 | `README.md` · `web/README.md` | À quoi sert l'app, pour un lecteur extérieur. |
 | `CLAUDE.md` | Ce fichier. Se charge à **chaque session** → il reste **court**. |
 | `HANDOVER.md` | L'état RÉEL : ce qui tourne, ce qui reste à poser. À lire en premier. |
-| `BACKLOG.md` | Ce qui est décidé mais pas fait. |
+| `BACKLOG.md` | Un renvoi vers les issues du dépôt, où vit ce qui est décidé mais pas fait (20 lignes au plus). |
 | `docs/adr/` | Décisions architecturales, `NNNN-slug.md`. |
 | `docs/LESSONS.md` | Les leçons détaillées. Elles vont là, pas dans ce fichier. |
 

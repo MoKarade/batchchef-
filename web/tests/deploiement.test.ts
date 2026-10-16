@@ -29,16 +29,22 @@ describe("garde-fou de déploiement Vercel", () => {
     }
   });
 
-  it("toute branche à barre (feature/x, fix/x…) est coupée aussi, et jamais master (#218)", () => {
-    // Décision 9a du 15/10/2026 : production seule. `*/**` couvre tout nom de branche qui contient une barre
-    // (claude/…, feature/…, imbriqués compris) ; `master` n'en contient pas. Même motif que JobAI, en production
-    // depuis. On n'emploie PAS de motif fourre-tout (`**`, `*`) : le sens de priorité d'une branche qui
-    // correspond à la fois à `false` et à `true` n'est pas documenté par Vercel, et se tromper gèle la production.
+  it("production seule : tout est coupé sauf master, à la forme de Hubperso et FinanceAI (#216)", () => {
+    // Décision 9a du 15/10/2026 : production seule. La grille de conformité commune (ligne 8) exige la forme
+    // `**` + `*` coupés et la branche par défaut rouverte EXPLICITEMENT. `*/**` seul ne couvrait pas un nom
+    // sans barre (`correctif`, `test-x`), qui produisait une préversion sur la base de production.
+    // Avant #216 ce test INTERDISAIT les motifs fourre-tout, de peur qu'une règle `false` ne l'emporte sur
+    // `master: true` et ne gèle la production. Le doute est levé par la mesure : Hubperso et FinanceAI portent
+    // exactement cette forme et leurs déploiements de production sont `READY` depuis (16/10/2026, API Vercel,
+    // Hubperso #224 compris, qui a posé la règle). Sémantique : une branche à plusieurs règles se déploie si
+    // AU MOINS UNE vaut `true` ; c'est pourquoi `master: true` doit rester, sans quoi plus rien ne se déploie.
     const actif = vercel.git?.deploymentEnabled ?? {};
-    expect(actif["*/**"]).toBe(false);
-    for (const motif of ["**", "*", "master", "**/*"]) {
-      expect(actif[motif], motif).not.toBe(false);
+    expect(actif["master"], "master").toBe(true);
+    for (const motif of ["**", "*", "*/**"]) {
+      expect(actif[motif], motif).toBe(false);
     }
+    // Aucune autre branche n'est rouverte : `master` est la seule règle vraie.
+    expect(Object.entries(actif).filter(([, valeur]) => valeur !== false)).toEqual([["master", true]]);
   });
 
   it("vercel.json délègue la décision de build à un script", () => {
