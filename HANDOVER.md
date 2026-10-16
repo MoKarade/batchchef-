@@ -6,6 +6,14 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
+## Migrations vérifiées au déploiement (16/10/2026, tâche #213)
+
+`vercel-build` (production seulement) lance maintenant `db:verifier-migrations` juste après `db:migrate` : le build s'arrête si la
+dernière migration du dépôt n'est pas dans `drizzle.__drizzle_migrations`. Détail : `docs/claude/05-deploiement.md`. Constat
+du journal de build du déploiement `dpl_H2XKnvfDiUJosqTkDQrL8Ld3FtJf` (READY, commit `1364cd0`) : `drizzle-kit migrate` a bien
+annoncé « migrations applied successfully » avec le pilote Neon, mais sans lister ce qui avait été appliqué ; c'est ce que la
+vérification ajoute.
+
 ## Commande d'épicerie, jalon A — liste par rayon (30/09/2026)
 
 Spec `spec-batchchef-commande-epicerie.md` (validée par Marc le 30/09), jalon A sur deux.

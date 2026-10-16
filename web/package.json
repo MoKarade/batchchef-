@@ -13,6 +13,7 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:verifier-migrations": "tsx scripts/verifier-migrations.ts",
     "catalog:import": "tsx scripts/import-catalog.ts",
     "db:reparer-ingredients": "tsx scripts/reparer-ingredients.ts",
     "portes": "node qualite/portes.mjs",
