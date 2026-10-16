@@ -29,6 +29,18 @@ describe("garde-fou de déploiement Vercel", () => {
     }
   });
 
+  it("toute branche à barre (feature/x, fix/x…) est coupée aussi, et jamais master (#218)", () => {
+    // Décision 9a du 15/10/2026 : production seule. `*/**` couvre tout nom de branche qui contient une barre
+    // (claude/…, feature/…, imbriqués compris) ; `master` n'en contient pas. Même motif que JobAI, en production
+    // depuis. On n'emploie PAS de motif fourre-tout (`**`, `*`) : le sens de priorité d'une branche qui
+    // correspond à la fois à `false` et à `true` n'est pas documenté par Vercel, et se tromper gèle la production.
+    const actif = vercel.git?.deploymentEnabled ?? {};
+    expect(actif["*/**"]).toBe(false);
+    for (const motif of ["**", "*", "master", "**/*"]) {
+      expect(actif[motif], motif).not.toBe(false);
+    }
+  });
+
   it("vercel.json délègue la décision de build à un script", () => {
     expect(vercel.ignoreCommand).toBeTruthy();
   });
