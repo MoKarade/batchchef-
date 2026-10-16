@@ -32,7 +32,7 @@ noms : `--police-titre`, `--police-texte`, `--police-chiffres`), mêmes règles 
 couleurs seulement dans `globals.css`, aucune classe de palette, WCAG, cibles et champs). Seul écart voulu : BatchChef reste en thème sombre
 seul (décision de Marc, 26/09/2026) là où le socle suit le système ; la grille accepte ce choix (`MoKarade/.github#98`).
 
-La fumée ne contrôle pas le summary du hub tant que le secret `HUB_TOKEN` n'est pas dans les secrets du dépôt : #238 (Marc).
+La fumée contrôle aussi `/api/hub/summary` avec le secret `HUB_TOKEN` du dépôt (posé par Marc le 16/10/2026, tâche #238) ; première preuve : le prochain déploiement de production.
 
 ## Test qui échouait au hasard : trouvé (16/10/2026, tâche #204)
 
