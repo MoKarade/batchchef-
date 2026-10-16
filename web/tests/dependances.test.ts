@@ -56,9 +56,9 @@ const PLANCHERS: readonly { paquet: string; minimum: string; faille: string }[] 
   },
   {
     paquet: "next",
-    minimum: "15.5.24",
+    minimum: "16.4.1",
     faille:
-      "GHSA-2xp9-vwfh-vxw4 — exécution de code à distance NON AUTHENTIFIÉE dans l'API d'optimisation d'images, sur un fichier AVIF (CRITICAL), 14/09/2026. ⚠️ La surface est ouverte ici : `/_next/image` est dans `isPublicPath`, donc atteignable sans session. Le second avis du même lot (GHSA-p293-qw3h-jr36) ne vise que les serveurs Windows et ne s'applique pas à Vercel — celui-ci, si.",
+      "GHSA-673q-mjm6-r5xr (RCE non authentifiée, `use cache` et tableaux typés, CRITICAL), GHSA-2464-fhr4-w9xw (RCE non authentifiée, optimisation d'images SVG sous glibc, CRITICAL) et GHSA-p3m5-59mp-jv5r (déni de service par Server Actions, HIGH), corrigées en 16.4.1 le 14/10/2026 ; touchées : 16.0.0 à 16.4.0. Remplace le plancher 15.5.24 : un plancher MONTE, il ne redescend jamais. Ancien motif de 15.5.24 : GHSA-2xp9-vwfh-vxw4 — exécution de code à distance NON AUTHENTIFIÉE dans l'API d'optimisation d'images, sur un fichier AVIF (CRITICAL), 14/09/2026. ⚠️ La surface est ouverte ici : `/_next/image` est dans `isPublicPath`, donc atteignable sans session. Le second avis du même lot (GHSA-p293-qw3h-jr36) ne vise que les serveurs Windows et ne s'applique pas à Vercel — celui-ci, si.",
   },
   {
     paquet: "nanoid",
