@@ -36,8 +36,9 @@ const CSP = [
   "media-src 'self' blob:",
   "font-src 'self' data:",
   // Les appels Google Tasks et Anthropic partent du SERVEUR (Server Actions), jamais du
-  // navigateur → 'self' suffit.
-  "connect-src 'self'",
+  // navigateur. Seule exception : l'envoi des erreurs à Sentry (instrumentation-client.ts), vers
+  // les hôtes d'ingestion Sentry (un par région). Sans eux la CSP bloquerait chaque envoi, en silence.
+  "connect-src 'self' https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io",
   // PWA : le service worker qui reçoit les partages Android, et le manifeste qui déclare
   // la cible de partage. Explicites plutôt que dépendants du repli sur `default-src` —
   // une CSP se lit, elle ne se déduit pas.
@@ -72,6 +73,14 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // Sans cela Next empaquette le SDK Sentry côté serveur et son chargeur de crochets échoue avec
+  // « Cannot find package '@sentry/server-runtime-injection' ».
+  serverExternalPackages: ["@sentry/server-runtime-injection"],
+  // Un seul réglage pour Sentry : `SENTRY_DSN` (serveur) est aussi donné au navigateur, car un DSN
+  // n'est pas un secret. Vide = Sentry éteint (voir lib/sentryConfig.ts).
+  env: {
+    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN ?? process.env.SENTRY_DSN ?? "",
+  },
   // Images de recettes : URLs externes arbitraires (sites de recettes) → pas d'optimisation
   // serveur (coût/allowlist) ; on sert les <img> telles quelles.
   images: { unoptimized: true },

@@ -22,7 +22,7 @@ Grille mesurée en local avant la PR (6 vert, 9 rouge) ; chaque ligne rouge rest
 |---|---|---|
 | 6 Sécurité | scan de secrets et protection au push à activer (réglage propriétaire) | #237 (Marc) |
 | 7 Versions | vitest 4.1, la grille exige 5 (Stryker ne pilote pas encore vitest 5, #119) | #236 |
-| 9 Surveillance | pas de Sentry | #220 |
+| 9 Surveillance | Sentry branché (dépendance `@sentry/*`, voir plus bas) : la ligne passe au vert ; la preuve attend le DSN de Marc | #220 |
 | 10 Base | faux rouge : la grille ne lit pas `scripts/vercel-build.mjs` | MoKarade/.github#112 |
 | 12 Socle visuel | faux rouge : la grille ne voit pas le `color-scheme: dark` de `:root` quand `globals.css` commence par `@import "tailwindcss";` | MoKarade/.github#113 |
 
@@ -31,6 +31,13 @@ de la direction visuelle de BatchChef : mêmes jetons (comparés dans `globals.c
 noms : `--police-titre`, `--police-texte`, `--police-chiffres`), mêmes règles verrouillées par `web/tests/theme.test.ts` (9 tests verts :
 couleurs seulement dans `globals.css`, aucune classe de palette, WCAG, cibles et champs). Seul écart voulu : BatchChef reste en thème sombre
 seul (décision de Marc, 26/09/2026) là où le socle suit le système ; la grille accepte ce choix (`MoKarade/.github#98`).
+
+Sentry (tâche #220, 16/10/2026) : les erreurs serveur (`web/instrumentation.ts`) et navigateur (`web/instrumentation-client.ts`, `web/app/global-error.tsx`)
+partent à Sentry, sans donnée personnelle (`web/lib/sentryConfig.ts` : ni IP, ni cookies, ni en-têtes, ni corps, ni chaîne de requête, ni utilisateur ; verrou
+`web/tests/sentryConfig.test.ts`). Éteint sans `SENTRY_DSN` : le code est en ligne, rien ne part encore. La CSP (`connect-src` de `web/next.config.ts`) admet
+les hôtes d'ingestion Sentry, sans quoi le navigateur bloquerait chaque envoi. Pour allumer : créer le projet Sentry de BatchChef, poser `SENTRY_DSN` dans
+Vercel ET comme secret du dépôt, redéployer, puis lancer le workflow « Essai Sentry » (Actions) : il échoue si Sentry ne répond pas 2xx. Les messages d'erreur
+partent tels quels (ils peuvent citer un nom de recette ou une adresse présente dans le texte de l'erreur) ; rien d'autre n'est lu.
 
 La fumée contrôle aussi `/api/hub/summary` avec le secret `HUB_TOKEN` du dépôt (posé par Marc le 16/10/2026, tâche #238) ; première preuve : le prochain déploiement de production.
 

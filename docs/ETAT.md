@@ -44,6 +44,8 @@ de l'import par URL (SSRF) et des routes MCP/OAuth (#131).
   recherche par épicier : Maxi, Metro, IGA, Super C, Walmart, `lib/epiciers.ts`) codé le 16/10/2026,
   en brouillon tant que Marc n'a pas validé chaque gabarit d'URL d'un clic (tâche #193). Détail dans
   `HANDOVER.md`.
+- **Sentry** (tâche #220, 16/10/2026) : branché, éteint sans `SENTRY_DSN`. Aucune erreur ne remonte tant que
+  Marc n'a pas posé le DSN (Vercel + secret du dépôt) ; essai : workflow « Essai Sentry ». Détail dans `HANDOVER.md`.
 
 ## Bloqué / risque ouvert
 
