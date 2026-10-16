@@ -6,6 +6,14 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
+## Test qui échouait au hasard : trouvé (16/10/2026, tâche #204)
+
+Le coupable : `tests/sante.test.ts > GET /api/sante — base réelle en mémoire (PGlite) > 200 { ok: true }, no-store`. Cause : le
+démarrage de PGlite (WebAssembly) dépasse le délai par défaut de 5 s quand la machine est chargée. Reproduit à chaque passe sur
+un seul cœur (`taskset -c 0 npx vitest run` : 1 échec sur 970, 2 passes sur 2) ; corrigé par `testTimeout: 30_000` et
+`hookTimeout: 60_000` dans `web/vitest.config.ts` : 2 passes sur un cœur, puis 10 passes consécutives en machine libre, toutes à
+970/970. Un nouveau test qui crée une base PGlite n'a rien à régler.
+
 ## Migrations vérifiées au déploiement (16/10/2026, tâche #213)
 
 `vercel-build` (production seulement) lance maintenant `db:verifier-migrations` juste après `db:migrate` : le build s'arrête si la
