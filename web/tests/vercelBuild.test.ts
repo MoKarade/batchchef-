@@ -9,8 +9,8 @@ import { etapesDeBuild } from "../scripts/vercel-build.mjs";
 const NOMS = (env: Record<string, string | undefined>) => etapesDeBuild(env).etapes.map((e) => e.nom);
 
 describe("etapesDeBuild", () => {
-  it("production : migre, répare, puis construit (dans cet ordre)", () => {
-    expect(NOMS({ VERCEL_ENV: "production" })).toEqual(["db:migrate", "db:reparer-ingredients", "build"]);
+  it("production : migre, VÉRIFIE la base, répare, puis construit (dans cet ordre)", () => {
+    expect(NOMS({ VERCEL_ENV: "production" })).toEqual(["db:migrate", "db:verifier-migrations", "db:reparer-ingredients", "build"]);
   });
 
   it.each(["preview", "development"])("%s : saute la base, construit seulement, avec une ligne de log claire", (v) => {
@@ -55,7 +55,7 @@ describe("sur Vercel (VERCEL=1) sans VERCEL_ENV : le build échoue", () => {
   it("VERCEL=1 + production : migre, répare, construit", () => {
     const plan = etapesDeBuild({ VERCEL: "1", VERCEL_ENV: "production" });
     expect(plan.erreur).toBeUndefined();
-    expect(plan.etapes.map((e) => e.nom)).toEqual(["db:migrate", "db:reparer-ingredients", "build"]);
+    expect(plan.etapes.map((e) => e.nom)).toEqual(["db:migrate", "db:verifier-migrations", "db:reparer-ingredients", "build"]);
   });
 
   it("VERCEL absent (poste local) : build seul, sans erreur", () => {

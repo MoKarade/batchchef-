@@ -8,6 +8,9 @@ import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 const MIGRATION = { nom: "db:migrate", args: ["run", "db:migrate"] };
+// Lit la table de suivi Drizzle après la migration : `drizzle-kit migrate` peut sortir en code 0 sans rien appliquer
+// (lib/verifierMigrations.ts). Échec fermé : si la dernière migration du dépôt manque, le build s'arrête.
+const VERIFICATION = { nom: "db:verifier-migrations", args: ["run", "db:verifier-migrations"] };
 const REPARATION = { nom: "db:reparer-ingredients", args: ["run", "db:reparer-ingredients"] };
 const BUILD = { nom: "build", args: ["run", "build"] };
 
@@ -27,7 +30,7 @@ export function etapesDeBuild(env) {
     };
   }
   if (env.VERCEL_ENV === "production") {
-    return { etapes: [MIGRATION, REPARATION, BUILD], message: "production : migrations et réparation, puis build" };
+    return { etapes: [MIGRATION, VERIFICATION, REPARATION, BUILD], message: "production : migrations, vérification de la base, réparation, puis build" };
   }
   return { etapes: [BUILD], message: "préversion : migrations et réparation sautées" };
 }
