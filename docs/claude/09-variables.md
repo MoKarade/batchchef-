@@ -50,6 +50,7 @@ niveau, et mettre ces tableaux à jour dans la même PR.
 | `BATCHCHEF_PUBLIC_URL` | Défaut `https://batchchef.hubperso.com` (résumé hub, émetteur OAuth). |
 | `BATCHCHEF_LLM_MODEL`, `BATCHCHEF_LLM_MODEL_VISION`, `BATCHCHEF_MODELE_ASSISTANT`, `BATCHCHEF_MODELE_TRANSCRIPTION` | Modèle par défaut du code. |
 | `BATCHCHEF_LLM_PRICE_IN`, `BATCHCHEF_LLM_PRICE_OUT` | Tarif par défaut (1,0 / 5,0 $ par million de jetons) pour l'estimation de coût publiée au hub. |
+| `SENTRY_DSN` | Sentry éteint : aucune erreur n'est envoyée, l'app se construit et marche. Une seule variable pour le serveur ET le navigateur (`next.config.ts` la copie vers `NEXT_PUBLIC_SENTRY_DSN`). Aucune donnée personnelle (`lib/sentryConfig.ts`). |
 
 ## Build seulement (posées par Vercel, pas par Marc)
 

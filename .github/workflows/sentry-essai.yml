@@ -1,0 +1,40 @@
+name: Essai Sentry
+
+# Lancement MANUEL seulement : envoie une erreur volontaire à Sentry avec le secret SENTRY_DSN du
+# dépôt et échoue si Sentry ne répond pas par un code 2xx. C'est la preuve que la chaîne
+# secret → réglages de l'app (web/lib/sentryConfig.ts) → Sentry fonctionne (tâche #220).
+# Aucun déclencheur automatique : rien n'est envoyé à Sentry sans geste.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: web
+
+jobs:
+  essai:
+    # Plafond : un job figé tourne six heures avant d'échouer. L'essai dure quelques secondes.
+    timeout-minutes: 5
+    name: Envoyer une erreur d'essai
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Dépendances
+        run: npm ci --ignore-scripts
+
+      - name: Envoyer l'erreur d'essai
+        run: npm run sentry:essai
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
