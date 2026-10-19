@@ -1,4 +1,6 @@
 {
+  "autoCompactWindow": 200000,
+  "effortLevel": "medium",
   "hooks": {
     "PreToolUse": [
       {
