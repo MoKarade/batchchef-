@@ -4,10 +4,11 @@
 // recherche que Marc ouvre d'un clic dans son navigateur (pas de scraping, pas de prix lus, pas de
 // panier rempli). Le terme cherché est le nom affiché de l'article, encodé.
 //
-// Les gabarits ci-dessous sont les adresses de recherche publiques des sites, écrites de mémoire :
-// aucun n'a pu être ouvert depuis un serveur (les cinq sites refusent les robots, HTTP 403). La spec
-// veut que Marc valide chaque gabarit d'un clic avant la fusion : la PR reste en brouillon jusque-là, et
-// un test verrouille l'ordre d'affichage et l'hôte de chaque gabarit.
+// Les gabarits ci-dessous sont les adresses de recherche publiques des sites. Aucun n'a pu être ouvert
+// depuis un serveur (les cinq sites refusent les robots, HTTP 403) : Marc les a validés un à un dans
+// son navigateur le 2026-10-19. Maxi, Metro, Super C et Walmart ouvraient leurs résultats ; l'ancien
+// gabarit IGA (www.iga.net/fr/search) menait à une 404, remplacé par l'adresse que Marc a relevée sur
+// iga.ca (#254). Un test verrouille l'ordre d'affichage et l'hôte de chaque gabarit.
 
 export interface Epicier {
   /** Identifiant stable (clé React, test). */
@@ -23,7 +24,7 @@ const MAXI: Epicier = { id: "maxi", nom: "Maxi", gabarit: "https://www.maxi.ca/f
 export const EPICIERS: readonly Epicier[] = [
   MAXI,
   { id: "metro", nom: "Metro", gabarit: "https://www.metro.ca/epicerie-en-ligne/recherche?filter={q}" },
-  { id: "iga", nom: "IGA", gabarit: "https://www.iga.net/fr/search?term={q}" },
+  { id: "iga", nom: "IGA", gabarit: "https://www.iga.ca/?query={q}&tab=products" },
   { id: "superc", nom: "Super C", gabarit: "https://www.superc.ca/recherche?filter={q}" },
   { id: "walmart", nom: "Walmart", gabarit: "https://www.walmart.ca/fr/search?q={q}" },
 ];
