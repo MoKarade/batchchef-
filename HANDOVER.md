@@ -78,8 +78,10 @@ par rayon »** le copie (un rayon par paragraphe) pour le recopier dans une comm
 - Jalon B (liens de recherche par épicier, tâche #193) : `lib/epiciers.ts` (5 gabarits d'URL de
   recherche, `lienRecherche` encode le terme) et un sélecteur « Chercher chez » dans
   `components/CommandeEpicerie.tsx`, un lien « Chercher » par article. Les 5 sites refusent les robots
-  (HTTP 403 le 16/10/2026) : AUCUN gabarit n'a été ouvert par une session. La spec veut que Marc les
-  valide d'un clic avant la fusion, et qu'il tranche l'ordre d'affichage (celui de la spec pour l'instant).
+  (HTTP 403 le 16/10/2026) : aucune session ne peut ouvrir un gabarit. Marc les a ouverts dans son
+  navigateur le 19/10/2026 : Maxi, Metro, Super C et Walmart donnent des résultats ; l'ancien gabarit IGA
+  (`iga.net/fr/search`) donnait une 404, remplacé par `iga.ca/?query={q}&tab=products` (adresse relevée par
+  Marc, tâche #254). L'ordre d'affichage reste celui de la spec, à trancher par Marc.
 
 ## État au 25/09/2026 — à lire en premier
 

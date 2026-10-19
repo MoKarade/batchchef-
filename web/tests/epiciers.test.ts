@@ -12,7 +12,7 @@ describe("EPICIERS — liste fermée, dans l'ordre de la spec", () => {
 
   it("chaque gabarit est en https, sur un hôte fixe, avec un seul emplacement {q}", () => {
     const hotes = EPICIERS.map((e) => new URL(e.gabarit.replace("{q}", "x")).host);
-    expect(hotes).toEqual(["www.maxi.ca", "www.metro.ca", "www.iga.net", "www.superc.ca", "www.walmart.ca"]);
+    expect(hotes).toEqual(["www.maxi.ca", "www.metro.ca", "www.iga.ca", "www.superc.ca", "www.walmart.ca"]);
     for (const e of EPICIERS) {
       expect(e.gabarit.startsWith("https://")).toBe(true);
       expect(e.gabarit.split("{q}")).toHaveLength(2);
@@ -45,9 +45,12 @@ describe("lienRecherche", () => {
       expect(url.host).toBe(modele.host);
       expect(url.pathname).toBe(modele.pathname);
       expect(url.hash).toBe("");
-      // Un seul paramètre, et sa valeur est le terme d'origine, intact.
+      // Mêmes paramètres que le gabarit, pas un de plus.
       expect([...url.searchParams.keys()]).toEqual([...modele.searchParams.keys()]);
-      expect([...url.searchParams.values()]).toEqual([terme]);
+      // Le paramètre qui porte le terme le contient intact ; les autres gardent la valeur du gabarit.
+      for (const [cle, valeur] of modele.searchParams) {
+        expect(url.searchParams.get(cle)).toBe(valeur === "x" ? terme : valeur);
+      }
     }
   });
 
