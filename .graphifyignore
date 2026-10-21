@@ -1,0 +1,8 @@
+# Exclusions du graphe de code (syntaxe .gitignore ; s'ajoute à .gitignore). Détail : docs/claude/10-graphe-code.md
+package-lock.json
+*.lock
+web/tests/
+web/**/*.test.ts
+web/**/*.test.tsx
+batchchef.seed.db
+*.db

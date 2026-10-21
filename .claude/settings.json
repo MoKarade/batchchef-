@@ -12,6 +12,37 @@
             "timeout": 600
           }
         ]
+      },
+      {
+        "matcher": "Bash|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/graphe.sh\" ] && bash \"$CLAUDE_PROJECT_DIR/scripts/graphe.sh\" hook-guard search || true",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/graphe.sh\" ] && bash \"$CLAUDE_PROJECT_DIR/scripts/graphe.sh\" hook-guard read || true",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/graphe.sh\" ] && bash \"$CLAUDE_PROJECT_DIR/scripts/graphe.sh\" session || true",
+            "timeout": 10
+          }
+        ]
       }
     ]
   }
