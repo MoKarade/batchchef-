@@ -6,6 +6,15 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
+## Logo série A (21/10/2026, tâche #269, mission MoKarade/.github#467)
+
+Marc a validé le 21/10/2026 la série de logos A pour toutes les apps. BatchChef : une marmite dont le couvercle sautille, dessin
+orange `#FB923C` sur tuile sombre `#0B0D12`, étincelle IA argent `#E6EAF2` qui monte comme la vapeur. Les deux `icon.svg`
+(`web/app/icon.svg` pour l'onglet, `web/public/icon.svg`) sont identiques ; les PNG `icone-192`, `icone-512` et `icone-maskable-512`
+sont rendus depuis le même dessin (le maskable est plein cadre, dessin réduit pour rester dans la zone sûre). Les noms de fichiers
+et le manifeste ne changent pas ; `background_color` et `theme_color` restent `#07090d`. Source du dessin et planche :
+https://claude.ai/artifact/VE77ugr9oDtLzUTa53ixaM. À constater en production après le merge : `/icon.svg` contient `#fb923c`.
+
 ## Merges sans déploiement : mesure du 21/10/2026 et alerte (tâche #203)
 
 Mesuré le 21/10/2026 vers 12 h 40 Z (API Vercel `batchchef-glu8` et API GitHub, pas recopié) : sur les **53 merges** de `master`
