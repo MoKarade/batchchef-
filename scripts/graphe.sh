@@ -13,11 +13,24 @@ venv="${GRAPHE_VENV:-${XDG_CACHE_HOME:-$HOME/.cache}/graphe-venv-$VERSION}"
 export GRAPHIFY_BACKEND=none # coupe tout backend LLM : `label` et `cluster-only` se replieraient sur `claude -p` (quota Claude)
 
 pret() { [ -x "$venv/bin/graphify" ] && "$venv/bin/python" -c 'import mcp' 2>/dev/null; }
+# Verrou = dossier créé atomiquement (mkdir) ; périmé au-delà de N minutes (processus tué) : retiré.
+perime() { find "$1" -maxdepth 0 -mmin "+$2" -exec rmdir {} + 2>/dev/null || true; }
 installer() {
   pret && return 0
-  python3 -m venv "$venv"
+  mkdir -p "$(dirname "$venv")" || return 1
+  local verrou_inst="$venv.installation.lock" attente=0 rc=0
+  # `serve` (MCP) et `session` (SessionStart) démarrent ensemble : un seul installe, l'autre attend le résultat.
+  until mkdir "$verrou_inst" 2>/dev/null; do
+    pret && return 0
+    perime "$verrou_inst" 10
+    attente=$((attente + 1))
+    [ "$attente" -le 180 ] || { echo "graphe : installation concurrente trop longue" >&2; return 1; }
+    sleep 1
+  done
   # [sql] : sans lui, les migrations .sql donnent 0 nœud ; [mcp] : serveur MCP (.mcp.json)
-  "$venv/bin/pip" install --quiet "graphifyy[sql,mcp]==$VERSION"
+  { python3 -m venv "$venv" && "$venv/bin/pip" install --quiet "graphifyy[sql,mcp]==$VERSION"; } || rc=$?
+  rmdir "$verrou_inst" 2>/dev/null || true
+  return "$rc"
 }
 construire() { installer && "$venv/bin/graphify" update . && "$venv/bin/graphify" export wiki; }
 
@@ -37,9 +50,14 @@ case "$commande" in
     if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
       printf 'export PATH="%s/bin:$PATH"\nexport GRAPHIFY_BACKEND=none\n' "$venv" >> "$CLAUDE_ENV_FILE"
     fi
-    verrou="${TMPDIR:-/tmp}/graphe-$(printf '%s' "$racine" | cksum | cut -d' ' -f1).lock"
+    # Verrou et journal dans le cache de l'utilisateur (pas de chemin prévisible dans /tmp).
+    etat="${XDG_CACHE_HOME:-$HOME/.cache}/graphe"
+    mkdir -p "$etat"
+    verrou="$etat/$(printf '%s' "$racine" | cksum | cut -d' ' -f1).lock"
+    perime "$verrou" 30
     if mkdir "$verrou" 2>/dev/null; then
-      ( construire; rmdir "$verrou" ) >"${verrou%.lock}.log" 2>&1 </dev/null &
+      # `|| true` : un échec de construction ne doit pas laisser le verrou en place (set -e sauterait le rmdir).
+      ( construire || true; rmdir "$verrou" 2>/dev/null || true ) >"${verrou%.lock}.log" 2>&1 </dev/null &
       disown 2>/dev/null || true
     fi
     exit 0
