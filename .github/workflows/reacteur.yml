@@ -65,15 +65,17 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-      issues: read
+      issues: write
       checks: read
       actions: write
+      deployments: read
     # Workflow commun de MoKarade/.github (tâche MoKarade/.github#139) : filtre, relance une fois un échec de charge du
     # robot, puis lance boite-reacteur.yml. Le jeton de réveil (secret du dépôt) lui est transmis sans être nommé ici.
     uses: MoKarade/.github/.github/workflows/reveil-reacteur.yml@main
     secrets: inherit
     with:
       runner: ${{ github.event.repository.visibility == 'public' && '"ubuntu-latest"' || '["self-hosted","pc-marc"]' }}
+      deploiement: vercel
       type: ${{ github.event_name == 'pull_request' && (github.event.action == 'closed' && 'pr_fusionnee' || 'pr_ouverte') || github.event_name == 'issues' && 'tache_fermee' || github.event_name == 'workflow_run' && 'ci_rouge' || 'filet' }}
       depot: ${{ github.repository }}
       pr: ${{ format('{0}', github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number) }}
