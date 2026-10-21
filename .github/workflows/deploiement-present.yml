@@ -1,0 +1,39 @@
+name: Déploiement présent
+
+# Alerte « merge sans déploiement » (DEPLOI-MUET, tâche #203). Après chaque push sur `master`, vérifie que Vercel a créé un
+# déploiement pour CE commit (statut « Vercel » : success, pending, ou success « Canceled by Ignored Build Step » pour un
+# commit de doc sauté exprès). Rouge si rien n'apparaît en 10 minutes ou si le déploiement est en échec : la CI est verte mais
+# le site ne sert pas le commit, et rien d'autre ne le dit (docs/claude/05-deploiement.md).
+# Le Réacteur (reacteur.yml) réveille le Coordinateur sur ce rouge, même quand le push vient d'un robot.
+# Aucun `paths:` : un commit de doc doit lui aussi avoir son déploiement ou son CANCELED volontaire.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  statuses: read
+
+jobs:
+  verifier:
+    name: Un déploiement existe pour ce commit
+    # Plafond : 20 essais de 30 s = 10 min d'attente au plus, plus la marge de démarrage.
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .nvmrc
+            web/scripts
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Chercher le déploiement Vercel du commit
+        run: node web/scripts/verifier-deploiement.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
