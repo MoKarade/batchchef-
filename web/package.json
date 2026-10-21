@@ -19,6 +19,7 @@
     "portes": "node qualite/portes.mjs",
     "portes:maj": "node qualite/portes.mjs --maj",
     "sentry:essai": "node scripts/sentry-essai.mjs",
+    "deploiement:verifier": "node scripts/verifier-deploiement.mjs",
     "mutation": "stryker run",
     "architecture": "depcruise app lib components scripts",
     "code-mort": "knip"

@@ -1,4 +1,4 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignore": ["public/sw.js", "vitest.mutation.config.ts", "scripts/vercel-build.d.mts"]
+  "ignore": ["public/sw.js", "vitest.mutation.config.ts", "scripts/vercel-build.d.mts", "scripts/verifier-deploiement.d.mts"]
 }
