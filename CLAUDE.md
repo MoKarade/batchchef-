@@ -17,6 +17,7 @@ Planificateur de batch cooking québécois, 100 % en ligne ; toute l'app vit dan
 - `npm run dev` (localhost:3000) · `npm run test` · `npm run typecheck` · `npm run lint` · `npm run build`
 - Gate avant commit : `cd web && npm run typecheck && npm run test && npm run build`
 - Portes qualité : `cd web && npm run portes` (cliquet, seuils `web/qualite/seuils.json`).
+- Graphe de code (hooks et MCP `graphify` posés, 0 jeton) : `scripts/graphe.sh query|affected|path|explain` avant de grepper ou lire plusieurs fichiers ; `graphify-out/wiki/index.md` = vue d'ensemble. Détail : [10-graphe-code](docs/claude/10-graphe-code.md).
 - Après toute modif de dépendances : `npm audit --omit=dev` doit rendre 0. Jamais `npm audit fix --force`.
 
 ## Règles non négociables (détail : 01-principes, 05-deploiement)
