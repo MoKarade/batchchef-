@@ -39,6 +39,15 @@ quatre merges restés sans déploiement. *(Cette ligne disait jusque-là qu'un c
 Corollaire : un merge qui ne change QUE de la doc n'a pas de déploiement à vérifier. Le dire
 plutôt que de laisser croire qu'on a vérifié.
 
+### Un merge sans déploiement fait maintenant rougir un workflow (21/10/2026, tâche #203)
+
+`.github/workflows/deploiement-present.yml` tourne après CHAQUE push sur `master` (sans `paths:`) et lance
+`web/scripts/verifier-deploiement.mjs` : il attend jusqu'à 10 minutes un statut de commit « Vercel » (`success`, `pending`, ou
+`success` « Canceled by Ignored Build Step », le saut volontaire d'un commit de doc). Aucun statut, ou `failure`/`error` : le run est
+rouge et le Réacteur réveille le Coordinateur, même si le push vient d'un robot. Un commit de doc n'est donc PLUS « sans déploiement
+à vérifier » : son `CANCELED` volontaire est le déploiement attendu. Le statut se lit aussi à la main :
+`GET /repos/MoKarade/batchchef-/commits/<sha>/status` (contexte `Vercel`). Cause du trou toujours non établie (voir `HANDOVER.md`).
+
 ### Les migrations sont VÉRIFIÉES après coup (16/10/2026, tâche #213)
 
 `drizzle-kit migrate` peut sortir en code 0 sans rien appliquer (JobAI l'a vécu avec `@neondatabase/serverless`). Depuis le

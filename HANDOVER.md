@@ -6,6 +6,24 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
+## Merges sans déploiement : mesure du 21/10/2026 et alerte (tâche #203)
+
+Mesuré le 21/10/2026 vers 12 h 40 Z (API Vercel `batchchef-glu8` et API GitHub, pas recopié) : sur les **53 merges** de `master`
+du 14/10 à 13 h 09 Z au 21/10 à 01 h 56 Z (#170 à #259), **chacun a un déploiement** : 38 `READY` et 15 `CANCELED` (le saut
+volontaire de `build-necessaire.sh` pour un commit de doc seule). Aucun merge muet depuis #169 (14/10, 12 h 23 Z, lockfile), le
+dernier connu ; #170 l'a rattrapé 46 minutes plus tard (le script compare au dernier commit déployé).
+
+**Cause : toujours non établie.** Ce qui est exclu par la mesure : `build-necessaire.sh` (son `exit 0` crée un `CANCELED`, #169
+touchait `web/package-lock.json` donc devait construire) ; le type de fichier (#119 touchait aussi le lockfile et a été déployé).
+Le défaut est intermittent et en amont : l'intégration Git de Vercel n'a créé ni déploiement ni statut pour ce commit. Il manquait une alerte, pas un correctif de notre côté.
+
+**Alerte posée** (`.github/workflows/deploiement-present.yml`, logique `web/scripts/verifier-deploiement.mjs`, test
+`web/tests/verifierDeploiement.test.ts`) : après chaque push sur `master`, le workflow cherche le statut « Vercel » du commit
+(`success`, `pending`, ou `success` « Canceled by Ignored Build Step » = sain), jusqu'à 10 minutes. Rien trouvé, ou déploiement en
+échec : le run devient rouge et le Réacteur (`reacteur.yml`) réveille le Coordinateur, même quand le push vient d'un robot.
+Contrôlé sur les vrais commits : #169 (`815d6d6`) sans statut = absent, un commit de doc (`9ca3c80`) = présent « Canceled by Ignored
+Build Step », #258 (`93d91b6`) = présent « Deployment has completed ». Rattrapage d'un merge muet : un NOUVEAU push sur `master`, jamais « Redeploy ».
+
 ## Contrôles communs et grille de conformité (16/10/2026, tâche #216)
 
 La CI appelle maintenant les contrôles communs de `MoKarade/.github` : `securite-commune` (gitleaks sur les commits de la PR,
@@ -565,9 +583,10 @@ surprennent le plus :
 
 ## Ce qui demande un geste de Marc
 
-- **Tableau de bord Vercel → `batchchef-glu8`** : comprendre pourquoi des pushs sur `master`
-  ne créent aucun déploiement depuis le 24/09, 15 h 43 Z (`DEPLOI-MUET`). La session n'a accès
-  ni aux réglages Git du projet, ni à `*.hubperso.com`.
+- ~~**Tableau de bord Vercel → `batchchef-glu8`** : comprendre pourquoi des pushs sur `master`
+  ne créent aucun déploiement (`DEPLOI-MUET`).~~ Plus un geste de Marc (21/10/2026, tâche #203) : les
+  déploiements et les statuts de commit se lisent avec l'API Vercel et l'API GitHub, et une alerte rouge signale
+  désormais un merge sans déploiement (voir la section en tête).
 - Activer **Web Analytics** dans le tableau de bord Vercel (sinon la dépendance ne mesure rien).
 - Le client MCP doit viser **`https://batchchef.hubperso.com/api/mcp`** — jamais une URL
   `*.vercel.app` : la protection Vercel du projet est en `all_except_custom_domains`, donc

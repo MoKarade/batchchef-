@@ -49,16 +49,13 @@ de l'import par URL (SSRF) et des routes MCP/OAuth (#131).
 
 ## Bloqué / risque ouvert
 
-- 🔴 **`DEPLOI-MUET`** (constaté le 15/09, re-mesuré le 25/09) — le projet Vercel
-  `batchchef-glu8` a cessé, par intermittence, de créer un déploiement à certains merges sur
-  `master` (ni `READY` ni même `CANCELED`) : 4 merges sur 5 muets le 24/09, puis un
-  rattrapage automatique le 25/09 par le hasard d'un commit de doc (`build-necessaire.sh`
-  compare au dernier commit **déployé**, pas au précédent, donc un trou se referme au push
-  suivant, quel qu'il soit). **Cause non établie** — hors de portée d'ici (tableau de bord
-  Vercel, `*.hubperso.com`). Conséquence pratique : après tout merge qui change ce qui est
-  servi, vérifier qu'un déploiement `READY` existe réellement, ne jamais supposer « CI verte
-  ⇒ en ligne » (voir `docs/claude/05-deploiement.md`). Aucune trace dans les documents lus
-  d'une résolution après le 25/09 ; à vérifier avant tout prochain merge sensible.
+- ⚠️ **`DEPLOI-MUET`** (constaté le 15/09, 24/09 et 14/10) — le projet Vercel `batchchef-glu8` a, par intermittence,
+  omis de créer un déploiement pour un merge sur `master` (ni `READY` ni même `CANCELED`). Mesuré le 21/10/2026 : les 53 merges
+  du 14/10 au 21/10 ont tous un déploiement (38 `READY`, 15 `CANCELED` volontaires) ; le dernier muet est #169 (14/10).
+  **Cause non établie** (l'intégration Git de Vercel n'a rien créé pour ce commit ; ni `build-necessaire.sh`, ni le type de
+  fichier ne l'expliquent). **Alerte posée** (#203) : le workflow « Déploiement présent » rougit si un push sur `master`
+  n'a pas de statut Vercel en 10 minutes, et réveille le Coordinateur. Rattrapage : un nouveau push, jamais « Redeploy ».
+  Détail : `HANDOVER.md` (section en tête) et `docs/claude/05-deploiement.md`.
 - ⚠️ **Une préversion peut encore lire/écrire la base de PRODUCTION au runtime.** Le
   correctif #129 (27/09) a fermé la porte des **migrations** : `vercel-build` ne lance
   `db:migrate`/`db:reparer-ingredients` que si `VERCEL_ENV=production` (échec fermé sinon).
