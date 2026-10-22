@@ -6,6 +6,10 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
+## LIA, l'assistant (22/10/2026, tâche #278, mission MoKarade/.github#543)
+
+`@mokarade/lia-ui` v0.1.0 (tag, jamais une branche) est monté dans `web/app/layout.tsx` par `web/components/LiaMontee.tsx`, seulement quand la session est admise : pas sur `/login`. Clic = discussion, clic droit = menu. Route `POST /api/lia/ask` (`web/app/api/lia/ask/route.ts`) : derrière le middleware ET `requireSession()` de `web/lib/lia/session.ts` (BatchChef n'avait pas de `lib/session.ts` ; ses Server Actions gardent `lib/actionsInternes/session.ts`). Elle relaie la question au hub avec `HUB_TOKEN` et lui dit si la session est celle du propriétaire (`AUTHORIZED_EMAIL`). Échec fermé : sans réponse conforme, LIA dit « indisponible ». Copie de la référence `app-template`, détail et contrat : `docs/claude/13-lia.md`. `/api/lia/ask` n'est pas `/api/mcp` : elle reste dans le middleware. **Tant que la route `POST /api/lia/ask` du hub (Hubperso#337) et celle de MemoryAI n'existent pas, LIA répond « indisponible ».**
+
 ## Logo série A (21/10/2026, tâche #269, mission MoKarade/.github#467)
 
 Marc a validé le 21/10/2026 la série de logos A pour toutes les apps. BatchChef : une marmite dont le couvercle sautille, dessin
