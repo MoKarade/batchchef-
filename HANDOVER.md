@@ -15,6 +15,8 @@ sont rendus depuis le même dessin (le maskable est plein cadre, dessin réduit 
 et le manifeste ne changent pas ; `background_color` et `theme_color` restent `#07090d`. Source du dessin et planche :
 https://claude.ai/artifact/VE77ugr9oDtLzUTa53ixaM. À constater en production après le merge : `/icon.svg` contient `#fb923c`.
 
+Icône d'écran d'accueil iPhone (22/10/2026) : `web/app/apple-icon.png` (180 x 180, même dessin que la grande icône) ajouté ; Next.js le publie en `apple-touch-icon`. Avant, iOS n'avait aucune icône dédiée. iOS ne rafraîchit pas une icône déjà posée : retirer l'app de l'écran d'accueil puis la rajouter. La marque du menu (`nav-marque`) est du texte, pas un logo : rien à changer. Le service worker (`sw.js`) ne met aucune icône en cache.
+
 ## Merges sans déploiement : mesure du 21/10/2026 et alerte (tâche #203)
 
 Mesuré le 21/10/2026 vers 12 h 40 Z (API Vercel `batchchef-glu8` et API GitHub, pas recopié) : sur les **53 merges** de `master`
