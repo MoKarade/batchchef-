@@ -96,3 +96,12 @@ describe('[PWA-ANDROID] le manifeste rend l’app installable', () => {
         expect(manifeste.display).toBe('standalone');
     });
 });
+
+describe('[LOGO-A] l’icône d’écran d’accueil iPhone', () => {
+    it('fournit `app/apple-icon.png` en 180 x 180 : sans elle iOS affiche une capture de la page', () => {
+        // Next.js publie ce fichier en <link rel="apple-touch-icon"> ; le manifeste, lui, est ignoré par iOS.
+        const chemin = resolve(racine, 'app/apple-icon.png');
+        expect(existsSync(chemin), 'app/apple-icon.png absent').toBe(true);
+        expect(dimensionsPng(chemin)).toEqual({ largeur: 180, hauteur: 180 });
+    });
+});
