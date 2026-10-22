@@ -105,3 +105,13 @@ describe('[LOGO-A] l’icône d’écran d’accueil iPhone', () => {
         expect(dimensionsPng(chemin)).toEqual({ largeur: 180, hauteur: 180 });
     });
 });
+
+describe('[LOGO-A] le favicon ICO multi-tailles', () => {
+    it('fournit `public/favicon.ico` valide avec l’en-tête ICO et 3 images', () => {
+        const chemin = resolve(racine, 'public/favicon.ico');
+        expect(existsSync(chemin), 'public/favicon.ico absent').toBe(true);
+        const buf = readFileSync(chemin);
+        expect(buf.subarray(0, 4)).toEqual(Buffer.from([0x00, 0x00, 0x01, 0x00]));
+        expect(buf.readUInt16LE(4)).toBe(3);
+    });
+});
