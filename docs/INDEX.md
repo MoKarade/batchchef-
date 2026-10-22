@@ -19,6 +19,7 @@ L'ancien `CLAUDE.md` (604 lignes) a été réduit à ≤ 60 lignes (chargé à c
 | § 9. Leçons apprises | [`docs/claude/08-lecons-et-style.md`](claude/08-lecons-et-style.md) et [`docs/LESSONS.md`](LESSONS.md) |
 | § 10. Style et compte-rendu | [`docs/claude/08-lecons-et-style.md`](claude/08-lecons-et-style.md) et [`docs/COMPTE-RENDU.md`](COMPTE-RENDU.md) (importé par `CLAUDE.md`) |
 | Graphe de code (hooks, MCP, wiki ; ajout du 21/10/2026) | [`docs/claude/10-graphe-code.md`](claude/10-graphe-code.md) |
+| LIA, l'assistant (ajout du 22/10/2026) | [`docs/claude/13-lia.md`](claude/13-lia.md) |
 
 ## Autres documents
 
