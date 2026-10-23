@@ -3,8 +3,6 @@ import { Analytics } from "@vercel/analytics/next";
 import { SignOutButton } from "@/components/AuthButtons";
 import { EnregistrerServiceWorker } from "@/components/EnregistrerServiceWorker";
 import { Coque } from "@/components/Coque";
-import LiaMontee from "@/components/LiaMontee";
-import { liaAutorisee } from "@/lib/lia/monter";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,8 +24,7 @@ export const viewport: Viewport = {
 // Lien retour vers le hub perso (overridable par env si l'URL change).
 const HUB_URL = (process.env.NEXT_PUBLIC_HUB_URL || "https://hubperso.com").replace(/\/+$/, "");
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const lia = await liaAutorisee();
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pied = (
     <>
       <a href={HUB_URL} className="nav-outil">
@@ -41,7 +38,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="fr-CA">
       <body className="min-h-dvh">
         <Coque pied={pied}>{children}</Coque>
-        {lia ? <LiaMontee /> : null}
         <EnregistrerServiceWorker />
         <Analytics />
       </body>

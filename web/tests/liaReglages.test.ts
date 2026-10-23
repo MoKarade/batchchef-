@@ -8,8 +8,8 @@ import { describe, expect, it } from "vitest";
 
 const lire = (chemin: string) => readFileSync(resolve(process.cwd(), chemin), "utf8");
 
-/** Plus petit tag du paquet épinglé (réglages communs : défaut « complet », pastille d'humeur du paquet ; v0.13.0 : ses 39 actions ; v0.14.0 : parole propre et physique ; v0.15.0 : contexte de LIA, tout élément, appui long). */
-const TAG_MINIMAL = [0, 15, 0] as const;
+/** Plus petit tag du paquet épinglé (réglages communs : défaut « complet », pastille d'humeur du paquet ; v0.13.0 : ses 39 actions ; v0.14.0 : parole propre et physique ; v0.15.0 : contexte de LIA, tout élément, appui long ; v0.16.0 : montage hors rendu par `demarrerLia`). */
+const TAG_MINIMAL = [0, 16, 0] as const;
 
 function versionDuTag(tag: string): number[] {
   const m = /^github:MoKarade\/lia-ui#v(\d+)\.(\d+)\.(\d+)$/.exec(tag);
@@ -27,7 +27,7 @@ function auMoins(version: number[], minimum: readonly number[]): boolean {
 }
 
 describe("LIA : mêmes réglages que le hub", () => {
-  const source = lire("components/LiaMontee.tsx");
+  const source = lire("lib/lia/demarrage.ts");
 
   it("ne règle ni le mouvement réduit ni la pastille d'humeur (défauts du paquet)", () => {
     expect(source).not.toContain("quandMouvementReduit");
@@ -37,11 +37,16 @@ describe("LIA : mêmes réglages que le hub", () => {
     expect(source).not.toContain("onSpontane");
   });
 
-  it("une seule LIA : le composant est monté dans le layout", () => {
-    expect(lire("app/layout.tsx")).toContain("<LiaMontee />");
+  it("une seule LIA, montée hors rendu : demarrerLia depuis instrumentation-client, jamais <Lia/> dans le layout", () => {
+    expect(lire("instrumentation-client.ts")).toContain("demarrerLiaApp()");
+    expect(source).toContain('from "@mokarade/lia-ui/boot"');
+    // Deux voies = deux LIA : aucune source de l'app ne monte le composant React du paquet.
+    for (const chemin of ["app/layout.tsx", "instrumentation-client.ts", "lib/lia/demarrage.ts"]) {
+      expect(lire(chemin)).not.toContain("@mokarade/lia-ui/react");
+    }
   });
 
-  it("paquet épinglé par tag, au moins v0.15.0, dans package.json et dans le lock", () => {
+  it("paquet épinglé par tag, au moins v0.16.0, dans package.json et dans le lock", () => {
     const pkg = JSON.parse(lire("package.json")) as { dependencies: Record<string, string> };
     const lock = JSON.parse(lire("package-lock.json")) as {
       packages: Record<string, { version?: string; resolved?: string; dependencies?: Record<string, string> }>;
