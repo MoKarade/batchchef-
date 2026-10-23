@@ -39,6 +39,14 @@ quatre merges restés sans déploiement. *(Cette ligne disait jusque-là qu'un c
 Corollaire : un merge qui ne change QUE de la doc n'a pas de déploiement à vérifier. Le dire
 plutôt que de laisser croire qu'on a vérifié.
 
+### Une variable Vercel changée ne s'applique qu'à un NOUVEAU déploiement (23/10/2026, tâche #282)
+
+Rotation du `HUB_TOKEN` : poser la nouvelle valeur dans Vercel ne change rien à la production tant qu'aucun déploiement ne
+la construit. Le déclencheur est le même que pour un trou de déploiement : un nouveau push sur `master` qui touche un fichier
+HORS exemptions de `build-necessaire.sh`, jamais « Redeploy » ni `--force`. Après coup, lire le déploiement `READY` et la
+réponse réelle (`/api/sante/configuration`, `/api/hub/summary` avec le nouveau jeton). Aucune valeur de jeton ne passe par une
+issue, une PR ou un fil.
+
 ### Un merge sans déploiement fait maintenant rougir un workflow (21/10/2026, tâche #203)
 
 `.github/workflows/deploiement-present.yml` tourne après CHAQUE push sur `master` (sans `paths:`) et lance
