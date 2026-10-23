@@ -26,6 +26,8 @@ export const VARIABLES_REQUISES = [
 export const VARIABLES_DEGRADANTES = [
   // Accès des invités (échec fermé dans lib/accesHub) et résumé du hub (503). Le
   // propriétaire, vérifié d'abord par AUTHORIZED_EMAIL, entre quand même.
+  // Tourné le 23/10/2026 (#282) : une valeur changée dans Vercel ne s'applique qu'à un NOUVEAU
+  // déploiement de production (docs/claude/05-deploiement.md), jamais à celui déjà en ligne.
   "HUB_TOKEN",
 ] as const;
 
