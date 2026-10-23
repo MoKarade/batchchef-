@@ -8,8 +8,8 @@ import { describe, expect, it } from "vitest";
 
 const lire = (chemin: string) => readFileSync(resolve(process.cwd(), chemin), "utf8");
 
-/** Plus petit tag du paquet épinglé (réglages communs : défaut « complet », pastille d'humeur du paquet ; v0.13.0 : ses 39 actions). */
-const TAG_MINIMAL = [0, 13, 0] as const;
+/** Plus petit tag du paquet épinglé (réglages communs : défaut « complet », pastille d'humeur du paquet ; v0.13.0 : ses 39 actions ; v0.14.0 : parole propre et physique). */
+const TAG_MINIMAL = [0, 14, 0] as const;
 
 function versionDuTag(tag: string): number[] {
   const m = /^github:MoKarade\/lia-ui#v(\d+)\.(\d+)\.(\d+)$/.exec(tag);
@@ -32,13 +32,16 @@ describe("LIA : mêmes réglages que le hub", () => {
   it("ne règle ni le mouvement réduit ni la pastille d'humeur (défauts du paquet)", () => {
     expect(source).not.toContain("quandMouvementReduit");
     expect(source).not.toContain("humeurVisible");
+    // Parole propre (v0.14.0) : défaut du paquet, vraie par construction (jamais rien sur Marc ni sur ses apps).
+    expect(source).not.toContain("parolePropre");
+    expect(source).not.toContain("onSpontane");
   });
 
   it("une seule LIA : le composant est monté dans le layout", () => {
     expect(lire("app/layout.tsx")).toContain("<LiaMontee />");
   });
 
-  it("paquet épinglé par tag, au moins v0.13.0, dans package.json et dans le lock", () => {
+  it("paquet épinglé par tag, au moins v0.14.0, dans package.json et dans le lock", () => {
     const pkg = JSON.parse(lire("package.json")) as { dependencies: Record<string, string> };
     const lock = JSON.parse(lire("package-lock.json")) as {
       packages: Record<string, { version?: string; resolved?: string; dependencies?: Record<string, string> }>;
