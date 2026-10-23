@@ -8,8 +8,8 @@ import { describe, expect, it } from "vitest";
 
 const lire = (chemin: string) => readFileSync(resolve(process.cwd(), chemin), "utf8");
 
-/** Plus petit tag du paquet épinglé (réglages communs : défaut « complet », pastille d'humeur du paquet ; v0.13.0 : ses 39 actions ; v0.14.0 : parole propre et physique). */
-const TAG_MINIMAL = [0, 14, 0] as const;
+/** Plus petit tag du paquet épinglé (réglages communs : défaut « complet », pastille d'humeur du paquet ; v0.13.0 : ses 39 actions ; v0.14.0 : parole propre et physique ; v0.15.0 : contexte de LIA, tout élément, appui long). */
+const TAG_MINIMAL = [0, 15, 0] as const;
 
 function versionDuTag(tag: string): number[] {
   const m = /^github:MoKarade\/lia-ui#v(\d+)\.(\d+)\.(\d+)$/.exec(tag);
@@ -41,7 +41,7 @@ describe("LIA : mêmes réglages que le hub", () => {
     expect(lire("app/layout.tsx")).toContain("<LiaMontee />");
   });
 
-  it("paquet épinglé par tag, au moins v0.14.0, dans package.json et dans le lock", () => {
+  it("paquet épinglé par tag, au moins v0.15.0, dans package.json et dans le lock", () => {
     const pkg = JSON.parse(lire("package.json")) as { dependencies: Record<string, string> };
     const lock = JSON.parse(lire("package-lock.json")) as {
       packages: Record<string, { version?: string; resolved?: string; dependencies?: Record<string, string> }>;
