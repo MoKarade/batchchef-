@@ -20,7 +20,7 @@ navigateur ──POST /api/lia/ask──▶ app ──POST /api/lia/ask (x-hub-t
 | `web/app/api/lia/ask/route.ts` | Route derrière le middleware ET `requireSession()` ; corps ≤ 8 Ko ; 401 / 400 / 413 / 503 |
 | `lib/lia/session.ts` | La garde de session de LIA (BatchChef n'a pas de `lib/session.ts`) : `NonAutorise` + l'adresse de la session |
 | `lib/lia/client.ts` | Le `ask` du navigateur : parle à la route de l'app, jamais au hub |
-| `lib/lia/demarrage.ts` + `instrumentation-client.ts` | LIA montée hors rendu par `demarrerLia` (`@mokarade/lia-ui/boot`), avant l'hydratation : présente même pendant un chargement ou si une page plante. Seule route sans LIA : `/login` |
+| `lib/lia/demarrage.ts` + `instrumentation-client.ts` | LIA montée hors rendu par `demarrerLia` (`@mokarade/lia-ui/boot`), avant l'hydratation : présente même pendant un chargement ou si une page plante, et sur TOUTES les pages. Sur `/login` (pas de session) : mode invité, `ask` refuse avant tout réseau (`creerAsk`) |
 
 ## Règles
 
@@ -31,7 +31,8 @@ navigateur ──POST /api/lia/ask──▶ app ──POST /api/lia/ask (x-hub-t
 - **v1 : texte, puces et humeur seulement.** Les blocs composés (`blocks`) sont strippés ; l'app n'a pas de rendu pour eux.
 - **Pas d'actions** dans le menu du clic droit en v1 : LIA propose, le hub exécute (catalogue : `hub-contract#78`).
 - **Une seule LIA par page, une seule voie** : `demarrerLia` depuis `instrumentation-client.ts`. Ne jamais monter `<Lia>` (`@mokarade/lia-ui/react`) en plus : deux LIA (verrou `tests/liaReglages.test.ts`).
-- ⚠️ Après une déconnexion (`signOut` → `/login` sans rechargement complet), LIA reste à l'écran jusqu'au prochain chargement ; sa question reçoit 401 et elle dit « indisponible ».
+- **Mode invité (24/10/2026, Marc : « LIA présente tout le temps, y compris sur /login »)** : sur `/login` LIA bouge, a une humeur et parle avec ses propres phrases, mais `ask` rejette AVANT tout réseau (elle dit « indisponible ») ; la route `/api/lia/ask` reste derrière la session. Le mode se relit à chaque question d'après `window.location.pathname` : une déconnexion vers `/login` sans rechargement complet referme `ask`, une connexion (rechargement complet) le rouvre. Aucun état partagé (BatchChef ne transporte pas `etat`). Routes sans LIA : aucune page ; seules les routes qui ne rendent rien (`/api/*`, `/hub/summary`) n'en ont pas.
+- Même mouvement que app-template#141 (LIA en mode invité), sans composant : BatchChef démarre `demarrerLia` depuis `instrumentation-client.ts`, pas depuis un module client rendu par le layout.
 - L'URL est `NEXT_PUBLIC_HUB_URL` (déjà utilisée par `accesHub.ts`, défaut `https://hubperso.com`) ; `http:` est refusé.
 - ⚠️ Un fork avec une **CSP** doit autoriser les styles que le paquet injecte (`style-src`), sinon LIA s'affiche sans habillage.
 
