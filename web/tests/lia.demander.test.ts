@@ -1,7 +1,7 @@
 // tests/lia.demander.test.ts — l'appel serveur vers le hub échoue FERMÉ.
 
 import { describe, expect, it, vi } from "vitest";
-import { LiaIndisponible, demanderAuHub } from "../lib/lia/demander";
+import { LiaEnPause, LiaIndisponible, demanderAuHub } from "../lib/lia/demander";
 
 const demande = { question: "Où en est mon budget ?", page: "/budget" };
 const env = { HUB_TOKEN: "jeton-de-test" };
@@ -47,6 +47,14 @@ describe("demanderAuHub", () => {
   it("Le hub répond autre chose que 2xx : indisponible", async () => {
     const fetchImpl = vi.fn(async () => new Response("non", { status: 401 }));
     await expect(demanderAuHub(demande, { fetchImpl, env })).rejects.toThrow(/401/);
+  });
+
+  it("le hub est en pause (423) : LiaEnPause, un seul appel, aucune réponse inventée", async () => {
+    const fetchImpl = vi.fn(async () => Response.json({ error: "paused", message: "LIA est en pause." }, { status: 423 }));
+    const erreur = await demanderAuHub(demande, { fetchImpl, env }).catch((e: unknown) => e);
+    expect(erreur).toBeInstanceOf(LiaEnPause);
+    expect(erreur).toBeInstanceOf(LiaIndisponible);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it("corps illisible ou non conforme : indisponible, jamais une réponse inventée", async () => {

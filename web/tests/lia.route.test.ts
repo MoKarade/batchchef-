@@ -14,7 +14,7 @@ vi.mock("@/lib/lia/demander", async (importer) => {
   return { ...reel, demanderAuHub };
 });
 
-import { LiaIndisponible } from "../lib/lia/demander";
+import { LiaEnPause, LiaIndisponible } from "../lib/lia/demander";
 import { POST } from "../app/api/lia/ask/route";
 
 const requete = (corps: string) => new Request("https://app.test/api/lia/ask", { method: "POST", body: corps });
@@ -75,5 +75,24 @@ describe("POST /api/lia/ask", () => {
     const res = await POST(requete(valide));
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "lia_indisponible" });
+  });
+
+  it("le refus n'est pas muet : la RAISON va au journal serveur, jamais la question", async () => {
+    const journal = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    demanderAuHub.mockRejectedValue(new LiaIndisponible("le hub a répondu 401"));
+    await POST(requete(valide));
+    expect(journal).toHaveBeenCalledTimes(1);
+    const ligne = String(journal.mock.calls[0]?.[0]);
+    expect(ligne).toContain("le hub a répondu 401");
+    expect(ligne).not.toContain("Salut LIA");
+    journal.mockRestore();
+  });
+
+  it("Pause générale du hub : 423 « paused », distinct du 503 de panne", async () => {
+    demanderAuHub.mockRejectedValue(new LiaEnPause());
+    const res = await POST(requete(valide));
+    expect(res.status).toBe(423);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(await res.json()).toEqual({ error: "paused" });
   });
 });

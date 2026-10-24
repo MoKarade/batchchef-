@@ -8,8 +8,8 @@ import { describe, expect, it } from "vitest";
 
 const lire = (chemin: string) => readFileSync(resolve(process.cwd(), chemin), "utf8");
 
-/** Plus petit tag du paquet épinglé (réglages communs : défaut « complet », pastille d'humeur du paquet ; v0.13.0 : ses 39 actions ; v0.14.0 : parole propre et physique ; v0.15.0 : contexte de LIA, tout élément, appui long ; v0.16.0 : montage hors rendu par `demarrerLia` ; v0.23.1 : monde intérieur, physique, bonds, état partagé validable ; v0.28.0 : souvenirs sur plusieurs jours, nanobots, marche humaine). */
-const TAG_MINIMAL = [0, 28, 0] as const;
+/** Plus petit tag du paquet épinglé (réglages communs : défaut « complet », pastille d'humeur du paquet ; v0.13.0 : ses 39 actions ; v0.14.0 : parole propre et physique ; v0.15.0 : contexte de LIA, tout élément, appui long ; v0.16.0 : montage hors rendu par `demarrerLia` ; v0.23.1 : monde intérieur, physique, bonds, état partagé validable ; v0.28.0 : souvenirs sur plusieurs jours, nanobots, marche humaine ; v0.31.0 : option `pause`, suivie ici sur la pause générale du hub). */
+const TAG_MINIMAL = [0, 34, 0] as const;
 
 function versionDuTag(tag: string): number[] {
   const m = /^github:MoKarade\/lia-ui#v(\d+)\.(\d+)\.(\d+)$/.exec(tag);
@@ -37,6 +37,15 @@ describe("LIA : mêmes réglages que le hub", () => {
     expect(source).not.toContain("onSpontane");
   });
 
+  it("suit la pause générale du hub : option `pause` branchée, route de l'app derrière la session", () => {
+    expect(source).toMatch(/pause: creerPause\(/);
+    expect(source).not.toContain("basculerPause"); // l'écriture de la pause reste au hub
+    const route = lire("app/api/lia/pause/route.ts");
+    expect(route).toContain("requireSession()");
+    expect(route).toMatch(/export async function GET/);
+    expect(route).not.toMatch(/export async function (PUT|POST|PATCH|DELETE)/);
+  });
+
   it("une seule LIA, montée hors rendu : demarrerLia depuis instrumentation-client, jamais <Lia/> dans le layout", () => {
     expect(lire("instrumentation-client.ts")).toContain("demarrerLiaApp()");
     expect(source).toContain('from "@mokarade/lia-ui/boot"');
@@ -46,7 +55,7 @@ describe("LIA : mêmes réglages que le hub", () => {
     }
   });
 
-  it("paquet épinglé par tag, au moins v0.28.0, dans package.json et dans le lock", () => {
+  it("paquet épinglé par tag, au moins v0.34.0, dans package.json et dans le lock", () => {
     const pkg = JSON.parse(lire("package.json")) as { dependencies: Record<string, string> };
     const lock = JSON.parse(lire("package-lock.json")) as {
       packages: Record<string, { version?: string; resolved?: string; dependencies?: Record<string, string> }>;
