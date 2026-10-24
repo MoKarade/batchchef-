@@ -5,7 +5,7 @@
 // jamais du serveur ; le navigateur ne parle qu'à cette route, sur la même origine.
 // Seul POST est exporté : Next répond 405 aux autres méthodes.
 
-import { LiaIndisponible, demanderAuHub } from "@/lib/lia/demander";
+import { LiaEnPause, LiaIndisponible, demanderAuHub } from "@/lib/lia/demander";
 import { DemandeLia, estProprietaire } from "@/lib/lia/contrat";
 import { NonAutorise, requireSession } from "@/lib/lia/session";
 
@@ -47,7 +47,13 @@ export async function POST(req: Request): Promise<Response> {
         signal: req.signal,
       }), 200);
   } catch (erreur) {
-    if (erreur instanceof LiaIndisponible) return reponse({ error: "lia_indisponible" }, 503);
+    // Pause générale du hub : le modèle n'a pas été appelé. 423, distinct de la panne (503).
+    if (erreur instanceof LiaEnPause) return reponse({ error: "paused" }, 423);
+    if (erreur instanceof LiaIndisponible) {
+      // La RAISON (« le hub a répondu 401 »…), jamais la question ni un jeton : un refus du hub ne doit pas rester muet.
+      console.error(`[lia/ask] ${erreur.message}`);
+      return reponse({ error: "lia_indisponible" }, 503);
+    }
     throw erreur;
   }
 }

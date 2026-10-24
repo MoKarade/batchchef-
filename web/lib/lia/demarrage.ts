@@ -10,8 +10,9 @@
 // page courante : une déconnexion qui mène à `/login` sans rechargement complet referme `ask` aussi.
 
 import { demarrerLia } from "@mokarade/lia-ui/boot";
-import { demanderLia } from "@/lib/lia/client";
+import { demanderLia, lirePauseServeur } from "@/lib/lia/client";
 import type { ReponseLiaApp } from "@/lib/lia/contrat";
+import { PAS_SUIVI_PAUSE_MS, creerSuiviPause, type SuiviPause } from "@/lib/lia/pause";
 
 export type AskLia = (question: string, signal: AbortSignal) => Promise<ReponseLiaApp>;
 
@@ -28,7 +29,34 @@ export function creerAsk(ask: AskLia, page: () => string): AskLia {
   };
 }
 
-export function demarrerLiaApp(): void {
+/**
+ * Ce que LIA lit comme « en pause » (option `pause` de lia-ui). Sur la page de connexion rien ne part au réseau (`creerAsk`),
+ * il n'y a donc rien à couper et pas de session pour lire la pause : jamais en pause. Ailleurs : la pause générale du hub,
+ * et une pause qu'on ne sait pas lire vaut pause (échec fermé).
+ */
+export function creerPause(suivi: Pick<SuiviPause, "enPause">, page: () => string): () => boolean {
+  return () => (enModeInvite(page()) ? false : suivi.enPause());
+}
+
+/** Relit la pause tant qu'il le faut, sauf sur la page de connexion (aucune session, aucun appel). */
+export function sonderPause(
+  suivi: Pick<SuiviPause, "doitRelire" | "rafraichir">,
+  page: () => string,
+  planifier: (tache: () => void, ms: number) => unknown = setInterval,
+): void {
+  const pas = (): void => {
+    if (!enModeInvite(page()) && suivi.doitRelire()) void suivi.rafraichir();
+  };
+  pas();
+  planifier(pas, PAS_SUIVI_PAUSE_MS);
+}
+
+export function demarrerLiaApp(planifier?: (tache: () => void, ms: number) => unknown): void {
   const page = () => window.location.pathname;
-  demarrerLia({ ask: creerAsk((question, signal) => demanderLia(question, signal, { page: page() }), page) });
+  const suivi = creerSuiviPause(lirePauseServeur, () => Date.now());
+  sonderPause(suivi, page, planifier);
+  demarrerLia({
+    ask: creerAsk((question, signal) => demanderLia(question, signal, { page: page() }), page),
+    pause: creerPause(suivi, page),
+  });
 }

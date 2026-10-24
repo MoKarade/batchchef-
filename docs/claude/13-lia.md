@@ -2,9 +2,9 @@
 
 LIA, l'assistant de Marc, vit chez **MemoryAI** (cerveau, mémoire, outils). Chaque app ne fait que
 l'afficher et lui relayer les questions **par le hub**, seul détenteur des jetons (MemoryAI ne détient aucun jeton d'app). Le corps (traits en canvas, vie propre, chat au clic,
-menu au clic droit) vient du paquet `@mokarade/lia-ui`, épinglé **par tag** (`github:MoKarade/lia-ui#v0.28.0`),
+menu au clic droit) vient du paquet `@mokarade/lia-ui`, épinglé **par tag** (`github:MoKarade/lia-ui#v0.34.0`),
 jamais par branche, jamais publié sur npm. Mise à jour = changer le tag dans `package.json` ET le lock, comme `hub-contract`.
-**Une seule LIA, mêmes réglages que le hub** : `demarrerLia` ne reçoit que `ask` ; ni `quandMouvementReduit`, `humeurVisible`, `parolePropre` ni `onSpontane` (défauts du paquet : animations complètes, pastille d'humeur du paquet, parole propre vraie par construction : jamais rien sur Marc ni sur l'app). Verrou : `web/tests/liaReglages.test.ts`.
+**Une seule LIA, mêmes réglages que le hub** : `demarrerLia` ne reçoit que `ask` et `pause` (la pause générale du hub, voir plus bas) ; ni `quandMouvementReduit`, `humeurVisible`, `parolePropre` ni `onSpontane` (défauts du paquet : animations complètes, pastille d'humeur du paquet, parole propre vraie par construction : jamais rien sur Marc ni sur l'app). Verrou : `web/tests/liaReglages.test.ts`.
 
 ## Chemin d'une question
 
@@ -19,7 +19,9 @@ navigateur ──POST /api/lia/ask──▶ app ──POST /api/lia/ask (x-hub-t
 | `lib/lia/demander.ts` | Appel serveur vers le hub : https, jeton en en-tête, délai 35 s, échec fermé |
 | `web/app/api/lia/ask/route.ts` | Route derrière le middleware ET `requireSession()` ; corps ≤ 8 Ko ; 401 / 400 / 413 / 503 |
 | `lib/lia/session.ts` | La garde de session de LIA (BatchChef n'a pas de `lib/session.ts`) : `NonAutorise` + l'adresse de la session |
-| `lib/lia/client.ts` | Le `ask` du navigateur : parle à la route de l'app, jamais au hub |
+| `lib/lia/client.ts` | Le `ask` du navigateur et la lecture de la pause : parle aux routes de l'app, jamais au hub |
+| `lib/lia/pause.ts` | La pause telle que la page la sait (pur) : dernière lecture en mémoire, relue toutes les 30 s, crue 90 s, jamais lue ou illisible = en pause |
+| `lib/lia/pauseHub.ts` + `web/app/api/lia/pause/route.ts` | `GET /api/lia/pause` (derrière le middleware ET `requireSession()`, lecture seule) relaie `GET /api/lia/pause` du hub avec le cookie de session de l'utilisateur (partagé entre sous-domaines, https obligatoire) ; 200 `{ pause }` ou 503 |
 | `lib/lia/demarrage.ts` + `instrumentation-client.ts` | LIA montée hors rendu par `demarrerLia` (`@mokarade/lia-ui/boot`), avant l'hydratation : présente même pendant un chargement ou si une page plante, et sur TOUTES les pages. Sur `/login` (pas de session) : mode invité, `ask` refuse avant tout réseau (`creerAsk`) |
 
 ## Règles
@@ -31,6 +33,7 @@ navigateur ──POST /api/lia/ask──▶ app ──POST /api/lia/ask (x-hub-t
 - **v1 : texte, puces et humeur seulement.** Les blocs composés (`blocks`) sont strippés ; l'app n'a pas de rendu pour eux.
 - **Pas d'actions** dans le menu du clic droit en v1 : LIA propose, le hub exécute (catalogue : `hub-contract#78`).
 - **Une seule LIA par page, une seule voie** : `demarrerLia` depuis `instrumentation-client.ts`. Ne jamais monter `<Lia>` (`@mokarade/lia-ui/react`) en plus : deux LIA (verrou `tests/liaReglages.test.ts`).
+- **Pause générale (24/10/2026, Hubperso#313)** : le hub tient l'interrupteur (en base) et son `POST /api/lia/ask` rend 423 sans appeler MemoryAI tant qu'il est posé. Ici : ce 423 arrive au navigateur en 423 `{ error: "paused" }` (`LiaEnPause`, distinct du 503 de panne) ; l'option `pause` de lia-ui, nourrie par `GET /api/lia/pause`, laisse LIA se taire à l'écran sans attendre un refus. Le hub ne rend la pause qu'à un propriétaire (401 sans session, 403 pour un invité) : pour un invité elle reste illisible, donc en pause. Sur `/login` elle n'est jamais en pause (rien n'y part au réseau). Pas de `basculerPause` : la pause s'écrit au hub.
 - **Mode invité (24/10/2026, Marc : « LIA présente tout le temps, y compris sur /login »)** : sur `/login` LIA bouge, a une humeur et parle avec ses propres phrases, mais `ask` rejette AVANT tout réseau (elle dit « indisponible ») ; la route `/api/lia/ask` reste derrière la session. Le mode se relit à chaque question d'après `window.location.pathname` : une déconnexion vers `/login` sans rechargement complet referme `ask`, une connexion (rechargement complet) le rouvre. Aucun état partagé (BatchChef ne transporte pas `etat`). Routes sans LIA : aucune page ; seules les routes qui ne rendent rien (`/api/*`, `/hub/summary`) n'en ont pas.
 - Même mouvement que app-template#141 (LIA en mode invité), sans composant : BatchChef démarre `demarrerLia` depuis `instrumentation-client.ts`, pas depuis un module client rendu par le layout.
 - L'URL est `NEXT_PUBLIC_HUB_URL` (déjà utilisée par `accesHub.ts`, défaut `https://hubperso.com`) ; `http:` est refusé.

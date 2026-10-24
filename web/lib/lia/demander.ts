@@ -28,8 +28,16 @@ export interface OptionsDemande {
   env?: Readonly<Record<string, string | undefined>>;
 }
 
-/** URL de l'API ask du hub ; https obligatoire (le jeton voyage dans l'en-tête). */
-function urlAsk(base: string): string {
+/** Pause générale de LIA au hub (423) : le modèle n'a PAS été appelé. Distincte d'une panne, mais fermée comme elle. */
+export class LiaEnPause extends LiaIndisponible {
+  constructor() {
+    super("le hub est en pause");
+    this.name = "LiaEnPause";
+  }
+}
+
+/** URL d'une API du hub ; https obligatoire (le jeton ou le cookie de session voyage dans l'en-tête). */
+export function urlHub(base: string, chemin: string): string {
   let url: URL;
   try {
     url = new URL(base);
@@ -37,7 +45,7 @@ function urlAsk(base: string): string {
     throw new LiaIndisponible("NEXT_PUBLIC_HUB_URL invalide");
   }
   if (url.protocol !== "https:") throw new LiaIndisponible("NEXT_PUBLIC_HUB_URL doit être en https");
-  return new URL(CHEMIN_ASK_HUB, url).toString();
+  return new URL(chemin, url).toString();
 }
 
 export async function demanderAuHub(
@@ -46,7 +54,7 @@ export async function demanderAuHub(
 ): Promise<ReponseLiaApp> {
   const jeton = env.HUB_TOKEN;
   if (!jeton) throw new LiaIndisponible("HUB_TOKEN absent");
-  const url = urlAsk(env.NEXT_PUBLIC_HUB_URL?.trim() || URL_HUB_DEFAUT);
+  const url = urlHub(env.NEXT_PUBLIC_HUB_URL?.trim() || URL_HUB_DEFAUT, CHEMIN_ASK_HUB);
 
   const delai = AbortSignal.timeout(DELAI_HUB_MS);
   let reponse: Response;
@@ -63,6 +71,7 @@ export async function demanderAuHub(
     if (signal?.aborted) throw erreur;
     throw new LiaIndisponible("hub injoignable ou trop lent");
   }
+  if (reponse.status === 423) throw new LiaEnPause();
   if (!reponse.ok) throw new LiaIndisponible(`le hub a répondu ${reponse.status}`);
 
   let corps: unknown;
