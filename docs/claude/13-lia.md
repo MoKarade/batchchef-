@@ -2,7 +2,7 @@
 
 LIA, l'assistant de Marc, vit chez **MemoryAI** (cerveau, mémoire, outils). Chaque app ne fait que
 l'afficher et lui relayer les questions **par le hub**, seul détenteur des jetons (MemoryAI ne détient aucun jeton d'app). Le corps (traits en canvas, vie propre, chat au clic,
-menu au clic droit) vient du paquet `@mokarade/lia-ui`, épinglé **par tag** (`github:MoKarade/lia-ui#v0.34.0`),
+menu au clic droit) vient du paquet `@mokarade/lia-ui`, épinglé **par tag** (`github:MoKarade/lia-ui#v0.37.2`),
 jamais par branche, jamais publié sur npm. Mise à jour = changer le tag dans `package.json` ET le lock, comme `hub-contract`.
 **Une seule LIA, mêmes réglages que le hub** : `demarrerLia` ne reçoit que `ask`, `pause` (la pause générale du hub) et `etat` (l'état partagé, voir plus bas) ; ni `quandMouvementReduit`, `humeurVisible`, `parolePropre` ni `onSpontane` (défauts du paquet : animations complètes, pastille d'humeur du paquet, parole propre vraie par construction : jamais rien sur Marc ni sur l'app). Verrou : `web/tests/liaReglages.test.ts`.
 
