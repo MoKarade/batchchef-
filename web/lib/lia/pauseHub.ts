@@ -8,6 +8,7 @@
 // Échec FERMÉ : toute lecture qui n'est pas un 200 conforme rend `null` (illisible = en pause pour l'appelant).
 
 import { urlHub } from "@/lib/lia/demander";
+import { fetchHubAvecCookie } from "@/lib/lia/hubCookie";
 import { URL_HUB_DEFAUT } from "@/lib/lia/contrat";
 import { lireReponsePause } from "@/lib/lia/pause";
 
@@ -29,12 +30,13 @@ export async function lirePauseHub(
   try {
     const url = urlHub(env.NEXT_PUBLIC_HUB_URL?.trim() || URL_HUB_DEFAUT, CHEMIN_PAUSE_HUB);
     const delai = AbortSignal.timeout(DELAI_PAUSE_MS);
-    const reponse = await fetchImpl(url, {
+    const reponse = await fetchHubAvecCookie(url, {
       method: "GET",
       headers: { cookie },
       cache: "no-store",
       signal: signal ? AbortSignal.any([signal, delai]) : delai,
-    });
+    }, fetchImpl);
+    if (reponse.status !== 200) console.error(`[lia/pause] le hub a répondu ${reponse.status}`);
     let json: unknown = null;
     try {
       json = await reponse.json();

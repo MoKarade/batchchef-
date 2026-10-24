@@ -10,6 +10,7 @@
 
 import { URL_HUB_DEFAUT } from "@/lib/lia/contrat";
 import { urlHub } from "@/lib/lia/demander";
+import { fetchHubAvecCookie } from "@/lib/lia/hubCookie";
 import { relayerReponseEtat, type MethodeEtat, type Relais } from "@/lib/lia/etat";
 
 const CHEMIN_ETAT_HUB = "/api/lia/etat";
@@ -35,13 +36,15 @@ export async function relayerEtatHub(
   try {
     const url = urlHub(env.NEXT_PUBLIC_HUB_URL?.trim() || URL_HUB_DEFAUT, CHEMIN_ETAT_HUB);
     const delai = AbortSignal.timeout(DELAI_ETAT_MS);
-    const reponse = await fetchImpl(url, {
+    const reponse = await fetchHubAvecCookie(url, {
       method: methode,
       headers: { cookie, ...(corps !== undefined && { "content-type": "application/json" }) },
       ...(corps !== undefined && { body: corps }),
       cache: "no-store",
       signal: signal ? AbortSignal.any([signal, delai]) : delai,
-    });
+    }, fetchImpl);
+    // Le STATUT d'un refus du hub va au journal serveur (jamais le cookie ni l'état) : un 401 ne doit pas rester muet.
+    if (![200, 204, 409].includes(reponse.status)) console.error(`[lia/etat] le hub a répondu ${reponse.status}`);
     return relayerReponseEtat(methode, reponse.status, await reponse.text());
   } catch {
     return indisponible;
