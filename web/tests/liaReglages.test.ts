@@ -46,6 +46,17 @@ describe("LIA : mêmes réglages que le hub", () => {
     expect(route).not.toMatch(/export async function (PUT|POST|PATCH|DELETE)/);
   });
 
+  it("partage l'état unique de LIA : option `etat` branchée, route GET/PUT de même origine derrière la session", () => {
+    expect(source).toMatch(/etat: creerEtat\(/);
+    expect(source).toContain('etatHttp("/api/lia/etat")');
+    const route = lire("app/api/lia/etat/route.ts");
+    expect(route).toContain("requireSession()");
+    expect(route).toMatch(/export async function GET/);
+    expect(route).toMatch(/export async function PUT/);
+    expect(route).not.toMatch(/export async function (POST|PATCH|DELETE)/);
+    expect(route).not.toContain("HUB_TOKEN"); // le hub juge la session ; aucun jeton d'app ne voyage ici
+  });
+
   it("une seule LIA, montée hors rendu : demarrerLia depuis instrumentation-client, jamais <Lia/> dans le layout", () => {
     expect(lire("instrumentation-client.ts")).toContain("demarrerLiaApp()");
     expect(source).toContain('from "@mokarade/lia-ui/boot"');

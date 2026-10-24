@@ -4,14 +4,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { demarrerLia } = vi.hoisted(() => ({ demarrerLia: vi.fn() }));
 vi.mock("@mokarade/lia-ui/boot", () => ({ demarrerLia }));
+const { etatHttp } = vi.hoisted(() => ({ etatHttp: vi.fn() }));
+vi.mock("@mokarade/lia-ui/etat-http", () => ({ etatHttp }));
 
-import { creerAsk, creerPause, demarrerLiaApp, enModeInvite, sonderPause } from "../lib/lia/demarrage";
+import { creerAsk, creerEtat, creerPause, demarrerLiaApp, enModeInvite, sonderPause } from "../lib/lia/demarrage";
 
 const signal = new AbortController().signal;
 const reponse = { reponse: "Bonjour" } as never;
 
 beforeEach(() => {
   demarrerLia.mockReset();
+  etatHttp.mockReset().mockReturnValue({ lire: async () => null, ecrire: async () => null });
   vi.unstubAllGlobals();
 });
 
@@ -109,7 +112,48 @@ describe("sonderPause", () => {
   });
 });
 
+describe("creerEtat", () => {
+  const etat = { version: 1 } as never;
+
+  it("sur une page connectée : délègue lire et ecrire à l'hôte, tels quels", async () => {
+    const hote = { lire: vi.fn().mockResolvedValue("lu"), ecrire: vi.fn().mockResolvedValue("ecrit") };
+    const enveloppe = creerEtat(hote, () => "/recettes");
+    await expect(enveloppe.lire()).resolves.toBe("lu");
+    await expect(enveloppe.ecrire(etat)).resolves.toBe("ecrit");
+    expect(hote.ecrire).toHaveBeenCalledWith(etat);
+  });
+
+  it("sur /login : aucun état chez l'hôte et aucun appel réseau (pas de session)", async () => {
+    const hote = { lire: vi.fn(), ecrire: vi.fn() };
+    const enveloppe = creerEtat(hote, () => "/login");
+    await expect(enveloppe.lire()).resolves.toBeNull();
+    await expect(enveloppe.ecrire(etat)).resolves.toBeNull();
+    expect(hote.lire).not.toHaveBeenCalled();
+    expect(hote.ecrire).not.toHaveBeenCalled();
+  });
+
+  it("la page est relue à chaque appel (déconnexion sans rechargement complet)", async () => {
+    const hote = { lire: vi.fn().mockResolvedValue("lu"), ecrire: vi.fn() };
+    let chemin = "/recettes";
+    const enveloppe = creerEtat(hote, () => chemin);
+    await enveloppe.lire();
+    chemin = "/login";
+    await expect(enveloppe.lire()).resolves.toBeNull();
+    expect(hote.lire).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("demarrerLiaApp", () => {
+  it("branche l'état partagé sur la route de même origine /api/lia/etat", async () => {
+    vi.stubGlobal("window", { location: { pathname: "/recettes" } });
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ pause: false })));
+    const lire = vi.fn().mockResolvedValue("etat du hub");
+    etatHttp.mockReturnValue({ lire, ecrire: vi.fn() });
+    demarrerLiaApp(() => undefined);
+    expect(etatHttp).toHaveBeenCalledWith("/api/lia/etat");
+    await expect(demarrerLia.mock.calls[0]?.[0]?.etat.lire()).resolves.toBe("etat du hub");
+  });
+
   it.each(["/recettes", "/login"])("démarre LIA sur %s (présente partout) avec ask ET pause", (chemin) => {
     vi.stubGlobal("window", { location: { pathname: chemin } });
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ pause: false })));

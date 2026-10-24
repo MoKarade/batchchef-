@@ -9,7 +9,9 @@
 // dit « indisponible ») ; la route `/api/lia/ask` reste derrière la session. Le mode se relit à CHAQUE question d'après la
 // page courante : une déconnexion qui mène à `/login` sans rechargement complet referme `ask` aussi.
 
+import type { EtatHote } from "@mokarade/lia-ui";
 import { demarrerLia } from "@mokarade/lia-ui/boot";
+import { etatHttp } from "@mokarade/lia-ui/etat-http";
 import { demanderLia, lirePauseServeur } from "@/lib/lia/client";
 import type { ReponseLiaApp } from "@/lib/lia/contrat";
 import { PAS_SUIVI_PAUSE_MS, creerSuiviPause, type SuiviPause } from "@/lib/lia/pause";
@@ -38,6 +40,18 @@ export function creerPause(suivi: Pick<SuiviPause, "enPause">, page: () => strin
   return () => (enModeInvite(page()) ? false : suivi.enPause());
 }
 
+/**
+ * Son état partagé (option `etat` de lia-ui) : le même que celui du hub et des autres apps (route `/api/lia/etat`, relayée au hub).
+ * Sur la page de connexion il n'y a pas de session : rien ne part au réseau, LIA y garde son état local (`null` = aucun état chez
+ * l'hôte, `ecrire` ne rend rien). Ailleurs : l'hôte tel quel ; s'il échoue, LIA vit quand même sur son état local.
+ */
+export function creerEtat(hote: EtatHote, page: () => string): EtatHote {
+  return {
+    lire: () => (enModeInvite(page()) ? Promise.resolve(null) : hote.lire()),
+    ecrire: (etat) => (enModeInvite(page()) ? Promise.resolve(null) : hote.ecrire(etat)),
+  };
+}
+
 /** Relit la pause tant qu'il le faut, sauf sur la page de connexion (aucune session, aucun appel). */
 export function sonderPause(
   suivi: Pick<SuiviPause, "doitRelire" | "rafraichir">,
@@ -51,12 +65,16 @@ export function sonderPause(
   planifier(pas, PAS_SUIVI_PAUSE_MS);
 }
 
-export function demarrerLiaApp(planifier?: (tache: () => void, ms: number) => unknown): void {
+export function demarrerLiaApp(
+  planifier?: (tache: () => void, ms: number) => unknown,
+  hoteEtat: () => EtatHote = () => etatHttp("/api/lia/etat"),
+): void {
   const page = () => window.location.pathname;
   const suivi = creerSuiviPause(lirePauseServeur, () => Date.now());
   sonderPause(suivi, page, planifier);
   demarrerLia({
     ask: creerAsk((question, signal) => demanderLia(question, signal, { page: page() }), page),
     pause: creerPause(suivi, page),
+    etat: creerEtat(hoteEtat(), page),
   });
 }
