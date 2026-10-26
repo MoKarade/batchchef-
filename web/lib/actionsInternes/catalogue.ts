@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { inArray } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { splitNewCatalogRecipes } from "@/lib/catalogSelect";
+import { evenementRecetteAjoutee, planifierSorties } from "@/lib/sortiesMemoryAI";
 import { fail, type ActionResult } from "./commun";
 
 /** Le TRAVAIL de copie depuis le catalogue, sans contrôle d'accès (cf. `creerBatchInterne`). */
@@ -39,6 +40,7 @@ export async function ajouterDuCatalogueInterne(
     // Insère chaque recette (id retourné), accumule tous les ingrédients pour une seule
     // insertion groupée à la fin (N+1 écritures au lieu de 2N).
     let added = 0;
+    const ajoutees: Array<{ id: number; titre: string }> = [];
     const ingRows: Array<typeof schema.recipeIngredients.$inferInsert> = [];
     for (const cat of cats) {
       if (!addIds.has(cat.id)) continue;
@@ -63,6 +65,7 @@ export async function ajouterDuCatalogueInterne(
         .returning({ id: schema.recipes.id });
       if (!row) continue;
       added++;
+      ajoutees.push({ id: row.id, titre: cat.title });
       for (const i of catIngs.filter((x) => x.catalogRecipeId === cat.id)) {
         ingRows.push({
           recipeId: row.id,
@@ -75,6 +78,9 @@ export async function ajouterDuCatalogueInterne(
       }
     }
     if (ingRows.length > 0) await db.insert(schema.recipeIngredients).values(ingRows);
+
+    // Sortie vers MemoryAI : APRÈS l'écriture réussie, hors du chemin de la réponse, jamais bloquante.
+    planifierSorties(ajoutees.map((r) => evenementRecetteAjoutee(r)));
 
     revalidatePath("/recettes");
     return { ok: true, added, skipped };
