@@ -47,6 +47,9 @@ HORS exemptions de `build-necessaire.sh`, jamais « Redeploy » ni `--force`. Ap
 réponse réelle (`/api/sante/configuration`, `/api/hub/summary` avec le nouveau jeton). Aucune valeur de jeton ne passe par une
 issue, une PR ou un fil.
 
+Même règle pour `GOOGLE_CLIENT_SECRET` (remplacé le 26/10/2026, tâche #321 : l'ancien était périmé depuis le 23/10). La synchro
+Infisical vers Vercel peut recréer la variable en NON sensible : après une synchro, relire son type dans Vercel.
+
 ### Un merge sans déploiement fait maintenant rougir un workflow (21/10/2026, tâche #203)
 
 `.github/workflows/deploiement-present.yml` tourne après CHAQUE push sur `master` (sans `paths:`) et lance
