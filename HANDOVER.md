@@ -6,6 +6,10 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
+## LIA : lia-ui v0.42.0, la hauteur de la bulle se révèle en douceur (26/10/2026, tâche #329, mission MoKarade/.github#575)
+
+BatchChef épingle `@mokarade/lia-ui` v0.42.0 (sha pelé `cff04f4`), seul changement (`web/package.json`, `web/package-lock.json`). La bulle de v0.41.1 restait dans l'écran mais changeait de hauteur d'un coup à chaque réponse. v0.42.0 découvre la hauteur gagnée en 280 ms depuis le bord fixe, sans ombre coupée, et ne bouge rien avec `prefers-reduced-motion`. Rien à brancher côté app. Preuve : déploiement Vercel de production `READY` sur le commit fusionné, bundle servi contenant `inset(-24px)` sur batchchef.hubperso.com, puis mesure sur la page de connexion publique ; la tâche reste ouverte jusque-là.
+
 ## LIA : lia-ui v0.41.1, la bulle ne dépasse plus de l'écran (26/10/2026, tâche #327, mission MoKarade/.github#575)
 
 BatchChef épingle `@mokarade/lia-ui` v0.41.1 (sha pelé `90dc7e7`), seul changement (`web/package.json`, `web/package-lock.json`). Le relevé du PC sur v0.41.0 montrait la bulle hors écran à l'ouverture et à l'arrivée de la réponse, puis un saut. v0.41.1 place sans glisser quand la taille ou l'écran change et fait grandir la bulle vers le haut quand elle est dans la moitié basse. Rien à brancher côté app. Preuve : déploiement Vercel de production `READY` sur le commit fusionné, bundle servi contenant `lia-ui__chat--glisse` sur batchchef.hubperso.com, puis relevé du PC ; la tâche reste ouverte jusque-là.
