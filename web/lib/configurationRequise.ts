@@ -20,6 +20,7 @@ export const VARIABLES_REQUISES = [
   "AUTHORIZED_EMAIL",
   // Connexion Google : sans elles, la page de connexion ne mène nulle part.
   "GOOGLE_CLIENT_ID",
+  // Remplacé le 26/10/2026 (#321, l'ancien était périmé) : comme HUB_TOKEN, la valeur ne s'applique qu'à un NOUVEAU déploiement.
   "GOOGLE_CLIENT_SECRET",
 ] as const;
 
