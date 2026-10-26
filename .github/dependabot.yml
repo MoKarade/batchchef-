@@ -44,6 +44,10 @@ updates:
       # Dependabot. Il lisait mal le tag annoté v1.3.1 et proposait une RÉTROGRADATION v1.3.1 -> v1.3.0
       # (sans dist/ : installation cassée) — vécu le 23/09/2026, BatchChef #114 et JobAI #34.
       - dependency-name: "@mokarade/hub-contract"
+      # LIA (lia-ui) : même cause, même parade. Dependabot a proposé v0.38.0 -> v0.31.0 le 26/10/2026
+      # (CarAI #162, JobAI #275, FinanceAI #1288, app-template #155, toutes fusionnées) : LIA a perdu en
+      # prod ses humeurs et l'animation d'analyse. Le re-pin se fait à la main, à chaque version.
+      - dependency-name: "@mokarade/lia-ui"
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly, day: monday }
