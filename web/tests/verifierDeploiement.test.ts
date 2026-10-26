@@ -110,7 +110,7 @@ describe("workflow « Déploiement présent »", () => {
   });
 
   it("une alerte rouge réveille le Coordinateur, même quand le push vient d'un robot (Mergify)", () => {
-    expect(reacteur).toMatch(/workflows: \[CI, "Déploiement présent"\]/);
+    expect(reacteur).toMatch(/workflows: \[CI, "Déploiement présent", "Garde-fou"\]/);
     expect(reacteur).toContain("github.event.workflow_run.name == 'Déploiement présent'");
   });
 });
