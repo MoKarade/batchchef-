@@ -193,3 +193,41 @@ describe("route /api/lia/etat", () => {
     expect((await GET(appeler("GET"))).status).toBe(403);
   });
 });
+
+describe("la discussion qui suit Marc d'une app à l'autre (lia-ui v0.39.0)", () => {
+  const discussion = {
+    ouvert: true,
+    quand: etat.maj,
+    msgs: [
+      { de: "moi", texte: "Où en est ma recharge ?" },
+      { de: "lia", texte: "Elle est à 80 %." },
+    ],
+  };
+  const avec = { ...etat, discussion };
+
+  it("ce que la page écrit garde sa discussion, bornée, sans clé inconnue", () => {
+    expect(lireCorpsEtat(JSON.stringify({ ...avec, discussion: { ...discussion, intrus: "x" } }))).toEqual({ ok: true, etat: avec });
+    const longue = lireCorpsEtat(JSON.stringify({ ...etat, discussion: { ...discussion, msgs: [{ de: "moi", texte: "y".repeat(9000) }] } }));
+    expect(longue.ok && longue.etat.discussion?.msgs[0]?.texte.length).toBe(600);
+  });
+
+  it("fermée : aucun texte ; hors contrat : retirée sans refuser l'état", () => {
+    const fermee = lireCorpsEtat(JSON.stringify({ ...etat, discussion: { ...discussion, ouvert: false } }));
+    expect(fermee.ok && fermee.etat.discussion).toEqual({ ouvert: false, quand: etat.maj, msgs: [] });
+    expect(lireCorpsEtat(JSON.stringify({ ...etat, discussion: { ouvert: "oui", msgs: 3 } }))).toEqual({ ok: true, etat });
+  });
+
+  it("ce que le hub répond rend la discussion à la page", () => {
+    expect(relayerReponseEtat("GET", 200, JSON.stringify(avec))).toEqual({ status: 200, corps: avec });
+    expect(relayerReponseEtat("PUT", 409, JSON.stringify(avec))).toEqual({ status: 409, corps: avec });
+  });
+
+  it("au maximum des bornes (4 000 caractères, accents compris) l'état tient sous 16 Ko ; non bornée, 413", () => {
+    const bornee = [...Array.from({ length: 6 }, () => "é".repeat(600)), "é".repeat(400)].map((texte, i) => ({ de: i % 2 ? "lia" : "moi", texte }));
+    const corps = JSON.stringify({ ...etat, discussion: { ...discussion, msgs: bornee } });
+    expect(new TextEncoder().encode(corps).length).toBeLessThan(TAILLE_MAX_ETAT);
+    expect(lireCorpsEtat(corps).ok).toBe(true);
+    const pleine = Array.from({ length: 20 }, (_, i) => ({ de: i % 2 ? "lia" : "moi", texte: "é".repeat(600) }));
+    expect(lireCorpsEtat(JSON.stringify({ ...etat, discussion: { ...discussion, msgs: pleine } }))).toMatchObject({ ok: false, status: 413 });
+  });
+});
