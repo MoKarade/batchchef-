@@ -35,6 +35,16 @@ export function etapesDeBuild(env) {
   return { etapes: [BUILD], message: "préversion : migrations et réparation sautées" };
 }
 
+/**
+ * Ligne de journal posée juste avant `db:migrate` : l'instant d'AVANT la migration, en UTC, à donner à Neon pour
+ * restaurer la base si la migration tourne mal (un rollback Vercel ne défait pas la base). Fonction PURE.
+ * @param {Date} maintenant
+ * @returns {string}
+ */
+export function lignePointDeRestauration(maintenant) {
+  return `point de restauration Neon : ${maintenant.toISOString()}`;
+}
+
 function lancer() {
   const plan = etapesDeBuild(process.env);
   if (plan.erreur) {
@@ -54,6 +64,7 @@ function lancer() {
     process.exit(1);
   }
   for (const etape of plan.etapes) {
+    if (etape.nom === MIGRATION.nom) console.log(`[vercel-build] ${lignePointDeRestauration(new Date())}`);
     console.log(`[vercel-build] npm ${etape.args.join(" ")}`);
     const r = spawnSync(process.execPath, [npmExecPath, ...etape.args], { stdio: "inherit" });
     if (r.status !== 0) {

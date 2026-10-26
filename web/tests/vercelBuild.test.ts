@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { etapesDeBuild } from "../scripts/vercel-build.mjs";
+import { etapesDeBuild, lignePointDeRestauration } from "../scripts/vercel-build.mjs";
 
 const NOMS = (env: Record<string, string | undefined>) => etapesDeBuild(env).etapes.map((e) => e.nom);
 
@@ -108,5 +108,18 @@ describe("lancer() en sous-processus (SonarCloud S4036 : jamais de shell ni de r
     }
     expect(code).not.toBe(0);
     expect(sortie).toMatch(/npm_execpath absent/);
+  });
+});
+
+describe("point de restauration Neon", () => {
+  it("la ligne donne l'heure UTC ISO, exploitable telle quelle par Neon", () => {
+    expect(lignePointDeRestauration(new Date("2026-10-26T18:04:05.678Z"))).toBe("point de restauration Neon : 2026-10-26T18:04:05.678Z");
+  });
+
+  it("n'est journalisée qu'avant db:migrate : le source la lie à l'étape de migration, jamais à la préversion", () => {
+    const source = readFileSync(resolve(process.cwd(), "scripts/vercel-build.mjs"), "utf8");
+    expect(source).toMatch(/if \(etape\.nom === MIGRATION\.nom\) console\.log\(.*lignePointDeRestauration/);
+    // La préversion ne contient pas l'étape de migration, donc aucune ligne n'y est écrite.
+    expect(etapesDeBuild({ VERCEL_ENV: "preview" }).etapes.map((e) => e.nom)).not.toContain("db:migrate");
   });
 });

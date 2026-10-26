@@ -70,6 +70,20 @@ dernière ligne). Sinon : sortie 1, build arrêté, la version précédente rest
 `tests/verifierMigrations.test.ts` (base vierge, base en retard, vraies migrations sur PGlite). Une migration intermédiaire sans
 ligne n'est qu'un avertissement.
 
+### Revenir en arrière après une migration : le point de restauration Neon (26/10/2026, tâche #325)
+
+Un rollback Vercel remet l'ancien CODE, jamais la base. Juste avant `db:migrate` (production seulement), `vercel-build` écrit dans
+le journal du build : `[vercel-build] point de restauration Neon : <heure UTC ISO>` (fonction pure `lignePointDeRestauration`,
+test `web/tests/vercelBuild.test.ts`). Si une migration ou la réparation tourne mal :
+1. Lire cette ligne dans le journal du déploiement de production (Vercel, ou l'API) : c'est l'instant d'avant la migration.
+2. Restaurer la branche de production de Neon à cette heure (console Neon, « Restore », ou l'API), seulement si le dégât l'exige
+   (migration destructive = validation de Marc d'abord, comme toujours).
+3. Corriger le code, puis un NOUVEAU push sur `master` (jamais « Redeploy »).
+
+Limite : l'historique du plan gratuit de Neon est de 6 h selon la doc ([Neon, history window](https://neon.com/docs/introduction/history-window)),
+[À vérifier] dans la console du projet. Passé ce délai, l'heure ne sert plus ; une branche Neon créée par l'API avant la migration
+(clé API = geste de Marc) donnerait un point de retour sans limite de délai, non fait.
+
 ### ⚠️ Une PRÉVERSION écrit dans la base de PRODUCTION
 
 ✅ **GARDE EN PLACE (25/09/2026).** `vercel-build` lance `node scripts/vercel-build.mjs` : `db:migrate` et
