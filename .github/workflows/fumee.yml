@@ -8,6 +8,8 @@ name: Fumée de production
 # Le journal ne contient ni corps de réponse ni jeton.
 # Le contrôle « summary » sonde /api/hub/summary avec le secret HUB_TOKEN du dépôt (posé par Marc le 16/10/2026,
 # tâche #238). Le jeton est passé au workflow commun, jamais écrit dans un journal.
+# HUB_DISPATCH_TOKEN (jeton étroit, Contents RW sur MoKarade/.github seul) sert à demander le retour en arrière
+# quand la fumée est rouge (tâche #330).
 on:
   deployment_status:
 
@@ -24,3 +26,4 @@ jobs:
       chemin-summary: /api/hub/summary
     secrets:
       hub-token: ${{ secrets.HUB_TOKEN }}
+      HUB_DISPATCH_TOKEN: ${{ secrets.HUB_DISPATCH_TOKEN }}
