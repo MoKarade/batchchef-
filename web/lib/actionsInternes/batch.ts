@@ -11,6 +11,7 @@ import { db, schema } from "@/lib/db";
 import { aggregateShoppingList, fillMissingCosts } from "@/lib/aggregate";
 import { ecarterIngredientsDeFond } from "@/lib/ingredientsDeFond";
 import { estimateShoppingCosts } from "@/lib/llm";
+import { evenementBatchCree, planifierSorties } from "@/lib/sortiesMemoryAI";
 import { fail, type ActionResult } from "./commun";
 
 /**
@@ -107,6 +108,16 @@ export async function creerBatchInterne(input: {
         .set({ estCost: cost })
         .where(eq(schema.shoppingItems.id, item.id));
     }
+
+    // Sortie vers MemoryAI : APRÈS l'écriture réussie, hors du chemin de la réponse, jamais bloquante.
+    planifierSorties([
+      evenementBatchCree({
+        id: batch.id,
+        nom: name,
+        recettes: selections.length,
+        articles: aggregated.length,
+      }),
+    ]);
 
     revalidatePath("/batchs");
     return { ok: true, id: batch.id, estimationError };
