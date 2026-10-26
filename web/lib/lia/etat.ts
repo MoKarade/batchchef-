@@ -6,7 +6,8 @@
 // `lib/liaEtatPartage.ts`) avec la même fonction que LIA applique (`validerEtat`) :
 //   - ce que la page ÉCRIT : trop gros = 413, hors contrat = 400, sinon l'état nettoyé est relayé ;
 //   - ce que le hub RÉPOND : un 200 (ou un 409 d'écriture) n'est rendu que s'il est un état valide ; jamais réparé.
-// Aucun contenu de Marc dans cet état : des nombres, des verbes de LIA et un nom d'humeur.
+// L'état porte des nombres, des verbes de LIA et un nom d'humeur ; depuis lia-ui v0.39.0 il peut aussi porter la fin de la
+// discussion (`discussion` : 20 messages de 600 caractères au plus, 4 000 au total, texte de Marc compris), relayée sans être lue.
 
 import { validerEtat, type EtatLia } from "@mokarade/lia-ui";
 
