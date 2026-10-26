@@ -6,6 +6,10 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
+## LIA : lia-ui v0.41.1, la bulle ne dépasse plus de l'écran (26/10/2026, tâche #327, mission MoKarade/.github#575)
+
+BatchChef épingle `@mokarade/lia-ui` v0.41.1 (sha pelé `90dc7e7`), seul changement (`web/package.json`, `web/package-lock.json`). Le relevé du PC sur v0.41.0 montrait la bulle hors écran à l'ouverture et à l'arrivée de la réponse, puis un saut. v0.41.1 place sans glisser quand la taille ou l'écran change et fait grandir la bulle vers le haut quand elle est dans la moitié basse. Rien à brancher côté app. Preuve : déploiement Vercel de production `READY` sur le commit fusionné, bundle servi contenant `lia-ui__chat--glisse` sur batchchef.hubperso.com, puis relevé du PC ; la tâche reste ouverte jusque-là.
+
 ## LIA : lia-ui v0.41.0, sources cliquables et chat en bulle lissée (26/10/2026, tâche #323, mission MoKarade/.github#575)
 
 BatchChef épingle `@mokarade/lia-ui` v0.41.0 (sha pelé `4d0c6f9`), seul changement (`web/package.json`, `web/package-lock.json`). v0.40.0 : les marques `[→lien]` d'une réponse de LIA deviennent une ligne « Sources » de petits liens (https, sans identifiants). v0.41.0 : le chat ne se replace plus à chaque image, reste dans l'écran visible (clavier du téléphone compris), glisse vers sa place, ne bouge pas quand le texte arrive. Retours de Marc du 26/10 : « incompréhensible, trop de texte, pas de liens » et « clunky, ça bug quand ça sort de la page ». Rien à brancher côté app. Preuve : déploiement Vercel de production `READY` sur le commit fusionné, bundle servi contenant `lia-ui__sources` et `lia-ui__chat--glisse` sur batchchef.hubperso.com, puis une réponse réelle de LIA ; la tâche reste ouverte jusque-là.
