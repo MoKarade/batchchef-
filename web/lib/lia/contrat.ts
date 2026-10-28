@@ -54,3 +54,51 @@ export const ReponseLiaApp = z.object({
   mood: z.enum(HUMEURS_LIA).optional(),
 });
 export type ReponseLiaApp = z.infer<typeof ReponseLiaApp>;
+
+// --- L'atelier de /assistant (28/10/2026, tâche #346) -----------------------------------------------------
+// Sur /assistant, LIA est en pleine page (mode `atelier` de lia-ui) et la route /api/lia/ask répond avec le moteur de recettes
+// de l'app (`repondre`), pas avec le hub : c'est la base de recettes de Marc qu'on interroge. Les autres pages gardent la bulle,
+// qui parle toujours au hub. Même route, même interface ; seul le drapeau `atelier` change le chemin.
+
+/** Taille maximale d'une demande d'atelier : jusqu'à 20 messages de 8 000 caractères. Au-delà, ce n'est pas une conversation. */
+export const CORPS_ATELIER_MAX_OCTETS = 200 * 1024;
+const MESSAGES_ATELIER_MAX = 40;
+
+const MessageAtelier = z.object({
+  role: z.enum(["user", "assistant"]),
+  contenu: z.string().max(8000),
+});
+
+export const DemandeAtelier = z.object({
+  atelier: z.literal(true),
+  question: z.string().trim().min(1).max(QUESTION_MAX),
+  /** Ce qui s'est dit avant, gardé par le navigateur (la route n'a pas de mémoire). Une DONNÉE, tronquée côté serveur. */
+  historique: z.array(MessageAtelier).max(MESSAGES_ATELIER_MAX).default([]),
+});
+export type DemandeAtelier = z.infer<typeof DemandeAtelier>;
+
+/**
+ * Les blocs que l'atelier sait dessiner : un catalogue FERMÉ à deux formes, écrit ici et validé des deux côtés. Un bloc inconnu
+ * ou mal formé n'est pas dessiné (`renderBlocks`), jamais deviné. Les titres viennent de la base : des données, affichées par
+ * `textContent`.
+ */
+export const BlocAtelier = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("recette"),
+    source: z.enum(["catalogue", "mes-recettes"]),
+    id: z.number().int().positive(),
+    titre: z.string().min(1).max(200),
+  }),
+  z.object({
+    type: z.literal("placement"),
+    place: z.number().int().positive(),
+    id: z.number().int().positive(),
+  }),
+]);
+export type BlocAtelier = z.infer<typeof BlocAtelier>;
+
+export const ReponseAtelier = z.object({
+  text: z.string().min(1).max(8000),
+  blocks: z.array(BlocAtelier).max(20).default([]),
+});
+export type ReponseAtelier = z.infer<typeof ReponseAtelier>;

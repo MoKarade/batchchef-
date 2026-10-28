@@ -90,7 +90,7 @@ describe("le placement est revalidé côté serveur", () => {
     // ne peut la valoir que s'il sait ce qu'il demande.
     const code = corps();
     expect(code, "aucun refus sur le rôle").not.toMatch(/casseComposition\s*\)?\s*return\s*\{\s*ok:\s*false/);
-    const carte = decommente(lire("components/Conversation.tsx"));
+    const carte = decommente(lire("components/CartePlacement.tsx"));
     expect(carte, "la carte doit afficher l'avertissement").toMatch(/casseComposition/);
   });
 });
