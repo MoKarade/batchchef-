@@ -9,7 +9,7 @@ import { recordLlmUsage } from "@/lib/llmUsage";
 import {
   BUDGET_MS,
   MAX_TOURS_OUTILS,
-  promptSysteme,
+  blocsSysteme,
   tronquerHistorique,
   type Message,
 } from "./protocole";
@@ -30,6 +30,49 @@ export interface ReponseAssistant {
 
 type BlocContenu = Anthropic.Messages.ContentBlockParam;
 
+const CACHE: Anthropic.Messages.CacheControlEphemeral = { type: "ephemeral" };
+
+/**
+ * Les outils, avec le marqueur de cache sur le DERNIER : le préfixe mis en cache couvre
+ * alors tous les outils (le cache lit dans l'ordre outils, système, messages).
+ */
+function outilsAvecCache(
+  outils: readonly Anthropic.Messages.Tool[],
+): Anthropic.Messages.Tool[] {
+  return outils.map((o, i) => (i === outils.length - 1 ? { ...o, cache_control: CACHE } : o));
+}
+
+/**
+ * Le système en deux blocs : le texte stable porte le marqueur, la taille du catalogue vient
+ * APRÈS (voir `blocsSysteme`) pour que son changement n'invalide pas le préfixe.
+ */
+function systemeAvecCache(nbCatalogue: number | null): Anthropic.Messages.TextBlockParam[] {
+  const { stable, variable } = blocsSysteme(nbCatalogue);
+  return [
+    { type: "text", text: stable, cache_control: CACHE },
+    { type: "text", text: variable },
+  ];
+}
+
+/**
+ * Copie des messages avec un marqueur sur le dernier bloc du dernier message, quand c'est un
+ * tableau de blocs (un lot de `tool_result`). Le marqueur DÉMÉNAGE à chaque tour au lieu de
+ * s'empiler : l'API refuse plus de 4 marqueurs, et la boucle peut faire 9 appels. Les
+ * messages d'origine ne sont pas modifiés — leur préfixe reste identique d'un appel à l'autre.
+ */
+function messagesAvecCache(
+  messages: readonly Anthropic.Messages.MessageParam[],
+): Anthropic.Messages.MessageParam[] {
+  const dernier = messages[messages.length - 1];
+  if (!dernier || typeof dernier.content === "string" || dernier.content.length === 0) {
+    return [...messages];
+  }
+  const blocs = dernier.content.map((b, i, tous) =>
+    i === tous.length - 1 ? ({ ...b, cache_control: CACHE } as BlocContenu) : b,
+  );
+  return [...messages.slice(0, -1), { ...dernier, content: blocs } as Anthropic.Messages.MessageParam];
+}
+
 export async function repondre(historique: readonly Message[]): Promise<ReponseAssistant> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -48,7 +91,8 @@ export async function repondre(historique: readonly Message[]): Promise<ReponseA
   // indisponible ne s'invente pas — `null` fait dire « plusieurs milliers ». Et la panne
   // ne reste pas cachée : si la base est vraiment tombée, le premier appel d'outil le dira.
   const nbCatalogue = await compterCatalogue();
-  const systeme = promptSysteme(nbCatalogue);
+  const systeme = systemeAvecCache(nbCatalogue);
+  const outils = outilsAvecCache(OUTILS as unknown as Anthropic.Messages.Tool[]);
 
   const messages: Anthropic.Messages.MessageParam[] = tronquerHistorique(historique).map((m) => ({
     role: m.role,
@@ -63,8 +107,8 @@ export async function repondre(historique: readonly Message[]): Promise<ReponseA
       model: MODELE,
       max_tokens: 2000,
       system: systeme,
-      tools: OUTILS as unknown as Anthropic.Messages.Tool[],
-      messages,
+      tools: outils,
+      messages: messagesAvecCache(messages),
     });
     await recordLlmUsage("assistant", reponse.usage, MODELE);
 

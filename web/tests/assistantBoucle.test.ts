@@ -37,7 +37,7 @@ import {
   BUDGET_MS,
   MAX_MESSAGES_HISTORIQUE,
   MAX_TOURS_OUTILS,
-  promptSysteme,
+  blocsSysteme,
   type Message,
 } from "@/lib/assistant/protocole";
 
@@ -60,7 +60,14 @@ const appel = (id: string, name = "outil-de-test", input: unknown = { cle: "vale
 });
 
 /** Les arguments de chaque appel au modèle, COPIÉS au moment de l'appel (la boucle mute `messages`). */
-const appels: Array<{ model: string; system: string; messages: Array<{ role: string; content: unknown }> }> = [];
+const appels: Array<{
+  model: string;
+  system: Array<{ type: string; text: string; cache_control?: unknown }>;
+  tools: Array<{ name: string; cache_control?: unknown }>;
+  messages: Array<{ role: string; content: unknown }>;
+}> = [];
+
+const EPHEMERE = { type: "ephemeral" };
 
 const QUESTION: Message[] = [{ role: "user", contenu: "question-de-test" }];
 
@@ -117,7 +124,11 @@ describe("repondre — un tour sans outil", () => {
     expect(r).toEqual({ ok: true, texte: "réponse-finale", toursOutils: 0, borneAtteinte: false, coupeeEnCours: false });
     expect(construit).toHaveBeenCalledWith({ apiKey: "cle-de-test" });
     expect(create).toHaveBeenCalledTimes(1);
-    expect(appels[0]!.system).toBe(promptSysteme(42));
+    expect(appels[0]!.system).toEqual([
+      { type: "text", text: blocsSysteme(42).stable, cache_control: EPHEMERE },
+      { type: "text", text: blocsSysteme(42).variable },
+    ]);
+    expect(appels[0]!.system[1]!.text).toContain("42");
     expect(appels[0]!.messages).toEqual([{ role: "user", content: "question-de-test" }]);
     expect(recordLlmUsage).toHaveBeenCalledWith("assistant", USAGE, appels[0]!.model);
     expect(executerOutil).not.toHaveBeenCalled();
@@ -127,7 +138,8 @@ describe("repondre — un tour sans outil", () => {
     compterCatalogue.mockResolvedValue(null);
     programmer(reponse([texte("ok")]));
     await repondre(QUESTION);
-    expect(appels[0]!.system).toBe(promptSysteme(null));
+    expect(appels[0]!.system[1]!.text).toBe(blocsSysteme(null).variable);
+    expect(appels[0]!.system[1]!.text).not.toMatch(/\d/);
   });
 
   it("joint plusieurs blocs de texte et ignore les blocs d'un autre type", async () => {
@@ -164,7 +176,14 @@ describe("repondre — appels d'outils", () => {
     expect(second[1]).toEqual({ role: "assistant", content: demande.content });
     expect(second[2]).toEqual({
       role: "user",
-      content: [{ type: "tool_result", tool_use_id: "appel-1", content: "resultat-outil-de-test" }],
+      content: [
+        {
+          type: "tool_result",
+          tool_use_id: "appel-1",
+          content: "resultat-outil-de-test",
+          cache_control: EPHEMERE,
+        },
+      ],
     });
   });
 
@@ -178,6 +197,8 @@ describe("repondre — appels d'outils", () => {
     // Une demande sans `input` part avec un objet vide, jamais `undefined`.
     expect(executerOutil).toHaveBeenNthCalledWith(2, "outil-deux", {});
     const resultats = appels[1]!.messages[2]!.content as Array<{ tool_use_id: string; content: string }>;
+    // Le marqueur est sur le DERNIER résultat seulement.
+    expect(resultats.map((x) => "cache_control" in x)).toEqual([false, true]);
     expect(resultats.map((x) => [x.tool_use_id, x.content])).toEqual([
       ["a", "resultat-outil-un"],
       ["b", "resultat-outil-deux"],
@@ -228,6 +249,82 @@ describe("repondre — appels d'outils", () => {
     });
     programmer(reponse([texte("fin")]));
     expect((await repondre(QUESTION)).toursOutils).toBe(1);
+  });
+});
+
+describe("repondre — cache de prompts", () => {
+  /** Tous les marqueurs `cache_control` d'un appel : outils, système, messages. */
+  function marqueurs(a: (typeof appels)[number]): number {
+    return JSON.stringify(a).split('"cache_control"').length - 1;
+  }
+
+  /** Une question qui enchaîne `n` tours d'outils avant de répondre. */
+  function programmerTours(n: number): void {
+    for (let i = 0; i < n; i++) programmer(reponse([appel(`appel-${i}`)]));
+    programmer(reponse([texte("fin")]));
+  }
+
+  it("marqueurs aux bons endroits : dernier outil, bloc système stable, dernier tool_result", async () => {
+    programmerTours(2);
+    await repondre(QUESTION);
+    expect(appels).toHaveLength(3);
+
+    for (const a of appels) {
+      // Le dernier (ici le seul) outil porte le marqueur ; le bloc de la taille du catalogue, non.
+      expect(a.tools.map((o) => o.cache_control)).toEqual([EPHEMERE]);
+      expect(a.system.map((b) => b.cache_control)).toEqual([EPHEMERE, undefined]);
+    }
+    // Premier appel : seulement la question (du texte brut, pas de bloc où poser un marqueur).
+    expect(appels[0]!.messages).toEqual([{ role: "user", content: "question-de-test" }]);
+    // Ensuite : le marqueur est sur le dernier tool_result, et nulle part ailleurs dans les messages.
+    for (const a of appels.slice(1)) {
+      const dernier = a.messages.at(-1)!.content as Array<{ cache_control?: unknown }>;
+      expect(dernier.at(-1)!.cache_control).toEqual(EPHEMERE);
+      expect(JSON.stringify(a.messages).split('"cache_control"').length - 1).toBe(1);
+    }
+  });
+
+  it("jamais plus de 4 marqueurs, même au bout d'une longue boucle (limite de l'API)", async () => {
+    programmerTours(MAX_TOURS_OUTILS - 1);
+    await repondre(QUESTION);
+    expect(appels.length).toBeGreaterThan(5);
+    for (const a of appels) expect(marqueurs(a)).toBeLessThanOrEqual(4);
+  });
+
+  it("préfixe identique entre deux appels du même tour : le tour suivant ne fait que s'ajouter", async () => {
+    programmerTours(2);
+    await repondre(QUESTION);
+    const [a1, a2, a3] = appels as [(typeof appels)[number], (typeof appels)[number], (typeof appels)[number]];
+    // Outils et système : exactement les mêmes octets d'un appel à l'autre.
+    for (const a of [a2, a3]) {
+      expect(JSON.stringify(a.tools)).toBe(JSON.stringify(a1.tools));
+      expect(JSON.stringify(a.system)).toBe(JSON.stringify(a1.system));
+    }
+    // Messages : sans les marqueurs (qui ne comptent pas dans le préfixe), l'appel n est le
+    // début de l'appel n+1.
+    const nu = (a: (typeof appels)[number]) => JSON.parse(JSON.stringify(a.messages).replaceAll(',"cache_control":{"type":"ephemeral"}', ""));
+    expect(nu(a2).slice(0, a1.messages.length)).toEqual(nu(a1));
+    expect(nu(a3).slice(0, a2.messages.length)).toEqual(nu(a2));
+  });
+
+  it("⚠️ aucun nombre variable avant le dernier marqueur système : le catalogue qui bouge ne change pas le préfixe", async () => {
+    compterCatalogue.mockResolvedValueOnce(10170);
+    programmer(reponse([texte("a")]));
+    await repondre(QUESTION);
+    compterCatalogue.mockResolvedValueOnce(10171);
+    programmer(reponse([texte("b")]));
+    await repondre(QUESTION);
+
+    const [un, deux] = appels;
+    // Le bloc marqué est identique malgré le compte différent…
+    expect(deux!.system[0]).toEqual(un!.system[0]);
+    expect(JSON.stringify(deux!.tools)).toBe(JSON.stringify(un!.tools));
+    // …et c'est le bloc d'après qui porte la différence.
+    expect(deux!.system[1]!.text).not.toBe(un!.system[1]!.text);
+    // Le texte stable ne contient pas la taille du catalogue, quelle qu'elle soit.
+    expect(blocsSysteme(1).stable).toBe(blocsSysteme(99999).stable);
+    expect(blocsSysteme(null).stable).toBe(blocsSysteme(42).stable);
+    expect(un!.system[0]!.text).not.toMatch(/10[\s\u00a0\u202f]?170/);
   });
 });
 

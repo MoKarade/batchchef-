@@ -41,19 +41,41 @@ export function tarifPourModele(model: string | null | undefined): Tarif {
   return TARIF_DEFAUT;
 }
 
+// Cache de prompts (tarif Anthropic) : une ÉCRITURE de cache coûte 1,25 × le tarif d'entrée
+// (durée de vie de 5 minutes, celle qu'on utilise), une LECTURE 0,1 ×. Ces jetons ne sont PAS
+// inclus dans `input_tokens` : les ignorer sous-estimerait le coût publié au hub (un chiffre
+// faux), et les compter plein tarif le surestimerait.
+export const MULT_ECRITURE_CACHE = 1.25;
+export const MULT_LECTURE_CACHE = 0.1;
+
+/** Jetons de cache d'un appel (absents ou `null` = 0). */
+export interface JetonsCache {
+  ecriture?: number | null;
+  lecture?: number | null;
+}
+
 /** Coût USD d'un appel à partir des tokens (fonction pure, testable). */
 export function costUsd(
   inputTokens: number,
   outputTokens: number,
   tarif: Tarif = TARIF_DEFAUT,
+  cache: JetonsCache = {},
 ): number {
-  const c = (inputTokens / 1e6) * tarif.inputPerMTok + (outputTokens / 1e6) * tarif.outputPerMTok;
+  const ecriture = cache.ecriture ?? 0;
+  const lecture = cache.lecture ?? 0;
+  const c =
+    (inputTokens / 1e6) * tarif.inputPerMTok +
+    (ecriture / 1e6) * tarif.inputPerMTok * MULT_ECRITURE_CACHE +
+    (lecture / 1e6) * tarif.inputPerMTok * MULT_LECTURE_CACHE +
+    (outputTokens / 1e6) * tarif.outputPerMTok;
   return Math.round(c * 1e6) / 1e6; // 6 décimales : les fractions de cent comptent
 }
 
 interface AnthropicUsage {
   input_tokens?: number;
   output_tokens?: number;
+  cache_creation_input_tokens?: number | null;
+  cache_read_input_tokens?: number | null;
 }
 
 /**
@@ -72,11 +94,21 @@ export async function recordLlmUsage(
   try {
     const inputTokens = usage?.input_tokens ?? 0;
     const outputTokens = usage?.output_tokens ?? 0;
+    const cache: JetonsCache = {
+      ecriture: usage?.cache_creation_input_tokens,
+      lecture: usage?.cache_read_input_tokens,
+    };
+    if ((cache.ecriture ?? 0) > 0 || (cache.lecture ?? 0) > 0) {
+      // Seule trace du cache en production (la table ne stocke pas ces colonnes) : c'est
+      // elle qui prouve `lecture > 0` après la mise en place du cache de l'assistant.
+      console.info(`[llmUsage] ${action} cache écrit=${cache.ecriture ?? 0} lu=${cache.lecture ?? 0}`);
+    }
     await db.insert(schema.llmUsage).values({
       action,
-      inputTokens,
+      // Tout ce qui est parti au modèle en entrée : le cache en fait partie, il est seulement facturé moins cher.
+      inputTokens: inputTokens + (cache.ecriture ?? 0) + (cache.lecture ?? 0),
       outputTokens,
-      costUsd: costUsd(inputTokens, outputTokens, tarifPourModele(model)),
+      costUsd: costUsd(inputTokens, outputTokens, tarifPourModele(model), cache),
     });
   } catch {
     // Télémétrie non bloquante — on n'échoue jamais un import à cause du log de coût.

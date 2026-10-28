@@ -189,6 +189,13 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   complète) et `tronquerHistorique`, qui TRONQUE au lieu de rejeter — et coupe sur une
   frontière préservant l'alternance `user`/`assistant`, sinon l'API refuse tout. Chaque tour
   est compté dans `llm_usage` (action `assistant`) : une question en produit PLUSIEURS.
+  ⚠️ **Cache de prompts** (28/10/2026, tâche #342) : outils + protocole sont mis en cache
+  (marqueur sur le dernier outil et sur le bloc système stable), plus un marqueur sur le
+  dernier `tool_result`, qui déménage à chaque tour (l'API refuse plus de 4 marqueurs). Le
+  cache ne reconnaît qu'un préfixe identique : la taille du catalogue vit dans un bloc
+  APRÈS le marqueur (`blocsSysteme`), jamais dans le texte stable. `recordLlmUsage` facture
+  l'écriture à 1,25 × et la lecture à 0,1 × le tarif d'entrée ; la trace `[llmUsage] … lu=N`
+  des journaux de production prouve la lecture. Verrou : `tests/assistantBoucle.test.ts`.
 - **Le serveur MCP écrit par les FONCTIONS DE TRAVAIL de l'app, jamais en SQL réécrit.**
   `POST /api/mcp` (ADR-0001) ouvre la base à un Claude extérieur, en lecture **et** en
   écriture (décision de Marc, 19/08). Les trois outils qui écrivent appellent
