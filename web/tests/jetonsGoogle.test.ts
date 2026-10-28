@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   MARGE_EXPIRATION_MS,
   PARAMS_AUTORISATION,
+  PORTEE_DRIVE_LECTURE,
   PORTEE_TASKS,
   PORTEES_GOOGLE,
   jetonExpire,
@@ -21,10 +22,15 @@ describe("portées demandées à Google", () => {
     expect(PORTEES_GOOGLE).toContain(PORTEE_TASKS);
   });
 
-  it("ne demande NI Drive, NI Agenda, NI Gmail", () => {
-    // DriveAI et FinanceAI n'utilisent pas ce cookie : leur ajouter leurs portées ici
-    // n'apporterait rien et multiplierait par quatre les portes vers un Drive complet.
-    for (const interdite of ["drive", "calendar", "gmail", "spreadsheets"]) {
+  it("demande la LECTURE de Drive, jamais son écriture", () => {
+    expect(PORTEES_GOOGLE).toContain(PORTEE_DRIVE_LECTURE);
+    expect(PORTEE_DRIVE_LECTURE).toBe("https://www.googleapis.com/auth/drive.readonly");
+    expect(PORTEES_GOOGLE.split(" ")).not.toContain("https://www.googleapis.com/auth/drive");
+    expect(PORTEES_GOOGLE.split(" ")).not.toContain("https://www.googleapis.com/auth/drive.file");
+  });
+
+  it("ne demande NI Agenda, NI Gmail, NI Sheets", () => {
+    for (const interdite of ["calendar", "gmail", "spreadsheets"]) {
       expect(PORTEES_GOOGLE).not.toContain(interdite);
     }
   });
