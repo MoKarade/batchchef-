@@ -6,6 +6,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { reglagesConversation } from "@/lib/llm/reglages";
+import { modeleChoisi } from "@/lib/llm/modele";
 import { recordLlmUsage } from "@/lib/llmUsage";
 import {
   BUDGET_MS,
@@ -16,7 +17,7 @@ import {
 } from "./protocole";
 import { OUTILS, compterCatalogue, executerOutil } from "./outils";
 
-const MODELE = process.env.BATCHCHEF_MODELE_ASSISTANT ?? "claude-sonnet-5-5";
+const MODELE = modeleChoisi("BATCHCHEF_MODELE_ASSISTANT", process.env.BATCHCHEF_MODELE_ASSISTANT, "claude-sonnet-5-5");
 
 export interface ReponseAssistant {
   ok: boolean;
