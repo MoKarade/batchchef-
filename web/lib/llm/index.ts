@@ -13,14 +13,19 @@ import { z } from "zod";
 import { noteQuantiteNonConvertie, normalizeQty } from "../units";
 import { recordLlmUsage } from "../llmUsage";
 import { MAX_TRANSCRIPT_CHARS } from "../transcription";
+import { modeleChoisi } from "./modele";
 import { reglagesExtraction } from "./reglages";
 
-const MODEL = process.env.BATCHCHEF_LLM_MODEL || "claude-haiku-5-5";
+const MODEL = modeleChoisi("BATCHCHEF_LLM_MODEL", process.env.BATCHCHEF_LLM_MODEL, "claude-haiku-5-5");
 // Lire une vidéo, c'est déchiffrer du texte incrusté sur des images réduites et suivre des
 // gestes : nettement plus dur que parser une page HTML. D'où un modèle vision plus capable
 // ici. Le surcoût réel est de l'ordre du cent par vidéo (12 images ~768 px ≈ 5 000 tokens),
 // et il est publié au hub comme le reste (cf. lib/llmUsage.ts, tarif PAR modèle).
-const VISION_MODEL = process.env.BATCHCHEF_LLM_MODEL_VISION || "claude-sonnet-5-5";
+const VISION_MODEL = modeleChoisi(
+  "BATCHCHEF_LLM_MODEL_VISION",
+  process.env.BATCHCHEF_LLM_MODEL_VISION,
+  "claude-sonnet-5-5",
+);
 
 function client(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;

@@ -50,13 +50,17 @@ describe("recordLlmUsage — cache de prompts", () => {
       { input_tokens: 10, output_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 7_000 },
       "claude-sonnet-5-5",
     );
-    expect(info).toHaveBeenCalledWith("[llmUsage] assistant cache écrit=0 lu=7000");
+    expect(info).toHaveBeenCalledWith(
+      "[llmUsage] assistant modele=claude-sonnet-5-5 entree=10 sortie=1 cache écrit=0 lu=7000",
+    );
   });
 
-  it("sans cache : même ligne qu'avant, et aucune trace", async () => {
+  it("sans cache : même ligne en base qu'avant, et une trace qui nomme le modèle réellement appelé", async () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
     await recordLlmUsage("parse", { input_tokens: 1_000_000, output_tokens: 0 }, "claude-haiku-5-5");
-    expect(info).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledWith(
+      "[llmUsage] parse modele=claude-haiku-5-5 entree=1000000 sortie=0 cache écrit=0 lu=0",
+    );
     expect(values.mock.calls[0]![0]).toEqual({
       action: "parse",
       inputTokens: 1_000_000,

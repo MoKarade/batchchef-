@@ -101,11 +101,12 @@ export async function recordLlmUsage(
       ecriture: usage?.cache_creation_input_tokens,
       lecture: usage?.cache_read_input_tokens,
     };
-    if ((cache.ecriture ?? 0) > 0 || (cache.lecture ?? 0) > 0) {
-      // Seule trace du cache en production (la table ne stocke pas ces colonnes) : c'est
-      // elle qui prouve `lecture > 0` après la mise en place du cache de l'assistant.
-      console.info(`[llmUsage] ${action} cache écrit=${cache.ecriture ?? 0} lu=${cache.lecture ?? 0}`);
-    }
+    // Une ligne par appel : seule trace en production du modèle réellement appelé et du cache
+    // (la table ne stocke ni l'un ni l'autre). Aucun contenu, que des nombres et l'id du modèle.
+    console.info(
+      `[llmUsage] ${action} modele=${model} entree=${inputTokens} sortie=${outputTokens} ` +
+        `cache écrit=${cache.ecriture ?? 0} lu=${cache.lecture ?? 0}`,
+    );
     await db.insert(schema.llmUsage).values({
       action,
       // Tout ce qui est parti au modèle en entrée : le cache en fait partie, il est seulement facturé moins cher.
