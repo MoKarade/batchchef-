@@ -194,7 +194,7 @@ enregistrée » : on ne devine pas une provenance qu'on n'a pas enregistrée. La
 rendue dans le fuseau du Québec, pas celui du serveur.
 
 **Modèle et coût.** La lecture d'images tourne sur un modèle vision
-(`BATCHCHEF_LLM_MODEL_VISION`, défaut `claude-sonnet-5`) alors que le parse texte reste sur
+(`BATCHCHEF_LLM_MODEL_VISION`, défaut `claude-sonnet-5-5`) alors que le parse texte reste sur
 Haiku (`BATCHCHEF_LLM_MODEL`). Le coût publié au hub applique le tarif **du modèle
 réellement appelé** (`lib/llmUsage.ts`) : de l'ordre de 1 à 2 ¢ par vidéo.
 
