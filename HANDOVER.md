@@ -15,6 +15,10 @@ Marc, 28/10/2026 : « tous les onglets assistants dans toutes les apps doivent �
 - Vérifié : 1 203 tests, build, portes OK ; harnais navigateur (Chromium) : une seule LIA à chaque étape (arrivée directe, navigation aller et retour), question → réponse avec bouton, fiche ouverte par-dessus. [À vérifier] capture du PC de `/assistant` en production et une question réelle (« quoi cuisiner avec… »).
 - **Suite** : la boucle `repondre` partira quand LIA aura l'outil « chercher et composer des recettes BatchChef » côté MemoryAI (MemoryAI#285) ; tâche de retrait sous la mission .github#719.
 
+## 28/10/2026 : lia-ui v0.48.0, barres HTML lues et état relu toutes les 2 min (batchchef-#360, mission MoKarade/.github#719)
+
+Épingle `@mokarade/lia-ui` v0.48.0 (sha pelé `b0c8524`), seul changement (`web/package.json`, lock). v0.47.1 : l'état partagé n'est plus relu chaque minute mais toutes les 2 min, et seulement quand l'onglet est à l'écran. v0.48.0 : LIA lit aussi les barres de graphique dessinées en HTML (lia-ui#162, #164). BatchChef n'a pas de graphique, rien à brancher ni à relever ici. Preuve : déploiement Vercel de production `READY` sur le commit fusionné, `batchchef.hubperso.com` répond (200 ou redirection vers la connexion).
+
 ## 28/10/2026 : lia-ui v0.47.0, LIA lit les graphiques et ne scanne que sur demande (batchchef-#355, mission MoKarade/.github#575)
 
 Épingle `@mokarade/lia-ui` v0.47.0 (sha pelé `7f1d7bb`), seul changement (`web/package.json`, lock). Marc, 28/10/2026 : « l'assistant voit toujours pas les graphes » et « l'animation de scan uniquement sur ce que je lui ai demandé ». v0.47.0 : LIA lit un graphique SVG (titre, axes, légende, valeurs écrites) sans code chez l'app ; les graphiques dessinés sur un `<canvas>` restent illisibles (limite connue). v0.46.0 : le scan des nanobots ne joue que sur ce que Marc a demandé d'analyser. v0.45.x et v0.44.x arrivent avec. Rien à brancher. Preuve : déploiement `READY` sur le commit fusionné, puis relevé du PC (question sur un graphique : la réponse cite les libellés écrits).
