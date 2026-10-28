@@ -60,10 +60,32 @@ describe("LIA : mêmes réglages que le hub", () => {
   it("une seule LIA, montée hors rendu : demarrerLia depuis instrumentation-client, jamais <Lia/> dans le layout", () => {
     expect(lire("instrumentation-client.ts")).toContain("demarrerLiaApp()");
     expect(source).toContain('from "@mokarade/lia-ui/boot"');
-    // Deux voies = deux LIA : aucune source de l'app ne monte le composant React du paquet.
+    // Deux voies = deux LIA : le composant React du paquet n'est monté QUE par l'atelier de /assistant.
     for (const chemin of ["app/layout.tsx", "instrumentation-client.ts", "lib/lia/demarrage.ts"]) {
       expect(lire(chemin)).not.toContain("@mokarade/lia-ui/react");
     }
+  });
+
+  it("l'atelier de /assistant (#346) : la seule page qui monte <Lia/>, avec la bulle retirée avant et remise après", () => {
+    const atelier = lire("components/AtelierLia.tsx");
+    expect(atelier).toContain('from "@mokarade/lia-ui/react"');
+    expect(atelier).toMatch(/arreterBulle\(\)/);
+    expect(atelier).toMatch(/demarrerBulle/);
+    // Les mêmes réglages que la bulle (pause, état) : une seule LIA, un seul état.
+    expect(atelier).toMatch(/\.\.\.reglages/);
+    expect(atelier).toContain("atelier={{");
+    // Aucun autre composant client ne monte le paquet React.
+    for (const chemin of ["components/BlocsAtelier.tsx", "components/CartePlacement.tsx", "app/assistant/page.tsx"]) {
+      expect(lire(chemin)).not.toContain("@mokarade/lia-ui/react");
+    }
+    // La bulle n'est pas démarrée sur ce chemin, sans quoi il y aurait deux corps.
+    expect(source).toMatch(/if \(!enAtelier\(page\(\)\)\) demarrerBulle\(\)/);
+  });
+
+  it("l'ancien chat a disparu : un seul écran d'assistant, celui de LIA", () => {
+    expect(() => lire("components/Conversation.tsx")).toThrow();
+    expect(lire("app/assistant/page.tsx")).toContain("AtelierLia");
+    expect(lire("app/assistant/page.tsx")).not.toContain("Conversation");
   });
 
   it("paquet épinglé par tag, au moins v0.34.0, dans package.json et dans le lock", () => {

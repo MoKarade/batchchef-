@@ -1,10 +1,10 @@
 "use client";
 
-// La fiche d'une recette, ouverte PAR-DESSUS le chat.
+// La fiche d'une recette, ouverte PAR-DESSUS l'atelier de LIA (/assistant).
 //
-// ⚠️ C'est tout l'enjeu : la conversation vit dans l'état d'un composant client. Naviguer
+// ⚠️ C'est tout l'enjeu : la discussion vit dans l'état de la page. Naviguer
 // vers /recettes/12 la détruirait, et Marc perdrait l'échange qui vient de produire la
-// suggestion. La fiche est donc une surcouche — on l'ouvre, on la ferme, le chat n'a pas
+// suggestion. La fiche est donc une surcouche — on l'ouvre, on la ferme, la discussion n'a pas
 // bougé d'un pixel.
 //
 // `<dialog>` natif plutôt qu'une div : Échap pour fermer, focus piégé et fond inerte sont
@@ -116,7 +116,7 @@ export function FicheRecetteModale({
                 >
                   Retour à la conversation
                 </button>
-                {/* Ce lien QUITTE le chat : c'est dit, parce que la conversation ne survit
+                {/* Ce lien QUITTE l’atelier : c'est dit, parce que la conversation ne survit
                     pas à une navigation. */}
                 <Link
                   href={

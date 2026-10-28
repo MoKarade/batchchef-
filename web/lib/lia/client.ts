@@ -4,7 +4,7 @@
 // jeton dans le navigateur. Toute erreur devient un rejet : le paquet affiche alors
 // « indisponible » (échec fermé), jamais une réponse inventée.
 
-import { ReponseLiaApp } from "@/lib/lia/contrat";
+import { ReponseAtelier, ReponseLiaApp, type DemandeAtelier } from "@/lib/lia/contrat";
 import { lireReponsePause } from "@/lib/lia/pause";
 
 export async function demanderLia(
@@ -23,6 +23,31 @@ export async function demanderLia(
   if (reponse.status === 423) throw new Error("LIA en pause (423)");
   if (!reponse.ok) throw new Error(`LIA indisponible (${reponse.status})`);
   const lue = ReponseLiaApp.safeParse(await reponse.json());
+  if (!lue.success) throw new Error("LIA indisponible (réponse non conforme)");
+  return lue.data;
+}
+
+/**
+ * La question de l'atelier (page /assistant) : même route, avec le drapeau `atelier` et ce qui s'est dit avant. La réponse porte
+ * des blocs (recettes citées, remplacements proposés) que la page dessine ; un bloc mal formé fait échouer la lecture entière
+ * plutôt que d'être deviné.
+ */
+export async function demanderAtelier(
+  question: string,
+  historique: DemandeAtelier["historique"],
+  signal: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ReponseAtelier> {
+  const reponse = await fetchImpl("/api/lia/ask", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ atelier: true, question, historique }),
+    credentials: "same-origin",
+    cache: "no-store",
+    signal,
+  });
+  if (!reponse.ok) throw new Error(`LIA indisponible (${reponse.status})`);
+  const lue = ReponseAtelier.safeParse(await reponse.json());
   if (!lue.success) throw new Error("LIA indisponible (réponse non conforme)");
   return lue.data;
 }

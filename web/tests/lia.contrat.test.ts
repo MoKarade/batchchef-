@@ -1,7 +1,7 @@
 // tests/lia.contrat.test.ts — le contrat entre l'app, le navigateur et le hub (pur).
 
 import { describe, expect, it } from "vitest";
-import { DemandeHub, DemandeLia, QUESTION_MAX, ReponseLiaApp, estProprietaire } from "../lib/lia/contrat";
+import { DemandeAtelier, DemandeHub, DemandeLia, QUESTION_MAX, ReponseAtelier, ReponseLiaApp, estProprietaire } from "../lib/lia/contrat";
 
 describe("DemandeLia", () => {
   it("accepte une question, rognée, avec la page courante", () => {
@@ -59,5 +59,27 @@ describe("ReponseLiaApp", () => {
     ["texte absent", { mood: "calme" }],
   ])("rejette une réponse avec %s", (_nom, corps) => {
     expect(ReponseLiaApp.safeParse(corps).success).toBe(false);
+  });
+});
+
+describe("l'atelier de /assistant (#346)", () => {
+  it("DemandeAtelier : drapeau obligatoire, historique borné et à rôles connus", () => {
+    const ok = DemandeAtelier.safeParse({ atelier: true, question: "  Que cuisiner ? ", historique: [{ role: "user", contenu: "a" }] });
+    expect(ok.success && ok.data.question).toBe("Que cuisiner ?");
+    expect(DemandeAtelier.parse({ atelier: true, question: "?" }).historique).toEqual([]);
+    expect(DemandeAtelier.safeParse({ question: "?" }).success).toBe(false); // sans drapeau : ce n'est pas l'atelier
+    expect(DemandeAtelier.safeParse({ atelier: false, question: "?" }).success).toBe(false);
+    expect(DemandeAtelier.safeParse({ atelier: true, question: "?", historique: [{ role: "system", contenu: "x" }] }).success).toBe(false);
+    expect(
+      DemandeAtelier.safeParse({ atelier: true, question: "?", historique: Array.from({ length: 41 }, () => ({ role: "user", contenu: "x" })) }).success,
+    ).toBe(false);
+  });
+
+  it("ReponseAtelier : texte + blocs d'un catalogue fermé ; un bloc inconnu fait refuser la réponse", () => {
+    const bloc = { type: "recette", source: "catalogue", id: 4, titre: "Chili" };
+    expect(ReponseAtelier.parse({ text: "Voilà.", blocks: [bloc] }).blocks).toEqual([bloc]);
+    expect(ReponseAtelier.parse({ text: "Voilà." }).blocks).toEqual([]);
+    expect(ReponseAtelier.safeParse({ text: "Voilà.", blocks: [{ type: "courbe" }] }).success).toBe(false);
+    expect(ReponseAtelier.safeParse({ text: "" }).success).toBe(false);
   });
 });

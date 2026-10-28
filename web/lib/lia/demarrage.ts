@@ -9,8 +9,8 @@
 // dit « indisponible ») ; la route `/api/lia/ask` reste derrière la session. Le mode se relit à CHAQUE question d'après la
 // page courante : une déconnexion qui mène à `/login` sans rechargement complet referme `ask` aussi.
 
-import type { EtatHote } from "@mokarade/lia-ui";
-import { demarrerLia } from "@mokarade/lia-ui/boot";
+import type { EtatHote, OptionsLia } from "@mokarade/lia-ui";
+import { demarrerLia, type DemarrageLia } from "@mokarade/lia-ui/boot";
 import { etatHttp } from "@mokarade/lia-ui/etat-http";
 import { demanderLia, lirePauseServeur } from "@/lib/lia/client";
 import type { ReponseLiaApp } from "@/lib/lia/contrat";
@@ -65,6 +65,37 @@ export function sonderPause(
   planifier(pas, PAS_SUIVI_PAUSE_MS);
 }
 
+/**
+ * La page /assistant est l'atelier de LIA (tâche #346) : la discussion en pleine page, dans un conteneur que la page rend. Le
+ * mode `atelier` est lu au montage seulement et exige ce conteneur ; au chargement (avant l'hydratation) il n'existe pas encore.
+ * Sur ce chemin la bulle n'est donc pas démarrée : la page monte LIA elle-même (`components/AtelierLia.tsx`), et UNE SEULE LIA
+ * vit toujours (deux feraient deux corps).
+ */
+export function enAtelier(pathname: string): boolean {
+  return pathname === "/assistant" || pathname.startsWith("/assistant/");
+}
+
+// Les réglages de la bulle, gardés pour que l'atelier monte la MÊME LIA (mêmes `pause` et `etat`) et que la bulle puisse revenir.
+let options: OptionsLia | null = null;
+let bulle: DemarrageLia | null = null;
+
+/** Les réglages communs de LIA dans cette app ; `null` tant que `demarrerLiaApp` n'a pas tourné (aucune LIA à reprendre). */
+export function optionsLiaApp(): OptionsLia | null {
+  return options;
+}
+
+/** Pose la bulle (idempotent). Jamais appelée juste pour être arrêtée : `demarrerLia` monte tout de suite. */
+export function demarrerBulle(): void {
+  if (!options || bulle) return;
+  bulle = demarrerLia(options) ?? null;
+}
+
+/** Retire la bulle (la page /assistant prend le relais). Sans effet si elle n'est pas posée. */
+export function arreterBulle(): void {
+  bulle?.arreter();
+  bulle = null;
+}
+
 export function demarrerLiaApp(
   planifier?: (tache: () => void, ms: number) => unknown,
   hoteEtat: () => EtatHote = () => etatHttp("/api/lia/etat"),
@@ -72,9 +103,11 @@ export function demarrerLiaApp(
   const page = () => window.location.pathname;
   const suivi = creerSuiviPause(lirePauseServeur, () => Date.now());
   sonderPause(suivi, page, planifier);
-  demarrerLia({
+  options = {
     ask: creerAsk((question, signal) => demanderLia(question, signal, { page: page() }), page),
     pause: creerPause(suivi, page),
     etat: creerEtat(hoteEtat(), page),
-  });
+  };
+  bulle = null;
+  if (!enAtelier(page())) demarrerBulle();
 }

@@ -6,6 +6,15 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
+## 28/10/2026 : `/assistant` devient l'atelier de LIA (batchchef-#346, mission MoKarade/.github#575)
+
+Marc, 28/10/2026 : « tous les onglets assistants dans toutes les apps doivent être LIA avec son interface ». L'ancien chat (`Conversation.tsx`) est retiré : `/assistant` affiche LIA en pleine page (mode `atelier` de lia-ui, v0.44.0, épingle v0.47.0). **Le moteur ne change pas** : la boucle qui fouille les recettes et le catalogue (`lib/assistant/boucle.ts`) répond, par `POST /api/lia/ask` avec `atelier: true` ; la bulle des autres pages parle toujours au hub. Aucune écriture de faits côté BatchChef.
+- **Une seule LIA** : `demarrerLiaApp` ne démarre pas la bulle sur `/assistant` (`enAtelier`) ; en y arrivant par la navigation, `components/AtelierLia.tsx` retire la bulle (`arreterBulle`) avant de monter `<Lia atelier>` avec les MÊMES réglages (`optionsLiaApp`, donc même pause et même état), et la remet au départ (`demarrerBulle`, différée d'un tour).
+- **Réponse en texte et en blocs** (`lib/assistant/atelier.ts`, pur) : les marqueurs « [catalogue #482] » sont retirés du texte et deviennent un bloc `recette` (bouton qui ouvre la fiche PAR-DESSUS la page) ; « [semaine 3 ← catalogue #482] » devient un bloc `placement` (`components/CartePlacement.tsx`, aperçu avant le geste). Une recette inconnue de la base ne donne aucun bouton. Catalogue de blocs fermé (`BlocAtelier`, lib/lia/contrat.ts), validé des deux côtés.
+- **Discussions** : l'historique est gardé par la page, en mémoire (`lib/assistant/discussions.ts`), comme l'ancien chat ; « Nouvelle discussion » et la liste de lia-ui marchent, recharger repart de zéro. L'historique part avec chaque question (20 derniers messages, tronqué aussi côté serveur) ; borne du corps 200 Ko pour l'atelier, 8 Ko pour la bulle.
+- Vérifié : 1 203 tests, build, portes OK ; harnais navigateur (Chromium) : une seule LIA à chaque étape (arrivée directe, navigation aller et retour), question → réponse avec bouton, fiche ouverte par-dessus. [À vérifier] capture du PC de `/assistant` en production et une question réelle (« quoi cuisiner avec… »).
+- **Suite** : la boucle `repondre` partira quand LIA aura l'outil « chercher et composer des recettes BatchChef » côté MemoryAI (MemoryAI#285) ; tâche de retrait sous la mission .github#719.
+
 ## 28/10/2026 : lia-ui v0.47.0, LIA lit les graphiques et ne scanne que sur demande (batchchef-#355, mission MoKarade/.github#575)
 
 Épingle `@mokarade/lia-ui` v0.47.0 (sha pelé `7f1d7bb`), seul changement (`web/package.json`, lock). Marc, 28/10/2026 : « l'assistant voit toujours pas les graphes » et « l'animation de scan uniquement sur ce que je lui ai demandé ». v0.47.0 : LIA lit un graphique SVG (titre, axes, légende, valeurs écrites) sans code chez l'app ; les graphiques dessinés sur un `<canvas>` restent illisibles (limite connue). v0.46.0 : le scan des nanobots ne joue que sur ce que Marc a demandé d'analyser. v0.45.x et v0.44.x arrivent avec. Rien à brancher. Preuve : déploiement `READY` sur le commit fusionné, puis relevé du PC (question sur un graphique : la réponse cite les libellés écrits).
@@ -282,7 +291,7 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | Catalogue | **10 170 recettes** servies (le seed en porte 10 188 ; `CAT-E` en a retiré 18), cherchable, paginé. L'écran affiche un compte DÉRIVÉ, jamais un nombre écrit |
 | Batchs + liste d'épicerie | En service, prix estimés (couverture 100 %) |
 | Export Google Tasks | En service |
-| **Assistant** | **Neuf (19/08)** — `/assistant`, Claude fouille la base par outils ; les recettes citées deviennent des cartes cliquables qui s'ouvrent PAR-DESSUS le chat. ⚠️ Éteint si `ANTHROPIC_API_KEY` absente (dit à l'écran, pas une panne) |
+| **Assistant** | **Neuf (19/08)** — `/assistant`, Claude fouille la base par outils ; les recettes citées deviennent des boutons qui ouvrent la fiche PAR-DESSUS la page (depuis le 28/10 : dans l'atelier de LIA, #346). ⚠️ Éteint si `ANTHROPIC_API_KEY` absente (dit à l'écran, pas une panne) |
 | **Proposition de la semaine** | **Neuve (14/09)** — carte « Ta semaine » sur l'accueil : **3 plats + 1 dessert**, remplaçables un à un, et un bouton qui monte le batch avec sa liste d'épicerie. Fabriquée à l'ouverture de l'app, pas par un cron |
 | **Semaine par l'assistant** | **Neuf (14/09)** — « mets-moi quelque chose avec du poulet à la place du troisième » : l'assistant lit ta semaine, propose, et un bouton dans le chat applique. Plus un « Propose-moi une autre semaine » sur la carte, derrière une confirmation |
 | **Prix, temps et difficulté** | **Neuf (14/09)** — la carte « Ta semaine » annonce le temps total et le prix estimé de l'épicerie ; chaque recette porte une note de difficulté en étoiles (1 à 5), partout où elle s'affiche |
@@ -338,7 +347,7 @@ Marc et restent nommées au backlog.
   plats et un dessert » — ton clic vaut demande explicite, il ne peut la valoir que si tu sais
   ce que tu demandes.
 
-  ⚠️ **Le chat vit sur `/assistant`, la carte sur l'accueil** : après un clic tu ne verras
+  ⚠️ **L'atelier vit sur `/assistant`, la carte sur l'accueil** : après un clic tu ne verras
   rien bouger. Le bouton devient « X est posée à la place N de ta semaine » — c'est la seule
   confirmation que tu auras.
 
