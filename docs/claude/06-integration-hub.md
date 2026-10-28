@@ -5,8 +5,10 @@
 ## 7. Intégration hub
 
 - BatchChef publie `GET /api/hub/summary` conforme à `@mokarade/hub-contract` — **pinné sur
-  le tag `v1.5.0`** depuis le 16/10/2026 (le contrat passe à Zod 4, `CONTRACT_VERSION`
-  inchangé ; tests et typecheck identiques avant/après). Avant : `v1.4.0` (15/10/2026, sous-chemin `/session`), `v1.3.1` depuis le 23/09/2026 (#110 : son `dist/` est commité, ce qu'exige
+  le tag `v1.6.0`** depuis le 28/10/2026 (ajout optionnel : le catalogue d'actions de l'assistant,
+  `validateActionCatalog` ; le format du summary est inchangé, rien à brancher). Avant : `v1.5.0`
+  depuis le 16/10/2026 (le contrat passe à Zod 4, `CONTRACT_VERSION` inchangé ; tests et typecheck
+  identiques avant/après), `v1.4.0` (15/10/2026, sous-chemin `/session`), `v1.3.1` depuis le 23/09/2026 (#110 : son `dist/` est commité, ce qu'exige
   npm 11 sous Node 24 ; Dependabot ne le déplace plus, #116) — gardé par le jeton `x-hub-token`.
   Voir `lib/hubSummary.ts`.
   ⚠️ Re-pinner n'est pas optionnel pour consommer un champ neuf : Zod STRIPPE les clés
