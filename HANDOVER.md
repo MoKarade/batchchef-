@@ -6,6 +6,10 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
+## 28/10/2026 : lia-ui v0.44.2, le menu du clic droit s'ouvre toujours sous le clic (batchchef-#353, mission MoKarade/.github#575)
+
+Épingle `@mokarade/lia-ui` v0.44.2 (sha pelé `8881751`), seul changement (`web/package.json`, lock). Le menu d'un élément n'est plus borné à la zone de vie de LIA : il s'ouvre là où Marc a cliqué, dans la fenêtre (lia-ui#152, relevé du PC du 28/10, 15:48Z). v0.44.0 (mode atelier, inactif tant que l'app ne le demande pas) et v0.44.1 (tag automatique) arrivent avec. [À vérifier] relevé du PC après le déploiement de production.
+
 ## 28/10/2026 : lia-ui v0.43.0, le clic droit de LIA marche partout (batchchef-#350, mission MoKarade/.github#575)
 
 Épingle `@mokarade/lia-ui` v0.43.0 (sha pelé `c0f1ff7`), seul changement (`web/package.json`, lock). Marc, 28/10/2026 : « faut qu'il marche partout ». Le clic droit (et l'appui long) de LIA s'ouvre maintenant sur le fond de page, dans une fenêtre modale `<dialog>.showModal()`, et même quand un gestionnaire de la page bloque le menu natif ; les champs de saisie gardent le menu du navigateur. Rien à brancher. Preuve : déploiement de production `READY` sur le commit fusionné, puis relevé du PC (lia-ui#147).
