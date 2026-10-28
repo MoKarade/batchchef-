@@ -7,7 +7,18 @@ vi.mock("@mokarade/lia-ui/boot", () => ({ demarrerLia }));
 const { etatHttp } = vi.hoisted(() => ({ etatHttp: vi.fn() }));
 vi.mock("@mokarade/lia-ui/etat-http", () => ({ etatHttp }));
 
-import { creerAsk, creerEtat, creerPause, demarrerLiaApp, enModeInvite, sonderPause } from "../lib/lia/demarrage";
+import {
+  arreterBulle,
+  creerAsk,
+  creerEtat,
+  creerPause,
+  demarrerBulle,
+  demarrerLiaApp,
+  enAtelier,
+  enModeInvite,
+  optionsLiaApp,
+  sonderPause,
+} from "../lib/lia/demarrage";
 
 const signal = new AbortController().signal;
 const reponse = { reponse: "Bonjour" } as never;
@@ -172,5 +183,59 @@ describe("demarrerLiaApp", () => {
     vi.stubGlobal("window", { location: { pathname: "/login" } });
     demarrerLiaApp(() => undefined);
     expect(demarrerLia.mock.calls[0]?.[0]?.pause()).toBe(false);
+  });
+});
+
+describe("enAtelier", () => {
+  it("/assistant et ses sous-chemins sont l'atelier, jamais un simple préfixe de chaîne", () => {
+    for (const chemin of ["/assistant", "/assistant/", "/assistant/ancien"]) expect(enAtelier(chemin)).toBe(true);
+    for (const chemin of ["/", "/assistants", "/assistantx", "/recettes/assistant", "/login"]) expect(enAtelier(chemin)).toBe(false);
+  });
+});
+
+describe("la bulle et l'atelier (#346) : une seule LIA", () => {
+  const arreter = vi.fn();
+  const sur = (chemin: string) => {
+    vi.stubGlobal("window", { location: { pathname: chemin } });
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ pause: false })));
+  };
+  beforeEach(() => {
+    arreter.mockReset();
+    demarrerLia.mockReset().mockImplementation(() => ({ poignee: () => null, arreter }));
+  });
+
+  it("sur /assistant la bulle n'est PAS démarrée (la page monte LIA dans son conteneur), mais ses réglages sont gardés", () => {
+    sur("/assistant");
+    demarrerLiaApp(() => undefined);
+    expect(demarrerLia).not.toHaveBeenCalled();
+    const options = optionsLiaApp();
+    expect(typeof options?.ask).toBe("function");
+    expect(typeof options?.pause).toBe("function");
+    expect(options?.etat).toBeTruthy();
+  });
+
+  it("l'atelier retire la bulle (arreter) puis la remet avec les MÊMES réglages au départ de la page", () => {
+    sur("/recettes");
+    demarrerLiaApp(() => undefined);
+    expect(demarrerLia).toHaveBeenCalledTimes(1);
+    const options = optionsLiaApp();
+    demarrerBulle(); // déjà posée : sans effet, jamais deux LIA
+    expect(demarrerLia).toHaveBeenCalledTimes(1);
+
+    arreterBulle();
+    expect(arreter).toHaveBeenCalledTimes(1);
+    arreterBulle(); // déjà retirée : sans effet
+    expect(arreter).toHaveBeenCalledTimes(1);
+
+    demarrerBulle();
+    expect(demarrerLia).toHaveBeenCalledTimes(2);
+    expect(demarrerLia.mock.calls[1]?.[0]).toBe(options);
+  });
+
+  it("on ne démarre jamais la bulle pour la seule arrêter : arrêter sans bulle n'appelle pas demarrerLia", () => {
+    sur("/assistant");
+    demarrerLiaApp(() => undefined);
+    arreterBulle();
+    expect(demarrerLia).not.toHaveBeenCalled();
   });
 });

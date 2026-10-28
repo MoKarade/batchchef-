@@ -1,7 +1,7 @@
 // tests/lia.client.test.ts — le `ask` du navigateur : tout échec devient un rejet.
 
 import { describe, expect, it, vi } from "vitest";
-import { demanderLia, lirePauseServeur } from "../lib/lia/client";
+import { demanderAtelier, demanderLia, lirePauseServeur } from "../lib/lia/client";
 
 const signal = new AbortController().signal;
 
@@ -30,6 +30,28 @@ describe("demanderLia", () => {
   it("réponse non conforme : rejet, jamais du texte inventé", async () => {
     const fetchImpl = vi.fn(async () => Response.json({ mood: "calme" }));
     await expect(demanderLia("?", signal, { fetchImpl })).rejects.toThrow(/non conforme/);
+  });
+});
+
+describe("demanderAtelier", () => {
+  it("poste sur la MÊME route avec le drapeau `atelier` et l'historique, et rend texte et blocs validés", async () => {
+    const bloc = { type: "recette", source: "catalogue", id: 4, titre: "Chili" };
+    const fetchImpl = vi.fn(async () => Response.json({ text: "Voilà.", blocks: [bloc] }));
+    const historique = [{ role: "user" as const, contenu: "avant" }];
+    const rendu = await demanderAtelier("Que cuisiner ?", historique, signal, fetchImpl);
+    expect(rendu).toEqual({ text: "Voilà.", blocks: [bloc] });
+
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/lia/ask");
+    expect(init.credentials).toBe("same-origin");
+    expect(JSON.parse(init.body as string)).toEqual({ atelier: true, question: "Que cuisiner ?", historique });
+  });
+
+  it("statut d'erreur ou réponse non conforme : rejet, LIA dit « indisponible », rien n'est inventé", async () => {
+    await expect(demanderAtelier("?", [], signal, vi.fn(async () => new Response("{}", { status: 503 })))).rejects.toThrow(/503/);
+    await expect(
+      demanderAtelier("?", [], signal, vi.fn(async () => Response.json({ text: "ok", blocks: [{ type: "courbe" }] }))),
+    ).rejects.toThrow(/non conforme/);
   });
 });
 

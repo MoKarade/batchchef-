@@ -45,3 +45,13 @@ navigateur ──POST /api/lia/ask──▶ app ──POST /api/lia/ask (x-hub-t
 - ⚠️ Un fork avec une **CSP** doit autoriser les styles que le paquet injecte (`style-src`), sinon LIA s'affiche sans habillage.
 
 - **BatchChef** : `/api/lia/ask` reste derrière le middleware (jamais confondue avec `/api/mcp`, hors middleware par égalité stricte) ; les chemins de ce document sont sous `web/`.
+
+## L'atelier de `/assistant` (28/10/2026, tâche #346)
+
+`/assistant` n'a plus de chat propre : c'est LIA en pleine page (option `atelier` de lia-ui, v0.44.0). Le moteur reste celui de l'app.
+
+- **Une seule LIA** : la bulle n'est pas démarrée sur `/assistant` (`enAtelier`, `lib/lia/demarrage.ts`). `components/AtelierLia.tsx` rend d'abord son conteneur (l'option est lue au montage et exige un conteneur déjà dans le DOM), retire la bulle (`arreterBulle`, jamais `demarrerLia` juste pour l'arrêter), puis monte `<Lia atelier>` avec `optionsLiaApp()` (mêmes `pause` et `etat`). Au départ de la page : `demarrerBulle()`, différée d'un tour et annulée si la page revient (rendu double de React). C'est la SEULE page qui monte `<Lia/>` (verrou `tests/liaReglages.test.ts`).
+- **Route** : `POST /api/lia/ask` avec `atelier: true` (`DemandeAtelier`) répond par `repondreAtelier` (boucle de recettes + titres), pas par le hub ; mal formée : 400, jamais renvoyée au hub ; panne du moteur : 503 `lia_indisponible`, raison au journal. `maxDuration` = 60 s (budget de la boucle 45 s). Corps jusqu'à 200 Ko pour l'atelier (historique), 8 Ko pour la bulle.
+- **Blocs** : `ReponseAtelier` = texte + blocs d'un catalogue fermé (`recette`, `placement`), dessinés par `components/BlocsAtelier.tsx` (`renderBlocks`). Un bloc invalide n'est pas dessiné ; une recette inconnue de la base n'a pas de bouton. Les titres sont des données de la base (texte React, jamais du HTML).
+- **Discussions** : gardées par la page en mémoire (`lib/assistant/discussions.ts`) ; l'atelier n'écrit RIEN dans l'état partagé de la bulle. Recharger repart de zéro, comme l'ancien chat.
+- À retirer quand MemoryAI aura l'outil de recettes BatchChef (MemoryAI#285) : `repondre` et la branche `atelier` de la route.

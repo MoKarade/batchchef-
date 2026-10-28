@@ -1,6 +1,6 @@
 "use server";
 
-// lib/actions/assistant.ts — question à l'assistant et fiche de recette ouverte depuis le chat.
+// lib/actions/assistant.ts — fiche de recette ouverte depuis l'atelier de LIA (la question, elle, passe par /api/lia/ask).
 //
 // Server Actions : chaque export est un point d'entrée appelable depuis le navigateur, et
 // revérifie donc la session EN TÊTE (défense en profondeur : le middleware garde déjà).
@@ -10,44 +10,8 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { formatQty } from "@/lib/aggregate";
-import { repondre } from "@/lib/assistant/boucle";
-import { validerMessage, type Message } from "@/lib/assistant/protocole";
 import { fail, type ActionResult } from "@/lib/actionsInternes/commun";
 import { requireSession } from "@/lib/actionsInternes/session";
-
-/**
- * Une question à l'assistant.
- *
- * L'historique arrive du NAVIGATEUR : il est donc revalidé ici, et tronqué avant l'appel
- * (`tronquerHistorique` dans la boucle). Ne jamais faire confiance à sa longueur — c'est
- * une entrée qui croît à chaque tour.
- */
-export async function demanderAAssistant(
-  historique: Message[],
-): Promise<ActionResult & { texte?: string; borneAtteinte?: boolean }> {
-  try {
-    await requireSession();
-    if (!Array.isArray(historique) || historique.length === 0) {
-      return { ok: false, error: "Rien à envoyer." };
-    }
-    const dernier = historique[historique.length - 1];
-    if (!dernier || dernier.role !== "user") {
-      return { ok: false, error: "Le dernier message doit être une question." };
-    }
-    const valide = validerMessage(dernier.contenu);
-    if (!valide.ok) return { ok: false, error: valide.erreur };
-
-    const propre: Message[] = historique
-      .filter((m) => m && (m.role === "user" || m.role === "assistant"))
-      .map((m) => ({ role: m.role, contenu: String(m.contenu ?? "").slice(0, 8000) }));
-
-    const reponse = await repondre(propre);
-    if (!reponse.ok) return { ok: false, error: reponse.texte };
-    return { ok: true, texte: reponse.texte, borneAtteinte: reponse.borneAtteinte };
-  } catch (err) {
-    return fail(err);
-  }
-}
 
 export interface FicheRecette {
   id: number;
@@ -60,9 +24,9 @@ export interface FicheRecette {
 }
 
 /**
- * Lit une recette pour l'afficher SANS quitter le chat.
+ * Lit une recette pour l'afficher SANS quitter l'atelier.
  *
- * Le chat vit dans l'état d'un composant client : naviguer vers /recettes/12 le détruirait,
+ * La discussion vit dans l'état de la page : naviguer vers /recettes/12 la détruirait,
  * et Marc perdrait la conversation qui vient de produire la suggestion. La fiche s'ouvre
  * donc PAR-DESSUS, et cette action ne fait que lire.
  */

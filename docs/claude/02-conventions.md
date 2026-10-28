@@ -17,7 +17,7 @@
 | `lib/actionsInternes/` | fonctions de TRAVAIL `*Interne` (sans contrôle d'accès, appelées par les Server Actions et le MCP) + `commun.ts` / `session.ts`. Module ORDINAIRE, jamais `"use server"` (faille M2) : verrou `tests/actionsSession.test.ts` |
 | `lib/aggregate.ts` | agrégation liste d'épicerie, mise à l'échelle, filet de prix (purs) |
 | `lib/ingredientsDeFond.ts` | sel/poivre/eau écartés de la liste — automatique, mot à mot, et DIT à l'écran (PUR, testé) |
-| `lib/assistant/` | `protocole.ts` = bornes, troncature, classement, balisage (PUR, testé) · `outils.ts` = ce que Claude peut interroger · `boucle.ts` = les allers-retours |
+| `lib/assistant/` | `protocole.ts` = bornes, troncature, classement, balisage (PUR, testé) · `outils.ts` = ce que Claude peut interroger · `boucle.ts` = les allers-retours · `atelier.ts` (pur) = marqueurs → blocs pour l'atelier de LIA, `atelierServeur.ts` = titres + boucle, `discussions.ts` = discussions de la page |
 | `lib/mcp/` | `protocole.ts` = JSON-RPC + négociation de version (PUR, testé) · `declarations.ts` = les 7 outils ANNONCÉS (données pures, testables sans next-auth) · `outils.ts` = ce qui les EXÉCUTE. La correspondance des deux derniers est verrouillée dans les DEUX sens |
 | `lib/llm/` | parse de recette (page web **et** vidéo) + estimation de coûts (Zod, honnête) |
 | `lib/video/` | `frames.ts` = sondage/empreintes/budget (PUR, testé) · `capture.ts` = extraction `<video>`+`<canvas>` en 2 passes (repérage 32×32 puis extraction 768 px) **dans le navigateur** (la vidéo ne monte jamais au serveur) |
