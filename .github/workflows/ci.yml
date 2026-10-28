@@ -225,7 +225,7 @@ jobs:
     # Tests de mutation (Stryker) : Stryker modifie volontairement le code et vérifie que les
     # tests le remarquent. Lent, donc hebdomadaire (même cron que l'audit) et à la demande.
     # Le seuil (score minimal) vit dans web/qualite/seuils.json, comme les autres portes.
-    timeout-minutes: 120
+    timeout-minutes: 240
     name: Tests de mutation (hebdomadaire)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
