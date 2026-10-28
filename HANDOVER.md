@@ -30,6 +30,10 @@ BatchChef épingle `@mokarade/lia-ui` v0.41.1 (sha pelé `90dc7e7`), seul change
 
 BatchChef épingle `@mokarade/lia-ui` v0.41.0 (sha pelé `4d0c6f9`), seul changement (`web/package.json`, `web/package-lock.json`). v0.40.0 : les marques `[→lien]` d'une réponse de LIA deviennent une ligne « Sources » de petits liens (https, sans identifiants). v0.41.0 : le chat ne se replace plus à chaque image, reste dans l'écran visible (clavier du téléphone compris), glisse vers sa place, ne bouge pas quand le texte arrive. Retours de Marc du 26/10 : « incompréhensible, trop de texte, pas de liens » et « clunky, ça bug quand ça sort de la page ». Rien à brancher côté app. Preuve : déploiement Vercel de production `READY` sur le commit fusionné, bundle servi contenant `lia-ui__sources` et `lia-ui__chat--glisse` sur batchchef.hubperso.com, puis une réponse réelle de LIA ; la tâche reste ouverte jusque-là.
 
+## Portée Google : lecture seule de Drive (28/10/2026, Hubperso#575 et #576)
+
+`web/lib/jetonsGoogle.ts` demande maintenant `drive.readonly` en plus de l'identité et de Tasks, identique à Hubperso (cookie de session partagé : sans ça, une connexion par BatchChef retirerait le droit du jeton). Décision de Marc le 28/10/2026, pour l'onglet Bilans du hub (Hubperso#543). Lecture seule : BatchChef ne lit pas Drive lui-même. Marc doit se reconnecter une fois pour que le jeton porte la portée.
+
 ## Cache de prompts de l'assistant (28/10/2026, tâche #342)
 
 Les tours de `lib/assistant/boucle.ts` mettent en cache outils + protocole (marqueurs `cache_control`) ; la taille du catalogue passe dans un bloc séparé après le marqueur. Le coût compte lecture (0,1 ×) et écriture (1,25 ×) de cache (`lib/llmUsage.ts`). Reste la preuve en production : `lu > 0` dans la trace `[llmUsage] assistant cache …` sur un appel réel, après la levée de la limite API du 01/11 (tâche #342, preuve attendue le 02/11/2026 08:00, heure du Québec).

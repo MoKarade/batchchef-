@@ -39,12 +39,19 @@ import type { JWT } from "next-auth/jwt";
 export const PORTEE_TASKS = "https://www.googleapis.com/auth/tasks";
 
 /**
- * Les portées demandées par les QUATRE apps. Volontairement limitées à l'identité plus
- * Tasks : ni Drive, ni Agenda, ni Gmail. DriveAI et FinanceAI n'utilisent pas ce cookie
- * — leur ajouter leurs portées ici n'apporterait rien et multiplierait par quatre les
- * portes vers un Drive complet.
+ * Lecture seule de Drive : le hub y lit les bilans (Brief du jour, rapport hebdo) que la routine y range
+ * (Hubperso#543). Portée RESTREINTE chez Google : sans vérification, l'écran de connexion affiche
+ * « application non vérifiée » (à passer une fois par connexion). Décision de Marc, 28/10/2026.
  */
-export const PORTEES_GOOGLE = `openid email profile ${PORTEE_TASKS}`;
+export const PORTEE_DRIVE_LECTURE = "https://www.googleapis.com/auth/drive.readonly";
+
+/**
+ * Les portées demandées par les QUATRE apps : l'identité, Tasks et la LECTURE de Drive. Ni écriture
+ * dans Drive, ni Agenda, ni Gmail. DriveAI et FinanceAI n'utilisent pas ce cookie — leur ajouter leurs
+ * portées ici n'apporterait rien. Les quatre apps portent ce droit parce que le cookie est partagé (voir
+ * l'en-tête) ; l'ADR 0001 l'avait écarté avant ce besoin (amendement du 28/10/2026).
+ */
+export const PORTEES_GOOGLE = `openid email profile ${PORTEE_TASKS} ${PORTEE_DRIVE_LECTURE}`;
 
 /** Paramètres passés au provider Google. Voir l'en-tête pour `prompt`/`access_type`. */
 export const PARAMS_AUTORISATION = {
