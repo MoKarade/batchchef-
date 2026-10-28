@@ -19,8 +19,9 @@ Planificateur de batch cooking québécois, **100 % en ligne**. Toute l'app vit 
   Le contrôle est **rejoué à chaque lecture** (`jwt`), pas seulement à la connexion : le
   cookie étant partagé entre les apps du hub, il pourrait venir d'ailleurs.
 - **LLM** (`@anthropic-ai/sdk`) pour le parse de recettes et l'estimation des prix.
-- **Tailwind v4**, **Zod 4** (monté de 3 le 23/09, #115), **vitest ~4.1** — PAS 5 : l'outil de
-  mutation ne sait pas encore le piloter et rend un score faux (#119).
+- **Tailwind v4**, **Zod 4** (monté de 3 le 23/09, #115), **vitest ~5.0** (monté le 28/10/2026, #236 :
+  Stryker ≥ 10.1.0 le pilote, #319 ; avant, il rendait un score faux, #119). ⚠️ vitest 5 demande `vite`
+  en dépendance explicite (`^6.4 || ^7 || ^8`) : sans lui, Stryker ne charge pas son runner.
 
 > 📐 Structure de ce fichier et de `docs/` : [convention commune aux huit dépôts](https://github.com/MoKarade/claude-config/blob/main/conventions/STRUCTURE-DEPOT.md).
 

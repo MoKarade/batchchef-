@@ -34,6 +34,10 @@ BatchChef épingle `@mokarade/lia-ui` v0.41.1 (sha pelé `90dc7e7`), seul change
 
 BatchChef épingle `@mokarade/lia-ui` v0.41.0 (sha pelé `4d0c6f9`), seul changement (`web/package.json`, `web/package-lock.json`). v0.40.0 : les marques `[→lien]` d'une réponse de LIA deviennent une ligne « Sources » de petits liens (https, sans identifiants). v0.41.0 : le chat ne se replace plus à chaque image, reste dans l'écran visible (clavier du téléphone compris), glisse vers sa place, ne bouge pas quand le texte arrive. Retours de Marc du 26/10 : « incompréhensible, trop de texte, pas de liens » et « clunky, ça bug quand ça sort de la page ». Rien à brancher côté app. Preuve : déploiement Vercel de production `READY` sur le commit fusionné, bundle servi contenant `lia-ui__sources` et `lia-ui__chat--glisse` sur batchchef.hubperso.com, puis une réponse réelle de LIA ; la tâche reste ouverte jusque-là.
 
+## vitest 5 (28/10/2026, tâche #236)
+
+`vitest` et `@vitest/coverage-v8` passent en ~5.0.5, avec `vite` ^8 explicite (vitest 5 le demande ; sans lui Stryker ne charge pas son runner). Stryker 10.1.1 pilote vitest 5 : sur `lib/rayons.ts`, 97,01 % sous vitest 4.1 comme sous vitest 5 (#319). Typecheck, lint, 1172 tests, build et portes verts. Reste à lire : le job de mutation complet (`CI`, lancé à la main sur la branche) contre le seuil de 40,6 %.
+
 ## Portée Google : lecture seule de Drive (28/10/2026, Hubperso#575 et #576)
 
 `web/lib/jetonsGoogle.ts` demande maintenant `drive.readonly` en plus de l'identité et de Tasks, identique à Hubperso (cookie de session partagé : sans ça, une connexion par BatchChef retirerait le droit du jeton). Décision de Marc le 28/10/2026, pour l'onglet Bilans du hub (Hubperso#543). Lecture seule : BatchChef ne lit pas Drive lui-même. Marc doit se reconnecter une fois pour que le jeton porte la portée.
@@ -92,7 +96,7 @@ Grille mesurée en local avant la PR (6 vert, 9 rouge) ; chaque ligne rouge rest
 | Ligne | Reste rouge parce que | Tâche |
 |---|---|---|
 | 6 Sécurité | scan de secrets et protection au push à activer (réglage propriétaire) | #237 (Marc) |
-| 7 Versions | vitest 4.1, la grille exige 5 (Stryker ne pilote pas encore vitest 5, #119) | #236 |
+| 7 Versions | vitest 5.0 (monté le 28/10/2026, #236 ; Stryker 10.1.x le pilote, #319) | #236 |
 | 9 Surveillance | Sentry branché (dépendance `@sentry/*`, voir plus bas) : la ligne passe au vert ; la preuve attend le DSN de Marc | #220 |
 | 10 Base | faux rouge : la grille ne lit pas `scripts/vercel-build.mjs` | MoKarade/.github#112 |
 | 12 Socle visuel | faux rouge : la grille ne voit pas le `color-scheme: dark` de `:root` quand `globals.css` commence par `@import "tailwindcss";` | MoKarade/.github#113 |

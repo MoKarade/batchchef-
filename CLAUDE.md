@@ -12,7 +12,7 @@ Court exprès (chargé à chaque session, ≤ 60 lignes, verrou `web/tests/claud
 - Lire `HANDOVER.md` en premier à chaque reprise. Avant de toucher un domaine : Grep/Read ciblé dans le fichier indiqué, jamais en entier.
 
 ## But et stack
-Planificateur de batch cooking québécois, 100 % en ligne ; toute l'app vit dans `web/`. Next.js 16 (App Router, Server Actions) sur Vercel, Node 24 · Drizzle ORM + Neon · Auth.js v5 (Google) · `@anthropic-ai/sdk` (parse, prix) · Tailwind v4, Zod 4, vitest ~4.1 (PAS 5).
+Planificateur de batch cooking québécois, 100 % en ligne ; toute l'app vit dans `web/`. Next.js 16 (App Router, Server Actions) sur Vercel, Node 24 · Drizzle ORM + Neon · Auth.js v5 (Google) · `@anthropic-ai/sdk` (parse, prix) · Tailwind v4, Zod 4, vitest ~5.0 (avec `vite` explicite).
 
 ## Commandes (depuis `web/`)
 - `npm run dev` (localhost:3000) · `npm run test` · `npm run typecheck` · `npm run lint` · `npm run build`
