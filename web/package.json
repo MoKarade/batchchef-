@@ -27,7 +27,7 @@
   "//drizzle-orm": "Plancher 0.45.2 : en dessous, injection SQL par identifiants mal échappés (GHSA-gpj5-g38j-94v9, HIGH). Ne jamais redescendre. Une clé « // » ne se met qu'à la RACINE — npm refuse un nom de paquet invalide à l'intérieur de `dependencies`.",
   "dependencies": {
     "@anthropic-ai/sdk": "^1.2.0",
-    "@mokarade/hub-contract": "github:MoKarade/hub-contract#v1.5.0",
+    "@mokarade/hub-contract": "github:MoKarade/hub-contract#v1.6.0",
     "@mokarade/lia-ui": "github:MoKarade/lia-ui#v0.48.0",
     "@neondatabase/serverless": "^1.2.0",
     "@sentry/nextjs": "^11.9.0",

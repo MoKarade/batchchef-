@@ -15,6 +15,10 @@ Marc, 28/10/2026 : « tous les onglets assistants dans toutes les apps doivent �
 - Vérifié : 1 203 tests, build, portes OK ; harnais navigateur (Chromium) : une seule LIA à chaque étape (arrivée directe, navigation aller et retour), question → réponse avec bouton, fiche ouverte par-dessus. [À vérifier] capture du PC de `/assistant` en production et une question réelle (« quoi cuisiner avec… »).
 - **Suite** : la boucle `repondre` partira quand LIA aura l'outil « chercher et composer des recettes BatchChef » côté MemoryAI (MemoryAI#285) ; tâche de retrait sous la mission .github#719.
 
+## 28/10/2026 : contrat hub v1.6.0 (batchchef-#362, mission MoKarade/.github#13)
+
+`@mokarade/hub-contract` passe de v1.5.0 à v1.6.0 (sha pelé `df97e9f`), seul changement (`web/package.json`, lock, doc qui cite le tag). v1.6.0 ajoute un schéma optionnel (catalogue d'actions de l'assistant, `validateActionCatalog`) ; le format du summary ne change pas, `/api/hub/summary` reste identique. La ligne 7 de la grille de conformité ne signale plus de contrat en retard. Preuve : déploiement de production `READY` sur le commit fusionné, `GET /api/hub/summary` sans jeton rend 401.
+
 ## 28/10/2026 : lia-ui v0.48.0, barres HTML lues et état relu toutes les 2 min (batchchef-#360, mission MoKarade/.github#719)
 
 Épingle `@mokarade/lia-ui` v0.48.0 (sha pelé `b0c8524`), seul changement (`web/package.json`, lock). v0.47.1 : l'état partagé n'est plus relu chaque minute mais toutes les 2 min, et seulement quand l'onglet est à l'écran. v0.48.0 : LIA lit aussi les barres de graphique dessinées en HTML (lia-ui#162, #164). BatchChef n'a pas de graphique, rien à brancher ni à relever ici. Preuve : déploiement Vercel de production `READY` sur le commit fusionné, `batchchef.hubperso.com` répond (200 ou redirection vers la connexion).
@@ -304,7 +308,7 @@ l'épicerie → cuisiner**. Il s'arrête là, volontairement (décision de Marc,
 | **Semaine par l'assistant** | **Neuf (14/09)** — « mets-moi quelque chose avec du poulet à la place du troisième » : l'assistant lit ta semaine, propose, et un bouton dans le chat applique. Plus un « Propose-moi une autre semaine » sur la carte, derrière une confirmation |
 | **Prix, temps et difficulté** | **Neuf (14/09)** — la carte « Ta semaine » annonce le temps total et le prix estimé de l'épicerie ; chaque recette porte une note de difficulté en étoiles (1 à 5), partout où elle s'affiche |
 | **Type de plat** | **Neuf (14/09)** — sept familles déduites du titre et des ingrédients (91,4 % de couverture, 54/56 sur un échantillon jugé). Filtre dans le catalogue, étiquette « estimé » sur les fiches, correction manuelle qui survit au recalcul |
-| Widget hub | `GET /api/hub/summary`, contrat `@mokarade/hub-contract` **v1.5.0** (depuis le 16/10/2026, Zod 4) — la carte montre la semaine et « Batchs (30 jours) » (#99) |
+| Widget hub | `GET /api/hub/summary`, contrat `@mokarade/hub-contract` **v1.6.0** (depuis le 28/10/2026 ; Zod 4 depuis v1.5.0, le 16/10/2026) — la carte montre la semaine et « Batchs (30 jours) » (#99) |
 | Installable (Android) | PWA, icône `maskable` dédiée (#102) ; c'est l'app INSTALLÉE qui reçoit les vidéos partagées |
 | **Serveur MCP** | **Neuf (19/08)** — `POST /api/mcp`, 7 outils (4 lecture, 3 écriture). **BRANCHÉ ET VÉRIFIÉ EN USAGE RÉEL** le 19/08 : Marc a connecté le connecteur claude.ai (OAuth 2.1, ADR-0002), et les outils rendent ses vraies données. Claude Code reste possible par jeton direct. |
 | Accès | **Deux étages** : le propriétaire (`AUTHORIZED_EMAIL`, vérifié sans réseau), puis toute personne à qui le hub a donné l'accès (`lib/accesHub.ts` → `POST /api/acces`). Cette ligne disait « mono-adresse » — faux depuis l'étape 2 |
