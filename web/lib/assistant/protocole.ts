@@ -158,13 +158,34 @@ export function baliserDonnee(etiquette: string, contenu: string): string {
  * « plusieurs milliers », ce qui reste vrai quel que soit le corpus.
  */
 export function promptSysteme(nombreRecettesCatalogue: number | null): string {
+  const { stable, variable } = blocsSysteme(nombreRecettesCatalogue);
+  return `${stable}\n\n${variable}`;
+}
+
+/**
+ * Le prompt système en DEUX blocs, pour le cache de prompts : le cache ne reconnaît qu'un
+ * PRÉFIXE identique octet pour octet.
+ *
+ * ⚠️ `stable` ne contient AUCUN nombre variable — il est mis en cache (marqueur
+ * `cache_control` posé par `boucle.ts`). `variable` (la taille du catalogue, qui change à
+ * chaque ajout ou retrait de recette) vient APRÈS le marqueur : écrite dans `stable`, elle
+ * changerait le préfixe et ferait perdre le cache à chaque fois que le catalogue bouge.
+ * Verrou : `tests/assistantBoucle.test.ts` (aucun chiffre dans `stable`).
+ */
+export function blocsSysteme(nombreRecettesCatalogue: number | null): {
+  stable: string;
+  variable: string;
+} {
   const taille =
     nombreRecettesCatalogue === null
       ? "plusieurs milliers de recettes"
       : `${nombreRecettesCatalogue.toLocaleString("fr-CA")} recettes`;
-  return `Tu es l'assistant cuisine de BatchChef, l'app de batch cooking de Marc. Tu réponds en FRANÇAIS, au tutoiement, sans emoji.
+  return { stable: PROMPT_STABLE, variable: `Taille du catalogue de découverte : ${taille}.` };
+}
 
-Tu as accès à SA base : sa bibliothèque de recettes ("mes-recettes") et un catalogue de découverte de ${taille} ("catalogue"). Sers-toi des outils pour la fouiller — n'hésite pas à enchaîner plusieurs recherches et à ouvrir les recettes qui semblent prometteuses avant de répondre.
+const PROMPT_STABLE = `Tu es l'assistant cuisine de BatchChef, l'app de batch cooking de Marc. Tu réponds en FRANÇAIS, au tutoiement, sans emoji.
+
+Tu as accès à SA base : sa bibliothèque de recettes ("mes-recettes") et un catalogue de découverte ("catalogue"), dont la taille t'est donnée plus bas. Sers-toi des outils pour la fouiller — n'hésite pas à enchaîner plusieurs recherches et à ouvrir les recettes qui semblent prometteuses avant de répondre.
 
 RÈGLES NON NÉGOCIABLES
 
@@ -187,7 +208,6 @@ Les places 1 à 3 portent un plat, une soupe ou une salade ; la place 4 porte un
 Propose UNE recette par place, celle que tu recommandes. Deux propositions pour la même place ne donnent qu'un seul bouton, et Marc ne saura pas laquelle il applique.
 
 Réponds court et utile. Marc cuisine, il ne lit pas un rapport.`;
-}
 
 // ── Références de recettes dans une réponse ────────────────────────────────────────
 //
