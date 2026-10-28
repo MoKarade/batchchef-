@@ -36,7 +36,7 @@ BatchChef épingle `@mokarade/lia-ui` v0.41.0 (sha pelé `4d0c6f9`), seul change
 
 ## vitest 5 (28/10/2026, tâche #236)
 
-`vitest` et `@vitest/coverage-v8` passent en ~5.0.5, avec `vite` ^8 explicite (vitest 5 le demande ; sans lui Stryker ne charge pas son runner). Stryker 10.1.1 pilote vitest 5 : sur `lib/rayons.ts`, 97,01 % sous vitest 4.1 comme sous vitest 5 (#319). Typecheck, lint, 1172 tests, build et portes verts. Reste à lire : le job de mutation complet (`CI`, lancé à la main sur la branche) contre le seuil de 40,6 %.
+`vitest` et `@vitest/coverage-v8` passent en ~5.0.5, avec `vite` ^8 explicite (vitest 5 le demande ; sans lui Stryker ne charge pas son runner). Stryker 10.1.1 pilote vitest 5 : sur `lib/rayons.ts`, 97,01 % sous vitest 4.1 comme sous vitest 5 (#319). Typecheck, lint, 1172 tests, build et portes verts. Le job de mutation complet dépasse désormais 2 h sur un runner GitHub (les deux essais du 28/10 — vitest 5 sur la branche, vitest 4.1 sur `master` — ont été coupés à la limite de 120 min, sans score ; le run planifié du 19/10 avait pris ~101 min) : limite portée à 240 min dans `.github/workflows/ci.yml`. Reste à lire : le score de ce job contre le seuil de 40,6 %.
 
 ## Portée Google : lecture seule de Drive (28/10/2026, Hubperso#575 et #576)
 
