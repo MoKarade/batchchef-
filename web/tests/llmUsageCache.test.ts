@@ -32,14 +32,14 @@ describe("recordLlmUsage — cache de prompts", () => {
         cache_creation_input_tokens: 2_000,
         cache_read_input_tokens: 8_000,
       },
-      "claude-sonnet-5",
+      "claude-sonnet-5-5",
     );
     expect(values).toHaveBeenCalledTimes(1);
     const ligne = values.mock.calls[0]![0] as Record<string, unknown>;
     expect(ligne.inputTokens).toBe(11_000);
     expect(ligne.outputTokens).toBe(500);
-    // Sonnet : 3 $/MTok en entrée, 15 $/MTok en sortie.
-    const attendu = (1_000 * 3 + 2_000 * 3 * 1.25 + 8_000 * 3 * 0.1) / 1e6 + (500 * 15) / 1e6;
+    // Sonnet 5.5 : 2 $/MTok en entrée, 10 $/MTok en sortie, lecture de cache ×0,05.
+    const attendu = (1_000 * 2 + 2_000 * 2 * 1.25 + 8_000 * 2 * 0.05) / 1e6 + (500 * 10) / 1e6;
     expect(ligne.costUsd).toBeCloseTo(attendu, 6);
   });
 
@@ -48,20 +48,20 @@ describe("recordLlmUsage — cache de prompts", () => {
     await recordLlmUsage(
       "assistant",
       { input_tokens: 10, output_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 7_000 },
-      "claude-sonnet-5",
+      "claude-sonnet-5-5",
     );
     expect(info).toHaveBeenCalledWith("[llmUsage] assistant cache écrit=0 lu=7000");
   });
 
   it("sans cache : même ligne qu'avant, et aucune trace", async () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
-    await recordLlmUsage("parse", { input_tokens: 1_000_000, output_tokens: 0 }, "claude-haiku-4-5");
+    await recordLlmUsage("parse", { input_tokens: 1_000_000, output_tokens: 0 }, "claude-haiku-5-5");
     expect(info).not.toHaveBeenCalled();
     expect(values.mock.calls[0]![0]).toEqual({
       action: "parse",
       inputTokens: 1_000_000,
       outputTokens: 0,
-      costUsd: 1,
+      costUsd: 0.1,
     });
   });
 
@@ -69,7 +69,7 @@ describe("recordLlmUsage — cache de prompts", () => {
     await recordLlmUsage(
       "assistant",
       { input_tokens: 100, output_tokens: 10, cache_creation_input_tokens: null, cache_read_input_tokens: null },
-      "claude-sonnet-5",
+      "claude-sonnet-5-5",
     );
     expect((values.mock.calls[0]![0] as Record<string, unknown>).inputTokens).toBe(100);
   });

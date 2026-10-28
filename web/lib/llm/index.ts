@@ -13,13 +13,14 @@ import { z } from "zod";
 import { noteQuantiteNonConvertie, normalizeQty } from "../units";
 import { recordLlmUsage } from "../llmUsage";
 import { MAX_TRANSCRIPT_CHARS } from "../transcription";
+import { reglagesExtraction } from "./reglages";
 
-const MODEL = process.env.BATCHCHEF_LLM_MODEL || "claude-haiku-4-5-20251001";
+const MODEL = process.env.BATCHCHEF_LLM_MODEL || "claude-haiku-5-5";
 // Lire une vidéo, c'est déchiffrer du texte incrusté sur des images réduites et suivre des
 // gestes : nettement plus dur que parser une page HTML. D'où un modèle vision plus capable
 // ici. Le surcoût réel est de l'ordre du cent par vidéo (12 images ~768 px ≈ 5 000 tokens),
 // et il est publié au hub comme le reste (cf. lib/llmUsage.ts, tarif PAR modèle).
-const VISION_MODEL = process.env.BATCHCHEF_LLM_MODEL_VISION || "claude-sonnet-5";
+const VISION_MODEL = process.env.BATCHCHEF_LLM_MODEL_VISION || "claude-sonnet-5-5";
 
 function client(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -238,6 +239,7 @@ export async function parseRecipeFromPage(pageText: string): Promise<ParsedRecip
   const response = await client().messages.create({
     model: MODEL,
     max_tokens: 4000,
+    ...reglagesExtraction(MODEL),
     system: PARSE_SYSTEM,
     messages: [{ role: "user", content: `Texte de la page :\n\n${pageText}` }],
   });
@@ -287,6 +289,7 @@ export async function verifyParsedRecipe(pageText: string, draft: ParsedRecipe):
     const response = await client().messages.create({
       model: MODEL,
       max_tokens: 4000,
+      ...reglagesExtraction(MODEL),
       system: VERIFY_SYSTEM,
       messages: [
         {
@@ -455,7 +458,8 @@ export async function parseRecipeFromMedia(input: MediaInput): Promise<ParsedRec
 
   const response = await client().messages.create({
     model: VISION_MODEL,
-    max_tokens: 4000,
+    max_tokens: 8000, // la pensée compte dans le plafond
+    ...reglagesExtraction(VISION_MODEL),
     system: MEDIA_SYSTEM,
     messages: [{ role: "user", content }],
   });
@@ -495,7 +499,8 @@ export async function verifyRecipeAgainstCaption(
   try {
     const response = await client().messages.create({
       model: VISION_MODEL,
-      max_tokens: 4000,
+      max_tokens: 8000, // la pensée compte dans le plafond
+      ...reglagesExtraction(VISION_MODEL),
       system: CAPTION_VERIFY_SYSTEM,
       messages: [
         {
@@ -575,6 +580,7 @@ export async function estimateShoppingCosts(
   const response = await client().messages.create({
     model: MODEL,
     max_tokens: 4000,
+    ...reglagesExtraction(MODEL),
     system: ESTIMATE_SYSTEM,
     messages: [{ role: "user", content: `Articles :\n${list}` }],
   });

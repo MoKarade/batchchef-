@@ -5,6 +5,7 @@
 // découvre sur la facture.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { reglagesConversation } from "@/lib/llm/reglages";
 import { recordLlmUsage } from "@/lib/llmUsage";
 import {
   BUDGET_MS,
@@ -15,7 +16,7 @@ import {
 } from "./protocole";
 import { OUTILS, compterCatalogue, executerOutil } from "./outils";
 
-const MODELE = process.env.BATCHCHEF_MODELE_ASSISTANT ?? "claude-sonnet-5";
+const MODELE = process.env.BATCHCHEF_MODELE_ASSISTANT ?? "claude-sonnet-5-5";
 
 export interface ReponseAssistant {
   ok: boolean;
@@ -105,7 +106,9 @@ export async function repondre(historique: readonly Message[]): Promise<ReponseA
   while (tours <= MAX_TOURS_OUTILS) {
     const reponse = await client.messages.create({
       model: MODELE,
-      max_tokens: 2000,
+      // La pensée compte dans le plafond : de la marge pour elle ET pour la réponse.
+      max_tokens: 4000,
+      ...reglagesConversation(MODELE),
       system: systeme,
       tools: outils,
       messages: messagesAvecCache(messages),

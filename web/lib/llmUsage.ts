@@ -8,24 +8,27 @@ import { db, schema } from "@/lib/db";
 export interface Tarif {
   inputPerMTok: number;
   outputPerMTok: number;
+  /** Lecture de cache, multiple du tarif d'entrée (défaut `MULT_LECTURE_CACHE`). */
+  lectureCache?: number;
 }
 
-// Tarif par défaut : Haiku 4.5 (le modèle du parse texte), override possible via env.
+// Tarif par défaut : Haiku 5.5 (le modèle du parse texte), override possible via env.
 const TARIF_DEFAUT: Tarif = {
-  inputPerMTok: Number(process.env.BATCHCHEF_LLM_PRICE_IN ?? 1.0),
-  outputPerMTok: Number(process.env.BATCHCHEF_LLM_PRICE_OUT ?? 5.0),
+  inputPerMTok: Number(process.env.BATCHCHEF_LLM_PRICE_IN ?? 0.1),
+  outputPerMTok: Number(process.env.BATCHCHEF_LLM_PRICE_OUT ?? 0.5),
 };
 
 // L'app n'appelle plus un seul modèle : le parse texte tourne sur Haiku, la lecture d'une
 // vidéo sur un modèle vision. Facturer les deux au même tarif SOUS-ESTIMERAIT le coût publié
 // au hub — un chiffre faux, pas une approximation. D'où cette table, indexée par PRÉFIXE
-// d'identifiant (« claude-haiku-4-5-20251001 » tombe bien sur « claude-haiku-4-5 »).
+// d'identifiant. Seule la famille 5.5 est appelée : les anciens modèles ne sont plus dans le code, et
+// le coût de chaque ligne passée est stocké déjà chiffré (rien à recalculer).
+// Source : platform.claude.com/docs/en/about-claude/pricing, lue le 28/10/2026. Haiku 5.5 : grille des
+// prompts de 100 000 jetons ou moins (au-delà : 0,50 $ / 2,50 $ ; aucun appel de l'app n'y approche).
 const TARIFS: ReadonlyArray<readonly [string, Tarif]> = [
-  ["claude-haiku-4-5", { inputPerMTok: 1, outputPerMTok: 5 }],
-  ["claude-sonnet-5", { inputPerMTok: 3, outputPerMTok: 15 }],
-  ["claude-sonnet-4-6", { inputPerMTok: 3, outputPerMTok: 15 }],
-  ["claude-opus-5", { inputPerMTok: 5, outputPerMTok: 25 }],
-  ["claude-opus-4-8", { inputPerMTok: 5, outputPerMTok: 25 }],
+  ["claude-haiku-5-5", { inputPerMTok: 0.1, outputPerMTok: 0.5 }],
+  ["claude-sonnet-5-5", { inputPerMTok: 2, outputPerMTok: 10, lectureCache: 0.05 }],
+  ["claude-opus-5-5", { inputPerMTok: 4, outputPerMTok: 20, lectureCache: 0.05 }],
 ];
 
 /**
@@ -66,7 +69,7 @@ export function costUsd(
   const c =
     (inputTokens / 1e6) * tarif.inputPerMTok +
     (ecriture / 1e6) * tarif.inputPerMTok * MULT_ECRITURE_CACHE +
-    (lecture / 1e6) * tarif.inputPerMTok * MULT_LECTURE_CACHE +
+    (lecture / 1e6) * tarif.inputPerMTok * (tarif.lectureCache ?? MULT_LECTURE_CACHE) +
     (outputTokens / 1e6) * tarif.outputPerMTok;
   return Math.round(c * 1e6) / 1e6; // 6 décimales : les fractions de cent comptent
 }
