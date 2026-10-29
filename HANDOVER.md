@@ -6,6 +6,10 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
+## 29/10/2026 : l'onglet « Apps » remplace le lien « ← Hub » (batchchef-#368, mission MoKarade/.github#846)
+
+`web/components/NavApps.tsx` (serveur, `<details>` natif, zéro JavaScript) liste les AUTRES apps du parc (`web/lib/appsDuParc.ts`, copie d'app-template#212), monté dans le `pied` de `Coque` par `web/app/layout.tsx` (désormais `async`) seulement quand `navAppsAutorisee()` (`web/lib/navAppsMonter.ts`, propriétaire `AUTHORIZED_EMAIL` seul, échec fermé) est vrai. Un invité admis par le hub n'a donc plus de lien vers le hub. `NEXT_PUBLIC_HUB_URL` reste (accesHub, LIA). `web/vitest.config.ts` inclut les `.test.tsx`. Doc : `docs/claude/14-nav-apps.md`. Tests : `web/tests/navApps.test.tsx`, `appsDuParc.test.ts`.
+
 ## 29/10/2026 : `/api/sante` dit le commit servi (batchchef-#366, source MoKarade/.github#822)
 
 La réponse porte aussi `commit` = les 7 premiers caractères de `VERCEL_GIT_COMMIT_SHA` (`lib/commitServi.ts`, pur), dans les cas `ok:true` ET `ok:false` ; le champ est absent si la variable est absente (local) ou n'est pas un sha hexadécimal, jamais une valeur inventée. Sert à voir quel commit un domaine sert après un retour en arrière (alias Vercel figé). Public : un sha n'est ni un secret ni une donnée de recette. `/api/sante/configuration` n'est pas touchée. Preuve : `curl https://batchchef.hubperso.com/api/sante` rend `"commit"` égal aux 7 premiers caractères du commit fusionné.

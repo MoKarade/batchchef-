@@ -3,6 +3,8 @@ import { Analytics } from "@vercel/analytics/next";
 import { SignOutButton } from "@/components/AuthButtons";
 import { EnregistrerServiceWorker } from "@/components/EnregistrerServiceWorker";
 import { Coque } from "@/components/Coque";
+import NavApps from "@/components/NavApps";
+import { APP_COURANTE, navAppsAutorisee } from "@/lib/navAppsMonter";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,15 +23,12 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-// Lien retour vers le hub perso (overridable par env si l'URL change).
-const HUB_URL = (process.env.NEXT_PUBLIC_HUB_URL || "https://hubperso.com").replace(/\/+$/, "");
-
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // L'onglet « Apps » (le hub y est) remplace l'ancien lien « ← Hub » ; propriétaire seul, échec fermé.
+  const navApps = await navAppsAutorisee();
   const pied = (
     <>
-      <a href={HUB_URL} className="nav-outil">
-        ← Hub
-      </a>
+      {navApps ? <NavApps courant={APP_COURANTE} /> : null}
       <SignOutButton />
     </>
   );
