@@ -18,4 +18,4 @@ jobs:
     uses: MoKarade/.github/.github/workflows/preuve-miroir.yml@main
     with:
       sha: ${{ github.event.deployment.sha }}
-      runner: ${{ github.event.repository.visibility == 'public' && '"ubuntu-latest"' || '["self-hosted","pc-marc"]' }}
+      runner: '"ubuntu-latest"'  # dépôt public : machines GitHub
