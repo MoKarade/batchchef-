@@ -1,0 +1,55 @@
+name: Agent
+
+# Voie courte (choix de Marc, 29/10/2026) : l'étiquette `go` posée sur une tâche lance l'agent officiel
+# anthropics/claude-code-action, qui fait la tâche, passe la gate du dépôt, pousse une branche
+# `claude/issue-<n>-…` et ouvre une PR prête (Mergify la fusionne quand tout est vert).
+# Un commentaire `@claude` de MoKarade relance l'agent sur la même tâche ou sur une PR.
+# Jeton : CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`, abonnement Claude, aucun coût à l'appel).
+# Commits et PR passent par l'application GitHub Claude (OIDC) : ils déclenchent la CI, contrairement
+# à GITHUB_TOKEN. Source : https://github.com/anthropics/claude-code-action/blob/main/docs/faq.md
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+
+# Aucun `paths:` : ce n'est pas un contrôle requis, mais la règle vaut partout ici.
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write # jeton de l'application Claude (OIDC)
+  actions: read # l'agent lit les résultats de CI
+
+concurrency:
+  group: agent-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  agent:
+    if: >-
+      (github.event_name == 'issues' && github.event.label.name == 'go') ||
+      (github.event_name == 'issue_comment' && github.event.comment.user.login == 'MoKarade' &&
+       contains(github.event.comment.body, '@claude'))
+    timeout-minutes: 60
+    runs-on: ubuntu-latest # jamais le robot du PC
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false # l'action pose son propre jeton (application Claude)
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+      - name: Installer les dépendances
+        run: npm ci --prefix web
+      - uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6 # v1.0.264
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          label_trigger: go
+          base_branch: master
+          claude_args: |
+            --model claude-sonnet-5-5
+            --max-turns 80
+            --allowedTools "Bash(npm ci:*),Bash(npm run:*),Bash(npm test:*),Bash(npm --prefix:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(gh pr create:*)"
+            --append-system-prompt "Consignes du dépôt (prioritaires sur le lien Create a PR). 1. Lis CLAUDE.md puis HANDOVER.md. 2. Fais SEULEMENT ce que demande la tâche, rien de plus. 3. Ne modifie jamais un chemin protégé : .github/, scripts/hooks/, qualite/, vercel.json, drizzle/, .env ; si la tâche l'exige, arrête-toi et dis-le dans ton commentaire. 4. Avant de pousser, lance la gate, dans cet ordre : npm --prefix web run typecheck, npm --prefix web run test, npm --prefix web run build. Pousse seulement si elle est verte ; sinon ne pousse rien et écris l'échec exact dans ton commentaire. 5. Commits en français, préfixés (feat:, fix:, docs:, refactor:, chore:). 6. Sur une PR existante, pousse sur sa branche et n'ouvre pas d'autre PR. Sur une tâche, après le push, ouvre la PR toi-même, prête (jamais en brouillon) : gh pr create --base master --title (titre en français, même préfixe que le commit) --body (ce qui change, la gate passée, puis une ligne seule Tâche : #${{ github.event.issue.number }}). Donne le lien de la PR dans ton commentaire, pas le lien Create a PR. 7. Ne fusionne rien, n'approuve rien."
