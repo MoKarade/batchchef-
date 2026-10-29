@@ -1,0 +1,21 @@
+name: Preuve miroir
+
+# Option C de Marc (29/10/2026), étape 3, MODE MIROIR : après un déploiement de production réussi, lit le « Fini quand » de la tâche livrée et commente
+# « Lecture miroir » (lu : ok / écart) sans rien fermer ni accepter. Détail et garde-fous : MoKarade/.github/.github/workflows/preuve-miroir.yml.
+# Tâche : MoKarade/.github#918. Aucun secret, aucun minuteur.
+on:
+  deployment_status:
+
+permissions: {}
+
+jobs:
+  preuve-miroir:
+    if: github.event.deployment_status.state == 'success' && github.event.deployment_status.environment == 'Production'
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    uses: MoKarade/.github/.github/workflows/preuve-miroir.yml@7bf163f8b9d5cd42db6d582a68eb5bbb5ccc3214 # v1
+    with:
+      sha: ${{ github.event.deployment.sha }}
+      runner: '"ubuntu-latest"'  # dépôt public : machines GitHub
