@@ -28,7 +28,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^1.2.0",
     "@mokarade/hub-contract": "github:MoKarade/hub-contract#v1.6.0",
-    "@mokarade/lia-ui": "github:MoKarade/lia-ui#v0.48.0",
+    "@mokarade/lia-ui": "github:MoKarade/lia-ui#v0.48.1",
     "@neondatabase/serverless": "^1.2.0",
     "@sentry/nextjs": "^11.9.0",
     "@vercel/analytics": "^2.0.1",
