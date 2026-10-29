@@ -15,7 +15,7 @@ jobs:
       contents: read
       issues: write
       pull-requests: read
-    uses: MoKarade/.github/.github/workflows/preuve-miroir.yml@main
+    uses: MoKarade/.github/.github/workflows/preuve-miroir.yml@7bf163f8b9d5cd42db6d582a68eb5bbb5ccc3214 # v1
     with:
       sha: ${{ github.event.deployment.sha }}
       runner: '"ubuntu-latest"'  # dépôt public : machines GitHub
