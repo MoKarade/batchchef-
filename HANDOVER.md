@@ -6,6 +6,10 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
+## 29/10/2026 : lia-ui v0.48.1, la discussion de LIA survit 2 min d'inactivité (batchchef-#364, mission MoKarade/.github#719)
+
+Épingle `@mokarade/lia-ui` v0.48.1 (sha pelé `2e4c9e3`), seul changement (`web/package.json`, lock). Avant, après 2 minutes sans geste la discussion de LIA se fermait et s'effaçait partout (état partagé compris) : elle ne survivait ni à un rechargement ni au passage d'une app à l'autre (lia-ui#166). Rien à brancher côté BatchChef. Preuve : déploiement Vercel de production `READY` sur le commit fusionné, `batchchef.hubperso.com` répond (200 ou redirection vers la connexion).
+
 ## 28/10/2026 : `/assistant` devient l'atelier de LIA (batchchef-#346, mission MoKarade/.github#575)
 
 Marc, 28/10/2026 : « tous les onglets assistants dans toutes les apps doivent être LIA avec son interface ». L'ancien chat (`Conversation.tsx`) est retiré : `/assistant` affiche LIA en pleine page (mode `atelier` de lia-ui, v0.44.0, épingle v0.47.0). **Le moteur ne change pas** : la boucle qui fouille les recettes et le catalogue (`lib/assistant/boucle.ts`) répond, par `POST /api/lia/ask` avec `atelier: true` ; la bulle des autres pages parle toujours au hub. Aucune écriture de faits côté BatchChef.
