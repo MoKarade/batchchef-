@@ -6,6 +6,10 @@
 > Créé le 2026-08-17 : le dépôt n'avait aucun document vivant, contrairement à tous les
 > autres projets de Marc. Tout ce qu'une session savait mourait avec elle.
 
+## 29/10/2026 : `/api/sante` dit le commit servi (batchchef-#366, source MoKarade/.github#822)
+
+La réponse porte aussi `commit` = les 7 premiers caractères de `VERCEL_GIT_COMMIT_SHA` (`lib/commitServi.ts`, pur), dans les cas `ok:true` ET `ok:false` ; le champ est absent si la variable est absente (local) ou n'est pas un sha hexadécimal, jamais une valeur inventée. Sert à voir quel commit un domaine sert après un retour en arrière (alias Vercel figé). Public : un sha n'est ni un secret ni une donnée de recette. `/api/sante/configuration` n'est pas touchée. Preuve : `curl https://batchchef.hubperso.com/api/sante` rend `"commit"` égal aux 7 premiers caractères du commit fusionné.
+
 ## 29/10/2026 : lia-ui v0.48.1, la discussion de LIA survit 2 min d'inactivité (batchchef-#364, mission MoKarade/.github#719)
 
 Épingle `@mokarade/lia-ui` v0.48.1 (sha pelé `2e4c9e3`), seul changement (`web/package.json`, lock). Avant, après 2 minutes sans geste la discussion de LIA se fermait et s'effaçait partout (état partagé compris) : elle ne survivait ni à un rechargement ni au passage d'une app à l'autre (lia-ui#166). Rien à brancher côté BatchChef. Preuve : déploiement Vercel de production `READY` sur le commit fusionné, `batchchef.hubperso.com` répond (200 ou redirection vers la connexion).
