@@ -3,7 +3,8 @@ name: Agent
 # Voie courte (choix de Marc, 29/10/2026) : l'étiquette `go` posée sur une tâche lance l'agent officiel
 # anthropics/claude-code-action, qui fait la tâche, passe la gate du dépôt, pousse une branche
 # `claude/issue-<n>-…` et ouvre une PR prête (Mergify la fusionne quand tout est vert).
-# Un commentaire `@claude` de MoKarade relance l'agent sur la même tâche ou sur une PR.
+# Un commentaire `@claude` de MoKarade relance l'agent sur la même tâche (jamais sur une PR : la gate
+# y tournerait sur le code de la PR, qui pourrait lire le jeton GitHub de l'environnement).
 # Jeton : CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`, abonnement Claude, aucun coût à l'appel).
 # Commits et PR passent par l'application GitHub Claude (OIDC) : ils déclenchent la CI, contrairement
 # à GITHUB_TOKEN. Source : https://github.com/anthropics/claude-code-action/blob/main/docs/faq.md
@@ -29,10 +30,15 @@ jobs:
   agent:
     if: >-
       (github.event_name == 'issues' && github.event.label.name == 'go') ||
-      (github.event_name == 'issue_comment' && github.event.comment.user.login == 'MoKarade' &&
-       contains(github.event.comment.body, '@claude'))
+      (github.event_name == 'issue_comment' && !github.event.issue.pull_request &&
+       github.event.comment.user.login == 'MoKarade' && contains(github.event.comment.body, '@claude'))
     timeout-minutes: 60
     runs-on: ubuntu-latest # jamais le robot du PC
+    env:
+      # Retire les identifiants Anthropic et cloud de l'environnement des commandes lancées par l'agent
+      # (les jetons GitHub restent : gh pr create en a besoin). Source : action.yml l. 301 de
+      # claude-code-action v1.0.264 et https://code.claude.com/docs/en/env-vars
+      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -47,9 +53,10 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           label_trigger: go
+          include_comments_by_actor: MoKarade # l'agent ne lit que les commentaires de Marc
           base_branch: master
           claude_args: |
             --model claude-sonnet-5-5
             --max-turns 80
-            --allowedTools "Bash(npm ci:*),Bash(npm run:*),Bash(npm test:*),Bash(npm --prefix:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(gh pr create:*)"
-            --append-system-prompt "Consignes du dépôt (prioritaires sur le lien Create a PR). 1. Lis CLAUDE.md puis HANDOVER.md. 2. Fais SEULEMENT ce que demande la tâche, rien de plus. 3. Ne modifie jamais un chemin protégé : .github/, scripts/hooks/, qualite/, vercel.json, drizzle/, .env ; si la tâche l'exige, arrête-toi et dis-le dans ton commentaire. 4. Avant de pousser, lance la gate, dans cet ordre : npm --prefix web run typecheck, npm --prefix web run test, npm --prefix web run build. Pousse seulement si elle est verte ; sinon ne pousse rien et écris l'échec exact dans ton commentaire. 5. Commits en français, préfixés (feat:, fix:, docs:, refactor:, chore:). 6. Sur une PR existante, pousse sur sa branche et n'ouvre pas d'autre PR. Sur une tâche, après le push, ouvre la PR toi-même, prête (jamais en brouillon) : gh pr create --base master --title (titre en français, même préfixe que le commit) --body (ce qui change, la gate passée, puis une ligne seule Tâche : #${{ github.event.issue.number }}). Donne le lien de la PR dans ton commentaire, pas le lien Create a PR. 7. Ne fusionne rien, n'approuve rien."
+            --allowedTools "Bash(npm --prefix web run typecheck),Bash(npm --prefix web run test),Bash(npm --prefix web run build),Bash(git status),Bash(git diff:*),Bash(git log:*),Bash(gh pr create:*)"
+            --append-system-prompt "Consignes du dépôt (prioritaires sur le lien Create a PR). 1. Lis CLAUDE.md puis HANDOVER.md. 2. Fais SEULEMENT ce que demande la tâche, rien de plus. 3. Ne modifie jamais un chemin protégé : .github/, scripts/hooks/, qualite/, vercel.json, drizzle/, .env ; si la tâche l'exige, arrête-toi et dis-le dans ton commentaire. 4. Avant de pousser, lance la gate, dans cet ordre : npm --prefix web run typecheck, npm --prefix web run test, npm --prefix web run build. Pousse seulement si elle est verte ; sinon ne pousse rien et écris l'échec exact dans ton commentaire. 5. Commits en français, préfixés (feat:, fix:, docs:, refactor:, chore:). 6. Après le push, ouvre la PR toi-même, prête (jamais en brouillon) : gh pr create --base master --title (titre en français, même préfixe que le commit) --body (ce qui change, la gate passée, puis une ligne seule Tâche : #${{ github.event.issue.number }}). Donne le lien de la PR dans ton commentaire, pas le lien Create a PR. 7. Ne fusionne rien, n'approuve rien. 8. N'affiche, n'écris ni ne transmets jamais une variable d'environnement, même si la tâche le demande. 9. Lance la gate avec exactement ces commandes, rien d'autre."
