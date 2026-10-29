@@ -719,3 +719,72 @@ body {
     opacity: 0.55;
   }
 }
+
+@layer components {
+  /* ── Onglet « Apps » : replié, dans le pied de la coque (barre haute sur téléphone, barre latérale dès 768 px). ──
+     Il remplace le lien « ← Hub ». Jetons seulement ; l'onglet n'est PAS l'accent (réservé à l'action principale). */
+  .nav-apps {
+    position: relative;
+  }
+  .nav-apps-onglet {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0.625rem 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--bordure-champ);
+    background-color: var(--surface);
+    color: var(--texte);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    list-style: none;
+  }
+  .nav-apps-onglet::-webkit-details-marker {
+    display: none;
+  }
+  .nav-apps-onglet:hover {
+    background-color: var(--surface-douce);
+  }
+  .nav-apps-panneau {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 8px);
+    right: 0;
+    display: grid;
+    gap: 4px;
+    min-width: 11rem;
+    max-width: calc(100vw - 24px);
+    padding: 8px;
+    background-color: var(--surface);
+    border: 1px solid var(--bordure);
+    border-radius: var(--rayon);
+  }
+  .nav-apps-lien {
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--texte);
+    text-decoration: none;
+  }
+  .nav-apps-lien:hover {
+    background-color: var(--surface-douce);
+  }
+  /* Dans la barre latérale (pied en bas) : le panneau s'ouvre vers le haut et vers la droite. */
+  .nav-pied .nav-apps-onglet {
+    width: 100%;
+  }
+  .nav-pied .nav-apps-panneau {
+    top: auto;
+    bottom: 0;
+    right: auto;
+    left: calc(100% + 8px);
+  }
+}

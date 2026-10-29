@@ -11,7 +11,7 @@ export default defineConfig({
   oxc: { jsx: { runtime: "automatic" } },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.{ts,tsx}"],
     // Délais larges (#204) : une base PGlite (WebAssembly) met plus de 5 s à démarrer quand la machine est chargée
     // (CI partagée, plusieurs fichiers de test qui en créent une en parallèle). Mesuré le 16/10/2026 : sur UN seul cœur
     // (`taskset -c 0 npx vitest run`), `tests/sante.test.ts > 200 { ok: true }` dépassait 5 000 ms à chaque passe, alors

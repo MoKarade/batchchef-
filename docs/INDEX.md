@@ -20,6 +20,7 @@ L'ancien `CLAUDE.md` (604 lignes) a été réduit à ≤ 60 lignes (chargé à c
 | § 10. Style et compte-rendu | [`docs/claude/08-lecons-et-style.md`](claude/08-lecons-et-style.md) et [`docs/COMPTE-RENDU.md`](COMPTE-RENDU.md) (importé par `CLAUDE.md`) |
 | Graphe de code (hooks, MCP, wiki ; ajout du 21/10/2026) | [`docs/claude/10-graphe-code.md`](claude/10-graphe-code.md) |
 | LIA, l'assistant (ajout du 22/10/2026) | [`docs/claude/13-lia.md`](claude/13-lia.md) |
+| Onglet « Apps » de navigation entre apps (ajout du 29/10/2026) | [`docs/claude/14-nav-apps.md`](claude/14-nav-apps.md) |
 
 ## Autres documents
 
