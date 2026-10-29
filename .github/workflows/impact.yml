@@ -1,0 +1,18 @@
+name: Impact du graphe
+
+# Commentaire d'impact du graphe de code sur chaque PR (qui dépend des fichiers de code modifiés). Le travail est dans le workflow commun de
+# MoKarade/.github (tâche .github#842, mission #839) ; ici, seulement l'appel. Jamais un check requis. Aucun jeton de LLM.
+# Dépôt public = machines GitHub (gratuites), dépôt privé = robot du PC.
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  impact:
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: MoKarade/.github/.github/workflows/impact-pr.yml@main
+    with:
+      runner: ${{ github.event.repository.visibility == 'public' && '"ubuntu-latest"' || '["self-hosted","pc-marc"]' }}

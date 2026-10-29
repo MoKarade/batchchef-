@@ -33,6 +33,11 @@
 - **Journal** : chaque appel `query`, `affected`, `path`, `explain`, `god-nodes` écrit une ligne dans `graphify-out/usage.jsonl` (heure, commande, durée, caractères rendus, branche ; jamais les arguments) et les hooks y comptent leurs passages. `scripts/graphe.sh usage` résume. Il mesure l'usage, pas l'économie de jetons : un hook ne voit pas la sortie des outils et deux sessions ne font pas la même tâche. Local, ignoré par git.
 - **Lecture ciblée** : `affected`, `explain` et le MCP donnent des `fichier:Lnn`. Lire alors la zone utile (`Read` avec `offset` et `limit`) plutôt que le fichier entier. Le gain en jetons n'est pas mesuré chez nous. [À vérifier]
 
+## Lecture massive refusée et commentaire d'impact sur chaque PR (tâche batchchef-#369, 29/10/2026, demande de Marc : une obligation mécanique, pas une consigne)
+- `scripts/graphe.sh garde-lecture` (hook `PreToolUse` sur `Read|Glob`, copie identique à MoKarade/.github) REFUSE un `Read` sans `offset`, `limit` ni `pages` d'un fichier de plus de 400 lignes ou 40 Ko (hors `.md`, `.txt`, images, PDF, verrous, `*.min.js`) et un `Glob` de tout le dépôt (`**`, `**/*`, `**/*.*`). Le motif du refus cite la commande du graphe à utiliser (`explain`, `affected`, `query`) puis `Read` avec `offset` et `limit`. Échec ouvert (JSON illisible, fichier absent, autre outil : silence). Chaque refus est journalisé (`garde-lecture-refus` dans `graphify-out/usage.jsonl`). Contournement honnête : relire la zone utile avec `offset` et `limit`, jamais désactiver le hook.
+- `.github/workflows/impact.yml` appelle le workflow commun `impact-pr.yml` de MoKarade/.github : UN commentaire d'impact par PR (`<!-- impact-graphe -->`, mis à jour sur place) avec, pour chaque fichier de code modifié, le nombre de fichiers qui en dépendent (`affected --depth 2`), les 8 premiers et les tests concernés. Ignoré pour les forks et les robots ; aucun jeton de LLM ; jamais un contrôle requis. Indicatif : un appel dynamique peut manquer.
+- Détail et seuils : `docs/graphe-code.md` de MoKarade/.github. Le hook ne se charge que dans une session ouverte DANS ce dépôt.
+
 ## Retour arrière
 Supprimer `.claude/settings.json` (ou ses trois blocs), `.mcp.json`, `scripts/graphe.sh`, `.graphifyignore`, les deux lignes de `.gitignore` et la ligne de `CLAUDE.md`. Rien d'autre n'a été modifié.
 
