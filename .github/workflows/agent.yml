@@ -53,7 +53,7 @@ jobs:
       # (échec du 29/10/2026 : « Sandbox dependencies not available: socat not installed »).
       - name: Installer socat pour le bac à sable
         run: sudo apt-get update -qq && sudo apt-get install -y -qq socat
-      - uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6 # v1.0.264
+      - uses: anthropics/claude-code-action@6d5ae526d25ce88daa2200be073e1a373167f064 # v1.0.265
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           label_trigger: go
